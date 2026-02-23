@@ -231,7 +231,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
                     ? 'bg-gradient-to-br from-purple-500 to-indigo-600' 
                     : 'bg-gradient-to-br from-blue-500 to-cyan-600'
                 }`}>
-                  {user.displayName.substring(0, 2).toUpperCase()}
+                  {(user.displayName || '??').substring(0, Math.min(2, (user.displayName || '').length)).toUpperCase()}
                 </div>
                 <div>
                   <p className="text-base font-black text-gray-900">{user.displayName}</p>

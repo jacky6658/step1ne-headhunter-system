@@ -78,7 +78,8 @@ const LoginPage: React.FC = () => {
   };
 
   const getInitials = (name: string) => {
-    return name.substring(0, 2).toUpperCase();
+    if (!name || name.length === 0) return '??';
+    return name.substring(0, Math.min(2, name.length)).toUpperCase();
   };
 
   const getCardColor = (user: UserProfile) => {
