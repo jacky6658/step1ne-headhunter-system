@@ -15,6 +15,7 @@ import LoginPage from './pages/LoginPage';
 import { CandidatesPage } from './pages/CandidatesPage';
 import { CandidateKanbanPage } from './pages/CandidateKanbanPage';
 import { AIMatchingPage } from './pages/AIMatchingPage';
+import { JobsPage } from './pages/JobsPage';
 import { Menu, X as XIcon } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -86,6 +87,8 @@ const App: React.FC = () => {
       // 候選人管理頁面
       case 'candidates': return <CandidatesPage userProfile={profile} />;
       case 'candidate-kanban': return <CandidateKanbanPage userProfile={profile} />;
+      // 職缺管理
+      case 'jobs': return <JobsPage userProfile={profile} />;
       // AI 配對推薦
       case 'ai-matching': return <AIMatchingPage userProfile={profile} />;
       case 'members': 
