@@ -26,7 +26,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('leads');
+  const [activeTab, setActiveTab] = useState('candidates');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<UserProfile[]>([]);
@@ -198,7 +198,7 @@ const App: React.FC = () => {
           );
         }
         return <MigrationPage userProfile={profile} />;
-      default: return <LeadsPage leads={leads} userProfile={profile} />;
+      default: return <CandidatesPage userProfile={profile} />;
     }
   };
 
@@ -228,13 +228,11 @@ const App: React.FC = () => {
                 <h1 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight truncate">
               {activeTab === 'candidates' ? 'Step1ne 候選人總表' : 
                activeTab === 'candidate-kanban' ? 'Step1ne 候選人看板' :
-               activeTab === 'leads' ? '案件總表' : 
-               activeTab === 'review' ? '待我審核' :
-               activeTab === 'kanban' ? '流程看板' :
-               activeTab === 'audit' ? '操作紀錄' :
-               activeTab === 'members' ? '成員管理' : 
-               activeTab === 'import' ? '匯入案件' :
-               activeTab === 'migration' ? '資料遷移' : 'Step1ne 獵頭系統'}
+               activeTab === 'help' ? '使用說明' :
+               activeTab === 'jobs' ? '職缺管理' :
+               activeTab === 'bd-clients' ? 'BD 客戶開發' :
+               activeTab === 'pipeline' ? 'Pipeline 追蹤' :
+               activeTab === 'ai-matching' ? 'AI 配對推薦' : 'Step1ne 獵頭系統'}
             </h1>
                 <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mt-0.5 hidden sm:block">Collaborative Workspace</p>
           </div>
