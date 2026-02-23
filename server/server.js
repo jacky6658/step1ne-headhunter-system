@@ -22,6 +22,30 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 取得用戶列表（登入驗證用）
+app.get('/api/users', (req, res) => {
+  const users = [
+    {
+      id: '1',
+      username: 'jacky',
+      name: 'Jacky Chen',
+      email: 'jacky@step1ne.com',
+      role: 'ADMIN',
+      consultant: 'Jacky'
+    },
+    {
+      id: '2',
+      username: 'phoebe',
+      name: 'Phoebe',
+      email: 'phoebe@step1ne.com',
+      role: 'HEADHUNTER',
+      consultant: 'Phoebe'
+    }
+  ];
+  
+  res.json({ success: true, data: users, count: users.length });
+});
+
 // 取得所有候選人
 app.get('/api/candidates', async (req, res) => {
   try {
