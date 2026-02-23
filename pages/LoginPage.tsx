@@ -44,7 +44,7 @@ const LoginPage: React.FC = () => {
 
     try {
       // 直接登入，無需密碼
-      const virtualEmail = `${user.displayName.toLowerCase()}@caseflow.internal`;
+      const virtualEmail = `${(user.displayName || 'user').toLowerCase()}@caseflow.internal`;
       
       // 使用用戶的原始 uid 作為登入 uid，確保一致性
       const loginUid = user.uid;
@@ -96,8 +96,8 @@ const LoginPage: React.FC = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl sm:rounded-3xl shadow-2xl shadow-indigo-200 text-white font-black text-lg sm:text-xl mb-3 sm:mb-4 transform hover:scale-105 transition-transform">
             AI
           </div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-1 sm:mb-2">AI案件管理系統</h1>
-          <p className="text-slate-500 text-sm sm:text-base md:text-lg px-4">內部協作系統 · 請選擇您的身份</p>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-1 sm:mb-2">Step1ne 獵頭系統</h1>
+          <p className="text-slate-500 text-sm sm:text-base md:text-lg px-4">獵頭顧問協作平台 · 請選擇您的身份</p>
         </div>
 
         {loading && (
@@ -176,7 +176,7 @@ const LoginPage: React.FC = () => {
             )}
 
         <div className="mt-8 sm:mt-12 text-center text-[9px] sm:text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] sm:tracking-[0.3em] px-4">
-          AI案件管理系統 v3.0.0
+          Step1ne 獵頭系統 v1.0.0
         </div>
       </div>
     </div>
