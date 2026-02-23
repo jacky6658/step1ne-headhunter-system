@@ -3,13 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, type User, auth } from './mockBackend';
 import { getUserProfile } from './services/userService';
 import { setUserOnline, setUserOffline, getOnlineUserProfiles } from './services/onlineService';
-import { UserProfile, Role, Lead } from './types';
+import { UserProfile, Role } from './types';
 import Sidebar from './components/Sidebar';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
-import LeadsPage from './pages/LeadsPage';
-import ReviewPage from './pages/ReviewPage';
-import KanbanPage from './pages/KanbanPage';
-import AuditLogsPage from './pages/AuditLogsPage';
 import MembersPage from './pages/MembersPage';
 import ImportPage from './pages/ImportPage';
 import MigrationPage from './pages/MigrationPage';
@@ -19,7 +15,6 @@ import LoginPage from './pages/LoginPage';
 // 新增: 候選人管理頁面
 import { CandidatesPage } from './pages/CandidatesPage';
 import { CandidateKanbanPage } from './pages/CandidateKanbanPage';
-import { subscribeToLeads } from './services/leadService';
 import { Menu, X as XIcon } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -27,7 +22,6 @@ const App: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('help');
-  const [leads, setLeads] = useState<Lead[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<UserProfile[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -92,25 +86,14 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [profile]);
 
-  useEffect(() => {
-    if (user) {
-      const unsubLeads = subscribeToLeads((loadedLeads) => {
-        setLeads(loadedLeads);
-      });
-      return () => unsubLeads();
-    } else {
-      setLeads([]);
-    }
-  }, [user]);
-
   // 權限保護：如果非管理員用戶嘗試訪問受限頁面，自動重定向
   useEffect(() => {
     if (!profile) return;
     
     const adminOnlyTabs = ['members', 'import', 'migration'];
     if (adminOnlyTabs.includes(activeTab) && profile.role !== Role.ADMIN) {
-      // 非管理員嘗試訪問管理員專用頁面，重定向到案件總表
-      setActiveTab('leads');
+      // 非管理員嘗試訪問管理員專用頁面，重定向到候選人總表
+      setActiveTab('candidates');
     }
   }, [activeTab, profile]);
 
@@ -145,14 +128,9 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (activeTab) {
-      // 新增: 候選人管理頁面
+      // 候選人管理頁面
       case 'candidates': return <CandidatesPage userProfile={profile} />;
       case 'candidate-kanban': return <CandidateKanbanPage userProfile={profile} />;
-      // 舊的案件管理頁面（保留）
-      case 'leads': return <LeadsPage leads={leads} userProfile={profile} />;
-      case 'review': return <ReviewPage leads={leads} userProfile={profile} />;
-      case 'kanban': return <KanbanPage leads={leads} userProfile={profile} />;
-      case 'audit': return <AuditLogsPage leads={leads} userProfile={profile} />;
       case 'members': 
         // 只有管理員可以訪問成員管理
         if (profile.role !== Role.ADMIN) {
@@ -181,7 +159,7 @@ const App: React.FC = () => {
         return <ImportPage userProfile={profile} />;
       case 'analytics': 
         // 所有用戶都可以查看財務分析
-        return <AnalyticsPage leads={leads} userProfile={profile} />;
+        return <AnalyticsPage leads={[]} userProfile={profile} />;
       case 'help':
         // 所有用戶都可以查看使用說明
         return <HelpPage userProfile={profile} />;
