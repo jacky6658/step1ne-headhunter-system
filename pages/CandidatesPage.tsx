@@ -227,8 +227,15 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredCandidates.map((candidate) => {
-              const statusConfig = CANDIDATE_STATUS_CONFIG[candidate.status];
-              const sourceConfig = SOURCE_CONFIG[candidate.source];
+              const statusConfig = CANDIDATE_STATUS_CONFIG[candidate.status] || {
+                label: candidate.status || '未知',
+                bgColor: 'bg-gray-100',
+                textColor: 'text-gray-800'
+              };
+              const sourceConfig = SOURCE_CONFIG[candidate.source] || {
+                label: candidate.source || '未知',
+                icon: '📄'
+              };
               
               return (
                 <tr 
