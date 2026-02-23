@@ -4,60 +4,91 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * Google Drive 資料夾配置（按候選人狀態分類）
+ */
+const DRIVE_FOLDERS = {
+  root: process.env.GOOGLE_DRIVE_RESUME_FOLDER_ID || '16IOJW0jR2mBgzBnc5QI_jEHcRBw3VnKj',
+  pending: '1M3jX7JbtQtEwtjfj_GG3UPnSRIcmGezu',      // 待處理
+  interviewed: '1SNK01mbBXB6kTIdTE0UCfiilx6fZQiZK',  // 已面試
+  hired: '1m9uUt_S-9Rik3Uzzw0Kqoa-s9VJkm0fk',       // 已錄用
+  rejected: '1lTuP8RCU4K2bpg-TNODN1xPm4EOru2RN'     // 已拒絕
+};
+
+/**
+ * 根據候選人狀態取得對應的 Google Drive 資料夾 ID
+ */
+function getDriveFolderByStatus(status) {
+  // 狀態對應表
+  const statusMap = {
+    '待聯繫': 'pending',
+    '已聯繫': 'pending',
+    '面試中': 'interviewed',
+    'Offer': 'interviewed',
+    '已上職': 'hired',
+    '婉拒': 'rejected',
+    '不適合': 'rejected'
+  };
+  
+  const folderKey = statusMap[status] || 'pending';
+  return DRIVE_FOLDERS[folderKey];
+}
+
+/**
  * 上傳履歷到 Google Drive
  * @param {string} filePath - 本地履歷檔案路徑
  * @param {string} candidateId - 候選人 ID
  * @param {string} candidateName - 候選人姓名
+ * @param {string} status - 候選人狀態（預設：待聯繫）
  * @returns {Promise<Object>} 包含 Drive URL 和解析資料
  */
-async function uploadResumeToGoogleDrive(filePath, candidateId, candidateName) {
+async function uploadResumeToGoogleDrive(filePath, candidateId, candidateName, status = '待聯繫') {
   try {
-    // 1. 建立資料夾結構（年/月）
-    const year = new Date().getFullYear();
-    const month = String(new Date().getMonth() + 1).padStart(2, '0');
     const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
     
-    // Google Drive 資料夾 ID（需要事先建立）
-    const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_RESUME_FOLDER_ID || '1JkesbUFyGz51y90NWUG91n84umU33Mc5';
+    // 根據狀態取得目標資料夾
+    const targetFolderId = getDriveFolderByStatus(status);
     
-    // 檔名格式：candidate-{id}_{姓名}_{日期}.pdf
-    const fileName = `candidate-${candidateId}_${candidateName}_${date}.pdf`;
-    
-    // 2. 使用 gog CLI 上傳到 Google Drive
-    // 注意：需要先安裝 gog CLI 並認證
-    const uploadCommand = `gog drive upload "${filePath}" \
-      --name "${fileName}" \
-      --parent "${ROOT_FOLDER_ID}/${year}/${month}" \
-      --create-parents \
-      --share reader`;
+    // 檔名格式：履歷-{姓名}.pdf（與現有格式一致）
+    const fileName = `履歷-${candidateName}.pdf`;
     
     console.log('📤 上傳履歷到 Google Drive...');
-    console.log('檔名:', fileName);
+    console.log('  候選人:', candidateName, `(ID: ${candidateId})`);
+    console.log('  狀態:', status);
+    console.log('  目標資料夾:', targetFolderId);
+    console.log('  檔名:', fileName);
+    
+    // 使用 gog CLI 上傳到 Google Drive
+    const uploadCommand = `gog drive upload "${filePath}" \
+      --name "${fileName}" \
+      --parent "${targetFolderId}" \
+      --account aijessie88@step1ne.com`;
     
     try {
       const uploadResult = execSync(uploadCommand, { encoding: 'utf-8' });
       console.log('✅ Google Drive 上傳成功');
       
-      // 解析上傳結果，提取 Drive URL
-      // 格式：https://drive.google.com/file/d/{FILE_ID}/view
-      const driveUrlMatch = uploadResult.match(/https:\/\/drive\.google\.com\/[^\s]+/);
-      const driveUrl = driveUrlMatch ? driveUrlMatch[0] : null;
+      // 提取 File ID
+      const fileIdMatch = uploadResult.match(/File ID:\s*([a-zA-Z0-9_-]+)/);
+      const fileId = fileIdMatch ? fileIdMatch[1] : null;
       
-      if (!driveUrl) {
-        console.warn('⚠️ 無法提取 Google Drive URL，使用備用方案');
-      }
+      // 建立 Drive URL
+      const driveUrl = fileId 
+        ? `https://drive.google.com/file/d/${fileId}/view`
+        : `https://drive.google.com/drive/folders/${targetFolderId}`;
       
       return {
         success: true,
-        driveUrl: driveUrl || `https://drive.google.com/drive/folders/${ROOT_FOLDER_ID}/${year}/${month}`,
-        fileName
+        driveUrl,
+        fileName,
+        fileId
       };
     } catch (uploadError) {
       console.error('❌ Google Drive 上傳失敗:', uploadError.message);
       
       // 備用方案：將檔案複製到本地 Google Drive 同步資料夾
+      const statusFolder = getDriveFolderKeyByStatus(status);
       const localDrivePath = process.env.LOCAL_GOOGLE_DRIVE_PATH || '/Users/user/Google Drive/Step1ne 履歷庫';
-      const targetDir = path.join(localDrivePath, String(year), month);
+      const targetDir = path.join(localDrivePath, statusFolder);
       
       // 建立目錄
       execSync(`mkdir -p "${targetDir}"`, { encoding: 'utf-8' });
@@ -79,6 +110,22 @@ async function uploadResumeToGoogleDrive(filePath, candidateId, candidateName) {
     console.error('❌ 上傳履歷到 Google Drive 失敗:', error);
     throw error;
   }
+}
+
+/**
+ * 輔助函數：取得狀態對應的資料夾名稱（用於本地路徑）
+ */
+function getDriveFolderKeyByStatus(status) {
+  const statusMap = {
+    '待聯繫': 'pending',
+    '已聯繫': 'pending',
+    '面試中': 'interviewed',
+    'Offer': 'interviewed',
+    '已上職': 'hired',
+    '婉拒': 'rejected',
+    '不適合': 'rejected'
+  };
+  return statusMap[status] || 'pending';
 }
 
 /**
@@ -269,16 +316,18 @@ async function regradeCandidate(candidateId) {
  * @param {string} filePath - 上傳的 PDF 檔案路徑
  * @param {string} candidateId - 候選人 ID
  * @param {string} candidateName - 候選人姓名
+ * @param {string} status - 候選人狀態（預設：待聯繫）
  * @returns {Promise<Object>} 完整結果
  */
-async function processResumeUpload(filePath, candidateId, candidateName) {
+async function processResumeUpload(filePath, candidateId, candidateName, status = '待聯繫') {
   try {
     console.log('=== 開始履歷上傳流程 ===');
     console.log('候選人:', candidateName, `(ID: ${candidateId})`);
+    console.log('狀態:', status);
     console.log('檔案:', filePath);
     
-    // 1. 上傳到 Google Drive
-    const driveResult = await uploadResumeToGoogleDrive(filePath, candidateId, candidateName);
+    // 1. 上傳到 Google Drive（根據狀態自動分類）
+    const driveResult = await uploadResumeToGoogleDrive(filePath, candidateId, candidateName, status);
     
     // 2. AI 解析 PDF
     const parsedData = await parseResumePDF(filePath);
@@ -296,7 +345,8 @@ async function processResumeUpload(filePath, candidateId, candidateName) {
       driveUrl: driveResult.driveUrl,
       fileName: driveResult.fileName,
       parsedData,
-      gradeResult
+      gradeResult,
+      targetFolder: getDriveFolderKeyByStatus(status)
     };
   } catch (error) {
     console.error('=== 履歷上傳流程失敗 ===');
