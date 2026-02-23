@@ -145,8 +145,8 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       // 新增: 候選人管理頁面
-      case 'candidates': return <CandidatesPage />;
-      case 'candidate-kanban': return <CandidateKanbanPage />;
+      case 'candidates': return <CandidatesPage userProfile={profile} />;
+      case 'candidate-kanban': return <CandidateKanbanPage userProfile={profile} />;
       // 舊的案件管理頁面（保留）
       case 'leads': return <LeadsPage leads={leads} userProfile={profile} />;
       case 'review': return <ReviewPage leads={leads} userProfile={profile} />;

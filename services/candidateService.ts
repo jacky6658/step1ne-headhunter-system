@@ -3,6 +3,29 @@ import { Candidate, CandidateStatus, CandidateSource } from '../types';
 import { API_BASE_URL, STORAGE_KEYS_EXT, CACHE_EXPIRY } from '../constants';
 
 /**
+ * 權限過濾：根據用戶角色過濾候選人
+ */
+export function filterCandidatesByPermission(
+  candidates: Candidate[],
+  userProfile?: { username: string, role: string }
+): Candidate[] {
+  if (!userProfile) {
+    return candidates;
+  }
+  
+  // 管理員看全部
+  if (userProfile.role === 'ADMIN') {
+    return candidates;
+  }
+  
+  // 獵頭顧問只看自己負責的候選人
+  const consultantName = userProfile.username === 'phoebe' ? 'Phoebe' : 
+                         userProfile.username === 'jacky' ? 'Jacky' : '';
+  
+  return candidates.filter(c => c.consultant === consultantName);
+}
+
+/**
  * 從 API 或 Mock 資料取得候選人
  */
 export async function getCandidates(): Promise<Candidate[]> {

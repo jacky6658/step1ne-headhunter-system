@@ -1,12 +1,16 @@
 // Step1ne Headhunter System - 候選人總表頁面
 import React, { useState, useEffect } from 'react';
 import { Candidate, CandidateStatus, CandidateSource, UserProfile } from '../types';
-import { getCandidates, searchCandidates, updateCandidateStatus } from '../services/candidateService';
-import { Users, Search, Filter, Plus, Download, Upload } from 'lucide-react';
+import { getCandidates, searchCandidates, updateCandidateStatus, filterCandidatesByPermission } from '../services/candidateService';
+import { Users, Search, Filter, Plus, Download, Upload, Shield } from 'lucide-react';
 import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
 
-export function CandidatesPage() {
+interface CandidatesPageProps {
+  userProfile: UserProfile;
+}
+
+export function CandidatesPage({ userProfile }: CandidatesPageProps) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,8 +33,10 @@ export function CandidatesPage() {
   const loadCandidates = async () => {
     setLoading(true);
     try {
-      const data = await getCandidates();
-      setCandidates(data);
+      const allCandidates = await getCandidates();
+      // 根據權限過濾候選人
+      const filteredByPermission = filterCandidatesByPermission(allCandidates, userProfile);
+      setCandidates(filteredByPermission);
     } catch (error) {
       console.error('載入候選人失敗:', error);
     } finally {
@@ -111,6 +117,12 @@ export function CandidatesPage() {
               共 {filteredCandidates.length} 位候選人
               {candidates.length !== filteredCandidates.length && ` (篩選自 ${candidates.length} 位)`}
             </p>
+            {userProfile.role !== 'ADMIN' && (
+              <p className="text-sm text-blue-600 mt-1 flex items-center gap-1">
+                <Shield className="w-4 h-4" />
+                只顯示您負責的候選人
+              </p>
+            )}
           </div>
           
           <div className="flex gap-2">

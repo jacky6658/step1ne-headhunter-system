@@ -1,12 +1,16 @@
 // Step1ne Headhunter System - 候選人 Kanban 看板
 import React, { useState, useEffect } from 'react';
-import { Candidate, CandidateStatus } from '../types';
-import { getCandidates, updateCandidateStatus } from '../services/candidateService';
+import { Candidate, CandidateStatus, UserProfile } from '../types';
+import { getCandidates, updateCandidateStatus, filterCandidatesByPermission } from '../services/candidateService';
 import { KANBAN_COLUMNS, CANDIDATE_STATUS_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
-import { Users, RefreshCw } from 'lucide-react';
+import { Users, RefreshCw, Shield } from 'lucide-react';
 
-export function CandidateKanbanPage() {
+interface CandidateKanbanPageProps {
+  userProfile: UserProfile;
+}
+
+export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggedCandidate, setDraggedCandidate] = useState<Candidate | null>(null);
@@ -19,8 +23,10 @@ export function CandidateKanbanPage() {
   const loadCandidates = async () => {
     setLoading(true);
     try {
-      const data = await getCandidates();
-      setCandidates(data);
+      const allCandidates = await getCandidates();
+      // 根據權限過濾候選人
+      const filteredByPermission = filterCandidatesByPermission(allCandidates, userProfile);
+      setCandidates(filteredByPermission);
     } catch (error) {
       console.error('載入候選人失敗:', error);
     } finally {
@@ -100,6 +106,12 @@ export function CandidateKanbanPage() {
             <p className="text-gray-600 mt-1">
               拖放候選人卡片來更新狀態 · 共 {candidates.length} 位候選人
             </p>
+            {userProfile.role !== 'ADMIN' && (
+              <p className="text-sm text-blue-600 mt-1 flex items-center gap-1">
+                <Shield className="w-4 h-4" />
+                只顯示您負責的候選人
+              </p>
+            )}
           </div>
           
           <button 
