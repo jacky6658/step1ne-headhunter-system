@@ -1,9 +1,179 @@
-// Step1ne Headhunter System - Type Definitions
 
 export enum Role {
   ADMIN = 'ADMIN',
-  HEADHUNTER = 'HEADHUNTER'
+  REVIEWER = 'REVIEWER'
 }
+
+export enum ContactStatus {
+  UNRESPONDED = '未回覆',
+  RESPONDED = '已回覆',
+  LINE_ADDED = '已加賴',
+  CALLED = '已通話'
+}
+
+export enum Platform {
+  FB = 'FB',
+  THREADS = 'Threads',
+  PRO360 = 'PRO360',
+  OTHER = '其他'
+}
+
+export enum LeadStatus {
+  TO_IMPORT = '待匯入',
+  TO_FILTER = '待篩選',
+  CONTACTED = '已接洽',
+  QUOTING = '報價中',
+  IN_PROGRESS = '製作中',
+  WON = '已成交',
+  CLOSED = '結案',
+  CANCELLED = '取消',
+  DECLINED = '婉拒/無法聯繫'
+}
+
+export enum Decision {
+  ACCEPT = 'accept',
+  REJECT = 'reject',
+  PENDING = 'pending'
+}
+
+export enum RejectReason {
+  LOW_BUDGET = '預算太低',
+  TECH_MISMATCH = '不符合技術',
+  TIGHT_SCHEDULE = '時程太趕',
+  HIGH_RISK = '風險高',
+  OTHER = '其他'
+}
+
+export interface UserProfile {
+  uid: string;
+  email: string;
+  role: Role;
+  displayName: string;
+  password?: string; // 密碼（可選，用於內部員工）
+  isActive?: boolean; // 是否啟用
+  createdAt?: string; // 創建時間
+  avatar?: string; // 大頭照（Base64 或 URL）
+  status?: string; // 個人狀態（例如：在線、忙碌、離開等）
+  isOnline?: boolean; // 是否在線
+  lastSeen?: string; // 最後上線時間
+}
+
+export interface Lead {
+  id: string;
+  case_code?: string; // 案件編號（例如：aijob-001）
+  contact_status: ContactStatus;
+  platform: Platform;
+  platform_id: string;
+  need: string;
+  budget_text: string;
+  posted_at: string; // ISO String
+  note: string;
+  links: string[];
+  
+  internal_remarks?: string;
+  remarks_author?: string;
+  
+  phone?: string;
+  email?: string;
+  location?: string;
+  
+  // 新增欄位
+  estimated_duration?: string; // 預計製作週期（例如：2週、1個月）
+  contact_method?: string; // 客戶聯繫方式（例如：電話、Email、Line等）
+  
+  status: LeadStatus;
+  decision: Decision;
+  decision_by?: string; // 新增：審核人姓名
+  reject_reason?: RejectReason;
+  review_note?: string;
+  assigned_to?: string; 
+  assigned_to_name?: string;
+  priority: number; 
+  
+  created_by: string;
+  created_by_name: string;
+  created_at: string;
+  updated_at: string;
+  last_action_by?: string; 
+  
+  // 進度更新和歷史記錄
+  progress_updates?: ProgressUpdate[]; // 近期進度更新
+  change_history?: ChangeHistory[]; // 修改歷史記錄
+  
+  // 成本和利潤記錄
+  cost_records?: CostRecord[]; // 成本記錄
+  profit_records?: ProfitRecord[]; // 利潤記錄
+  
+  // 合約和文件
+  contracts?: string[]; // 合約文件（base64 或 URL）
+}
+
+export enum AuditAction {
+  CREATE = 'CREATE',
+  UPDATE = 'UPDATE',
+  DECISION = 'DECISION',
+  MOVE_STATUS = 'MOVE_STATUS'
+}
+
+export interface AuditLog {
+  id: string;
+  lead_id: string;
+  actor_uid: string;
+  actor_name: string;
+  action: AuditAction;
+  before?: any;
+  after?: any;
+  created_at: string;
+}
+
+// 進度更新記錄
+export interface ProgressUpdate {
+  id: string;
+  lead_id: string;
+  content: string; // 進度內容
+  author_uid: string;
+  author_name: string;
+  created_at: string;
+  attachments?: string[]; // 附件（圖片 base64 或網址）
+}
+
+// 修改歷史記錄
+export interface ChangeHistory {
+  id: string;
+  lead_id: string;
+  field: string; // 修改的欄位名稱
+  old_value?: any;
+  new_value?: any;
+  author_uid: string;
+  author_name: string;
+  created_at: string;
+}
+
+// 成本記錄
+export interface CostRecord {
+  id: string;
+  lead_id: string;
+  item_name: string; // 成本名目
+  amount: number; // 金額
+  author_uid: string;
+  author_name: string;
+  created_at: string;
+  note?: string; // 備註
+}
+
+// 利潤記錄
+export interface ProfitRecord {
+  id: string;
+  lead_id: string;
+  item_name: string; // 利潤名目
+  amount: number; // 金額
+  author_uid: string;
+  author_name: string;
+  created_at: string;
+  note?: string; // 備註
+}
+
+// ===== Step1ne Headhunter Extensions =====
 
 // 候選人狀態
 export enum CandidateStatus {
@@ -37,10 +207,10 @@ export enum JobStatus {
 
 // AI 配對分級
 export enum MatchGrade {
-  P0 = 'P0', // 80+ 分
-  P1 = 'P1', // 60-80 分
-  P2 = 'P2', // 40-60 分
-  REJECT = 'REJECT' // <40 分
+  P0 = 'P0',
+  P1 = 'P1',
+  P2 = 'P2',
+  REJECT = 'REJECT'
 }
 
 // 保證期狀態
@@ -50,113 +220,78 @@ export enum GuaranteeStatus {
   REFUNDED = '已退費'
 }
 
-// 用戶資料
-export interface UserProfile {
-  uid: string;
-  email: string;
-  role: Role;
-  displayName: string;
-  password?: string;
-  isActive?: boolean;
-  createdAt?: string;
-  avatar?: string;
-  status?: string;
-  isOnline?: boolean;
-  lastSeen?: string;
-}
-
-// 工作經歷（JSON 格式）
+// 工作經歷
 export interface WorkHistory {
   company: string;
   title: string;
-  start: string; // YYYY-MM
-  end: string; // YYYY-MM or "present"
+  start: string;
+  end: string;
   duration_months: number;
   location?: string;
   description?: string;
 }
 
-// 教育背景（JSON 格式）
+// 教育背景
 export interface Education {
   school: string;
   degree: string;
   major: string;
-  start: string; // YYYY
-  end: string; // YYYY
+  start: string;
+  end: string;
   gpa?: number;
 }
 
 // 候選人
 export interface Candidate {
   id: string;
-  
-  // 基本資訊 (A-L)
-  name: string; // A: 姓名
-  email: string; // B: Email
-  phone: string; // C: Phone
-  location: string; // D: Location
-  position: string; // E: Position (目前職位)
-  years: number; // F: Years (總年資)
-  jobChanges: number; // G: Job Changes (工作次數)
-  avgTenure: number; // H: Avg Tenure (平均任期)
-  lastGap: number; // I: Gap (最後空窗期，月)
-  skills: string; // J: Skills (逗號分隔)
-  education: string; // K: Education (文字版)
-  source: CandidateSource; // L: Source
-  
-  // 進階資訊 (M-T)
-  workHistory?: WorkHistory[]; // M: Work JSON
-  quitReasons?: string; // N: Quit Reasons
-  stabilityScore: number; // O: Stability Score (0-100)
-  educationJson?: Education[]; // P: Edu JSON
-  discProfile?: string; // Q: DISC
-  status: CandidateStatus; // R: Status
-  consultant?: string; // S: Consultant (負責顧問)
-  notes?: string; // T: Notes
-  
-  // 系統欄位
-  resumeFileUrl?: string; // 履歷檔案連結
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  position: string;
+  years: number;
+  jobChanges: number;
+  avgTenure: number;
+  lastGap: number;
+  skills: string;
+  education: string;
+  source: CandidateSource;
+  workHistory?: WorkHistory[];
+  quitReasons?: string;
+  stabilityScore: number;
+  educationJson?: Education[];
+  discProfile?: string;
+  status: CandidateStatus;
+  consultant?: string;
+  notes?: string;
+  resumeFileUrl?: string;
   createdAt: string;
   updatedAt: string;
   createdBy: string;
   lastContactAt?: string;
-  
-  // 前端用（不存資料庫）
-  _sheetRow?: number; // Google Sheets 行號
+  _sheetRow?: number;
 }
 
 // 職缺
 export interface Job {
   id: string;
-  code: string; // 職缺代碼 (JD-001)
-  title: string; // 職位名稱
-  company: string; // 公司名稱
-  department?: string; // 部門
-  location: string; // 工作地點
-  
-  // 薪資
+  code: string;
+  title: string;
+  company: string;
+  department?: string;
+  location: string;
   salaryMin?: number;
   salaryMax?: number;
-  salaryText?: string; // 薪資文字描述
-  
-  // 需求
-  requiredSkills: string[]; // 必備技能
-  requiredYears: number; // 年資要求
-  requiredEducation?: string; // 學歷要求
-  
-  // JD 內容
-  description?: string; // 職缺描述
-  responsibilities?: string[]; // 工作職責
-  requirements?: string[]; // 資格要求
-  benefits?: string[]; // 福利待遇
-  
-  // 文化特徵（用於 culture matching）
-  cultureProfile?: number[]; // 10 維度分數
-  
-  // 狀態
+  salaryText?: string;
+  requiredSkills: string[];
+  requiredYears: number;
+  requiredEducation?: string;
+  description?: string;
+  responsibilities?: string[];
+  requirements?: string[];
+  benefits?: string[];
+  cultureProfile?: number[];
   status: JobStatus;
-  
-  // 系統欄位
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -167,22 +302,14 @@ export interface Match {
   id: string;
   candidateId: string;
   jobId: string;
-  
-  // 配對分數
-  totalScore: number; // 總分 (0-100)
-  skillScore: number; // 技能匹配 (30%)
-  stabilityScore: number; // 穩定度 (30%)
-  cultureScore: number; // 文化匹配 (20%)
-  experienceScore: number; // 經驗匹配 (20%)
-  
-  // 評級與理由
+  totalScore: number;
+  skillScore: number;
+  stabilityScore: number;
+  cultureScore: number;
+  experienceScore: number;
   grade: MatchGrade;
-  reason: string; // AI 推薦理由
-  
-  // 系統欄位
+  reason: string;
   createdAt: string;
-  
-  // 關聯資料（前端用）
   candidate?: Candidate;
   job?: Job;
 }
@@ -192,106 +319,18 @@ export interface Placement {
   id: string;
   candidateId: string;
   jobId: string;
-  
-  // 推薦資訊
-  placementDate: string; // 上職日期
-  salary: number; // 確認薪資
-  fee: number; // 推薦費用
-  feePercentage: number; // 費率 %
-  
-  // 保證期追蹤
-  guaranteeDays: number; // 保證期天數 (預設 90)
-  guaranteeEndDate: string; // 保證期結束日
+  placementDate: string;
+  salary: number;
+  fee: number;
+  feePercentage: number;
+  guaranteeDays: number;
+  guaranteeEndDate: string;
   status: GuaranteeStatus;
-  
-  // 離職記錄
-  leftDate?: string; // 離職日期
-  leftReason?: string; // 離職原因
-  refundAmount?: number; // 退費金額
-  
-  // 系統欄位
+  leftDate?: string;
+  leftReason?: string;
+  refundAmount?: number;
   createdAt: string;
   createdBy: string;
-  
-  // 關聯資料（前端用）
   candidate?: Candidate;
   job?: Job;
-}
-
-// 進度更新記錄
-export interface ProgressUpdate {
-  id: string;
-  candidateId?: string;
-  jobId?: string;
-  content: string; // 進度內容
-  contactType?: string; // 聯繫方式（電話/Email/面試/Offer）
-  nextAction?: string; // 下次行動
-  nextActionDate?: string; // 下次聯繫日期
-  authorUid: string;
-  authorName: string;
-  createdAt: string;
-  attachments?: string[]; // 附件
-}
-
-// 修改歷史記錄
-export interface ChangeHistory {
-  id: string;
-  entityType: 'candidate' | 'job' | 'placement';
-  entityId: string;
-  field: string; // 修改的欄位名稱
-  oldValue?: any;
-  newValue?: any;
-  authorUid: string;
-  authorName: string;
-  createdAt: string;
-}
-
-// 審計日誌
-export enum AuditAction {
-  CREATE = 'CREATE',
-  UPDATE = 'UPDATE',
-  DELETE = 'DELETE',
-  STATUS_CHANGE = 'STATUS_CHANGE',
-  MATCH = 'MATCH',
-  PLACEMENT = 'PLACEMENT'
-}
-
-export interface AuditLog {
-  id: string;
-  entityType: 'candidate' | 'job' | 'placement';
-  entityId: string;
-  action: AuditAction;
-  actorUid: string;
-  actorName: string;
-  before?: any;
-  after?: any;
-  createdAt: string;
-}
-
-// 統計資料
-export interface Analytics {
-  // 候選人統計
-  totalCandidates: number;
-  byStatus: Record<CandidateStatus, number>;
-  bySource: Record<CandidateSource, number>;
-  byConsultant: Record<string, number>;
-  
-  // 職缺統計
-  totalJobs: number;
-  activeJobs: number;
-  
-  // 配對統計
-  totalMatches: number;
-  avgMatchScore: number;
-  byGrade: Record<MatchGrade, number>;
-  
-  // 成功推薦統計
-  totalPlacements: number;
-  totalRevenue: number;
-  avgFee: number;
-  guaranteePassRate: number; // 保證期通過率
-  
-  // 時間範圍
-  periodStart: string;
-  periodEnd: string;
 }
