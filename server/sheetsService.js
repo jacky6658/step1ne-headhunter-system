@@ -92,6 +92,7 @@ function parseCSV(csvText) {
       status: fields[17] || 'pending',     // 17: 狀態
       source: fields[11] || 'manual',      // 11: 來源
       consultant: fields[18] || '',        // 18: 獵頭顧問
+      talentGrade: fields[20] || '',       // 20: 綜合評級 (Column U, S/A+/A/B/C)
       
       // JSON 欄位
       workHistory: safeParseJSON(fields[12]), // 12: 工作經歷JSON

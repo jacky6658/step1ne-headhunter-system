@@ -113,6 +113,23 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
     return 'F';
   };
   
+  const getTalentGradeColor = (grade: string) => {
+    switch (grade) {
+      case 'S':
+        return 'text-purple-700 bg-purple-100 border border-purple-300';
+      case 'A+':
+        return 'text-blue-700 bg-blue-100 border border-blue-300';
+      case 'A':
+        return 'text-green-700 bg-green-100 border border-green-300';
+      case 'B':
+        return 'text-yellow-700 bg-yellow-100 border border-yellow-300';
+      case 'C':
+        return 'text-gray-700 bg-gray-100 border border-gray-300';
+      default:
+        return 'text-gray-500 bg-gray-50';
+    }
+  };
+  
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -264,6 +281,12 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.stability} />
                 </div>
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '80px' }}>
+                <div className="flex items-center">
+                  綜合評級
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.talentGrade} />
+                </div>
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '400px' }}>
                 <div className="flex items-center">
                   技能
@@ -335,6 +358,16 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                     <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStabilityColor(candidate.stabilityScore)}`}>
                       {getStabilityGrade(candidate.stabilityScore)} 級 ({candidate.stabilityScore})
                     </div>
+                  </td>
+                  
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {candidate.talentGrade ? (
+                      <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${getTalentGradeColor(candidate.talentGrade)}`}>
+                        {candidate.talentGrade}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">未評級</span>
+                    )}
                   </td>
                   
                   <td className="px-6 py-4">

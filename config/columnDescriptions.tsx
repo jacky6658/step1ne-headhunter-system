@@ -64,37 +64,6 @@ export const COLUMN_DESCRIPTIONS = {
     ]
   },
   
-  talentGrade: {
-    title: '綜合評級',
-    description: (
-      <>
-        <p className="mb-2">候選人的綜合素質評級（S/A+/A/B/C）。</p>
-        <div className="text-xs space-y-1 text-gray-600 bg-gray-50 p-2 rounded mb-2">
-          <p><strong>評分維度（總分100）：</strong></p>
-          <p>• 技能匹配度（25%）</p>
-          <p>• 職涯發展軌跡（25%）</p>
-          <p>• 工作穩定性（20%）</p>
-          <p>• 工作年資（15%）</p>
-          <p>• 學歷背景（10%）</p>
-          <p>• 特殊加分（5%）</p>
-        </div>
-        <div className="text-xs space-y-1">
-          <p><span className="font-semibold text-purple-600">S 級</span> (90-100分): 頂尖人才</p>
-          <p><span className="font-semibold text-blue-600">A+ 級</span> (80-89分): 優秀人才</p>
-          <p><span className="font-semibold text-green-600">A 級</span> (70-79分): 合格人才</p>
-          <p><span className="font-semibold text-yellow-600">B 級</span> (60-69分): 潛力人才</p>
-          <p><span className="font-semibold text-gray-600">C 級</span> (&lt;60分): 需培訓</p>
-        </div>
-      </>
-    ),
-    examples: [
-      'S 級（93.6分）- 高階管理人才',
-      'A+ 級（84.1分）- 資深技術專家',
-      'A 級（74.5分）- 合格工程師',
-      'B 級（65分）- 潛力新人'
-    ]
-  },
-  
   skills: {
     title: '技能',
     description: '候選人的專業技能與技術棧。可在搜尋框中輸入技能關鍵字快速篩選人才。',
@@ -136,6 +105,36 @@ export const COLUMN_DESCRIPTIONS = {
       'Jacky - 技術職缺',
       'Phoebe - 管理職缺',
       'Admin - 所有候選人'
+    ]
+  },
+  
+  talentGrade: {
+    title: '綜合評級',
+    description: (
+      <>
+        <p className="mb-2">基於 6 大維度的綜合人才評級（S/A+/A/B/C）。</p>
+        <div className="text-xs space-y-1 text-gray-600 bg-gray-50 p-2 rounded mb-2">
+          <p><strong>評分維度（各佔比）：</strong></p>
+          <p>• 學歷背景 (20%)</p>
+          <p>• 工作年資 (20%)</p>
+          <p>• 技能廣度 (20%)</p>
+          <p>• 工作穩定性 (20%)</p>
+          <p>• 職涯發展軌跡 (10%)</p>
+          <p>• 特殊加分 (10%)</p>
+        </div>
+        <div className="text-xs space-y-1">
+          <p><span className="font-semibold text-purple-600">S 級</span> (90-100分): 頂尖人才</p>
+          <p><span className="font-semibold text-blue-600">A+ 級</span> (80-89分): 優秀人才</p>
+          <p><span className="font-semibold text-green-600">A 級</span> (70-79分): 合格人才</p>
+          <p><span className="font-semibold text-yellow-600">B 級</span> (60-69分): 潛力人才</p>
+          <p><span className="font-semibold text-gray-600">C 級</span> (&lt;60分): 需培訓</p>
+        </div>
+      </>
+    ),
+    examples: [
+      'S 級 - Stanford 博士 + Google 經驗 + 10 年資深',
+      'A 級 - 台大碩士 + 5 年經驗 + 豐富技能',
+      'B 級 - 學士 + 社會新鮮人 + 基礎技能'
     ]
   }
 };

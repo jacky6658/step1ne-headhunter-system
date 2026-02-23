@@ -4,6 +4,7 @@
 import express from 'express';
 import cors from 'cors';
 import * as sheetsService from './sheetsService.js';
+import * as gradingService from './gradingService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -173,6 +174,73 @@ app.post('/api/candidates/batch-update-status', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('批量更新失敗:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// 評級候選人（呼叫 grading-logic.py + 寫入 Google Sheets Column U）
+app.post('/api/candidates/:id/grade', async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    
+    // 取得候選人資料
+    const candidate = await sheetsService.getCandidate(candidateId);
+    
+    if (!candidate) {
+      return res.status(404).json({ 
+        success: false, 
+        error: '找不到候選人' 
+      });
+    }
+    
+    // 執行評級 + 寫入 Google Sheets
+    const result = await gradingService.gradeAndSave(candidate);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('評級候選人失敗:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// 批量評級所有候選人
+app.post('/api/candidates/batch-grade', async (req, res) => {
+  try {
+    const candidates = await sheetsService.getCandidates();
+    const results = [];
+    const errors = [];
+    
+    for (const candidate of candidates) {
+      try {
+        const result = await gradingService.gradeAndSave(candidate);
+        results.push(result);
+      } catch (error) {
+        errors.push({
+          candidateId: candidate.id,
+          name: candidate.name,
+          error: error.message
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      total: candidates.length,
+      graded: results.length,
+      errors: errors.length,
+      results,
+      errors
+    });
+    
+  } catch (error) {
+    console.error('批量評級失敗:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 
