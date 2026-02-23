@@ -107,8 +107,24 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
   // 如果使用 API 模式
   if (useApiMode()) {
     try {
-      const user = await apiRequest(`/api/users/${uid}`);
-      return user;
+      const response = await apiRequest(`/api/users/${uid}`);
+      const user = response.data || response;
+      
+      // 轉換欄位格式（後端 name → 前端 displayName）
+      const profile: UserProfile = {
+        uid: user.id || user.uid || user.username || uid,
+        displayName: user.name || user.displayName || user.username || 'Unknown User',
+        email: user.email || `${uid}@step1ne.com`,
+        role: user.role as Role,
+        isActive: true,
+        avatar: user.avatar,
+        status: user.status,
+        createdAt: user.createdAt || new Date().toISOString(),
+        lastActive: user.lastActive || new Date().toISOString()
+      };
+      
+      console.log('✅ getUserProfile 轉換完成:', profile);
+      return profile;
     } catch (error) {
       console.error('API 獲取使用者失敗，降級到 localStorage:', error);
       // 降級到 localStorage
