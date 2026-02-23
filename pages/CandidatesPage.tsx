@@ -5,6 +5,8 @@ import { getCandidates, searchCandidates, updateCandidateStatus, filterCandidate
 import { Users, Search, Filter, Plus, Download, Upload, Shield, RefreshCw } from 'lucide-react';
 import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
+import { ColumnTooltip } from '../components/ColumnTooltip';
+import { COLUMN_DESCRIPTIONS } from '../config/columnDescriptions';
 
 interface CandidatesPageProps {
   userProfile: UserProfile;
@@ -239,28 +241,52 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px' }}>
-                姓名
+                <div className="flex items-center">
+                  姓名
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.name} />
+                </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px' }}>
-                職位
+                <div className="flex items-center">
+                  職位
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.position} />
+                </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
-                年資
+                <div className="flex items-center">
+                  年資
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.experience} />
+                </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
-                穩定度
+                <div className="flex items-center">
+                  工作穩定性
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.stability} />
+                </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '400px' }}>
-                技能
+                <div className="flex items-center">
+                  技能
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.skills} />
+                </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
-                狀態
+                <div className="flex items-center">
+                  狀態
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.status} />
+                </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
-                來源
+                <div className="flex items-center">
+                  來源
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.source} />
+                </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
-                顧問
+                <div className="flex items-center">
+                  顧問
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.consultant} />
+                </div>
               </th>
             </tr>
           </thead>
