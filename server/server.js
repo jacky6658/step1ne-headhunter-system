@@ -8,6 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import * as sheetsService from './sheetsService.js';
 import * as gradingService from './gradingService.js';
+import * as personaService from './personaService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -310,6 +311,215 @@ app.post('/api/candidates/batch-grade', async (req, res) => {
     
   } catch (error) {
     console.error('批量評級失敗:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// ========================================
+// Persona Matching API
+// ========================================
+
+// 生成候選人畫像
+app.post('/api/personas/generate-candidate', async (req, res) => {
+  try {
+    const { candidateId } = req.body;
+    
+    if (!candidateId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少 candidateId' 
+      });
+    }
+    
+    // 取得候選人資料
+    const candidate = await sheetsService.getCandidate(candidateId);
+    
+    if (!candidate) {
+      return res.status(404).json({ 
+        success: false, 
+        error: '找不到候選人' 
+      });
+    }
+    
+    // 生成人才畫像
+    const result = await personaService.generateCandidatePersona(candidate);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('生成候選人畫像失敗:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// 生成公司畫像
+app.post('/api/personas/generate-company', async (req, res) => {
+  try {
+    const { job, company } = req.body;
+    
+    if (!job || !company) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少 job 或 company 資料' 
+      });
+    }
+    
+    // 生成公司畫像
+    const result = await personaService.generateCompanyPersona(job, company);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('生成公司畫像失敗:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// 執行單一配對
+app.post('/api/personas/match', async (req, res) => {
+  try {
+    const { candidatePersona, companyPersona } = req.body;
+    
+    if (!candidatePersona || !companyPersona) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少 candidatePersona 或 companyPersona' 
+      });
+    }
+    
+    // 執行配對
+    const result = await personaService.matchPersonas(candidatePersona, companyPersona);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('配對失敗:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// 批量配對（一個職缺 vs 多個候選人）
+app.post('/api/personas/batch-match', async (req, res) => {
+  try {
+    const { job, company, candidateIds } = req.body;
+    
+    if (!job || !company || !candidateIds || !Array.isArray(candidateIds)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少必要參數（job, company, candidateIds）' 
+      });
+    }
+    
+    console.log(`📊 批量配對請求: ${candidateIds.length} 位候選人`);
+    
+    // Step 1: 生成公司畫像
+    const companyResult = await personaService.generateCompanyPersona(job, company);
+    const companyPersona = companyResult.persona;
+    
+    // Step 2: 生成所有候選人畫像
+    const candidatePersonas = [];
+    const errors = [];
+    
+    for (const candidateId of candidateIds) {
+      try {
+        const candidate = await sheetsService.getCandidate(candidateId);
+        
+        if (!candidate) {
+          errors.push({ candidateId, error: '找不到候選人' });
+          continue;
+        }
+        
+        const candidateResult = await personaService.generateCandidatePersona(candidate);
+        
+        candidatePersonas.push({
+          id: candidateId,
+          name: candidate.name,
+          persona: candidateResult.persona
+        });
+        
+      } catch (error) {
+        errors.push({ 
+          candidateId, 
+          error: error.message 
+        });
+      }
+    }
+    
+    // Step 3: 批量配對
+    const batchResult = await personaService.batchMatch(
+      companyPersona,
+      candidatePersonas.map(c => c.persona)
+    );
+    
+    // 合併候選人資訊到結果中
+    batchResult.result.matches = batchResult.result.matches.map((match, index) => ({
+      ...match,
+      candidate: {
+        id: candidatePersonas[index].id,
+        name: candidatePersonas[index].name
+      }
+    }));
+    
+    res.json({
+      success: true,
+      company: {
+        name: company.name,
+        jobTitle: job.title
+      },
+      result: batchResult.result,
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    console.error('批量配對失敗:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// 完整配對流程（生成畫像 + 配對）
+app.post('/api/personas/full-match', async (req, res) => {
+  try {
+    const { candidateId, job, company } = req.body;
+    
+    if (!candidateId || !job || !company) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少必要參數（candidateId, job, company）' 
+      });
+    }
+    
+    // 取得候選人資料
+    const candidate = await sheetsService.getCandidate(candidateId);
+    
+    if (!candidate) {
+      return res.status(404).json({ 
+        success: false, 
+        error: '找不到候選人' 
+      });
+    }
+    
+    // 執行完整配對流程
+    const result = await personaService.fullMatch(candidate, job, company);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('完整配對失敗:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 
