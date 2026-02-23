@@ -70,3 +70,108 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:30
 
 // 快取過期時間（毫秒）
 export const CACHE_EXPIRY = 5 * 60 * 1000; // 5 分鐘
+
+// ===== Step1ne Headhunter - 候選人相關配置 =====
+
+import { CandidateStatus, CandidateSource } from './types';
+
+// 候選人狀態配置
+export const CANDIDATE_STATUS_CONFIG = {
+  [CandidateStatus.TO_CONTACT]: {
+    label: '待聯繫',
+    color: 'gray',
+    bgColor: 'bg-gray-100',
+    textColor: 'text-gray-800',
+    borderColor: 'border-gray-300'
+  },
+  [CandidateStatus.CONTACTED]: {
+    label: '已聯繫',
+    color: 'blue',
+    bgColor: 'bg-blue-100',
+    textColor: 'text-blue-800',
+    borderColor: 'border-blue-300'
+  },
+  [CandidateStatus.INTERVIEWING]: {
+    label: '面試中',
+    color: 'yellow',
+    bgColor: 'bg-yellow-100',
+    textColor: 'text-yellow-800',
+    borderColor: 'border-yellow-300'
+  },
+  [CandidateStatus.OFFER]: {
+    label: 'Offer',
+    color: 'purple',
+    bgColor: 'bg-purple-100',
+    textColor: 'text-purple-800',
+    borderColor: 'border-purple-300'
+  },
+  [CandidateStatus.ONBOARDED]: {
+    label: '已上職',
+    color: 'green',
+    bgColor: 'bg-green-100',
+    textColor: 'text-green-800',
+    borderColor: 'border-green-300'
+  },
+  [CandidateStatus.REJECTED]: {
+    label: '已拒絕',
+    color: 'red',
+    bgColor: 'bg-red-100',
+    textColor: 'text-red-800',
+    borderColor: 'border-red-300'
+  },
+  [CandidateStatus.ON_HOLD]: {
+    label: '暫緩',
+    color: 'gray',
+    bgColor: 'bg-gray-100',
+    textColor: 'text-gray-600',
+    borderColor: 'border-gray-300'
+  }
+};
+
+// Kanban 看板欄位順序
+export const KANBAN_COLUMNS = [
+  CandidateStatus.TO_CONTACT,
+  CandidateStatus.CONTACTED,
+  CandidateStatus.INTERVIEWING,
+  CandidateStatus.OFFER,
+  CandidateStatus.ONBOARDED
+];
+
+// 候選人來源配置
+export const SOURCE_CONFIG = {
+  [CandidateSource.LINKEDIN]: {
+    label: 'LinkedIn',
+    icon: '💼',
+    color: 'blue'
+  },
+  [CandidateSource.GITHUB]: {
+    label: 'GitHub',
+    icon: '👨‍💻',
+    color: 'gray'
+  },
+  [CandidateSource.GMAIL]: {
+    label: 'Gmail 進件',
+    icon: '📧',
+    color: 'red'
+  },
+  [CandidateSource.REFERRAL]: {
+    label: '推薦',
+    icon: '🤝',
+    color: 'green'
+  },
+  [CandidateSource.HEADHUNT]: {
+    label: '主動開發',
+    icon: '🎯',
+    color: 'purple'
+  },
+  [CandidateSource.JOB_BOARD]: {
+    label: '人力銀行',
+    icon: '📋',
+    color: 'yellow'
+  },
+  [CandidateSource.OTHER]: {
+    label: '其他',
+    icon: '📁',
+    color: 'gray'
+  }
+};

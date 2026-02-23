@@ -16,6 +16,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
   const isAdmin = profile.role === Role.ADMIN;
 
   const menuItems = [
+    // 🆕 候選人管理（新功能）
+    { id: 'candidates', label: '📋 候選人總表', icon: Users, roles: [Role.ADMIN, Role.REVIEWER] },
+    { id: 'candidate-kanban', label: '📊 候選人看板', icon: LayoutGrid, roles: [Role.ADMIN, Role.REVIEWER] },
+    // 分隔線（視覺上的分組）
     { id: 'leads', label: '案件總表', icon: ClipboardList, roles: [Role.ADMIN, Role.REVIEWER] },
     { id: 'review', label: '待我審核', icon: CheckSquare, roles: [Role.ADMIN, Role.REVIEWER] },
     { id: 'kanban', label: '流程看板', icon: LayoutGrid, roles: [Role.ADMIN, Role.REVIEWER] },
@@ -56,8 +60,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
         {/* 手機版關閉按鈕 */}
         <div className="p-4 sm:p-6 flex items-center justify-between border-b border-slate-800 sm:border-b-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-white text-xs">AI</div>
-            <span className="text-xl font-bold text-white tracking-tight">AI案件管理系統</span>
+            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-white text-xs">S1</div>
+            <span className="text-xl font-bold text-white tracking-tight">Step1ne 獵頭系統</span>
           </div>
           <button
             onClick={onClose}

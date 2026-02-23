@@ -16,6 +16,9 @@ import MigrationPage from './pages/MigrationPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import HelpPage from './pages/HelpPage';
 import LoginPage from './pages/LoginPage';
+// 新增: 候選人管理頁面
+import { CandidatesPage } from './pages/CandidatesPage';
+import { CandidateKanbanPage } from './pages/CandidateKanbanPage';
 import { subscribeToLeads } from './services/leadService';
 import { Menu, X as XIcon } from 'lucide-react';
 
@@ -141,6 +144,10 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (activeTab) {
+      // 新增: 候選人管理頁面
+      case 'candidates': return <CandidatesPage />;
+      case 'candidate-kanban': return <CandidateKanbanPage />;
+      // 舊的案件管理頁面（保留）
       case 'leads': return <LeadsPage leads={leads} userProfile={profile} />;
       case 'review': return <ReviewPage leads={leads} userProfile={profile} />;
       case 'kanban': return <KanbanPage leads={leads} userProfile={profile} />;
@@ -218,13 +225,15 @@ const App: React.FC = () => {
               </button>
               <div className="flex flex-col min-w-0 flex-1">
                 <h1 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight truncate">
-              {activeTab === 'leads' ? '案件總表' : 
+              {activeTab === 'candidates' ? 'Step1ne 候選人總表' : 
+               activeTab === 'candidate-kanban' ? 'Step1ne 候選人看板' :
+               activeTab === 'leads' ? '案件總表' : 
                activeTab === 'review' ? '待我審核' :
                activeTab === 'kanban' ? '流程看板' :
                activeTab === 'audit' ? '操作紀錄' :
-                   activeTab === 'members' ? '成員管理' : 
-                   activeTab === 'import' ? '匯入案件' :
-                   activeTab === 'migration' ? '資料遷移' : '案件總表'}
+               activeTab === 'members' ? '成員管理' : 
+               activeTab === 'import' ? '匯入案件' :
+               activeTab === 'migration' ? '資料遷移' : 'Step1ne 獵頭系統'}
             </h1>
                 <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mt-0.5 hidden sm:block">Collaborative Workspace</p>
           </div>
