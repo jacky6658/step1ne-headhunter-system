@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { Target, Users, Building2, Sparkles, Download, FileText, TrendingUp, CheckCircle2, AlertCircle, Briefcase } from 'lucide-react';
+import { generateMatchingReportPDF } from '../utils/pdfGenerator';
 
 interface AIMatchingPageProps {
   userProfile: UserProfile;
@@ -675,7 +676,16 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
             重新配對
           </button>
           <button
-            onClick={() => window.print()}
+            onClick={() => {
+              if (matchResults) {
+                generateMatchingReportPDF({
+                  jobTitle: selectedJob?.title || '未指定職缺',
+                  companyName: selectedJob?.company.name || '未指定公司',
+                  summary: matchResults.summary,
+                  matches: matchResults.matches
+                });
+              }
+            }}
             className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
           >
             <Download size={20} />
