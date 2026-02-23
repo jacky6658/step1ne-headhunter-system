@@ -83,7 +83,7 @@ export const COLUMN_DESCRIPTIONS = {
           <p><span className="font-semibold text-blue-600">A+ 級</span> (80-89分): 優秀人才</p>
           <p><span className="font-semibold text-green-600">A 級</span> (70-79分): 合格人才</p>
           <p><span className="font-semibold text-yellow-600">B 級</span> (60-69分): 潛力人才</p>
-          <p><span className="font-semibold text-gray-600">C 級</span> (<60分): 需培訓</p>
+          <p><span className="font-semibold text-gray-600">C 級</span> (&lt;60分): 需培訓</p>
         </div>
       </>
     ),
