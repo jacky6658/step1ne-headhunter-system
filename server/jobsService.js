@@ -197,6 +197,10 @@ function parseJobsCSV(csvText) {
       workLocation: fields[8] || '台北',   // I: 工作地點
       status: fields[9] || '開放中',       // J: 職位狀態
       
+      // 日期資訊
+      createdDate: fields[10] || '',       // K: 建立日期
+      lastUpdated: fields[11] || '',       // L: 最後更新
+      
       // 額外資訊
       languageRequirement: fields[12] || '', // M: 語言要求
       specialConditions: fields[13] || '',   // N: 特殊條件
@@ -205,6 +209,8 @@ function parseJobsCSV(csvText) {
       keyChallenge: fields[16] || '',        // Q: 關鍵挑戰
       highlights: fields[17] || '',          // R: 吸引亮點
       recruitmentDifficulty: fields[18] || '', // S: 招募困難點
+      interviewProcess: fields[19] || '',  // T: 面試流程
+      consultantNotes: fields[20] || '',   // U: 顧問面談備註
       
       // 職缺描述（組合多個欄位）
       responsibilities: [

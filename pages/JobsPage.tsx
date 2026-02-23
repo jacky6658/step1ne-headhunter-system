@@ -294,28 +294,49 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
               </div>
 
               {/* 基本資訊 */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="text-sm text-slate-600 mb-1">部門</div>
-                  <div className="font-semibold text-slate-900">{selectedJob.department || '-'}</div>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="text-sm text-slate-600 mb-1">需求人數</div>
-                  <div className="font-semibold text-slate-900">{selectedJob.headcount} 人</div>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="text-sm text-slate-600 mb-1">薪資範圍</div>
-                  <div className="font-semibold text-slate-900">{selectedJob.salaryRange || '-'}</div>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="text-sm text-slate-600 mb-1">工作地點</div>
-                  <div className="font-semibold text-slate-900">{selectedJob.workLocation}</div>
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  基本資訊
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <div className="text-sm text-slate-600 mb-1">部門</div>
+                    <div className="font-semibold text-slate-900">{selectedJob.department || '-'}</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <div className="text-sm text-slate-600 mb-1">需求人數</div>
+                    <div className="font-semibold text-slate-900">{selectedJob.headcount} 人</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <div className="text-sm text-slate-600 mb-1">薪資範圍</div>
+                    <div className="font-semibold text-slate-900">{selectedJob.salaryRange || '-'}</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <div className="text-sm text-slate-600 mb-1">工作地點</div>
+                    <div className="font-semibold text-slate-900">{selectedJob.workLocation}</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <div className="text-sm text-slate-600 mb-1">經驗要求</div>
+                    <div className="font-semibold text-slate-900">{selectedJob.yearsRequired}年以上</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <div className="text-sm text-slate-600 mb-1">學歷要求</div>
+                    <div className="font-semibold text-slate-900">{selectedJob.educationRequired || '-'}</div>
+                  </div>
                 </div>
               </div>
 
               {/* 技能要求 */}
               <div className="mb-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-3">技能要求</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  技能要求
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedJob.requiredSkills.map((skill, idx) => (
                     <span key={idx} className="px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-lg text-sm font-medium">
@@ -325,9 +346,119 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
                 </div>
               </div>
 
+              {/* 額外要求（語言、特殊條件、產業背景） */}
+              {(selectedJob.languageRequirement || selectedJob.specialConditions || selectedJob.industryBackground) && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    額外要求
+                  </h3>
+                  <div className="space-y-3">
+                    {selectedJob.languageRequirement && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                        <div className="text-sm font-semibold text-amber-900 mb-1">語言要求</div>
+                        <div className="text-sm text-amber-800">{selectedJob.languageRequirement}</div>
+                      </div>
+                    )}
+                    {selectedJob.specialConditions && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                        <div className="text-sm font-semibold text-amber-900 mb-1">特殊條件</div>
+                        <div className="text-sm text-amber-800">{selectedJob.specialConditions}</div>
+                      </div>
+                    )}
+                    {selectedJob.industryBackground && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                        <div className="text-sm font-semibold text-amber-900 mb-1">產業背景要求</div>
+                        <div className="text-sm text-amber-800">{selectedJob.industryBackground}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 團隊與挑戰 */}
+              {(selectedJob.teamSize || selectedJob.keyChallenge || selectedJob.highlights) && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    團隊與職位亮點
+                  </h3>
+                  <div className="space-y-3">
+                    {selectedJob.teamSize && (
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <div className="text-sm font-semibold text-purple-900 mb-1">團隊規模</div>
+                        <div className="text-sm text-purple-800">{selectedJob.teamSize}</div>
+                      </div>
+                    )}
+                    {selectedJob.keyChallenge && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
+                        <div className="text-sm font-semibold text-rose-900 mb-1">關鍵挑戰</div>
+                        <div className="text-sm text-rose-800">{selectedJob.keyChallenge}</div>
+                      </div>
+                    )}
+                    {selectedJob.highlights && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                        <div className="text-sm font-semibold text-emerald-900 mb-1">吸引亮點</div>
+                        <div className="text-sm text-emerald-800">{selectedJob.highlights}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 招募資訊（困難點、面試流程） */}
+              {(selectedJob.recruitmentDifficulty || selectedJob.interviewProcess) && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    招募資訊
+                  </h3>
+                  <div className="space-y-3">
+                    {selectedJob.recruitmentDifficulty && (
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                        <div className="text-sm font-semibold text-orange-900 mb-1">招募困難點</div>
+                        <div className="text-sm text-orange-800">{selectedJob.recruitmentDifficulty}</div>
+                      </div>
+                    )}
+                    {selectedJob.interviewProcess && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="text-sm font-semibold text-blue-900 mb-1">面試流程</div>
+                        <div className="text-sm text-blue-800 whitespace-pre-wrap">{selectedJob.interviewProcess}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 顧問備註 */}
+              {selectedJob.consultantNotes && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    顧問面談備註
+                  </h3>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <div className="text-sm text-slate-700 whitespace-pre-wrap">{selectedJob.consultantNotes}</div>
+                  </div>
+                </div>
+              )}
+
               {/* 公司資訊 */}
               <div className="mb-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-3">公司資訊</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  公司資訊
+                </h3>
                 <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-4">
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
@@ -353,6 +484,20 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
                   </div>
                 </div>
               </div>
+
+              {/* 時間資訊 */}
+              {(selectedJob.createdDate || selectedJob.lastUpdated) && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-4 text-xs text-slate-500">
+                    {selectedJob.createdDate && (
+                      <div>建立日期：{selectedJob.createdDate}</div>
+                    )}
+                    {selectedJob.lastUpdated && (
+                      <div>最後更新：{selectedJob.lastUpdated}</div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* 操作按鈕 */}
               <div className="flex gap-3">
