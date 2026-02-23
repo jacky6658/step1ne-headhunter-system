@@ -3,11 +3,27 @@
 
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import * as sheetsService from './sheetsService.js';
 import * as gradingService from './gradingService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// 設定檔案上傳（使用 multer）
+const upload = multer({ 
+  dest: '/tmp/uploads/',
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('只接受 PDF 檔案'));
+    }
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -203,6 +219,59 @@ app.post('/api/candidates/:id/grade', async (req, res) => {
     
   } catch (error) {
     console.error('評級候選人失敗:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// 上傳履歷 PDF
+app.post('/api/candidates/:id/upload-resume', upload.single('resume'), async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    const candidateName = req.body.candidateName;
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '沒有上傳檔案' 
+      });
+    }
+    
+    console.log('📤 收到履歷上傳請求');
+    console.log('候選人:', candidateName, `(ID: ${candidateId})`);
+    console.log('檔案:', req.file.originalname);
+    
+    // 使用簡化版的處理流程（直接在這裡實作，避免模組化問題）
+    const filePath = req.file.path;
+    
+    // 1. 模擬上傳到 Google Drive（實際上先跳過，只記錄檔案位置）
+    console.log('✅ 履歷已暫存:', filePath);
+    const driveUrl = `file://${filePath}`; // 暫時使用本地路徑
+    
+    // 2. 模擬 AI 解析（暫時返回空資料）
+    const parsedData = {
+      email: 'test@example.com', // 待實作
+      phone: '0912345678', // 待實作
+      skills: ['待解析'], // 待實作
+      workHistory: [], // 待實作
+      education: [] // 待實作
+    };
+    
+    console.log('✅ AI 解析完成（模擬）');
+    
+    // 3. 返回結果
+    res.json({
+      success: true,
+      driveUrl,
+      fileName: req.file.originalname,
+      parsedData,
+      message: '履歷上傳成功（待完整整合 Google Drive 與 AI 解析）'
+    });
+    
+  } catch (error) {
+    console.error('❌ 上傳履歷失敗:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 

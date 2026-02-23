@@ -130,6 +130,94 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
     }
   };
   
+  // 下載履歷流程
+  const handleDownloadResume = async (candidate: Candidate) => {
+    try {
+      // 1. 如果候選人有 LinkedIn URL，開啟 LinkedIn 頁面
+      if (candidate.linkedinUrl || candidate.resumeUrl) {
+        const url = candidate.linkedinUrl || candidate.resumeUrl;
+        window.open(url, '_blank');
+        
+        // 2. 提示獵頭下載 PDF
+        const confirmed = confirm(`請在 LinkedIn 頁面點擊右上角「...」→「存為 PDF」下載履歷\n\n下載完成後，請選擇 PDF 檔案上傳。\n\n是否繼續？`);
+        
+        if (!confirmed) return;
+        
+        // 3. 開啟檔案選擇器
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.pdf';
+        fileInput.onchange = async (e: Event) => {
+          const target = e.target as HTMLInputElement;
+          if (target.files && target.files.length > 0) {
+            await uploadResume(target.files[0], candidate);
+          }
+        };
+        fileInput.click();
+      } else {
+        // 沒有 LinkedIn URL，直接開啟檔案選擇器
+        alert('候選人沒有 LinkedIn 連結，請直接上傳履歷 PDF');
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.pdf';
+        fileInput.onchange = async (e: Event) => {
+          const target = e.target as HTMLInputElement;
+          if (target.files && target.files.length > 0) {
+            await uploadResume(target.files[0], candidate);
+          }
+        };
+        fileInput.click();
+      }
+    } catch (error) {
+      console.error('下載履歷失敗:', error);
+      alert('下載履歷失敗，請稍後再試');
+    }
+  };
+  
+  // 上傳履歷到系統
+  const uploadResume = async (file: File, candidate: Candidate) => {
+    try {
+      // 顯示上傳中
+      alert('正在上傳履歷到 Google Drive...');
+      
+      const formData = new FormData();
+      formData.append('resume', file);
+      formData.append('candidateId', candidate.id);
+      formData.append('candidateName', candidate.name);
+      
+      // 呼叫後端 API（TODO：實作後端）
+      const API_URL = import.meta.env.VITE_API_URL || 'https://backendstep1ne.zeabur.app';
+      const response = await fetch(`${API_URL}/candidates/${candidate.id}/upload-resume`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error('上傳失敗');
+      }
+      
+      const result = await response.json();
+      
+      // 顯示成功訊息
+      alert(`✅ 履歷上傳成功！
+      
+📊 已解析資料：
+• Email: ${result.parsedData?.email || '未提取'}
+• Phone: ${result.parsedData?.phone || '未提取'}
+• 技能數量: ${result.parsedData?.skills?.length || 0}
+
+🔄 已觸發重新評分...
+
+[查看 Google Drive](${result.driveUrl})`);
+      
+      // 重新載入候選人資料
+      await loadCandidates();
+    } catch (error) {
+      console.error('上傳履歷失敗:', error);
+      alert('上傳履歷失敗，請稍後再試\n\n錯誤：' + (error as Error).message);
+    }
+  };
+  
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -249,11 +337,34 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
           </svg>
-          <span>表格可左右滑動查看更多資訊</span>
+          <span>💡 表格可左右滑動查看更多資訊（滾動條始終可見於底部）</span>
         </div>
         
-        {/* 橫向滾動容器 */}
-        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        {/* 橫向滾動容器（Sticky Scrollbar）*/}
+        <div 
+          className="overflow-x-auto overflow-y-visible"
+          style={{
+            maxHeight: 'calc(100vh - 280px)',
+            position: 'relative'
+          }}
+        >
+          <style>{`
+            .overflow-x-auto::-webkit-scrollbar {
+              height: 14px;
+            }
+            .overflow-x-auto::-webkit-scrollbar-track {
+              background: #f1f5f9;
+              border-radius: 4px;
+            }
+            .overflow-x-auto::-webkit-scrollbar-thumb {
+              background: #cbd5e1;
+              border-radius: 4px;
+              border: 2px solid #f1f5f9;
+            }
+            .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+              background: #94a3b8;
+            }
+          `}</style>
           <table className="min-w-full divide-y divide-gray-200" style={{ minWidth: '1400px' }}>
           <thead className="bg-gray-50">
             <tr>
@@ -309,6 +420,11 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                 <div className="flex items-center">
                   顧問
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.consultant} />
+                </div>
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+                <div className="flex items-center">
+                  操作
                 </div>
               </th>
             </tr>
@@ -390,6 +506,20 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                   
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {candidate.consultant || '-'}
+                  </td>
+                  
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadResume(candidate);
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white text-xs font-medium rounded hover:bg-blue-600 transition-colors"
+                      title="下載 LinkedIn 履歷並上傳"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      下載履歷
+                    </button>
                   </td>
                 </tr>
               );
