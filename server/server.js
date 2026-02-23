@@ -22,36 +22,52 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 用戶資料（共用）
+const users = [
+  {
+    id: '1',
+    username: 'admin',
+    name: 'Admin',
+    email: 'admin@step1ne.com',
+    role: 'ADMIN',
+    consultant: 'Admin'
+  },
+  {
+    id: '2',
+    username: 'jacky',
+    name: 'Jacky Chen',
+    email: 'jacky@step1ne.com',
+    role: 'REVIEWER',
+    consultant: 'Jacky'
+  },
+  {
+    id: '3',
+    username: 'phoebe',
+    name: 'Phoebe',
+    email: 'phoebe@step1ne.com',
+    role: 'REVIEWER',
+    consultant: 'Phoebe'
+  }
+];
+
 // 取得用戶列表（登入驗證用）
 app.get('/api/users', (req, res) => {
-  const users = [
-    {
-      id: '1',
-      username: 'admin',
-      name: 'Admin',
-      email: 'admin@step1ne.com',
-      role: 'ADMIN',
-      consultant: 'Admin'
-    },
-    {
-      id: '2',
-      username: 'jacky',
-      name: 'Jacky Chen',
-      email: 'jacky@step1ne.com',
-      role: 'REVIEWER',
-      consultant: 'Jacky'
-    },
-    {
-      id: '3',
-      username: 'phoebe',
-      name: 'Phoebe',
-      email: 'phoebe@step1ne.com',
-      role: 'REVIEWER',
-      consultant: 'Phoebe'
-    }
-  ];
-  
   res.json({ success: true, data: users, count: users.length });
+});
+
+// 取得單一用戶（by id 或 username）
+app.get('/api/users/:id', (req, res) => {
+  const userId = req.params.id;
+  const user = users.find(u => u.id === userId || u.username === userId);
+  
+  if (!user) {
+    return res.status(404).json({ 
+      success: false, 
+      error: '找不到用戶' 
+    });
+  }
+  
+  res.json({ success: true, data: user });
 });
 
 // 取得所有候選人
