@@ -16,19 +16,18 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
   const isAdmin = profile.role === Role.ADMIN;
 
   const menuItems = [
-    // 🆕 候選人管理（新功能）
-    { id: 'candidates', label: '📋 候選人總表', icon: Users, roles: [Role.ADMIN, Role.REVIEWER] },
-    { id: 'candidate-kanban', label: '📊 候選人看板', icon: LayoutGrid, roles: [Role.ADMIN, Role.REVIEWER] },
-    // 分隔線（視覺上的分組）
-    { id: 'leads', label: '案件總表', icon: ClipboardList, roles: [Role.ADMIN, Role.REVIEWER] },
-    { id: 'review', label: '待我審核', icon: CheckSquare, roles: [Role.ADMIN, Role.REVIEWER] },
-    { id: 'kanban', label: '流程看板', icon: LayoutGrid, roles: [Role.ADMIN, Role.REVIEWER] },
-    { id: 'import', label: '匯入案件', icon: Download, roles: [Role.ADMIN] },
-    { id: 'analytics', label: '財務分析', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER] },
-    { id: 'audit', label: '操作紀錄', icon: History, roles: [Role.ADMIN, Role.REVIEWER] },
-    { id: 'members', label: '成員管理', icon: Users, roles: [Role.ADMIN] },
-    { id: 'migration', label: '資料遷移', icon: Database, roles: [Role.ADMIN] },
-    { id: 'help', label: '使用說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER] },
+    // 核心功能
+    { id: 'candidates', label: '📋 候選人總表', icon: Users, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    { id: 'candidate-kanban', label: '📊 候選人看板', icon: LayoutGrid, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    
+    // 未來功能
+    { id: 'jobs', label: '💼 職缺管理', icon: ClipboardList, roles: [Role.ADMIN, Role.REVIEWER], disabled: true, badge: '即將推出' },
+    { id: 'bd-clients', label: '🎯 BD 客戶開發', icon: Users, roles: [Role.ADMIN, Role.REVIEWER], disabled: true, badge: '即將推出' },
+    { id: 'pipeline', label: '📈 Pipeline 追蹤', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: true, badge: '即將推出' },
+    { id: 'ai-matching', label: '🤖 AI 配對推薦', icon: CheckSquare, roles: [Role.ADMIN, Role.REVIEWER], disabled: true, badge: '即將推出' },
+    
+    // 工具
+    { id: 'help', label: '📖 使用說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
   ];
 
   const handleItemClick = (id: string) => {
@@ -75,15 +74,25 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
         {menuItems.filter(item => item.roles.includes(profile.role)).map((item) => (
           <button
             key={item.id}
-              onClick={() => handleItemClick(item.id)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              activeTab === item.id 
-              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
-              : 'hover:bg-slate-800 hover:text-white'
+              onClick={() => !item.disabled && handleItemClick(item.id)}
+            disabled={item.disabled}
+            className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              item.disabled
+                ? 'opacity-50 cursor-not-allowed text-slate-500'
+                : activeTab === item.id 
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
+                  : 'hover:bg-slate-800 hover:text-white'
             }`}
           >
-            <item.icon size={18} />
-            {item.label}
+            <div className="flex items-center gap-3">
+              <item.icon size={18} />
+              {item.label}
+            </div>
+            {item.badge && (
+              <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded">
+                {item.badge}
+              </span>
+            )}
           </button>
         ))}
       </nav>
