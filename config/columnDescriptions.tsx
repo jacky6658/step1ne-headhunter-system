@@ -115,12 +115,12 @@ export const COLUMN_DESCRIPTIONS = {
         <p className="mb-2">基於 6 大維度的綜合人才評級（S/A+/A/B/C）。</p>
         <div className="text-xs space-y-1 text-gray-600 bg-gray-50 p-2 rounded mb-2">
           <p><strong>評分維度（各佔比）：</strong></p>
-          <p>• 學歷背景 (20%)</p>
-          <p>• 工作年資 (20%)</p>
-          <p>• 技能廣度 (20%)</p>
+          <p>• 技能匹配度 (25%)</p>
+          <p>• 職涯發展軌跡 (25%)</p>
           <p>• 工作穩定性 (20%)</p>
-          <p>• 職涯發展軌跡 (10%)</p>
-          <p>• 特殊加分 (10%)</p>
+          <p>• 工作年資 (15%)</p>
+          <p>• 學歷背景 (10%)</p>
+          <p>• 特殊加分 (5%)</p>
         </div>
         <div className="text-xs space-y-1">
           <p><span className="font-semibold text-purple-600">S 級</span> (90-100分): 頂尖人才（稀缺）</p>
