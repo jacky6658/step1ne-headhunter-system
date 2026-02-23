@@ -23,8 +23,8 @@ const fetchUsersFromApi = async (): Promise<Record<string, UserProfile>> => {
       const uid = user.id || user.uid || user.username;
       usersRecord[uid] = {
         uid: uid,
-        displayName: user.name || user.displayName || user.username,
-        email: user.email,
+        displayName: user.name || user.displayName || user.username || 'Unknown User',
+        email: user.email || `${uid}@step1ne.com`,
         role: user.role as Role,
         isActive: true,
         avatar: user.avatar,
@@ -123,7 +123,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
 export const getUserByDisplayName = async (displayName: string): Promise<UserProfile | null> => {
   const db = getDb();
   const user = Object.values(db).find(u => 
-    u.displayName.toLowerCase() === displayName.toLowerCase()
+    u.displayName && u.displayName.toLowerCase() === displayName.toLowerCase()
   );
   return user || null;
 };
@@ -170,6 +170,7 @@ export const getAllUsers = async (): Promise<UserProfile[]> => {
   const duplicatesToDelete: string[] = [];
   
   for (const user of users) {
+    if (!user.displayName) continue; // 跳過沒有 displayName 的用戶
     const key = user.displayName.toLowerCase();
     if (!seen.has(key)) {
       seen.set(key, user);
@@ -203,6 +204,7 @@ export const cleanupDuplicateUsers = async () => {
   
   // 按 displayName 分組
   users.forEach(user => {
+    if (!user.displayName) return; // 跳過沒有 displayName 的用戶
     const key = user.displayName.toLowerCase();
     if (!nameMap.has(key)) {
       nameMap.set(key, []);
