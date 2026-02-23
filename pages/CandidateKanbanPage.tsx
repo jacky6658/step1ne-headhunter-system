@@ -142,8 +142,15 @@ export function CandidateKanbanPage() {
                     <div
                       key={candidate.id}
                       draggable
-                      onDragStart={() => handleDragStart(candidate)}
-                      onClick={() => setSelectedCandidate(candidate)}
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        handleDragStart(candidate);
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedCandidate(candidate);
+                      }}
                       className={`
                         bg-white rounded-lg shadow-sm p-4 cursor-pointer
                         hover:shadow-md transition-all hover:scale-[1.02]

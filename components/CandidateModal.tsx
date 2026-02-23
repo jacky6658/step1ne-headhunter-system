@@ -17,6 +17,14 @@ interface CandidateModalProps {
 export function CandidateModal({ candidate, onClose, onUpdateStatus }: CandidateModalProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes'>('info');
   
+  // 禁止背景滾動
+  React.useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+  
   const getStabilityGrade = (score: number) => {
     if (score >= 80) return { grade: 'A', color: 'text-green-600', bg: 'bg-green-50' };
     if (score >= 60) return { grade: 'B', color: 'text-blue-600', bg: 'bg-blue-50' };
@@ -37,8 +45,18 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
     (typeof candidate.education === 'string' ? JSON.parse(candidate.education) : candidate.education) : [];
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div 
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div 
+        className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
           <div className="flex items-start justify-between">
