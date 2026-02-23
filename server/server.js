@@ -27,18 +27,26 @@ app.get('/api/users', (req, res) => {
   const users = [
     {
       id: '1',
-      username: 'jacky',
-      name: 'Jacky Chen',
-      email: 'jacky@step1ne.com',
+      username: 'admin',
+      name: 'Admin',
+      email: 'admin@step1ne.com',
       role: 'ADMIN',
-      consultant: 'Jacky'
+      consultant: 'Admin'
     },
     {
       id: '2',
+      username: 'jacky',
+      name: 'Jacky Chen',
+      email: 'jacky@step1ne.com',
+      role: 'REVIEWER',
+      consultant: 'Jacky'
+    },
+    {
+      id: '3',
       username: 'phoebe',
       name: 'Phoebe',
       email: 'phoebe@step1ne.com',
-      role: 'HEADHUNTER',
+      role: 'REVIEWER',
       consultant: 'Phoebe'
     }
   ];

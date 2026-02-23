@@ -144,7 +144,7 @@ const LoginPage: React.FC = () => {
                     ) : (
                       <>
                         <User size={12} className="sm:w-[14px] sm:h-[14px]" />
-                        <span>內部員工</span>
+                        <span>獵頭顧問</span>
                       </>
                     )}
                   </div>
