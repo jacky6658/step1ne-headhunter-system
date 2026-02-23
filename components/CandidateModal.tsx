@@ -34,15 +34,24 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
   };
   
   const stability = getStabilityGrade(candidate.stabilityScore);
-  const currentStatus = CANDIDATE_STATUS_CONFIG[candidate.status];
+  
+  // 安全地取得狀態配置（加上 fallback）
+  const currentStatus = CANDIDATE_STATUS_CONFIG[candidate.status] || {
+    label: candidate.status || '未知',
+    color: 'gray',
+    bgColor: 'bg-gray-100',
+    textColor: 'text-gray-800',
+    borderColor: 'border-gray-300'
+  };
   
   // 解析工作經歷 JSON
   const workHistory = candidate.workHistory ? 
-    (typeof candidate.workHistory === 'string' ? JSON.parse(candidate.workHistory) : candidate.workHistory) : [];
+    (typeof candidate.workHistory === 'string' ? 
+      (() => { try { return JSON.parse(candidate.workHistory); } catch { return []; } })() 
+      : candidate.workHistory) : [];
   
-  // 解析教育背景 JSON
-  const education = candidate.education ?
-    (typeof candidate.education === 'string' ? JSON.parse(candidate.education) : candidate.education) : [];
+  // 解析教育背景 JSON（使用 educationJson 欄位）
+  const education = candidate.educationJson || [];
   
   return (
     <div 
@@ -82,7 +91,6 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
                   {candidate.years} 年經驗
                 </div>
                 <div className={`flex items-center gap-1.5 px-2 py-1 rounded ${currentStatus.bgColor} ${currentStatus.textColor}`}>
-                  <div className={`w-2 h-2 rounded-full ${currentStatus.dotColor}`} />
                   {currentStatus.label}
                 </div>
               </div>
