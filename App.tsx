@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, type User, auth } from './mockBackend';
 import { getUserProfile } from './services/userService';
-import { setUserOnline, setUserOffline, getOnlineUserProfiles } from './services/onlineService';
 import { UserProfile, Role } from './types';
 import Sidebar from './components/Sidebar';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
@@ -23,9 +22,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('candidates');
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [onlineUsers, setOnlineUsers] = useState<UserProfile[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [expandedUser, setExpandedUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
@@ -38,8 +35,6 @@ const App: React.FC = () => {
           setProfile(p);
           // 同步更新 localStorage（用於降級方案）
           localStorage.setItem('caseflow_profile', JSON.stringify(p));
-          // 設置在線狀態
-          await setUserOnline(p.uid);
         } else {
           // 如果後端沒有資料，嘗試從 localStorage 讀取（降級方案）
           const savedProfile = localStorage.getItem('caseflow_profile');
@@ -47,8 +42,7 @@ const App: React.FC = () => {
             try {
               const p = JSON.parse(savedProfile);
               if (p.uid === u.uid) {
-        setProfile(p);
-                await setUserOnline(p.uid);
+                setProfile(p);
               }
             } catch (e) {
               console.error('Failed to parse saved profile', e);
@@ -56,35 +50,12 @@ const App: React.FC = () => {
           }
         }
       } else {
-        // 登出時設置離線
-        if (profile) {
-          await setUserOffline(profile.uid);
-        }
         setProfile(null);
       }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
-
-  // 定期更新在線用戶列表（包括頭貼和狀態）
-  useEffect(() => {
-    if (!profile) return;
-
-    const updateOnlineUsers = async () => {
-      try {
-        const online = await getOnlineUserProfiles();
-        setOnlineUsers(online);
-      } catch (error) {
-        console.error('更新在線用戶列表失敗:', error);
-      }
-    };
-
-    updateOnlineUsers();
-    const interval = setInterval(updateOnlineUsers, 5000); // 每5秒更新一次
-
-    return () => clearInterval(interval);
-  }, [profile]);
 
   // 權限保護：如果非管理員用戶嘗試訪問受限頁面，自動重定向
   useEffect(() => {
@@ -98,24 +69,7 @@ const App: React.FC = () => {
   }, [activeTab, profile]);
 
   const handleLogout = async () => {
-    if (profile) {
-      await setUserOffline(profile.uid);
-    }
     signOut(auth);
-  };
-
-  const handleUserAvatarClick = (user: UserProfile) => {
-    // 如果點擊的是已展開的用戶，則收起
-    if (expandedUser?.uid === user.uid) {
-      setExpandedUser(null);
-    } else {
-      setExpandedUser(user);
-    }
-  };
-
-  const getInitials = (name: string) => {
-    if (!name || name.length === 0) return '??';
-    return name.substring(0, Math.min(2, name.length)).toUpperCase();
   };
 
   if (loading) return (
@@ -216,52 +170,8 @@ const App: React.FC = () => {
           </div>
             </div>
 
-            {/* 右側：在線成員 + 當前用戶 */}
+            {/* 右側：當前用戶 */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              {/* 在線成員 */}
-              {onlineUsers.length > 0 ? (
-                <div className="flex items-center gap-2 -space-x-2">
-                  {onlineUsers
-                    .filter(u => u.uid !== profile?.uid) // 過濾掉當前用戶自己
-                    .slice(0, 4)
-                    .map((onlineUser) => (
-                      <div
-                        key={onlineUser.uid}
-                        onClick={() => handleUserAvatarClick(onlineUser)}
-                        className={`relative cursor-pointer transition-transform active:scale-95 ${
-                          expandedUser?.uid === onlineUser.uid ? 'scale-110 z-10' : 'hover:scale-110'
-                        }`}
-                        title={onlineUser.displayName}
-                      >
-                        {onlineUser.avatar ? (
-                          <img
-                            src={onlineUser.avatar}
-                            alt={onlineUser.displayName}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl object-cover border-2 border-white shadow-md"
-                            onError={(e) => {
-                              console.error(`頭貼載入失敗: ${onlineUser.displayName}`, onlineUser.avatar?.substring(0, 50));
-                              // 如果圖片載入失敗，隱藏圖片元素，顯示預設頭像
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs sm:text-sm font-black border-2 border-white shadow-md">
-                            {getInitials(onlineUser.displayName)}
-                          </div>
-                        )}
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 sm:w-4 sm:h-4 bg-green-500 border-2 border-white rounded-full shadow-sm"></div>
-                      </div>
-                    ))}
-                  {onlineUsers.filter(u => u.uid !== profile?.uid).length > 4 && (
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-200 flex items-center justify-center text-slate-600 text-xs sm:text-sm font-black border-2 border-white shadow-md">
-                      +{onlineUsers.filter(u => u.uid !== profile?.uid).length - 4}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-xs text-slate-400 italic">無其他在線成員</div>
-              )}
-
               {/* 當前用戶 */}
               <div 
                 onClick={() => setShowProfileModal(true)}
@@ -289,80 +199,6 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {/* 展開的用戶詳細資料（手機版顯示在下方） */}
-          {expandedUser && (
-            <div className="border-t border-gray-100 bg-white p-4 sm:p-6 animate-in slide-in-from-top-2">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    {expandedUser.avatar ? (
-                      <img
-                        src={expandedUser.avatar}
-                        alt={expandedUser.displayName}
-                        className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-slate-200 shadow-lg"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-2xl sm:text-3xl font-black border-2 border-slate-200 shadow-lg">
-                        {getInitials(expandedUser.displayName)}
-                      </div>
-                    )}
-                    {expandedUser.isOnline && (
-                      <div className="absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 bg-green-500 border-3 border-white rounded-full shadow-lg"></div>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-lg sm:text-xl font-black text-slate-900 mb-1">{expandedUser.displayName}</h3>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {expandedUser.role === Role.ADMIN ? (
-                        <span className="text-xs text-purple-600 font-black uppercase tracking-widest bg-purple-50 px-2 py-1 rounded-full">
-                          管理員
-                        </span>
-                      ) : (
-                        <span className="text-xs text-blue-600 font-black uppercase tracking-widest bg-blue-50 px-2 py-1 rounded-full">
-                          內部員工
-                        </span>
-                      )}
-                      {expandedUser.isOnline && (
-                        <span className="text-xs text-green-600 font-black uppercase tracking-widest bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">
-                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                          在線
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setExpandedUser(null)}
-                  className="text-slate-400 hover:text-slate-900 p-2 rounded-lg hover:bg-slate-100 transition-all"
-                >
-                  <XIcon size={20} />
-                </button>
-              </div>
-
-              {expandedUser.status && (
-                <div className="mb-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                  <p className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-1">個人狀態</p>
-                  <p className="text-sm font-bold text-indigo-900">{expandedUser.status}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Email</p>
-                  <p className="text-sm font-bold text-slate-700">{expandedUser.email}</p>
-                </div>
-                {expandedUser.createdAt && (
-                  <div className="p-3 bg-slate-50 rounded-xl">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">加入時間</p>
-                    <p className="text-sm font-bold text-slate-700">
-                      {new Date(expandedUser.createdAt).toLocaleDateString('zh-TW')}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </header>
         <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 bg-slate-50/50">
           {renderContent()}
