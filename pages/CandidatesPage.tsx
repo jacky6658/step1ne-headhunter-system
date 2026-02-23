@@ -1,8 +1,8 @@
 // Step1ne Headhunter System - 候選人總表頁面
 import React, { useState, useEffect } from 'react';
 import { Candidate, CandidateStatus, CandidateSource, UserProfile } from '../types';
-import { getCandidates, searchCandidates, updateCandidateStatus, filterCandidatesByPermission } from '../services/candidateService';
-import { Users, Search, Filter, Plus, Download, Upload, Shield } from 'lucide-react';
+import { getCandidates, searchCandidates, updateCandidateStatus, filterCandidatesByPermission, clearCache } from '../services/candidateService';
+import { Users, Search, Filter, Plus, Download, Upload, Shield, RefreshCw } from 'lucide-react';
 import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
 
@@ -14,6 +14,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
@@ -41,6 +42,24 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
       console.error('載入候選人失敗:', error);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // 清除快取
+      clearCache();
+      console.log('✅ 快取已清除，重新載入候選人資料...');
+      
+      // 重新載入
+      const allCandidates = await getCandidates();
+      const filteredByPermission = filterCandidatesByPermission(allCandidates, userProfile);
+      setCandidates(filteredByPermission);
+    } catch (error) {
+      console.error('手動更新失敗:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
   
@@ -116,6 +135,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
             <p className="text-gray-600 mt-1">
               共 {filteredCandidates.length} 位候選人
               {candidates.length !== filteredCandidates.length && ` (篩選自 ${candidates.length} 位)`}
+              <span className="text-gray-400 text-sm ml-2">· 資料快取 30 分鐘</span>
             </p>
             {userProfile.role !== 'ADMIN' && (
               <p className="text-sm text-blue-600 mt-1 flex items-center gap-1">
@@ -126,6 +146,15 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
           </div>
           
           <div className="flex gap-2">
+            <button 
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="手動更新候選人資料（清除快取）"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? '更新中...' : '重新整理'}
+            </button>
             <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
               <Upload className="w-4 h-4" />
               匯入履歷

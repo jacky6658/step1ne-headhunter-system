@@ -69,7 +69,7 @@ export const STORAGE_KEYS_EXT = {
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 // 快取過期時間（毫秒）
-export const CACHE_EXPIRY = 5 * 60 * 1000; // 5 分鐘
+export const CACHE_EXPIRY = 30 * 60 * 1000; // 30 分鐘
 
 // ===== Step1ne Headhunter - 候選人相關配置 =====
 
