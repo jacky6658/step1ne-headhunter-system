@@ -187,8 +187,17 @@ function parseJobsCSV(csvText) {
     // 過濾空行（至少要有職位名稱和客戶公司）
     if (!fields[0] || !fields[1]) return null;
     
-    // 過濾掉非職位資料（以 • 或 - 開頭的列表項目）
-    if (fields[0].trim().startsWith('•') || fields[0].trim().startsWith('-')) return null;
+    const titleTrimmed = fields[0].trim();
+    
+    // 過濾掉非職位資料（列表項目）
+    // 1. 以 • 或 - 開頭的
+    if (titleTrimmed.startsWith('•') || titleTrimmed.startsWith('-')) return null;
+    
+    // 2. 以數字編號開頭的（如 "1. ", "2. ", "5. " 等）
+    if (/^\d+[\.\、\s]/.test(titleTrimmed)) return null;
+    
+    // 3. 只有幾個字的（可能是技能片段，真正的職位至少 3 個中文字）
+    if (titleTrimmed.length < 3) return null;
     
     // 解析主要技能
     const skillsStr = fields[5] || '';
