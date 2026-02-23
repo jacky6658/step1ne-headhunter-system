@@ -1,0 +1,50 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Utility functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      // 確保 document 存在再檢查 role
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && userDoc != null && userDoc.data.role == 'ADMIN';
+    }
+    
+    function isReviewer() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && userDoc != null && userDoc.data.role == 'REVIEWER';
+    }
+
+    // User Profile Rules
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      // 優先檢查本人寫入，再檢查管理員，避免新註冊用戶在 get() 發生錯誤
+      allow write: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
+    }
+
+    // Lead Rules
+    match /leads/{leadId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+      
+      allow update: if isAdmin() 
+        || (isReviewer() && (
+             // Reviewer can only update specific fields
+             request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['decision', 'reject_reason', 'review_note', 'status', 'updated_at'])
+           ));
+    }
+
+    // Audit Log Rules
+    match /audit_logs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false; // Logs are immutable
+    }
+  }
+}
