@@ -1,0 +1,16 @@
+{
+  "name": "step1ne-bot-examples",
+  "version": "1.0.0",
+  "description": "Step1ne API Bot Integration Examples",
+  "main": "nodejs-bot.js",
+  "scripts": {
+    "test": "node nodejs-bot.js",
+    "test-api": "bash test-api.sh"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {},
+  "author": "Step1ne Team",
+  "license": "MIT"
+}
