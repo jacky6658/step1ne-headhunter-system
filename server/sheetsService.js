@@ -1,64 +1,118 @@
-// Google Sheets Service - 使用 googleapis 直接連接
-import { google } from 'googleapis';
+// Google Sheets Service - 使用 CSV 匯出直接讀取（公開 Sheet）
+import https from 'https';
 
 const SHEET_ID = process.env.SHEET_ID || '1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SEtxRk6Q';
-const API_KEY = process.env.GOOGLE_API_KEY;
-const CANDIDATES_TAB = '履歷池v2';
+const CANDIDATES_TAB_GID = process.env.TAB_GID || '142613837'; // 履歷池v2 的 GID
 
-// 初始化 Google Sheets API
-const sheets = google.sheets('v4');
+/**
+ * 從 Google Sheets 匯出 CSV（處理重定向）
+ */
+async function fetchSheetAsCSV() {
+  return new Promise((resolve, reject) => {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${CANDIDATES_TAB_GID}`;
+    
+    https.get(url, (res) => {
+      // 處理重定向
+      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) {
+        const redirectUrl = res.headers.location;
+        https.get(redirectUrl, (redirectRes) => {
+          if (redirectRes.statusCode !== 200) {
+            reject(new Error(`HTTP ${redirectRes.statusCode}: 無法存取 Google Sheets`));
+            return;
+          }
+          
+          let data = '';
+          redirectRes.on('data', chunk => data += chunk);
+          redirectRes.on('end', () => resolve(data));
+        }).on('error', reject);
+        return;
+      }
+      
+      if (res.statusCode !== 200) {
+        reject(new Error(`HTTP ${res.statusCode}: 無法存取 Google Sheets`));
+        return;
+      }
+      
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve(data));
+    }).on('error', reject);
+  });
+}
+
+/**
+ * 解析 CSV 為候選人陣列
+ */
+function parseCSV(csvText) {
+  const lines = csvText.split('\n');
+  const rows = lines.slice(1).filter(line => line.trim()); // 跳過標題行
+  
+  return rows.map((line, index) => {
+    // 簡單的 CSV 解析（處理引號內的逗號）
+    const fields = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        fields.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    fields.push(current); // 最後一個欄位
+    
+    const safeParseJSON = (jsonString, defaultValue = []) => {
+      try {
+        return jsonString && jsonString.trim() ? JSON.parse(jsonString) : defaultValue;
+      } catch {
+        return defaultValue;
+      }
+    };
+    
+    return {
+      id: `candidate-${index + 2}`,
+      _sheetRow: index + 2,
+      
+      // 基本資訊（履歷池v2 實際欄位順序）
+      name: fields[0] || '',               // 0: 姓名
+      email: fields[1] || '',              // 1: Email
+      phone: fields[2] || '',              // 2: 電話
+      location: fields[3] || '',           // 3: 地點
+      position: fields[4] || '',           // 4: 目前職位
+      years: parseFloat(fields[5]) || 0,   // 5: 總年資(年)
+      jobChanges: parseInt(fields[6]) || 0, // 6: 轉職次數
+      stabilityScore: parseInt(fields[14]) || 0, // 14: 穩定性評分
+      skills: fields[9] || '',             // 9: 技能
+      status: fields[17] || 'pending',     // 17: 狀態
+      source: fields[11] || 'manual',      // 11: 來源
+      consultant: fields[18] || '',        // 18: 獵頭顧問
+      
+      // JSON 欄位
+      workHistory: safeParseJSON(fields[12]), // 12: 工作經歷JSON
+      education: safeParseJSON(fields[15]),   // 15: 學歷JSON
+      
+      // 其他資訊
+      resumeUrl: '',                       // 履歷連結（未存在此sheet）
+      notes: fields[19] || '',             // 19: 備註
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  });
+}
 
 /**
  * 取得所有候選人資料
  */
 export async function getCandidates() {
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: `${CANDIDATES_TAB}!A2:T`, // 從第2行開始（跳過標題）
-      key: API_KEY,
-    });
-    
-    const rows = response.data.values || [];
-    
-    return rows.map((row, index) => {
-      const safeParseJSON = (jsonString, defaultValue = []) => {
-        try {
-          return jsonString && jsonString.trim() ? JSON.parse(jsonString) : defaultValue;
-        } catch {
-          return defaultValue;
-        }
-      };
-      
-      return {
-        id: `candidate-${index + 2}`, // +2 因為第 1 行是標題
-        _sheetRow: index + 2,
-        
-        // A-L: 基本資訊
-        name: row[0] || '',
-        email: row[1] || '',
-        phone: row[2] || '',
-        location: row[3] || '',
-        position: row[4] || '',
-        years: parseFloat(row[5]) || 0,
-        jobChanges: parseInt(row[6]) || 0,
-        stabilityScore: parseInt(row[7]) || 0,
-        skills: row[8] || '',
-        status: row[9] || 'pending',
-        source: row[10] || 'manual',
-        consultant: row[11] || '',
-        
-        // M-P: JSON 欄位
-        workHistory: safeParseJSON(row[12]),
-        education: safeParseJSON(row[15]),
-        
-        // Q-T: 其他資訊
-        resumeUrl: row[16] || '',
-        notes: row[17] || '',
-        createdAt: row[18] || new Date().toISOString(),
-        updatedAt: row[19] || new Date().toISOString(),
-      };
-    });
+    const csvData = await fetchSheetAsCSV();
+    return parseCSV(csvData);
   } catch (error) {
     console.error('讀取 Google Sheets 失敗:', error.message);
     throw new Error(`無法讀取候選人資料: ${error.message}`);
@@ -74,121 +128,29 @@ export async function getCandidate(candidateId) {
 }
 
 /**
- * 更新候選人狀態
+ * 更新候選人狀態（唯讀模式 - 返回錯誤）
  */
 export async function updateCandidateStatus(candidateId, newStatus) {
-  try {
-    // 取得所有候選人，找到對應的行號
-    const candidates = await getCandidates();
-    const candidate = candidates.find(c => c.id === candidateId);
-    
-    if (!candidate) {
-      throw new Error('找不到候選人');
-    }
-    
-    const rowNumber = candidate._sheetRow;
-    
-    // 更新狀態欄位 (J欄) 和更新時間 (T欄)
-    await sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId: SHEET_ID,
-      key: API_KEY,
-      requestBody: {
-        valueInputOption: 'USER_ENTERED',
-        data: [
-          {
-            range: `${CANDIDATES_TAB}!J${rowNumber}`,
-            values: [[newStatus]],
-          },
-          {
-            range: `${CANDIDATES_TAB}!T${rowNumber}`,
-            values: [[new Date().toISOString()]],
-          },
-        ],
-      },
-    });
-    
-    return { success: true, candidateId, newStatus };
-  } catch (error) {
-    console.error('更新候選人狀態失敗:', error.message);
-    throw new Error(`無法更新候選人狀態: ${error.message}`);
-  }
+  throw new Error('CSV 模式不支援寫入操作。請使用 Google Sheets 介面手動更新。');
 }
 
 /**
- * 新增候選人
+ * 新增候選人（唯讀模式 - 返回錯誤）
  */
 export async function addCandidate(candidateData) {
-  try {
-    const now = new Date().toISOString();
-    
-    const row = [
-      candidateData.name || '',
-      candidateData.email || '',
-      candidateData.phone || '',
-      candidateData.location || '',
-      candidateData.position || '',
-      candidateData.years || 0,
-      candidateData.jobChanges || 0,
-      candidateData.stabilityScore || 0,
-      candidateData.skills || '',
-      candidateData.status || 'pending',
-      candidateData.source || 'manual',
-      candidateData.consultant || '',
-      JSON.stringify(candidateData.workHistory || []),
-      '', // N: 保留
-      '', // O: 保留
-      JSON.stringify(candidateData.education || []),
-      candidateData.resumeUrl || '',
-      candidateData.notes || '',
-      now, // createdAt
-      now, // updatedAt
-    ];
-    
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SHEET_ID,
-      range: `${CANDIDATES_TAB}!A:T`,
-      valueInputOption: 'USER_ENTERED',
-      key: API_KEY,
-      requestBody: {
-        values: [row],
-      },
-    });
-    
-    return { success: true, message: '候選人新增成功' };
-  } catch (error) {
-    console.error('新增候選人失敗:', error.message);
-    throw new Error(`無法新增候選人: ${error.message}`);
-  }
+  throw new Error('CSV 模式不支援寫入操作。請使用 Google Sheets 介面手動新增。');
 }
 
 /**
- * 刪除候選人（軟刪除：更新狀態為 'deleted'）
+ * 刪除候選人（唯讀模式 - 返回錯誤）
  */
 export async function deleteCandidate(candidateId) {
-  try {
-    await updateCandidateStatus(candidateId, 'deleted');
-    return { success: true, candidateId };
-  } catch (error) {
-    console.error('刪除候選人失敗:', error.message);
-    throw new Error(`無法刪除候選人: ${error.message}`);
-  }
+  throw new Error('CSV 模式不支援寫入操作。請使用 Google Sheets 介面手動刪除。');
 }
 
 /**
- * 批量更新候選人狀態
+ * 批量更新候選人狀態（唯讀模式 - 返回錯誤）
  */
 export async function batchUpdateStatus(updates) {
-  try {
-    const results = [];
-    
-    for (const update of updates) {
-      const result = await updateCandidateStatus(update.candidateId, update.newStatus);
-      results.push(result);
-    }
-    
-    return { success: true, results };
-  } catch (error) {
-    console.error('批量更新失敗:', error.message);
-    throw new Error(`批量更新失敗: ${error.message}`);
-  }
+  throw new Error('CSV 模式不支援寫入操作。請使用 Google Sheets 介面手動更新。');
 }
