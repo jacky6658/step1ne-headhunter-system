@@ -13,8 +13,28 @@ const saveDb = (db: Record<string, UserProfile>) => localStorage.setItem(STORAGE
 // API 模式：從後端獲取使用者
 const fetchUsersFromApi = async (): Promise<Record<string, UserProfile>> => {
   try {
-    const users = await apiRequest('/api/users');
-    return users;
+    const response = await apiRequest('/api/users');
+    const userList = response.data || response || [];
+    
+    // 轉換為 Record<string, UserProfile>
+    const usersRecord: Record<string, UserProfile> = {};
+    
+    userList.forEach((user: any) => {
+      const uid = user.id || user.uid || user.username;
+      usersRecord[uid] = {
+        uid: uid,
+        displayName: user.name || user.displayName || user.username,
+        email: user.email,
+        role: user.role as Role,
+        isActive: true,
+        avatar: user.avatar,
+        status: user.status,
+        createdAt: user.createdAt || new Date().toISOString(),
+        lastActive: user.lastActive || new Date().toISOString()
+      };
+    });
+    
+    return usersRecord;
   } catch (error) {
     console.error('從 API 獲取使用者失敗，降級到 localStorage:', error);
     return getDb(); // 降級到 localStorage
