@@ -21,7 +21,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('help');
+  const [activeTab, setActiveTab] = useState('candidates');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<UserProfile[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
