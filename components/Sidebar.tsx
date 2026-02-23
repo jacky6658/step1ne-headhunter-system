@@ -13,6 +13,10 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onLogout, isOpen, onClose }) => {
+  if (!profile) {
+    return null; // Safety check
+  }
+  
   const isAdmin = profile.role === Role.ADMIN;
 
   const menuItems = [
