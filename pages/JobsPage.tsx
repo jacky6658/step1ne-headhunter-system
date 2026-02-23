@@ -43,6 +43,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
@@ -81,6 +82,46 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
     }
   };
 
+  const syncJobs = async () => {
+    setSyncing(true);
+    try {
+      const response = await fetch('http://localhost:3001/api/jobs');
+      const data = await response.json();
+      if (data.success) {
+        setJobs(data.data);
+        setFilteredJobs(data.data);
+        
+        // 顯示成功提示
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2';
+        notification.innerHTML = `
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+          <span>已同步 ${data.data.length} 個職缺</span>
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+      }
+    } catch (error) {
+      console.error('同步職缺失敗:', error);
+      
+      // 顯示錯誤提示
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2';
+      notification.innerHTML = `
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+        <span>同步失敗，請稍後重試</span>
+      `;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 3000);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleJobClick = (job: Job) => {
     setSelectedJob(job);
   };
@@ -108,13 +149,43 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-          <Briefcase className="text-indigo-600" size={32} />
-          職缺管理
-        </h1>
-        <p className="text-slate-600 mt-2">
-          管理所有客戶職缺，追蹤招募狀態
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+              <Briefcase className="text-indigo-600" size={32} />
+              職缺管理
+            </h1>
+            <p className="text-slate-600 mt-2">
+              管理所有客戶職缺，追蹤招募狀態
+            </p>
+          </div>
+          
+          {/* 同步職缺按鈕 */}
+          <button
+            onClick={syncJobs}
+            disabled={syncing}
+            className={`px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all ${
+              syncing
+                ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg'
+            }`}
+          >
+            <svg 
+              className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`}
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+              />
+            </svg>
+            {syncing ? '同步中...' : '同步職缺'}
+          </button>
+        </div>
       </div>
 
       {/* 統計卡片 */}
