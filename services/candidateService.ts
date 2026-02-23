@@ -46,8 +46,10 @@ export async function getCandidates(): Promise<Candidate[]> {
     if (API_BASE_URL) {
       const response = await fetch(`${API_BASE_URL}/api/candidates`);
       if (response.ok) {
-        const data = await response.json();
-        const candidates = data.candidates || [];
+        const result = await response.json();
+        const candidates = result.data || [];
+        
+        console.log(`✅ 從 API 載入 ${candidates.length} 位候選人`);
         
         // 更新快取
         localStorage.setItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE, JSON.stringify(candidates));
