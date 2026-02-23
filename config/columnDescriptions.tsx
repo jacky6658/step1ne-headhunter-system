@@ -123,11 +123,11 @@ export const COLUMN_DESCRIPTIONS = {
           <p>• 特殊加分 (10%)</p>
         </div>
         <div className="text-xs space-y-1">
-          <p><span className="font-semibold text-purple-600">S 級</span> (90-100分): 頂尖人才</p>
-          <p><span className="font-semibold text-blue-600">A+ 級</span> (80-89分): 優秀人才</p>
-          <p><span className="font-semibold text-green-600">A 級</span> (70-79分): 合格人才</p>
-          <p><span className="font-semibold text-yellow-600">B 級</span> (60-69分): 潛力人才</p>
-          <p><span className="font-semibold text-gray-600">C 級</span> (&lt;60分): 需培訓</p>
+          <p><span className="font-semibold text-purple-600">S 級</span> (90-100分): 頂尖人才（稀缺）</p>
+          <p><span className="font-semibold text-blue-600">A+ 級</span> (80-89分): 優秀人才（強力推薦）</p>
+          <p><span className="font-semibold text-green-600">A 級</span> (70-79分): 合格人才（可推薦）</p>
+          <p><span className="font-semibold text-yellow-600">B 級</span> (60-69分): 基本合格（需評估）</p>
+          <p><span className="font-semibold text-gray-600">C 級</span> (&lt;60分): 需補強（謹慎推薦）</p>
         </div>
       </>
     ),
