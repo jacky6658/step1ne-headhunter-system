@@ -144,24 +144,51 @@ function inferCompanyPersona(companyName, industry) {
 }
 
 /**
- * 解析 CSV 為職缺陣列
+ * 解析 CSV 為職缺陣列（處理多行欄位）
  */
 function parseJobsCSV(csvText) {
-  const lines = csvText.split('\n').filter(line => line.trim());
+  // 先用正則表達式正確分割 CSV 行（處理引號內的換行）
+  const rows = [];
+  let currentRow = '';
+  let inQuotes = false;
   
-  if (lines.length < 2) {
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      currentRow += char;
+    } else if (char === '\n' && !inQuotes) {
+      if (currentRow.trim()) {
+        rows.push(currentRow);
+      }
+      currentRow = '';
+    } else {
+      currentRow += char;
+    }
+  }
+  
+  // 最後一行
+  if (currentRow.trim()) {
+    rows.push(currentRow);
+  }
+  
+  if (rows.length < 2) {
     console.warn('職缺 Sheet 資料不足（少於 2 行）');
     return [];
   }
   
   // 跳過標題行
-  const dataLines = lines.slice(1);
+  const dataLines = rows.slice(1);
   
   return dataLines.map((line, index) => {
     const fields = parseCSVLine(line);
     
     // 過濾空行（至少要有職位名稱和客戶公司）
     if (!fields[0] || !fields[1]) return null;
+    
+    // 過濾掉非職位資料（以 • 或 - 開頭的列表項目）
+    if (fields[0].trim().startsWith('•') || fields[0].trim().startsWith('-')) return null;
     
     // 解析主要技能
     const skillsStr = fields[5] || '';
