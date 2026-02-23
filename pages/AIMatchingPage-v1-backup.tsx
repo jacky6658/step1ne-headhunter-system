@@ -1,34 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { Target, Users, Building2, Sparkles, Download, FileText, TrendingUp, CheckCircle2, AlertCircle, Briefcase } from 'lucide-react';
+import { Target, Users, Building2, Sparkles, Download, FileText, TrendingUp, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface AIMatchingPageProps {
   userProfile: UserProfile;
 }
 
-interface JobFromAPI {
-  id: string;
+interface Job {
   title: string;
   department: string;
-  headcount: number;
-  salaryRange: string;
   requiredSkills: string[];
   preferredSkills: string[];
   yearsRequired: number;
   educationRequired: string;
-  status: string;
   responsibilities: string[];
   benefits: string[];
-  company: {
-    name: string;
-    industry: string;
-    size: string;
-    stage: string;
-    culture: string;
-    techStack: string[];
-    workLocation: string;
-    remotePolicy: string;
-  };
+}
+
+interface Company {
+  name: string;
+  industry: string;
+  size: string;
+  stage: string;
+  culture: string;
+  techStack: string[];
+  workLocation: string;
+  remotePolicy: string;
 }
 
 interface Candidate {
@@ -92,45 +89,41 @@ interface BatchMatchResponse {
 }
 
 export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) => {
-  const [step, setStep] = useState<'job-selection' | 'selecting' | 'matching' | 'results'>('job-selection');
-  
-  // 職缺相關
-  const [jobs, setJobs] = useState<JobFromAPI[]>([]);
-  const [selectedJob, setSelectedJob] = useState<JobFromAPI | null>(null);
-  const [loadingJobs, setLoadingJobs] = useState(true);
-  
-  // 候選人相關
+  const [step, setStep] = useState<'setup' | 'selecting' | 'matching' | 'results'>('setup');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
-  
-  // 配對相關
   const [matchResults, setMatchResults] = useState<BatchMatchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 載入職缺列表
+  // 職缺資訊（暫時寫死，未來可改為動態表單）
+  const [job, setJob] = useState<Job>({
+    title: 'AI 工程師',
+    department: '技術部',
+    requiredSkills: ['Python', 'Machine Learning', 'Deep Learning'],
+    preferredSkills: ['PyTorch', 'TensorFlow', 'NLP'],
+    yearsRequired: 3,
+    educationRequired: '大學',
+    responsibilities: ['開發 AI 模型', '資料處理與分析', '模型部署與優化'],
+    benefits: ['彈性工時', '遠端辦公', '教育訓練補助']
+  });
+
+  // 公司資訊（暫時寫死，未來可改為動態表單）
+  const [company, setCompany] = useState<Company>({
+    name: '創新科技股份有限公司',
+    industry: '軟體科技',
+    size: '100-500',
+    stage: '成長期',
+    culture: '自主型',
+    techStack: ['Python', 'PyTorch', 'AWS', 'Docker'],
+    workLocation: '台北',
+    remotePolicy: '混合辦公'
+  });
+
+  // 載入候選人列表
   useEffect(() => {
-    fetchJobs();
     fetchCandidates();
   }, []);
-
-  const fetchJobs = async () => {
-    setLoadingJobs(true);
-    try {
-      const response = await fetch('http://localhost:3001/api/jobs');
-      const data = await response.json();
-      if (data.success) {
-        setJobs(data.data);
-      } else {
-        setError('載入職缺失敗');
-      }
-    } catch (err) {
-      console.error('載入職缺失敗:', err);
-      setError('載入職缺失敗');
-    } finally {
-      setLoadingJobs(false);
-    }
-  };
 
   const fetchCandidates = async () => {
     try {
@@ -141,14 +134,8 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
       }
     } catch (err) {
       console.error('載入候選人失敗:', err);
+      setError('載入候選人失敗');
     }
-  };
-
-  const handleJobSelect = (job: JobFromAPI) => {
-    setSelectedJob(job);
-    setStep('selecting');
-    setSelectedCandidates([]);
-    setMatchResults(null);
   };
 
   const handleCandidateToggle = (candidateId: string) => {
@@ -160,11 +147,6 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
   };
 
   const handleStartMatching = async () => {
-    if (!selectedJob) {
-      alert('請先選擇職缺');
-      return;
-    }
-
     if (selectedCandidates.length === 0) {
       alert('請至少選擇 1 位候選人');
       return;
@@ -181,17 +163,8 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          job: {
-            title: selectedJob.title,
-            department: selectedJob.department,
-            requiredSkills: selectedJob.requiredSkills,
-            preferredSkills: selectedJob.preferredSkills || [],
-            yearsRequired: selectedJob.yearsRequired,
-            educationRequired: selectedJob.educationRequired,
-            responsibilities: selectedJob.responsibilities || [],
-            benefits: selectedJob.benefits || []
-          },
-          company: selectedJob.company,
+          job,
+          company,
           candidateIds: selectedCandidates
         })
       });
@@ -233,10 +206,10 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
     }
   };
 
-  // Job Selection 階段 - 選擇職缺
-  if (step === 'job-selection') {
+  // Setup 階段
+  if (step === 'setup') {
     return (
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
             <Sparkles className="text-indigo-600" size={32} />
@@ -247,122 +220,95 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
           </p>
         </div>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-            <AlertCircle className="text-red-600" size={20} />
-            <span className="text-red-800">{error}</span>
-          </div>
-        )}
-
-        {/* 職缺列表 */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <Briefcase className="text-indigo-600" size={24} />
-            <h2 className="text-xl font-bold text-slate-900">選擇職缺</h2>
-            {loadingJobs && (
-              <div className="ml-auto">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
+        {/* 職缺與公司資訊預覽 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* 職缺資訊 */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Building2 className="text-indigo-600" size={24} />
+              <h2 className="text-xl font-bold text-slate-900">職缺資訊</h2>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <span className="text-sm font-medium text-slate-700">職位：</span>
+                <span className="text-sm text-slate-900 ml-2">{job.title}</span>
               </div>
-            )}
+              <div>
+                <span className="text-sm font-medium text-slate-700">部門：</span>
+                <span className="text-sm text-slate-900 ml-2">{job.department}</span>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-700">必備技能：</span>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {job.requiredSkills.map((skill, idx) => (
+                    <span key={idx} className="px-2 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-lg">
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-700">加分技能：</span>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {job.preferredSkills.map((skill, idx) => (
+                    <span key={idx} className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-lg">
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {loadingJobs ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
-              <p className="text-slate-600">載入職缺中...</p>
+          {/* 公司資訊 */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Target className="text-indigo-600" size={24} />
+              <h2 className="text-xl font-bold text-slate-900">公司資訊</h2>
             </div>
-          ) : jobs.length === 0 ? (
-            <div className="text-center py-12">
-              <Briefcase className="mx-auto text-slate-300" size={48} />
-              <p className="text-slate-600 mt-4">目前沒有招募中的職缺</p>
+            <div className="space-y-3">
+              <div>
+                <span className="text-sm font-medium text-slate-700">公司名稱：</span>
+                <span className="text-sm text-slate-900 ml-2">{company.name}</span>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-700">產業：</span>
+                <span className="text-sm text-slate-900 ml-2">{company.industry}</span>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-700">階段：</span>
+                <span className="text-sm text-slate-900 ml-2">{company.stage}</span>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-700">企業文化：</span>
+                <span className="text-sm text-slate-900 ml-2">{company.culture}</span>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-700">工作模式：</span>
+                <span className="text-sm text-slate-900 ml-2">{company.remotePolicy}</span>
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {jobs.map((job) => (
-                <button
-                  key={job.id}
-                  onClick={() => handleJobSelect(job)}
-                  className="text-left p-5 border-2 border-slate-200 rounded-xl hover:border-indigo-500 hover:shadow-lg transition-all group"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                      {job.title}
-                    </h3>
-                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded">
-                      招募中
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-2 text-sm text-slate-600 mb-4">
-                    <div className="flex items-center gap-2">
-                      <Building2 size={14} className="text-slate-400" />
-                      <span>{job.company.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Users size={14} className="text-slate-400" />
-                      <span>{job.department} · 需求 {job.headcount} 人</span>
-                    </div>
-                    {job.salaryRange && (
-                      <div className="flex items-center gap-2">
-                        <Target size={14} className="text-slate-400" />
-                        <span>{job.salaryRange}</span>
-                      </div>
-                    )}
-                  </div>
+          </div>
+        </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {job.requiredSkills.slice(0, 3).map((skill, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs rounded">
-                        {skill}
-                      </span>
-                    ))}
-                    {job.requiredSkills.length > 3 && (
-                      <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded">
-                        +{job.requiredSkills.length - 3}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-slate-100">
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <span>{job.company.stage}</span>
-                      <span>·</span>
-                      <span>{job.company.culture}</span>
-                      <span>·</span>
-                      <span>{job.company.remotePolicy}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+        {/* 開始配對按鈕 */}
+        <div className="flex justify-center">
+          <button
+            onClick={() => setStep('selecting')}
+            className="px-8 py-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/30 flex items-center gap-3 text-lg font-semibold"
+          >
+            <Users size={24} />
+            選擇候選人開始配對
+          </button>
         </div>
       </div>
     );
   }
 
-  // Selecting 階段 - 選擇候選人
-  if (step === 'selecting' && selectedJob) {
+  // Selecting 階段
+  if (step === 'selecting') {
     return (
       <div className="max-w-7xl mx-auto p-6">
-        {/* 職缺資訊摘要 */}
-        <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-indigo-900">{selectedJob.title}</h2>
-              <p className="text-sm text-indigo-700 mt-1">
-                {selectedJob.company.name} · {selectedJob.department}
-              </p>
-            </div>
-            <button
-              onClick={() => setStep('job-selection')}
-              className="px-4 py-2 bg-white border border-indigo-300 text-indigo-700 rounded-lg hover:bg-indigo-50 transition-all text-sm font-medium"
-            >
-              更換職缺
-            </button>
-          </div>
-        </div>
-
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
             <Users className="text-indigo-600" size={28} />
@@ -446,10 +392,10 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
         {/* 操作按鈕 */}
         <div className="flex justify-between items-center">
           <button
-            onClick={() => setStep('job-selection')}
+            onClick={() => setStep('setup')}
             className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 transition-all"
           >
-            返回選擇職缺
+            返回上一步
           </button>
           <button
             onClick={handleStartMatching}
@@ -482,25 +428,18 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
     );
   }
 
-  // Results 階段 - 配對結果（與原版相同，省略重複代碼）
-  // ...（保留原來的 Results 階段代碼）
-  
+  // Results 階段
   if (step === 'results' && matchResults) {
     return (
       <div className="max-w-7xl mx-auto p-6">
-        {/* 職缺資訊摘要 */}
-        <div className="mb-6 bg-green-50 border border-green-200 rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="text-green-600" size={24} />
-                <h2 className="text-xl font-bold text-green-900">配對完成</h2>
-              </div>
-              <p className="text-sm text-green-700 mt-1">
-                {matchResults.company.name} · {matchResults.company.jobTitle}
-              </p>
-            </div>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+            <CheckCircle2 className="text-green-600" size={28} />
+            配對結果
+          </h1>
+          <p className="text-slate-600 mt-1">
+            {matchResults.company.name} - {matchResults.company.jobTitle}
+          </p>
         </div>
 
         {/* 摘要統計 */}
@@ -563,19 +502,19 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
           </div>
         </div>
 
-        {/* 詳細配對報告 - 簡化版，只顯示 Top 3 */}
+        {/* 詳細配對報告 */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
             <FileText className="text-indigo-600" size={24} />
-            詳細配對報告（Top 3）
+            詳細配對報告
           </h2>
           <div className="space-y-6">
-            {matchResults.result.matches.slice(0, 3).map((match, idx) => (
+            {matchResults.result.matches.map((match, idx) => (
               <div key={idx} className="border border-slate-200 rounded-lg p-6">
                 {/* 候選人基本資訊 */}
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-bold text-slate-900">#{idx + 1} {match.candidate.name}</h3>
+                    <h3 className="text-lg font-bold text-slate-900">{match.candidate.name}</h3>
                     <div className="flex items-center gap-3 mt-1">
                       <span className={`px-2 py-1 text-xs font-semibold rounded border ${getGradeColor(match.等級)}`}>
                         {match.等級} 級
@@ -665,8 +604,7 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
         <div className="flex justify-between items-center">
           <button
             onClick={() => {
-              setStep('job-selection');
-              setSelectedJob(null);
+              setStep('setup');
               setSelectedCandidates([]);
               setMatchResults(null);
             }}
@@ -675,7 +613,7 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
             重新配對
           </button>
           <button
-            onClick={() => window.print()}
+            onClick={() => alert('PDF 匯出功能開發中')}
             className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
           >
             <Download size={20} />

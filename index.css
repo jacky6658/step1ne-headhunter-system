@@ -72,3 +72,71 @@
     }
   }
 }
+
+/* PDF 匯出 / 列印樣式優化 */
+@media print {
+  /* 隱藏不需要的元素 */
+  nav,
+  aside,
+  .sidebar,
+  button:not(.print-show),
+  .no-print {
+    display: none !important;
+  }
+  
+  /* 頁面設定 */
+  @page {
+    size: A4;
+    margin: 1.5cm;
+  }
+  
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+  }
+  
+  /* 確保內容不分頁 */
+  .print-avoid-break {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  
+  /* 卡片樣式優化 */
+  .print-card {
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    margin-bottom: 1cm !important;
+  }
+  
+  /* 標題樣式 */
+  h1, h2, h3 {
+    color: black !important;
+    page-break-after: avoid;
+  }
+  
+  /* 表格樣式 */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  
+  table th,
+  table td {
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+  }
+  
+  /* 背景色轉為白色 */
+  * {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  /* 保留重要的背景色 */
+  .print-keep-bg {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
