@@ -9,6 +9,7 @@ import fs from 'fs';
 import * as sheetsService from './sheetsService.js';
 import * as gradingService from './gradingService.js';
 import * as personaService from './personaService.js';
+import * as jobsService from './jobsService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -312,6 +313,38 @@ app.post('/api/candidates/batch-grade', async (req, res) => {
   } catch (error) {
     console.error('批量評級失敗:', error);
     res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// ========================================
+// Jobs API
+// ========================================
+
+// 取得所有職缺列表
+app.get('/api/jobs', async (req, res) => {
+  try {
+    const jobs = await jobsService.getJobs();
+    res.json({ success: true, data: jobs, count: jobs.length });
+  } catch (error) {
+    console.error('取得職缺列表失敗:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// 取得單一職缺
+app.get('/api/jobs/:id', async (req, res) => {
+  try {
+    const job = await jobsService.getJob(req.params.id);
+    res.json({ success: true, data: job });
+  } catch (error) {
+    console.error('取得職缺失敗:', error);
+    res.status(404).json({ 
       success: false, 
       error: error.message 
     });
