@@ -14,6 +14,7 @@ import LoginPage from './pages/LoginPage';
 // 新增: 候選人管理頁面
 import { CandidatesPage } from './pages/CandidatesPage';
 import { CandidateKanbanPage } from './pages/CandidateKanbanPage';
+import { AIMatchingPage } from './pages/AIMatchingPage';
 import { Menu, X as XIcon } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -85,6 +86,8 @@ const App: React.FC = () => {
       // 候選人管理頁面
       case 'candidates': return <CandidatesPage userProfile={profile} />;
       case 'candidate-kanban': return <CandidateKanbanPage userProfile={profile} />;
+      // AI 配對推薦
+      case 'ai-matching': return <AIMatchingPage userProfile={profile} />;
       case 'members': 
         // 只有管理員可以訪問成員管理
         if (profile.role !== Role.ADMIN) {
