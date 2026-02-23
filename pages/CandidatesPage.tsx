@@ -1,9 +1,10 @@
 // Step1ne Headhunter System - 候選人總表頁面
 import React, { useState, useEffect } from 'react';
 import { Candidate, CandidateStatus, CandidateSource, UserProfile } from '../types';
-import { getCandidates, searchCandidates } from '../services/candidateService';
+import { getCandidates, searchCandidates, updateCandidateStatus } from '../services/candidateService';
 import { Users, Search, Filter, Plus, Download, Upload } from 'lucide-react';
 import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
+import { CandidateModal } from '../components/CandidateModal';
 
 export function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -13,6 +14,7 @@ export function CandidatesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [consultantFilter, setConsultantFilter] = useState<string>('all');
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   
   // 載入候選人資料
   useEffect(() => {
@@ -220,7 +222,7 @@ export function CandidatesPage() {
                 <tr 
                   key={candidate.id}
                   className="hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => {/* TODO: 開啟詳情 */}}
+                  onClick={() => setSelectedCandidate(candidate)}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -290,6 +292,25 @@ export function CandidatesPage() {
           </div>
         )}
       </div>
+      
+      {/* Candidate Detail Modal */}
+      {selectedCandidate && (
+        <CandidateModal
+          candidate={selectedCandidate}
+          onClose={() => setSelectedCandidate(null)}
+          onUpdateStatus={async (candidateId, newStatus) => {
+            await updateCandidateStatus(candidateId, newStatus);
+            setCandidates(prev => 
+              prev.map(c => 
+                c.id === candidateId 
+                  ? { ...c, status: newStatus, updatedAt: new Date().toISOString() }
+                  : c
+              )
+            );
+            setSelectedCandidate(null);
+          }}
+        />
+      )}
     </div>
   );
 }

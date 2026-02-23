@@ -3,12 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { Candidate, CandidateStatus } from '../types';
 import { getCandidates, updateCandidateStatus } from '../services/candidateService';
 import { KANBAN_COLUMNS, CANDIDATE_STATUS_CONFIG } from '../constants';
+import { CandidateModal } from '../components/CandidateModal';
 import { Users, RefreshCw } from 'lucide-react';
 
 export function CandidateKanbanPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggedCandidate, setDraggedCandidate] = useState<Candidate | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   
   useEffect(() => {
     loadCandidates();
@@ -141,9 +143,10 @@ export function CandidateKanbanPage() {
                       key={candidate.id}
                       draggable
                       onDragStart={() => handleDragStart(candidate)}
+                      onClick={() => setSelectedCandidate(candidate)}
                       className={`
-                        bg-white rounded-lg shadow-sm p-4 cursor-move 
-                        hover:shadow-md transition-shadow
+                        bg-white rounded-lg shadow-sm p-4 cursor-pointer
+                        hover:shadow-md transition-all hover:scale-[1.02]
                         border-l-4 ${getStabilityColor(candidate.stabilityScore)}
                       `}
                     >
@@ -197,6 +200,25 @@ export function CandidateKanbanPage() {
           })}
         </div>
       </div>
+      
+      {/* Candidate Detail Modal */}
+      {selectedCandidate && (
+        <CandidateModal
+          candidate={selectedCandidate}
+          onClose={() => setSelectedCandidate(null)}
+          onUpdateStatus={async (candidateId, newStatus) => {
+            await updateCandidateStatus(candidateId, newStatus);
+            setCandidates(prev => 
+              prev.map(c => 
+                c.id === candidateId 
+                  ? { ...c, status: newStatus, updatedAt: new Date().toISOString() }
+                  : c
+              )
+            );
+            setSelectedCandidate(null);
+          }}
+        />
+      )}
     </div>
   );
 }
