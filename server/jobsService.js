@@ -1,8 +1,8 @@
-// Jobs Service - 職缺管理服務
+// Jobs Service - 職缺管理服務（整合雲端 Google Sheets）
 import https from 'https';
 
 const SHEET_ID = '1QPaeOm-slNVFCeM8Q3gg3DawKjzp2tYwyfquvdHlZFE'; // step1ne 職缺管理
-const JOBS_TAB_GID = '0'; // 職缺管理 tab 的 GID（通常第一個 tab 是 0）
+const JOBS_TAB_GID = '0'; // 第一個 tab
 
 /**
  * 從 Google Sheets 匯出職缺管理 CSV
@@ -41,48 +41,207 @@ async function fetchJobsAsCSV() {
 }
 
 /**
+ * 簡單 CSV 解析（處理引號和逗號）
+ */
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current.trim());
+  return result;
+}
+
+/**
+ * 根據公司名稱推測公司畫像
+ */
+function inferCompanyPersona(companyName, industry) {
+  // 預設公司畫像
+  const defaultPersona = {
+    name: companyName || '未指定公司',
+    industry: industry || '一般產業',
+    size: '100-500',
+    stage: '成長期',
+    culture: '自主型',
+    techStack: [],
+    workLocation: '台北',
+    remotePolicy: '混合辦公'
+  };
+  
+  // 根據公司名稱特徵推測
+  const name = companyName.toLowerCase();
+  
+  // 遊戲/數位娛樂公司
+  if (name.includes('遊戲') || name.includes('橘子') || name.includes('gamania')) {
+    return {
+      ...defaultPersona,
+      industry: '遊戲/數位娛樂',
+      size: '500+',
+      stage: '穩定企業',
+      culture: 'SOP型',
+      remotePolicy: '辦公室為主'
+    };
+  }
+  
+  // 新創公司
+  if (name.includes('新創') || name.includes('startup') || name.includes('lab')) {
+    return {
+      ...defaultPersona,
+      size: '10-50',
+      stage: '新創',
+      culture: '創業型',
+      remotePolicy: '彈性遠端'
+    };
+  }
+  
+  // 科技公司
+  if (name.includes('科技') || name.includes('tech') || name.includes('ai') || name.includes('軟體')) {
+    return {
+      ...defaultPersona,
+      industry: '軟體科技',
+      stage: '成長期',
+      culture: '自主型',
+      remotePolicy: '混合辦公'
+    };
+  }
+  
+  // 建築相關
+  if (name.includes('建築') || name.includes('營造') || name.includes('工程')) {
+    return {
+      ...defaultPersona,
+      industry: '建築工程',
+      culture: 'SOP型',
+      remotePolicy: '辦公室為主'
+    };
+  }
+  
+  // 金融相關
+  if (name.includes('金融') || name.includes('銀行') || name.includes('投資')) {
+    return {
+      ...defaultPersona,
+      industry: '金融服務',
+      size: '500+',
+      stage: '穩定企業',
+      culture: 'SOP型',
+      remotePolicy: '辦公室為主'
+    };
+  }
+  
+  return defaultPersona;
+}
+
+/**
  * 解析 CSV 為職缺陣列
  */
 function parseJobsCSV(csvText) {
-  const lines = csvText.split('\n');
-  const rows = lines.slice(1).filter(line => line.trim()); // 跳過標題行
+  const lines = csvText.split('\n').filter(line => line.trim());
   
-  return rows.map((line, index) => {
-    // 簡單 CSV 解析（處理逗號分隔）
-    const fields = line.split(',').map(f => f.trim().replace(/^"(.*)"$/, '$1'));
+  if (lines.length < 2) {
+    console.warn('職缺 Sheet 資料不足（少於 2 行）');
+    return [];
+  }
+  
+  // 跳過標題行
+  const dataLines = lines.slice(1);
+  
+  return dataLines.map((line, index) => {
+    const fields = parseCSVLine(line);
     
-    // 過濾空行（至少要有職位名稱）
-    if (!fields[0]) return null;
+    // 過濾空行（至少要有職位名稱和客戶公司）
+    if (!fields[0] || !fields[1]) return null;
+    
+    // 解析主要技能
+    const skillsStr = fields[5] || '';
+    const requiredSkills = skillsStr
+      .split(/[、,，]/)
+      .map(s => s.trim())
+      .filter(s => s);
+    
+    // 客戶公司
+    const companyName = fields[1] || '未指定公司';
+    const industry = fields[14] || ''; // 產業背景要求欄位
+    
+    // 推測公司畫像
+    const company = inferCompanyPersona(companyName, industry);
+    company.techStack = requiredSkills.slice(0, 3); // 使用前 3 個技能作為 techStack
     
     return {
       id: `job-${index + 1}`,
-      title: fields[0] || '',           // A: 職位名稱
-      department: fields[1] || '',      // B: 部門
-      headcount: parseInt(fields[2]) || 1, // C: 需求人數
-      salaryRange: fields[3] || '',     // D: 薪資範圍
-      requiredSkills: fields[4] ? fields[4].split(/[,、]/).map(s => s.trim()).filter(s => s) : [], // E: 必備技能
-      yearsRequired: parseInt(fields[5]) || 0, // F: 年資要求
-      educationRequired: fields[6] || '', // G: 學歷要求
-      status: fields[7] || '招募中',     // H: 狀態
       
-      // 補充預設資訊
-      preferredSkills: [],
-      responsibilities: ['職缺職責詳見職缺說明'],
-      benefits: ['彈性工時', '教育訓練'],
+      // 基本資訊
+      title: fields[0] || '',              // A: 職位名稱
+      department: fields[2] || '',         // C: 部門
+      headcount: parseInt(fields[3]) || 1, // D: 需求人數
+      salaryRange: fields[4] || '',        // E: 薪資範圍
       
-      // 公司資訊（暫時使用預設，未來可從職缺管理 Sheet 擴充欄位）
+      // 技能與要求
+      requiredSkills: requiredSkills,      // F: 主要技能
+      preferredSkills: [],                 // 目前沒有對應欄位，留空
+      yearsRequired: parseYearsRequired(fields[6]), // G: 經驗要求
+      educationRequired: fields[7] || '',  // H: 學歷要求
+      
+      // 工作地點與狀態
+      workLocation: fields[8] || '台北',   // I: 工作地點
+      status: fields[9] || '開放中',       // J: 職位狀態
+      
+      // 額外資訊
+      languageRequirement: fields[12] || '', // M: 語言要求
+      specialConditions: fields[13] || '',   // N: 特殊條件
+      industryBackground: fields[14] || '',  // O: 產業背景要求
+      teamSize: fields[15] || '',            // P: 團隊規模
+      keyChallenge: fields[16] || '',        // Q: 關鍵挑戰
+      highlights: fields[17] || '',          // R: 吸引亮點
+      recruitmentDifficulty: fields[18] || '', // S: 招募困難點
+      
+      // 職缺描述（組合多個欄位）
+      responsibilities: [
+        fields[16] ? `關鍵挑戰：${fields[16]}` : null,
+        fields[15] ? `團隊規模：${fields[15]}` : null
+      ].filter(Boolean),
+      
+      benefits: [
+        fields[17] ? fields[17] : null,
+        company.remotePolicy ? company.remotePolicy : null
+      ].filter(Boolean),
+      
+      // 公司畫像
       company: {
-        name: fields[8] || '創新科技股份有限公司', // I: 公司名稱（新增欄位）
-        industry: fields[9] || '軟體科技',          // J: 產業（新增欄位）
-        size: '100-500',
-        stage: '成長期',
-        culture: '自主型',
-        techStack: fields[4] ? fields[4].split(/[,、]/).map(s => s.trim()).filter(s => s).slice(0, 3) : ['Python'],
-        workLocation: fields[10] || '台北',         // K: 工作地點（新增欄位）
-        remotePolicy: '混合辦公'
+        ...company,
+        workLocation: fields[8] || company.workLocation
       }
     };
-  }).filter(job => job !== null && job.status === '招募中'); // 只返回招募中的職缺
+  }).filter(job => {
+    // 過濾條件
+    if (!job) return false;
+    
+    // 只顯示「開放中」或「招募中」的職缺
+    const validStatuses = ['開放中', '招募中', '急徵', 'open'];
+    return validStatuses.some(s => job.status.toLowerCase().includes(s.toLowerCase()));
+  });
+}
+
+/**
+ * 解析經驗要求（轉換為數字）
+ */
+function parseYearsRequired(experienceStr) {
+  if (!experienceStr) return 0;
+  
+  // 提取數字（例如「3年以上」→ 3）
+  const match = experienceStr.match(/(\d+)/);
+  return match ? parseInt(match[1]) : 0;
 }
 
 /**
@@ -90,143 +249,29 @@ function parseJobsCSV(csvText) {
  */
 export async function getJobs() {
   try {
-    // 暫時使用測試資料（待 Google Sheets 整合完成後移除）
-    const testJobs = [
-      {
-        id: 'job-1',
-        title: 'AI 工程師',
-        department: '技術部',
-        headcount: 2,
-        salaryRange: '80k-120k',
-        requiredSkills: ['Python', 'Machine Learning', 'Deep Learning'],
-        preferredSkills: ['PyTorch', 'TensorFlow', 'NLP'],
-        yearsRequired: 3,
-        educationRequired: '大學',
-        status: '招募中',
-        responsibilities: ['開發 AI 模型', '資料處理與分析', '模型部署與優化'],
-        benefits: ['彈性工時', '遠端辦公', '教育訓練補助'],
-        company: {
-          name: '創新科技股份有限公司',
-          industry: '軟體科技',
-          size: '100-500',
-          stage: '成長期',
-          culture: '自主型',
-          techStack: ['Python', 'PyTorch', 'AWS', 'Docker'],
-          workLocation: '台北',
-          remotePolicy: '混合辦公'
-        }
-      },
-      {
-        id: 'job-2',
-        title: '全端工程師',
-        department: '技術部',
-        headcount: 3,
-        salaryRange: '70k-110k',
-        requiredSkills: ['JavaScript', 'React', 'Node.js'],
-        preferredSkills: ['TypeScript', 'Vue', 'MongoDB'],
-        yearsRequired: 3,
-        educationRequired: '大學',
-        status: '招募中',
-        responsibilities: ['前後端開發', '系統架構設計', 'API 開發'],
-        benefits: ['彈性工時', '遠端辦公'],
-        company: {
-          name: '新創科技有限公司',
-          industry: '軟體科技',
-          size: '50-100',
-          stage: '新創',
-          culture: '創業型',
-          techStack: ['React', 'Node.js', 'PostgreSQL'],
-          workLocation: '台北',
-          remotePolicy: '完全遠端'
-        }
-      },
-      {
-        id: 'job-3',
-        title: 'BIM 工程師',
-        department: '技術部',
-        headcount: 1,
-        salaryRange: '60k-90k',
-        requiredSkills: ['BIM', 'Revit', 'AutoCAD'],
-        preferredSkills: ['Navisworks', '數位孿生'],
-        yearsRequired: 3,
-        educationRequired: '大學',
-        status: '招募中',
-        responsibilities: ['BIM建模', '協調整合', '專案管理'],
-        benefits: ['彈性工時', '教育訓練'],
-        company: {
-          name: '建築科技股份有限公司',
-          industry: '建築科技',
-          size: '100-500',
-          stage: '成長期',
-          culture: '自主型',
-          techStack: ['Revit', 'AutoCAD', 'BIM 360'],
-          workLocation: '台北',
-          remotePolicy: '混合辦公'
-        }
-      },
-      {
-        id: 'job-4',
-        title: '資安工程師',
-        department: '資訊安全部',
-        headcount: 1,
-        salaryRange: '90k-140k',
-        requiredSkills: ['Security', 'Penetration Testing', 'SIEM'],
-        preferredSkills: ['CEH', 'CISSP', 'Cloud Security'],
-        yearsRequired: 5,
-        educationRequired: '大學',
-        status: '招募中',
-        responsibilities: ['資安監控', '滲透測試', '事件應變'],
-        benefits: ['彈性工時', '證照獎金', '教育訓練'],
-        company: {
-          name: '遊戲橘子數位科技',
-          industry: '遊戲/數位科技',
-          size: '500+',
-          stage: '穩定企業',
-          culture: 'SOP型',
-          techStack: ['SIEM', 'Firewall', 'AWS'],
-          workLocation: '台北',
-          remotePolicy: '辦公室為主'
-        }
-      },
-      {
-        id: 'job-5',
-        title: '數據分析師',
-        department: '數據部',
-        headcount: 1,
-        salaryRange: '60k-90k',
-        requiredSkills: ['Python', 'SQL', 'Data Analysis'],
-        preferredSkills: ['Tableau', 'Power BI', 'R'],
-        yearsRequired: 2,
-        educationRequired: '大學',
-        status: '招募中',
-        responsibilities: ['數據分析', '報表製作', '數據視覺化'],
-        benefits: ['彈性工時', '遠端辦公'],
-        company: {
-          name: '創新科技股份有限公司',
-          industry: '軟體科技',
-          size: '100-500',
-          stage: '成長期',
-          culture: '自主型',
-          techStack: ['Python', 'SQL', 'Tableau'],
-          workLocation: '台北',
-          remotePolicy: '混合辦公'
-        }
-      }
-    ];
+    console.log('📊 從 Google Sheets 讀取職缺資料...');
     
-    console.log(`✓ 載入 ${testJobs.length} 個測試職缺（TODO: 整合 Google Sheets）`);
+    const csvText = await fetchJobsAsCSV();
+    const jobs = parseJobsCSV(csvText);
     
-    return testJobs;
+    console.log(`✅ 成功載入 ${jobs.length} 個開放中的職缺`);
     
-    // TODO: 整合 Google Sheets
-    // const csvText = await fetchJobsAsCSV();
-    // const jobs = parseJobsCSV(csvText);
-    // console.log(`✓ 成功載入 ${jobs.length} 個招募中的職缺`);
-    // return jobs;
+    // 顯示前 3 個職缺資訊（debug）
+    if (jobs.length > 0) {
+      console.log('前 3 個職缺：');
+      jobs.slice(0, 3).forEach(job => {
+        console.log(`  - ${job.title} (${job.company.name}) - ${job.status}`);
+      });
+    }
+    
+    return jobs;
     
   } catch (error) {
-    console.error('讀取職缺列表失敗:', error);
-    throw new Error(`讀取職缺失敗: ${error.message}`);
+    console.error('❌ 讀取職缺列表失敗:', error);
+    
+    // 降級方案：返回空陣列而非拋出錯誤
+    console.warn('⚠️ 使用降級方案：返回空職缺列表');
+    return [];
   }
 }
 
