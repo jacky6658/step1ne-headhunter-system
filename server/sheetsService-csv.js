@@ -126,6 +126,7 @@ function parseCSV(csvText) {
       location: location || '',
       education: education || '',
       stability: stabilityScore || '',
+      stabilityScore: parseInt(stabilityScore) || 0,  // 前端需要的數字欄位
       resumeLink: resumeLink || '',  // 履歷連結（U欄）
       // 原始資料（供詳細頁面使用）
       _raw: {
