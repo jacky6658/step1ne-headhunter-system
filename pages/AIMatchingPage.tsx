@@ -205,6 +205,32 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, pre
       if (data.success) {
         setMatchResults(data);
         setStep('results');
+        
+        // Task C: 為推薦候選人更新 T 欄位（備註）
+        // 格式：應徵：{職位} ({公司名})
+        const targetNote = `應徵：${selectedJob.title} (${selectedJob.company.name})`;
+        
+        // 只更新被推薦的候選人（P0/P1/P2 優先級）
+        const recommendedCandidates = data.result.matches
+          .filter(match => ['P0', 'P1', 'P2'].includes(match.推薦優先級))
+          .map(match => match.candidate.id);
+        
+        // 批量更新候選人備註（背景執行，不阻塞 UI）
+        if (recommendedCandidates.length > 0) {
+          console.log(`📝 更新 ${recommendedCandidates.length} 位推薦候選人的應徵職位備註`);
+          
+          Promise.all(
+            recommendedCandidates.map(candidateId =>
+              fetch(getApiUrl(`/api/candidates/${candidateId}`), {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notes: targetNote })
+              }).catch(err => console.warn(`更新候選人 ${candidateId} 備註失敗:`, err))
+            )
+          ).then(() => {
+            console.log(`✅ 已更新推薦候選人的應徵職位備註：${targetNote}`);
+          });
+        }
       } else {
         throw new Error('配對失敗');
       }
