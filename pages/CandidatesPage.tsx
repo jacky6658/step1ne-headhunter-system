@@ -224,6 +224,48 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
     }
   };
   
+  // 指派候選人給自己
+  const handleAssignToMe = async (candidate: Candidate, e: React.MouseEvent) => {
+    e.stopPropagation(); // 防止觸發行點擊
+    
+    if (!userProfile) {
+      alert('無法取得用戶資訊');
+      return;
+    }
+    
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'https://backendstep1ne.zeabur.app';
+      const response = await fetch(`${API_URL}/api/candidates/${candidate.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          consultant: userProfile.displayName
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('更新失敗');
+      }
+      
+      // 更新本地狀態（立即反映變化）
+      setCandidates(prev => prev.map(c => 
+        c.id === candidate.id 
+          ? { ...c, consultant: userProfile.displayName }
+          : c
+      ));
+      
+      // 清除快取
+      clearCache();
+      
+      console.log(`✅ 已將候選人「${candidate.name}」指派給 ${userProfile.displayName}`);
+    } catch (error) {
+      console.error('指派候選人失敗:', error);
+      alert('指派失敗，請稍後再試');
+    }
+  };
+  
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -544,17 +586,32 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                   </td>
                   
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownloadResume(candidate);
-                      }}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white text-xs font-medium rounded hover:bg-blue-600 transition-colors"
-                      title="下載 LinkedIn 履歷並上傳"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      下載履歷
-                    </button>
+                    <div className="flex gap-2">
+                      {/* 指派給我按鈕（只在未指派時顯示）*/}
+                      {(!candidate.consultant || candidate.consultant === '' || candidate.consultant === '未指派') && (
+                        <button
+                          onClick={(e) => handleAssignToMe(candidate, e)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white text-xs font-medium rounded hover:bg-green-600 transition-colors"
+                          title="將此候選人指派給我"
+                        >
+                          <Shield className="w-3.5 h-3.5" />
+                          指派給我
+                        </button>
+                      )}
+                      
+                      {/* 下載履歷按鈕 */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadResume(candidate);
+                        }}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white text-xs font-medium rounded hover:bg-blue-600 transition-colors"
+                        title="下載 LinkedIn 履歷並上傳"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        下載履歷
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
