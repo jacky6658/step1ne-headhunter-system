@@ -271,7 +271,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">職位名稱</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">客戶公司</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">部門</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[100px]">部門</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">需求人數</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">薪資範圍</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">主要技能</th>
@@ -294,7 +294,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
                       <div className="text-sm text-slate-900">{job.company.name}</div>
                       <div className="text-xs text-slate-500">{job.company.industry}</div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{job.department || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600 min-w-[100px] whitespace-nowrap">{job.department || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-900 font-medium">{job.headcount} 人</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{job.salaryRange || '-'}</td>
                     <td className="px-4 py-3">
