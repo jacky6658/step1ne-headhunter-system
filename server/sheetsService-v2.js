@@ -107,8 +107,11 @@ export async function getCandidates() {
     const output = await runGogSheets('A2:T1000');
     const candidates = parseGogOutput(output);
     
-    console.log(`✅ 成功載入 ${candidates.length} 位候選人（來自履歷池v2）`);
-    return candidates;
+    // 過濾掉軟刪除的候選人（name 為空）
+    const validCandidates = candidates.filter(c => c.name && c.name.trim() !== '');
+    
+    console.log(`✅ 成功載入 ${validCandidates.length} 位候選人（來自履歷池v2，總共 ${candidates.length} 行資料）`);
+    return validCandidates;
   } catch (error) {
     console.error('讀取候選人失敗:', error);
     return [];
