@@ -6,7 +6,7 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import * as sheetsService from './sheetsService.js';
+import * as sheetsService from './sheetsService-v2.js';
 import * as gradingService from './gradingService.js';
 import * as personaService from './personaService.js';
 import * as jobsService from './jobsService.js';
@@ -106,7 +106,7 @@ app.get('/api/candidates', async (req, res) => {
 // 取得單一候選人
 app.get('/api/candidates/:id', async (req, res) => {
   try {
-    const candidate = await sheetsService.getCandidate(req.params.id);
+    const candidate = await sheetsService.getCandidateById(req.params.id);
     
     if (!candidate) {
       return res.status(404).json({ 
@@ -205,7 +205,7 @@ app.post('/api/candidates/:id/grade', async (req, res) => {
     const candidateId = req.params.id;
     
     // 取得候選人資料
-    const candidate = await sheetsService.getCandidate(candidateId);
+    const candidate = await sheetsService.getCandidateById(candidateId);
     
     if (!candidate) {
       return res.status(404).json({ 
@@ -368,7 +368,7 @@ app.post('/api/personas/generate-candidate', async (req, res) => {
     }
     
     // 取得候選人資料
-    const candidate = await sheetsService.getCandidate(candidateId);
+    const candidate = await sheetsService.getCandidateById(candidateId);
     
     if (!candidate) {
       return res.status(404).json({ 
@@ -467,7 +467,7 @@ app.post('/api/personas/batch-match', async (req, res) => {
     
     for (const candidateId of candidateIds) {
       try {
-        const candidate = await sheetsService.getCandidate(candidateId);
+        const candidate = await sheetsService.getCandidateById(candidateId);
         
         if (!candidate) {
           errors.push({ candidateId, error: '找不到候選人' });
@@ -537,7 +537,7 @@ app.post('/api/personas/full-match', async (req, res) => {
     }
     
     // 取得候選人資料
-    const candidate = await sheetsService.getCandidate(candidateId);
+    const candidate = await sheetsService.getCandidateById(candidateId);
     
     if (!candidate) {
       return res.status(404).json({ 

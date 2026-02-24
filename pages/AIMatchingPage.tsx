@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { Target, Users, Building2, Sparkles, Download, FileText, TrendingUp, CheckCircle2, AlertCircle, Briefcase } from 'lucide-react';
 import { generateMatchingReportPDF } from '../utils/pdfGenerator';
+import { apiGet, apiPost, getApiUrl } from '../config/api';
 
 interface AIMatchingPageProps {
   userProfile: UserProfile;
@@ -118,8 +119,7 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
   const fetchJobs = async () => {
     setLoadingJobs(true);
     try {
-      const response = await fetch('http://localhost:3001/api/jobs');
-      const data = await response.json();
+      const data = await apiGet<{ success: boolean; data: JobFromAPI[] }>('/jobs');
       if (data.success) {
         setJobs(data.data);
       } else {
@@ -135,8 +135,7 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
 
   const fetchCandidates = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/candidates');
-      const data = await response.json();
+      const data = await apiGet<{ success: boolean; data: CandidateFromAPI[] }>('/candidates');
       if (data.success) {
         setCandidates(data.data);
       }
@@ -176,28 +175,20 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
     setStep('matching');
 
     try {
-      const response = await fetch('http://localhost:3001/api/personas/batch-match', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const data: BatchMatchResponse = await apiPost('/personas/batch-match', {
+        job: {
+          title: selectedJob.title,
+          department: selectedJob.department,
+          requiredSkills: selectedJob.requiredSkills,
+          preferredSkills: selectedJob.preferredSkills || [],
+          yearsRequired: selectedJob.yearsRequired,
+          educationRequired: selectedJob.educationRequired,
+          responsibilities: selectedJob.responsibilities || [],
+          benefits: selectedJob.benefits || []
         },
-        body: JSON.stringify({
-          job: {
-            title: selectedJob.title,
-            department: selectedJob.department,
-            requiredSkills: selectedJob.requiredSkills,
-            preferredSkills: selectedJob.preferredSkills || [],
-            yearsRequired: selectedJob.yearsRequired,
-            educationRequired: selectedJob.educationRequired,
-            responsibilities: selectedJob.responsibilities || [],
-            benefits: selectedJob.benefits || []
-          },
-          company: selectedJob.company,
-          candidateIds: selectedCandidates
-        })
+        company: selectedJob.company,
+        candidateIds: selectedCandidates
       });
-
-      const data: BatchMatchResponse = await response.json();
 
       if (data.success) {
         setMatchResults(data);

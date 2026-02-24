@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles } from 'lucide-react';
+import { apiGet } from '../config/api';
 
 interface JobsPageProps {
   userProfile: UserProfile;
@@ -69,8 +70,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
   const fetchJobs = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/jobs');
-      const data = await response.json();
+      const data = await apiGet<{ success: boolean; data: Job[] }>('/jobs');
       if (data.success) {
         setJobs(data.data);
         setFilteredJobs(data.data);
@@ -85,8 +85,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
   const syncJobs = async () => {
     setSyncing(true);
     try {
-      const response = await fetch('http://localhost:3001/api/jobs');
-      const data = await response.json();
+      const data = await apiGet<{ success: boolean; data: Job[] }>('/jobs');
       if (data.success) {
         setJobs(data.data);
         setFilteredJobs(data.data);
