@@ -9,11 +9,8 @@ const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// persona-matching 模組的路徑
-const PERSONA_MODULE_PATH = path.join(
-  __dirname,
-  '../../step1ne-headhunter-skill/modules/persona-matching'
-);
+// persona-matching 模組的路徑（本地專案內）
+const PERSONA_MODULE_PATH = path.join(__dirname, 'persona-matching');
 
 const GENERATE_CANDIDATE_SCRIPT = path.join(PERSONA_MODULE_PATH, 'generate-candidate-persona.py');
 const GENERATE_COMPANY_SCRIPT = path.join(PERSONA_MODULE_PATH, 'generate-company-persona.py');
