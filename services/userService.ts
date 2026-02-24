@@ -1,45 +1,13 @@
 
 import { UserProfile, Role } from '../types';
-import { apiRequest, useApiMode } from './apiConfig';
 
 const STORAGE_KEY = 'caseflow_users_db';
 const PROFILE_KEY = 'caseflow_profile';
 const INITIALIZED_KEY = 'caseflow_users_initialized';
 
-// localStorage 操作（降級方案）
+// localStorage 操作
 const getDb = (): Record<string, UserProfile> => JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
 const saveDb = (db: Record<string, UserProfile>) => localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-
-// API 模式：從後端獲取使用者
-const fetchUsersFromApi = async (): Promise<Record<string, UserProfile>> => {
-  try {
-    const response = await apiRequest('/api/users');
-    const userList = response.data || response || [];
-    
-    // 轉換為 Record<string, UserProfile>
-    const usersRecord: Record<string, UserProfile> = {};
-    
-    userList.forEach((user: any) => {
-      const uid = user.id || user.uid || user.username;
-      usersRecord[uid] = {
-        uid: uid,
-        displayName: user.name || user.displayName || user.username || 'Unknown User',
-        email: user.email || `${uid}@step1ne.com`,
-        role: user.role as Role,
-        isActive: true,
-        avatar: user.avatar,
-        status: user.status,
-        createdAt: user.createdAt || new Date().toISOString(),
-        lastActive: user.lastActive || new Date().toISOString()
-      };
-    });
-    
-    return usersRecord;
-  } catch (error) {
-    console.error('從 API 獲取使用者失敗，降級到 localStorage:', error);
-    return getDb(); // 降級到 localStorage
-  }
-};
 
 // 初始化預設用戶
 const initializeDefaultUsers = () => {
@@ -104,34 +72,10 @@ if (typeof window !== 'undefined') {
 }
 
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
-  // 如果使用 API 模式
-  if (useApiMode()) {
-    try {
-      const response = await apiRequest(`/api/users/${uid}`);
-      const user = response.data || response;
-      
-      // 轉換欄位格式（後端 name → 前端 displayName）
-      const profile: UserProfile = {
-        uid: user.id || user.uid || user.username || uid,
-        displayName: user.name || user.displayName || user.username || 'Unknown User',
-        email: user.email || `${uid}@step1ne.com`,
-        role: user.role as Role,
-        isActive: true,
-        avatar: user.avatar,
-        status: user.status,
-        createdAt: user.createdAt || new Date().toISOString(),
-        lastActive: user.lastActive || new Date().toISOString()
-      };
-      
-      console.log('✅ getUserProfile 轉換完成:', profile);
-      return profile;
-    } catch (error) {
-      console.error('API 獲取使用者失敗，降級到 localStorage:', error);
-      // 降級到 localStorage
-    }
-  }
-
-  // localStorage 模式（降級方案）
+  // 🔧 強制使用 localStorage（用戶管理不使用後端 API）
+  // 原因：Step1ne 是 B2B SaaS，用戶管理由前端處理
+  
+  // localStorage 模式
   const db = getDb();
   return db[uid] || JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
 };
@@ -145,33 +89,9 @@ export const getUserByDisplayName = async (displayName: string): Promise<UserPro
 };
 
 export const getAllUsers = async (): Promise<UserProfile[]> => {
-  // 如果使用 API 模式
-  if (useApiMode()) {
-    try {
-      const users = await fetchUsersFromApi();
-      const userList = Object.values(users).filter(u => u.isActive !== false);
-      
-      // 如果 API 返回空陣列，降級到 localStorage（可能是資料庫還沒有用戶資料）
-      if (userList.length === 0) {
-        console.warn('API 返回空用戶列表，降級到 localStorage');
-        const db = getDb();
-        const localUsers = Object.values(db).filter(u => u.isActive !== false);
-        // 如果 localStorage 也沒有用戶，確保初始化預設用戶
-        if (localUsers.length === 0) {
-          initializeDefaultUsers();
-          return Object.values(getDb()).filter(u => u.isActive !== false);
-        }
-        return localUsers;
-      }
-      
-      return userList;
-    } catch (error) {
-      console.error('API 獲取使用者失敗，降級到 localStorage:', error);
-      // 降級到 localStorage
-    }
-  }
-
-  // localStorage 模式（降級方案）
+  // 🔧 強制使用 localStorage（用戶管理不使用後端 API）
+  
+  // localStorage 模式
   const db = getDb();
   const users = Object.values(db).filter(u => u.isActive !== false);
   
@@ -262,39 +182,7 @@ export const createUserProfile = async (uid: string, email: string, role: Role, 
     createdAt: new Date().toISOString()
   };
   
-  // 如果使用 API 模式，先嘗試創建到後端
-  if (useApiMode()) {
-    try {
-      console.log(`📤 創建用戶到後端: ${uid}`, { email, displayName, role });
-      
-      const created = await apiRequest('/api/users', {
-        method: 'POST',
-        body: JSON.stringify({
-          uid,
-          email,
-          displayName,
-          role,
-          password // 注意：密碼不會存儲在資料庫中，僅用於前端驗證
-        }),
-      });
-      
-      console.log(`✅ 用戶創建成功:`, created);
-      
-      // 同步更新 localStorage
-      const finalProfile = { ...profile, ...created };
-      const db = getDb();
-      db[uid] = finalProfile;
-      saveDb(db);
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(finalProfile));
-      
-      return finalProfile;
-    } catch (error) {
-      console.error('❌ API 創建使用者失敗，降級到 localStorage:', error);
-      // 降級到 localStorage
-    }
-  }
-  
-  // localStorage 模式（降級方案）
+  // 🔧 強制使用 localStorage（用戶管理不使用後端 API）
   const db = getDb();
   db[uid] = profile;
   saveDb(db);
@@ -304,35 +192,9 @@ export const createUserProfile = async (uid: string, email: string, role: Role, 
 };
 
 export const updateUserProfile = async (uid: string, updates: Partial<UserProfile>) => {
-  // 如果使用 API 模式
-  if (useApiMode()) {
-    try {
-      // 確保不會因為 API 失敗而中斷流程
-      const updated = await apiRequest(`/api/users/${uid}`, {
-        method: 'PUT',
-        body: JSON.stringify(updates),
-      });
-      
-      // 如果更新的是當前用戶，同步更新 localStorage
-      const currentProfile = JSON.parse(localStorage.getItem('caseflow_profile') || 'null');
-      if (currentProfile && currentProfile.uid === uid) {
-        localStorage.setItem('caseflow_profile', JSON.stringify(updated));
-      }
-      
-      return updated;
-    } catch (error: any) {
-      // 詳細記錄錯誤，但不中斷流程
-      console.error('❌ API 更新使用者失敗，降級到 localStorage:', {
-        uid,
-        error: error?.message || error?.name || '未知錯誤',
-        errorType: error?.name,
-        url: error?.url || '未知'
-      });
-      // 降級到 localStorage，繼續執行
-    }
-  }
+  // 🔧 強制使用 localStorage（用戶管理不使用後端 API）
   
-  // localStorage 模式（降級方案）
+  // localStorage 模式
   const db = getDb();
   if (db[uid]) {
     db[uid] = { ...db[uid], ...updates };
