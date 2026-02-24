@@ -488,7 +488,9 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                   
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900 max-w-md whitespace-normal">
-                      {candidate.skills}
+                      {Array.isArray(candidate.skills) 
+                        ? candidate.skills.join(', ') 
+                        : candidate.skills}
                     </div>
                   </td>
                   

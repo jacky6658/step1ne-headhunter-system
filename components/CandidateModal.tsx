@@ -200,7 +200,10 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
                   核心技能
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {candidate.skills.split(/[、,，]/).map((skill, i) => (
+                  {(Array.isArray(candidate.skills) 
+                    ? candidate.skills 
+                    : candidate.skills.split(/[、,，]/)
+                  ).map((skill, i) => (
                     <span 
                       key={i}
                       className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm"

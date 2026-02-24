@@ -253,7 +253,7 @@ export interface Candidate {
   jobChanges: number;
   avgTenure: number;
   lastGap: number;
-  skills: string;
+  skills: string | string[];  // 支援字串和陣列兩種格式
   education: string;
   source: CandidateSource;
   workHistory?: WorkHistory[];

@@ -38,7 +38,7 @@ interface Candidate {
   name: string;
   position: string;
   years: number;
-  skills: string;
+  skills: string | string[];  // 支援字串和陣列兩種格式
   talentGrade?: string;
 }
 
@@ -419,7 +419,11 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
                     <td className="px-4 py-3 text-sm text-slate-600">{candidate.position}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{candidate.years} 年</td>
                     <td className="px-4 py-3 text-sm text-slate-600">
-                      <div className="max-w-xs truncate">{candidate.skills}</div>
+                      <div className="max-w-xs truncate">
+                        {Array.isArray(candidate.skills) 
+                          ? candidate.skills.join(', ') 
+                          : candidate.skills}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       {candidate.talentGrade && (

@@ -193,7 +193,9 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
                       
                       {/* Skills (truncated) */}
                       <div className="text-xs text-gray-500 line-clamp-2">
-                        {candidate.skills}
+                        {Array.isArray(candidate.skills) 
+                          ? candidate.skills.join(', ') 
+                          : candidate.skills}
                       </div>
                       
                       {/* Footer */}
