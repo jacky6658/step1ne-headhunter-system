@@ -412,39 +412,66 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
           {activeTab === 'history' && (
             <div className="space-y-4">
               {/* Progress Timeline */}
-              <div className="text-center py-8 text-gray-400">
-                <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>進度追蹤功能開發中...</p>
-                <p className="text-sm mt-2">即將支援：聯繫記錄、面試安排、狀態變更歷史</p>
-              </div>
-              
-              {/* Example Timeline */}
-              <div className="space-y-3 opacity-50">
-                <div className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                      <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    </div>
-                    <div className="flex-1 w-0.5 bg-gray-200 my-1" />
-                  </div>
-                  <div className="flex-1 pb-4">
-                    <div className="font-medium">已聯繫候選人</div>
-                    <div className="text-sm text-gray-600">透過 Email 初步聯繫，候選人回覆有興趣</div>
-                    <div className="text-xs text-gray-400 mt-1">2026-02-23 14:30</div>
-                  </div>
+              {candidate.progressTracking && candidate.progressTracking.length > 0 ? (
+                <div className="space-y-3">
+                  {candidate.progressTracking.map((event: any, i: number) => {
+                    const isLast = i === candidate.progressTracking!.length - 1;
+                    const eventColors: Record<string, {bg: string, text: string, icon: string}> = {
+                      '已聯繫': {bg: 'bg-blue-100', text: 'text-blue-600', icon: '📞'},
+                      '已面試': {bg: 'bg-purple-100', text: 'text-purple-600', icon: '💼'},
+                      'Offer': {bg: 'bg-green-100', text: 'text-green-600', icon: '📝'},
+                      '已上職': {bg: 'bg-emerald-100', text: 'text-emerald-600', icon: '🎉'},
+                      '婉拒': {bg: 'bg-red-100', text: 'text-red-600', icon: '❌'},
+                      '其他': {bg: 'bg-gray-100', text: 'text-gray-600', icon: '📌'}
+                    };
+                    const color = eventColors[event.event] || eventColors['其他'];
+                    
+                    return (
+                      <div key={i} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-8 h-8 rounded-full ${color.bg} flex items-center justify-center`}>
+                            <span className="text-sm">{color.icon}</span>
+                          </div>
+                          {!isLast && <div className="flex-1 w-0.5 bg-gray-200 my-1 min-h-[24px]" />}
+                        </div>
+                        <div className="flex-1 pb-4">
+                          <div className="flex items-center gap-2">
+                            <div className={`font-medium ${color.text}`}>{event.event}</div>
+                            <span className="text-xs text-gray-400">by {event.by}</span>
+                          </div>
+                          {event.note && (
+                            <div className="text-sm text-gray-600 mt-1">{event.note}</div>
+                          )}
+                          <div className="text-xs text-gray-400 mt-1">{event.date}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                
-                <div className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <AlertCircle className="w-4 h-4 text-blue-600" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium">候選人已加入履歷池</div>
-                    <div className="text-sm text-gray-600">來源：GitHub</div>
-                    <div className="text-xs text-gray-400 mt-1">2026-02-23 10:00</div>
-                  </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>尚無進度追蹤記錄</p>
+                  <p className="text-sm mt-2">開始追蹤候選人的招聘進度</p>
+                </div>
+              )}
+              
+              {/* Quick Add Progress Button */}
+              <div className="border-t border-gray-200 pt-4">
+                <div className="text-xs text-gray-500 mb-2">快速新增進度</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {['已聯繫', '已面試', 'Offer', '已上職', '婉拒', '其他'].map(eventType => (
+                    <button
+                      key={eventType}
+                      className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      onClick={() => {
+                        // TODO: 實作新增進度功能
+                        alert(`新增進度：${eventType}\n（功能開發中）`);
+                      }}
+                    >
+                      {eventType}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>

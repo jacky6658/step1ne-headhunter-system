@@ -242,6 +242,14 @@ export interface Education {
 }
 
 // 候選人
+// 進度追蹤事件
+export interface ProgressEvent {
+  date: string;  // YYYY-MM-DD
+  event: string;  // 已聯繫、已面試、Offer、已上職、婉拒、其他
+  by: string;     // 負責顧問
+  note?: string;  // 額外備註
+}
+
 export interface Candidate {
   id: string;
   name: string;
@@ -266,6 +274,7 @@ export interface Candidate {
   notes?: string;
   resumeFileUrl?: string;
   resumeLink?: string;  // 履歷連結（Google Drive 嵌入式預覽 URL）
+  progressTracking?: ProgressEvent[];  // 進度追蹤（W 欄）
   createdAt: string;
   updatedAt: string;
   createdBy: string;

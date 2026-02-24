@@ -137,5 +137,29 @@ export const COLUMN_DESCRIPTIONS = {
       'A 級 - 台大碩士 + 5 年經驗 + 豐富技能',
       'B 級 - 學士 + 社會新鮮人 + 基礎技能'
     ]
+  },
+  
+  notes: {
+    title: '備註',
+    description: (
+      <>
+        <p className="mb-2">候選人的額外備註資訊，可隨時修改與新增。</p>
+        <div className="text-xs space-y-1 text-gray-600 bg-gray-50 p-2 rounded">
+          <p><strong>常見用途：</strong></p>
+          <p>• 期望薪資：「期望 80-100k」</p>
+          <p>• 應徵職位：「應徵：AI工程師 (Google)」</p>
+          <p>• 特殊條件：「遠端工作、彈性時間」</p>
+          <p>• 其他備註：「英文流利、有海外經驗」</p>
+        </div>
+        <p className="mt-2 text-xs text-amber-600">
+          💡 提示：應徵職位會在 Job Matching 時自動記錄
+        </p>
+      </>
+    ),
+    examples: [
+      '期望 80-100k，遠端工作',
+      '應徵：AI工程師 (Google)',
+      '英文流利，有 5 年海外工作經驗'
+    ]
   }
 };

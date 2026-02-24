@@ -80,7 +80,7 @@ function parseCSV(csvText) {
   return rows.map((line, index) => {
     const fields = parseCSVLine(line);
     
-    // 22 個欄位（履歷池v2 標準格式 + 履歷連結 + 人才等級）
+    // 23 個欄位（履歷池v2 標準格式 + 履歷連結 + 人才等級 + 進度追蹤）
     const [
       name,              // 1. 姓名
       email,             // 2. Email
@@ -103,11 +103,23 @@ function parseCSV(csvText) {
       consultant,        // 19. 獵頭顧問
       notes,             // 20. 備註
       resumeLink,        // 21. 履歷連結（U欄）
-      talentGrade        // 22. 人才等級（V欄）
+      talentGrade,       // 22. 人才等級（V欄）
+      progressTracking   // 23. 進度追蹤（W欄，JSON字串）
     ] = fields;
     
     // 過濾空行
     if (!name || !name.trim()) return null;
+    
+    // 解析進度追蹤 JSON
+    let parsedProgressTracking = [];
+    if (progressTracking && progressTracking.trim()) {
+      try {
+        parsedProgressTracking = JSON.parse(progressTracking);
+      } catch (e) {
+        console.warn(`⚠️ 候選人 ${name} 進度追蹤 JSON 格式錯誤:`, progressTracking);
+        parsedProgressTracking = [];
+      }
+    }
     
     return {
       id: String(index + 2), // 從第 2 行開始（第 1 行是標題）
@@ -135,6 +147,7 @@ function parseCSV(csvText) {
       stabilityScore: parseInt(stabilityScore) || 0,  // 前端需要的數字欄位
       resumeLink: resumeLink || '',  // 履歷連結（U欄）
       talentGrade: (talentGrade || '').trim(),  // 人才等級（V欄），清除空白字元
+      progressTracking: parsedProgressTracking,  // 進度追蹤（W欄，解析後的陣列）
       // 原始資料（供詳細頁面使用）
       _raw: {
         totalYears,
