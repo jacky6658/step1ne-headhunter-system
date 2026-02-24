@@ -436,7 +436,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
             }
           `}</style>
           <table className="min-w-full divide-y divide-gray-200" style={{ minWidth: '1400px' }}>
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px' }}>
                 <div className="flex items-center">
@@ -446,7 +446,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px' }}>
                 <div className="flex items-center">
-                  職位
+                  候選人背景
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.position} />
                 </div>
               </th>

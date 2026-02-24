@@ -45,11 +45,60 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
     borderColor: 'border-gray-300'
   };
   
-  // 解析工作經歷 JSON
-  const workHistory = candidate.workHistory ? 
-    (typeof candidate.workHistory === 'string' ? 
-      (() => { try { return JSON.parse(candidate.workHistory); } catch { return []; } })() 
-      : candidate.workHistory) : [];
+  // 解析工作經歷（支援純文字與 JSON 格式）
+  const workHistory = (() => {
+    if (!candidate.workHistory) return [];
+    
+    const rawHistory = candidate.workHistory;
+    
+    // 嘗試 JSON 格式
+    if (typeof rawHistory === 'object' && Array.isArray(rawHistory)) {
+      return rawHistory;
+    }
+    
+    if (typeof rawHistory === 'string') {
+      // 嘗試解析 JSON 字串
+      try {
+        const parsed = JSON.parse(rawHistory);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+      
+      // 解析純文字格式：「公司名 時間(起-訖): 職位描述; 公司名 時間(起-訖): 職位描述」
+      const jobs = rawHistory.split(';').map(job => {
+        const trimmed = job.trim();
+        if (!trimmed) return null;
+        
+        // 提取：公司名 時間(...): 職位描述
+        const match = trimmed.match(/^(.+?)\s+(\d+年?)?\(([^)]+)\):\s*(.+)$/);
+        if (match) {
+          const [, company, duration, period, description] = match;
+          return {
+            company: company.trim(),
+            duration: duration?.trim() || '',
+            period: period.trim(),
+            description: description.trim()
+          };
+        }
+        
+        // 簡化格式：公司名: 職位描述
+        const simpleMatch = trimmed.match(/^(.+?):\s*(.+)$/);
+        if (simpleMatch) {
+          return {
+            company: simpleMatch[1].trim(),
+            duration: '',
+            period: '',
+            description: simpleMatch[2].trim()
+          };
+        }
+        
+        return null;
+      }).filter(Boolean);
+      
+      return jobs;
+    }
+    
+    return [];
+  })();
   
   // 解析教育背景 JSON（使用 educationJson 欄位）
   const education = candidate.educationJson || [];
@@ -77,7 +126,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold">{candidate.name}</h2>
-                  <p className="text-blue-100">{candidate.position}</p>
+                  <p className="text-blue-100 text-sm">候選人背景：{candidate.position}</p>
                 </div>
               </div>
               
@@ -246,22 +295,41 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-blue-600" />
-                    工作經歷（近3份）
+                    💼 工作經歷
                   </h3>
-                  <div className="space-y-3">
+                  <div className="text-xs text-gray-500 mb-3">
+                    顯示前 {Math.min(3, workHistory.length)} 段工作經歷
+                  </div>
+                  <div className="space-y-4">
                     {workHistory.slice(0, 3).map((job: any, i: number) => (
-                      <div key={i} className="border-l-2 border-blue-200 pl-4 py-2">
-                        <div className="font-medium text-gray-900">{job.company}</div>
-                        <div className="text-sm text-gray-600">{job.position}</div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {job.startDate} ~ {job.endDate} ({job.duration})
+                      <div key={i} className="border-l-4 border-blue-400 pl-4 py-2 bg-blue-50/30 rounded-r-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <div className="font-semibold text-gray-900 text-base">{job.company}</div>
                         </div>
+                        
+                        {job.period && (
+                          <div className="text-sm text-gray-600 mb-2 flex items-center gap-2">
+                            <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                            {job.duration && <span className="font-medium">{job.duration}</span>}
+                            <span>({job.period})</span>
+                          </div>
+                        )}
+                        
                         {job.description && (
-                          <p className="text-sm text-gray-600 mt-2">{job.description}</p>
+                          <div className="text-sm text-gray-700 leading-relaxed mt-2 bg-white/50 p-2 rounded">
+                            {job.description}
+                          </div>
                         )}
                       </div>
                     ))}
                   </div>
+                  
+                  {workHistory.length > 3 && (
+                    <div className="text-xs text-gray-400 mt-3 text-center">
+                      還有 {workHistory.length - 3} 段工作經歷未顯示
+                    </div>
+                  )}
                 </div>
               )}
               

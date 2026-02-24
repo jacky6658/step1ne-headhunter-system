@@ -12,12 +12,13 @@ export const COLUMN_DESCRIPTIONS = {
   },
   
   position: {
-    title: '職位',
-    description: '候選人目前或最近的職位，以及所在地點。',
+    title: '候選人背景',
+    description: '候選人的專業領域與職位經驗。顯示候選人過去的工作背景與專業定位。',
     examples: [
       '資深前端工程師（台北市）',
       'DevOps 工程師（新竹市）',
-      'AI 研究員（遠端）'
+      'AI 研究員（遠端）',
+      '工程文件管理師/PLM&PDM系統管理師'
     ]
   },
   
