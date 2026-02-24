@@ -143,72 +143,6 @@ export async function getCandidateById(id) {
   }
 }
 
-/**
- * 新增候選人（寫入到下一個空行）
- */
-export async function addCandidate(candidateData) {
-  try {
-    // 簡單實作：找到下一個空行並寫入
-    // 實際應該呼叫 gog sheets append
-    console.log('addCandidate: 簽章已實作（需要完整 gog sheets append）');
-    return { success: false, message: 'Not implemented' };
-  } catch (error) {
-    console.error('新增候選人失敗:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * 更新候選人狀態
- */
-export async function updateCandidateStatus(candidateId, newStatus) {
-  try {
-    const row = parseInt(candidateId);
-    if (isNaN(row) || row < 2) {
-      throw new Error('Invalid candidate ID');
-    }
-    
-    // 狀態在第 18 列（R 欄）
-    // 簡單實作：記錄操作
-    console.log(`updateCandidateStatus: 第 ${row} 行狀態更新為 "${newStatus}"（需要完整 gog sheets update）`);
-    return { success: false, message: 'Not implemented' };
-  } catch (error) {
-    console.error('更新候選人狀態失敗:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * 刪除候選人（清空整行）
- */
-export async function deleteCandidate(candidateId) {
-  try {
-    const row = parseInt(candidateId);
-    if (isNaN(row) || row < 2) {
-      throw new Error('Invalid candidate ID');
-    }
-    
-    console.log(`deleteCandidate: 第 ${row} 行刪除（需要完整 gog sheets clear）`);
-    return { success: false, message: 'Not implemented' };
-  } catch (error) {
-    console.error('刪除候選人失敗:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * 批量更新狀態
- */
-export async function batchUpdateStatus(updates) {
-  try {
-    // updates 格式：[{ id: '2', status: '面試中' }, ...]
-    console.log(`batchUpdateStatus: ${updates.length} 位候選人狀態更新（需要完整 gog sheets batch update）`);
-    return { success: false, total: updates.length, message: 'Not implemented' };
-  } catch (error) {
-    console.error('批量更新失敗:', error);
-    return { success: false, error: error.message };
-  }
-}
 
 /**
  * 測試連線
@@ -232,4 +166,208 @@ if (process.env.NODE_ENV === 'development') {
       console.error('❌ sheetsService v2 連線失敗');
     }
   });
+}
+
+// ========================================
+// 候選人 CRUD 操作（完整實作）
+// ========================================
+
+/**
+ * 新增候選人
+ */
+export async function addCandidate(candidateData) {
+  try {
+    // 準備資料（20 個欄位，用 | 分隔）
+    const fields = [
+      candidateData.name || '',
+      candidateData.email || '',
+      candidateData.phone || '',
+      candidateData.location || '',
+      candidateData.currentPosition || candidateData.currentJobTitle || '',
+      candidateData.totalYears || '0',
+      candidateData.jobChanges || '0',
+      candidateData.avgTenure || '12',
+      candidateData.recentGap || '0',
+      Array.isArray(candidateData.skills) ? candidateData.skills.join('、') : (candidateData.skills || ''),
+      candidateData.education || '',
+      candidateData.source || 'Web',
+      candidateData.workHistory || '',
+      candidateData.leaveReason || '',
+      candidateData.stabilityScore || '75',
+      candidateData.educationDetail || candidateData.education || '',
+      candidateData.personality || '',
+      candidateData.status || '新進',
+      candidateData.consultant || 'Jacky',
+      candidateData.notes || ''
+    ];
+    
+    const data = fields.join('|');
+    const command = `gog sheets append "${SHEET_ID}" "履歷池v2!A:T" "${data}" --account "${ACCOUNT}"`;
+    
+    console.log('📝 新增候選人:', candidateData.name);
+    const { stdout, stderr } = await execPromise(command);
+    
+    if (stderr && !stderr.includes('INFO')) {
+      console.warn('⚠️ gog sheets 警告:', stderr);
+    }
+    
+    console.log('✅ 候選人新增成功:', stdout);
+    
+    return {
+      success: true,
+      message: '候選人新增成功',
+      candidateId: `${Date.now()}`,
+      data: candidateData
+    };
+    
+  } catch (error) {
+    console.error('❌ 新增候選人失敗:', error);
+    throw error;
+  }
+}
+
+/**
+ * 更新候選人資料
+ */
+export async function updateCandidate(candidateId, updates) {
+  try {
+    const row = parseInt(candidateId);
+    if (isNaN(row) || row < 2) {
+      throw new Error('Invalid candidate ID');
+    }
+    
+    console.log(`📝 更新候選人 ID ${candidateId}（第 ${row} 行）`);
+    
+    // 讀取現有資料
+    const range = `A${row}:T${row}`;
+    const output = await runGogSheets(range);
+    
+    if (!output.values || output.values.length === 0) {
+      throw new Error(`找不到候選人 ${candidateId}`);
+    }
+    
+    const currentFields = output.values[0];
+    
+    // 準備更新後的資料（合併現有資料與更新）
+    const fields = [
+      updates.name !== undefined ? updates.name : currentFields[0] || '',
+      updates.email !== undefined ? updates.email : currentFields[1] || '',
+      updates.phone !== undefined ? updates.phone : currentFields[2] || '',
+      updates.location !== undefined ? updates.location : currentFields[3] || '',
+      updates.currentPosition !== undefined ? updates.currentPosition : currentFields[4] || '',
+      updates.totalYears !== undefined ? String(updates.totalYears) : currentFields[5] || '0',
+      updates.jobChanges !== undefined ? String(updates.jobChanges) : currentFields[6] || '0',
+      updates.avgTenure !== undefined ? String(updates.avgTenure) : currentFields[7] || '12',
+      updates.recentGap !== undefined ? String(updates.recentGap) : currentFields[8] || '0',
+      updates.skills !== undefined 
+        ? (Array.isArray(updates.skills) ? updates.skills.join('、') : updates.skills)
+        : currentFields[9] || '',
+      updates.education !== undefined ? updates.education : currentFields[10] || '',
+      currentFields[11] || 'Web', // source 不更新
+      updates.workHistory !== undefined ? updates.workHistory : currentFields[12] || '',
+      updates.leaveReason !== undefined ? updates.leaveReason : currentFields[13] || '',
+      updates.stabilityScore !== undefined ? String(updates.stabilityScore) : currentFields[14] || '75',
+      updates.educationDetail !== undefined ? updates.educationDetail : currentFields[15] || '',
+      updates.personality !== undefined ? updates.personality : currentFields[16] || '',
+      updates.status !== undefined ? updates.status : currentFields[17] || '新進',
+      currentFields[18] || 'Jacky', // consultant 不更新
+      updates.notes !== undefined ? updates.notes : currentFields[19] || ''
+    ];
+    
+    // 使用 gog sheets update
+    const data = fields.join('|');
+    const command = `gog sheets update "${SHEET_ID}" "履歷池v2!A${row}" "${data}" --account "${ACCOUNT}"`;
+    
+    const { stdout, stderr } = await execPromise(command);
+    
+    if (stderr && !stderr.includes('INFO')) {
+      console.warn('⚠️ gog sheets 警告:', stderr);
+    }
+    
+    console.log('✅ 候選人更新成功');
+    
+    return {
+      success: true,
+      message: '候選人更新成功',
+      candidateId,
+      updatedFields: Object.keys(updates)
+    };
+    
+  } catch (error) {
+    console.error('❌ 更新候選人失敗:', error);
+    throw error;
+  }
+}
+
+/**
+ * 刪除候選人（清空整行）
+ */
+export async function deleteCandidate(candidateId) {
+  try {
+    const row = parseInt(candidateId);
+    if (isNaN(row) || row < 2) {
+      throw new Error('Invalid candidate ID');
+    }
+    
+    const range = `A${row}:T${row}`;
+    
+    console.log(`🗑️  刪除候選人 ID ${candidateId}（第 ${row} 行）`);
+    
+    // 清空整行
+    const command = `gog sheets update "${SHEET_ID}" "履歷池v2!${range}" "" --account "${ACCOUNT}"`;
+    await execPromise(command);
+    
+    console.log('✅ 候選人刪除成功');
+    
+    return {
+      success: true,
+      message: '候選人刪除成功',
+      candidateId
+    };
+    
+  } catch (error) {
+    console.error('❌ 刪除候選人失敗:', error);
+    throw error;
+  }
+}
+
+// ========================================
+// 向後相容的 wrapper 函數
+// ========================================
+
+/**
+ * 更新候選人狀態（向後相容）
+ */
+export async function updateCandidateStatus(candidateId, newStatus) {
+  return await updateCandidate(candidateId, { status: newStatus });
+}
+
+/**
+ * 批量更新狀態（向後相容）
+ */
+export async function batchUpdateStatus(updates) {
+  try {
+    const results = [];
+    for (const update of updates) {
+      try {
+        const result = await updateCandidate(update.id, { status: update.status });
+        results.push(result);
+      } catch (error) {
+        results.push({ success: false, candidateId: update.id, error: error.message });
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    
+    return {
+      success: true,
+      total: updates.length,
+      updated: successCount,
+      failed: updates.length - successCount,
+      results
+    };
+  } catch (error) {
+    console.error('批量更新失敗:', error);
+    throw error;
+  }
 }

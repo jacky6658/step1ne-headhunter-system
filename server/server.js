@@ -364,6 +364,72 @@ app.post('/api/candidates/batch-grade', async (req, res) => {
   }
 });
 
+// 新增候選人
+app.post('/api/candidates', async (req, res) => {
+  try {
+    const candidateData = req.body;
+    
+    console.log('📝 收到新增候選人請求:', candidateData.name);
+    
+    // 驗證必填欄位
+    if (!candidateData.name) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必填欄位：姓名'
+      });
+    }
+    
+    const result = await sheetsService.addCandidate(candidateData);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ 新增候選人失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 更新候選人
+app.put('/api/candidates/:id', async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    const updates = req.body;
+    
+    console.log(`📝 收到更新候選人請求: ${candidateId}`);
+    
+    const result = await sheetsService.updateCandidate(candidateId, updates);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ 更新候選人失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 刪除候選人
+app.delete('/api/candidates/:id', async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    
+    console.log(`🗑️  收到刪除候選人請求: ${candidateId}`);
+    
+    const result = await sheetsService.deleteCandidate(candidateId);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ 刪除候選人失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // ========================================
 // Jobs API
 // ========================================
@@ -416,6 +482,45 @@ app.post('/api/jobs', async (req, res) => {
     
   } catch (error) {
     console.error('❌ 新增職缺失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 更新職缺
+app.put('/api/jobs/:id', async (req, res) => {
+  try {
+    const jobId = req.params.id;
+    const updates = req.body;
+    
+    console.log(`📝 收到更新職缺請求: ${jobId}`);
+    
+    const result = await jobsService.updateJob(jobId, updates);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ 更新職缺失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 刪除職缺
+app.delete('/api/jobs/:id', async (req, res) => {
+  try {
+    const jobId = req.params.id;
+    
+    console.log(`🗑️  收到刪除職缺請求: ${jobId}`);
+    
+    const result = await jobsService.deleteJob(jobId);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ 刪除職缺失敗:', error);
     res.status(500).json({
       success: false,
       error: error.message

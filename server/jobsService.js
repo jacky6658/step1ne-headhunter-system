@@ -393,3 +393,118 @@ export async function addJob(jobData) {
     throw error;
   }
 }
+
+/**
+ * 更新職缺
+ * 
+ * @param {string} jobId - 職缺 ID（格式：job-N，N 是行號-1）
+ * @param {Object} updates - 更新資料
+ * @returns {Promise<Object>} 更新結果
+ */
+export async function updateJob(jobId, updates) {
+  const { exec } = await import('child_process');
+  const { promisify } = await import('util');
+  const execPromise = promisify(exec);
+  
+  try {
+    // 從 jobId 提取行號（job-1 → 第2行，因為第1行是標題）
+    const rowNumber = parseInt(jobId.replace('job-', '')) + 1;
+    
+    console.log(`📝 更新職缺 ID ${jobId}（第 ${rowNumber} 行）`);
+    
+    // 讀取現有資料
+    const range = `A${rowNumber}:U${rowNumber}`;
+    const { stdout } = await execPromise(
+      `gog sheets get "${SHEET_ID}" "${range}" --account "aijessie88@step1ne.com" --json`
+    );
+    
+    const existingData = JSON.parse(stdout);
+    if (!existingData.values || existingData.values.length === 0) {
+      throw new Error(`找不到職缺 ${jobId}`);
+    }
+    
+    const currentFields = existingData.values[0];
+    
+    // 準備更新後的資料（合併現有資料與更新）
+    const fields = [
+      updates.title !== undefined ? updates.title : currentFields[0] || '',
+      updates.company?.name !== undefined ? updates.company.name : currentFields[1] || '',
+      updates.department !== undefined ? updates.department : currentFields[2] || '',
+      updates.headcount !== undefined ? String(updates.headcount) : currentFields[3] || '1',
+      updates.salaryRange !== undefined ? updates.salaryRange : currentFields[4] || '',
+      updates.requiredSkills !== undefined 
+        ? (Array.isArray(updates.requiredSkills) ? updates.requiredSkills.join('、') : updates.requiredSkills)
+        : currentFields[5] || '',
+      updates.yearsRequired !== undefined ? String(updates.yearsRequired) : currentFields[6] || '',
+      updates.educationRequired !== undefined ? updates.educationRequired : currentFields[7] || '',
+      updates.workLocation !== undefined ? updates.workLocation : currentFields[8] || '台北',
+      updates.status !== undefined ? updates.status : currentFields[9] || '開放中',
+      currentFields[10] || '', // createdDate 不更新
+      new Date().toISOString().split('T')[0], // lastUpdated 自動更新
+      updates.languageRequirement !== undefined ? updates.languageRequirement : currentFields[12] || '',
+      updates.specialConditions !== undefined ? updates.specialConditions : currentFields[13] || '',
+      updates.industryBackground !== undefined ? updates.industryBackground : currentFields[14] || '',
+      updates.teamSize !== undefined ? updates.teamSize : currentFields[15] || '',
+      updates.keyChallenge !== undefined ? updates.keyChallenge : currentFields[16] || '',
+      updates.highlights !== undefined ? updates.highlights : currentFields[17] || '',
+      updates.recruitmentDifficulty !== undefined ? updates.recruitmentDifficulty : currentFields[18] || '',
+      updates.interviewProcess !== undefined ? updates.interviewProcess : currentFields[19] || '',
+      updates.consultantNotes !== undefined ? updates.consultantNotes : currentFields[20] || ''
+    ];
+    
+    // 更新資料
+    const data = fields.join('|');
+    await execPromise(
+      `gog sheets update "${SHEET_ID}" "${range}" "${data}" --account "aijessie88@step1ne.com"`
+    );
+    
+    console.log('✅ 職缺更新成功');
+    
+    return {
+      success: true,
+      message: '職缺更新成功',
+      jobId,
+      updatedFields: Object.keys(updates)
+    };
+    
+  } catch (error) {
+    console.error('❌ 更新職缺失敗:', error);
+    throw error;
+  }
+}
+
+/**
+ * 刪除職缺（清空整行）
+ * 
+ * @param {string} jobId - 職缺 ID
+ * @returns {Promise<Object>} 刪除結果
+ */
+export async function deleteJob(jobId) {
+  const { exec } = await import('child_process');
+  const { promisify } = await import('util');
+  const execPromise = promisify(exec);
+  
+  try {
+    const rowNumber = parseInt(jobId.replace('job-', '')) + 1;
+    const range = `A${rowNumber}:U${rowNumber}`;
+    
+    console.log(`🗑️  刪除職缺 ID ${jobId}（第 ${rowNumber} 行）`);
+    
+    // 清空整行
+    await execPromise(
+      `gog sheets update "${SHEET_ID}" "${range}" "" --account "aijessie88@step1ne.com"`
+    );
+    
+    console.log('✅ 職缺刪除成功');
+    
+    return {
+      success: true,
+      message: '職缺刪除成功',
+      jobId
+    };
+    
+  } catch (error) {
+    console.error('❌ 刪除職缺失敗:', error);
+    throw error;
+  }
+}
