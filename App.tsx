@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('candidates');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
@@ -88,9 +89,18 @@ const App: React.FC = () => {
       case 'candidates': return <CandidatesPage userProfile={profile} />;
       case 'candidate-kanban': return <CandidateKanbanPage userProfile={profile} />;
       // 職缺管理
-      case 'jobs': return <JobsPage userProfile={profile} />;
+      case 'jobs': return <JobsPage 
+        userProfile={profile} 
+        onNavigateToMatching={(jobId) => {
+          setSelectedJobId(jobId);
+          setActiveTab('ai-matching');
+        }}
+      />;
       // AI 配對推薦
-      case 'ai-matching': return <AIMatchingPage userProfile={profile} />;
+      case 'ai-matching': return <AIMatchingPage 
+        userProfile={profile} 
+        preSelectedJobId={selectedJobId}
+      />;
       case 'members': 
         // 只有管理員可以訪問成員管理
         if (profile.role !== Role.ADMIN) {

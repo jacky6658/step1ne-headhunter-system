@@ -5,6 +5,7 @@ import { apiGet } from '../config/api';
 
 interface JobsPageProps {
   userProfile: UserProfile;
+  onNavigateToMatching: (jobId: string) => void;
 }
 
 interface Job {
@@ -40,7 +41,7 @@ interface Job {
   };
 }
 
-export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
+export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMatching }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,7 +128,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
 
   const handleStartMatching = (jobId: string) => {
     // 跳轉到 AI 配對頁面，並預先選擇該職缺
-    window.location.href = `#ai-matching?jobId=${jobId}`;
+    onNavigateToMatching(jobId);
   };
 
   const getStatusColor = (status: string) => {

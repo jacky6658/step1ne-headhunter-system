@@ -6,6 +6,7 @@ import { apiGet, apiPost, getApiUrl } from '../config/api';
 
 interface AIMatchingPageProps {
   userProfile: UserProfile;
+  preSelectedJobId?: string | null;
 }
 
 interface JobFromAPI {
@@ -93,7 +94,7 @@ interface BatchMatchResponse {
   };
 }
 
-export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) => {
+export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, preSelectedJobId }) => {
   const [step, setStep] = useState<'job-selection' | 'selecting' | 'matching' | 'results'>('job-selection');
   
   // 職缺相關
@@ -115,6 +116,17 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile }) =
     fetchJobs();
     fetchCandidates();
   }, []);
+
+  // 自動選擇職缺（從職缺管理頁面跳轉過來時）
+  useEffect(() => {
+    if (preSelectedJobId && jobs.length > 0 && !selectedJob) {
+      const job = jobs.find(j => j.id === preSelectedJobId);
+      if (job) {
+        setSelectedJob(job);
+        setStep('selecting');
+      }
+    }
+  }, [preSelectedJobId, jobs, selectedJob]);
 
   const fetchJobs = async () => {
     setLoadingJobs(true);
