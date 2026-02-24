@@ -129,7 +129,7 @@ function parseCSV(csvText) {
       stability: stabilityScore || '',
       stabilityScore: parseInt(stabilityScore) || 0,  // 前端需要的數字欄位
       resumeLink: resumeLink || '',  // 履歷連結（U欄）
-      talentGrade: talentGrade || '',  // 人才等級（V欄）
+      talentGrade: (talentGrade || '').trim(),  // 人才等級（V欄），清除空白字元
       // 原始資料（供詳細頁面使用）
       _raw: {
         totalYears,
