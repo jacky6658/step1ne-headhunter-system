@@ -80,7 +80,7 @@ function parseCSV(csvText) {
   return rows.map((line, index) => {
     const fields = parseCSVLine(line);
     
-    // 21 個欄位（履歷池v2 標準格式 + 履歷連結）
+    // 22 個欄位（履歷池v2 標準格式 + 履歷連結 + 人才等級）
     const [
       name,              // 1. 姓名
       email,             // 2. Email
@@ -102,7 +102,8 @@ function parseCSV(csvText) {
       status,            // 18. 狀態
       consultant,        // 19. 獵頭顧問
       notes,             // 20. 備註
-      resumeLink         // 21. 履歷連結（U欄）
+      resumeLink,        // 21. 履歷連結（U欄）
+      talentGrade        // 22. 人才等級（V欄）
     ] = fields;
     
     // 過濾空行
@@ -128,6 +129,7 @@ function parseCSV(csvText) {
       stability: stabilityScore || '',
       stabilityScore: parseInt(stabilityScore) || 0,  // 前端需要的數字欄位
       resumeLink: resumeLink || '',  // 履歷連結（U欄）
+      talentGrade: talentGrade || '',  // 人才等級（V欄）
       // 原始資料（供詳細頁面使用）
       _raw: {
         totalYears,
