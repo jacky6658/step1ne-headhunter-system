@@ -28,7 +28,16 @@ export function filterCandidatesByPermission(
 /**
  * 從 API 或 Mock 資料取得候選人（支援權限過濾）
  */
-export async function getCandidates(userProfile?: { displayName: string, role: string }): Promise<Candidate[]> {
+export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
+  // Debug log
+  if (userProfile) {
+    console.log('📊 getCandidates - userProfile:', {
+      displayName: userProfile.displayName,
+      role: userProfile.role,
+      roleType: typeof userProfile.role
+    });
+  }
+  
   // 檢查快取（只有在未提供 userProfile 時才使用快取）
   if (!userProfile) {
     const cached = localStorage.getItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE);
@@ -48,12 +57,19 @@ export async function getCandidates(userProfile?: { displayName: string, role: s
     if (API_BASE_URL) {
       // 建立 URL 參數（如果有 userProfile）
       let url = `${API_BASE_URL}/api/candidates`;
-      if (userProfile && userProfile.role === 'REVIEWER') {
+      
+      // 確保 role 轉換為字串進行比較
+      const userRole = String(userProfile?.role || '');
+      
+      if (userProfile && userRole === 'REVIEWER') {
         const params = new URLSearchParams({
-          userRole: userProfile.role,
+          userRole: userRole,
           consultant: userProfile.displayName
         });
         url += `?${params.toString()}`;
+        console.log('📡 API URL (REVIEWER):', url);
+      } else {
+        console.log('📡 API URL (ADMIN or no filter):', url);
       }
       
       const response = await fetch(url);

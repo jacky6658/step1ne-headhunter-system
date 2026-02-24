@@ -25,8 +25,10 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
   
   // 載入候選人資料
   useEffect(() => {
-    loadCandidates();
-  }, []);
+    if (userProfile) {
+      loadCandidates();
+    }
+  }, [userProfile]);
   
   // 套用篩選
   useEffect(() => {
@@ -68,13 +70,19 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
     
     // 搜尋
     if (searchQuery.trim()) {
-      filtered = filtered.filter(c => 
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.phone.includes(searchQuery) ||
-        c.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.skills.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      const lowerQuery = searchQuery.toLowerCase();
+      filtered = filtered.filter(c => {
+        // 處理 skills 可能是陣列或字串
+        const skillsStr = Array.isArray(c.skills) 
+          ? c.skills.join(' ') 
+          : (c.skills || '');
+        
+        return c.name.toLowerCase().includes(lowerQuery) ||
+               c.email.toLowerCase().includes(lowerQuery) ||
+               c.phone.includes(searchQuery) ||
+               c.position.toLowerCase().includes(lowerQuery) ||
+               skillsStr.toLowerCase().includes(lowerQuery);
+      });
     }
     
     // 狀態篩選

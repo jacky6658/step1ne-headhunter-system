@@ -17,8 +17,10 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   
   useEffect(() => {
-    loadCandidates();
-  }, []);
+    if (userProfile) {
+      loadCandidates();
+    }
+  }, [userProfile]);
   
   const loadCandidates = async () => {
     setLoading(true);
