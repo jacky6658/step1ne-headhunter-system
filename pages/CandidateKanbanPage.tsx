@@ -23,10 +23,9 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
   const loadCandidates = async () => {
     setLoading(true);
     try {
-      const allCandidates = await getCandidates();
-      // 根據權限過濾候選人
-      const filteredByPermission = filterCandidatesByPermission(allCandidates, userProfile);
-      setCandidates(filteredByPermission);
+      // 傳入 userProfile，後端會自動過濾
+      const allCandidates = await getCandidates(userProfile);
+      setCandidates(allCandidates);
     } catch (error) {
       console.error('載入候選人失敗:', error);
     } finally {

@@ -26,34 +26,48 @@ export function filterCandidatesByPermission(
 }
 
 /**
- * 從 API 或 Mock 資料取得候選人
+ * 從 API 或 Mock 資料取得候選人（支援權限過濾）
  */
-export async function getCandidates(): Promise<Candidate[]> {
-  // 檢查快取
-  const cached = localStorage.getItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE);
-  const lastSync = localStorage.getItem(STORAGE_KEYS_EXT.LAST_SYNC);
-  
-  if (cached && lastSync) {
-    const cacheAge = Date.now() - parseInt(lastSync);
-    if (cacheAge < CACHE_EXPIRY) {
-      console.log('使用快取資料');
-      return JSON.parse(cached);
+export async function getCandidates(userProfile?: { displayName: string, role: string }): Promise<Candidate[]> {
+  // 檢查快取（只有在未提供 userProfile 時才使用快取）
+  if (!userProfile) {
+    const cached = localStorage.getItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE);
+    const lastSync = localStorage.getItem(STORAGE_KEYS_EXT.LAST_SYNC);
+    
+    if (cached && lastSync) {
+      const cacheAge = Date.now() - parseInt(lastSync);
+      if (cacheAge < CACHE_EXPIRY) {
+        console.log('使用快取資料');
+        return JSON.parse(cached);
+      }
     }
   }
   
   try {
     // 嘗試從 API 取得
     if (API_BASE_URL) {
-      const response = await fetch(`${API_BASE_URL}/api/candidates`);
+      // 建立 URL 參數（如果有 userProfile）
+      let url = `${API_BASE_URL}/api/candidates`;
+      if (userProfile && userProfile.role === 'REVIEWER') {
+        const params = new URLSearchParams({
+          userRole: userProfile.role,
+          consultant: userProfile.displayName
+        });
+        url += `?${params.toString()}`;
+      }
+      
+      const response = await fetch(url);
       if (response.ok) {
         const result = await response.json();
         const candidates = result.data || [];
         
-        console.log(`✅ 從 API 載入 ${candidates.length} 位候選人`);
+        console.log(`✅ 從 API 載入 ${candidates.length} 位候選人${userProfile ? ` (${userProfile.displayName}, ${userProfile.role})` : ''}`);
         
-        // 更新快取
-        localStorage.setItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE, JSON.stringify(candidates));
-        localStorage.setItem(STORAGE_KEYS_EXT.LAST_SYNC, Date.now().toString());
+        // 更新快取（只有在未提供 userProfile 時）
+        if (!userProfile) {
+          localStorage.setItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE, JSON.stringify(candidates));
+          localStorage.setItem(STORAGE_KEYS_EXT.LAST_SYNC, Date.now().toString());
+        }
         
         return candidates;
       }

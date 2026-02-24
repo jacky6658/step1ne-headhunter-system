@@ -91,10 +91,34 @@ app.get('/api/users/:id', (req, res) => {
   res.json({ success: true, data: user });
 });
 
-// 取得所有候選人
+// 取得所有候選人（支援權限過濾）
 app.get('/api/candidates', async (req, res) => {
   try {
-    const candidates = await sheetsService.getCandidates();
+    const { userRole, consultant } = req.query;
+    
+    // 取得所有候選人
+    let candidates = await sheetsService.getCandidates();
+    
+    // 權限過濾
+    if (userRole === 'REVIEWER' && consultant) {
+      // 顧問只能看到：自己的候選人 + 未指派的候選人
+      candidates = candidates.filter(c => {
+        const candidateConsultant = (c.consultant || '').trim();
+        
+        // 基本規則：自己的 + 未指派的
+        const isOwn = candidateConsultant === consultant;
+        const isUnassigned = candidateConsultant === '' || 
+                             candidateConsultant === '未指派' ||
+                             candidateConsultant === 'AI自動';  // 暫時包含 AI自動（待清理）
+        
+        // 特殊規則：Phoebe 可以看到 Mike 的候選人（Mike 是 Phoebe 的 AI bot）
+        const isPhoebeMike = consultant === 'Phoebe' && candidateConsultant === 'Mike';
+        
+        return isOwn || isUnassigned || isPhoebeMike;
+      });
+    }
+    // ADMIN 或未提供 userRole 時，返回全部（向下相容）
+    
     res.json({ success: true, data: candidates, count: candidates.length });
   } catch (error) {
     console.error('取得候選人失敗:', error);
