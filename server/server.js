@@ -7,7 +7,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 // 環境偵測：優先使用 CSV（更穩定，無需認證）
-import * as sheetsService from './sheetsService-csv.js';
+import * as sheetsService from './sheetsService-v2.js';
 import * as gradingService from './gradingService.js';
 import * as personaService from './personaService.js';
 import * as jobsService from './jobsService.js';
@@ -127,22 +127,8 @@ app.get('/api/candidates/:id', async (req, res) => {
   }
 });
 
-// 新增候選人
-app.post('/api/candidates', async (req, res) => {
-  try {
-    const result = await sheetsService.addCandidate(req.body);
-    res.json(result);
-  } catch (error) {
-    console.error('新增候選人失敗:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
-});
-
-// 更新候選人狀態
-app.put('/api/candidates/:id', async (req, res) => {
+// 更新候選人狀態（專用端點）
+app.put('/api/candidates/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
     
@@ -157,20 +143,6 @@ app.put('/api/candidates/:id', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('更新候選人失敗:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
-});
-
-// 刪除候選人（軟刪除）
-app.delete('/api/candidates/:id', async (req, res) => {
-  try {
-    const result = await sheetsService.deleteCandidate(req.params.id);
-    res.json(result);
-  } catch (error) {
-    console.error('刪除候選人失敗:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 

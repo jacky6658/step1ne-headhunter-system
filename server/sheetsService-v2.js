@@ -274,9 +274,9 @@ export async function updateCandidate(candidateId, updates) {
       updates.notes !== undefined ? updates.notes : currentFields[19] || ''
     ];
     
-    // 使用 gog sheets update
+    // 使用 gog sheets update（更新整行 A-T）
     const data = fields.join('|');
-    const command = `gog sheets update "${SHEET_ID}" "履歷池v2!A${row}" "${data}" --account "${ACCOUNT}"`;
+    const command = `gog sheets update "${SHEET_ID}" "履歷池v2!A${row}:T${row}" "${data}" --account "${ACCOUNT}"`;
     
     const { stdout, stderr } = await execPromise(command);
     
