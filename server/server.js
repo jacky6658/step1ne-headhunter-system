@@ -7,7 +7,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 // 環境偵測：優先使用 CSV（更穩定，無需認證）
-import * as sheetsService from './sheetsService-v2.js';
+// 🔧 暫時改用 CSV（Zeabur 環境沒有 gog CLI）
+import * as sheetsService from './sheetsService-csv.js';
 import * as gradingService from './gradingService.js';
 import * as personaService from './personaService.js';
 import * as jobsService from './jobsService.js';
