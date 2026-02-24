@@ -30,7 +30,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     
     // 未來功能
     { id: 'bd-clients', label: '🎯 BD 客戶開發', icon: Users, roles: [Role.ADMIN, Role.REVIEWER], disabled: true, badge: '即將推出' },
-    { id: 'pipeline', label: '📈 Pipeline 追蹤', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: true, badge: '即將推出' },
+    { id: 'pipeline', label: '📈 Pipeline 追蹤', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     
     // 工具
     { id: 'help', label: '📖 使用說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },

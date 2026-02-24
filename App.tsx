@@ -16,6 +16,7 @@ import { CandidatesPage } from './pages/CandidatesPage';
 import { CandidateKanbanPage } from './pages/CandidateKanbanPage';
 import { AIMatchingPage } from './pages/AIMatchingPage';
 import { JobsPage } from './pages/JobsPage';
+import { PipelinePage } from './pages/PipelinePage';
 import { Menu, X as XIcon } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -101,6 +102,8 @@ const App: React.FC = () => {
         userProfile={profile} 
         preSelectedJobId={selectedJobId}
       />;
+      // Pipeline 追蹤
+      case 'pipeline': return <PipelinePage userProfile={profile} />;
       case 'members': 
         // 只有管理員可以訪問成員管理
         if (profile.role !== Role.ADMIN) {
