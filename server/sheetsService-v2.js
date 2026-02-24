@@ -241,7 +241,30 @@ export async function updateCandidate(candidateId, updates) {
     
     console.log(`📝 更新候選人 ID ${candidateId}（第 ${row} 行）`);
     
-    // 讀取現有資料
+    // 特殊處理：progressTracking 單獨更新（W 欄）
+    if (updates.progressTracking !== undefined) {
+      const progressJson = JSON.stringify(updates.progressTracking);
+      const command = `gog sheets update "${SHEET_ID}" "履歷池v2!W${row}" --values-json '[["${progressJson.replace(/"/g, '\\"')}"]]' --account "${ACCOUNT}"`;
+      
+      console.log(`📝 更新進度追蹤（W${row}）:`, progressJson.substring(0, 100) + '...');
+      
+      const { stdout, stderr } = await execPromise(command);
+      
+      if (stderr && !stderr.includes('INFO')) {
+        console.warn('⚠️ gog sheets 警告:', stderr);
+      }
+      
+      console.log('✅ 進度追蹤更新成功');
+      
+      return {
+        success: true,
+        message: '進度追蹤更新成功',
+        candidateId,
+        updatedFields: ['progressTracking']
+      };
+    }
+    
+    // 讀取現有資料（A-T 欄）
     const range = `A${row}:T${row}`;
     const output = await runGogSheets(range);
     

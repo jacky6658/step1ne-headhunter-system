@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Candidate, CandidateStatus } from '../types';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
+import { apiPut } from '../config/api';
 import { 
   X, User, Mail, Phone, MapPin, Briefcase, Calendar, 
   TrendingUp, Award, FileText, MessageSquare, Clock,
@@ -17,6 +18,9 @@ interface CandidateModalProps {
 export function CandidateModal({ candidate, onClose, onUpdateStatus }: CandidateModalProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes'>('info');
   const [showResume, setShowResume] = useState(false);
+  const [addingProgress, setAddingProgress] = useState(false);
+  const [newProgressEvent, setNewProgressEvent] = useState('');
+  const [newProgressNote, setNewProgressNote] = useState('');
   
   // 禁止背景滾動
   React.useEffect(() => {
@@ -25,6 +29,50 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
       document.body.style.overflow = 'unset';
     };
   }, []);
+  
+  // 新增進度記錄
+  const handleAddProgress = async (eventType: string) => {
+    setNewProgressEvent(eventType);
+    setAddingProgress(true);
+  };
+  
+  // 確認新增進度
+  const handleConfirmAddProgress = async () => {
+    if (!newProgressEvent) return;
+    
+    try {
+      const user = JSON.parse(localStorage.getItem('step1ne-user') || '{}');
+      const userName = user.name || 'Unknown';
+      
+      // 建立新的進度事件
+      const newEvent = {
+        date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+        event: newProgressEvent,
+        by: userName,
+        ...(newProgressNote ? { note: newProgressNote } : {})
+      };
+      
+      // 更新候選人的進度追蹤
+      const updatedProgress = [...(candidate.progressTracking || []), newEvent];
+      
+      // 呼叫 API 更新（使用 W 欄位）
+      await apiPut(`/api/candidates/${candidate.id}`, {
+        progressTracking: updatedProgress
+      });
+      
+      // 成功後重新載入頁面以顯示最新資料
+      alert('✅ 進度新增成功！頁面將重新載入...');
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('新增進度失敗:', error);
+      alert('❌ 新增進度失敗，請稍後再試');
+    } finally {
+      setAddingProgress(false);
+      setNewProgressEvent('');
+      setNewProgressNote('');
+    }
+  };
   
   const getStabilityGrade = (score: number) => {
     if (score >= 80) return { grade: 'A', color: 'text-green-600', bg: 'bg-green-50' };
@@ -463,17 +511,69 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
                   {['已聯繫', '已面試', 'Offer', '已上職', '婉拒', '其他'].map(eventType => (
                     <button
                       key={eventType}
-                      className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      onClick={() => {
-                        // TODO: 實作新增進度功能
-                        alert(`新增進度：${eventType}\n（功能開發中）`);
-                      }}
+                      className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-400 transition-colors"
+                      onClick={() => handleAddProgress(eventType)}
                     >
                       {eventType}
                     </button>
                   ))}
                 </div>
               </div>
+              
+              {/* Add Progress Modal */}
+              {addingProgress && (
+                <div 
+                  className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                  onClick={() => {
+                    setAddingProgress(false);
+                    setNewProgressEvent('');
+                    setNewProgressNote('');
+                  }}
+                >
+                  <div
+                    className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                      新增進度：{newProgressEvent}
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          備註（選填）
+                        </label>
+                        <textarea
+                          value={newProgressNote}
+                          onChange={(e) => setNewProgressNote(e.target.value)}
+                          placeholder="例如：電話聯繫順利，候選人有興趣..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                          rows={3}
+                        />
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setAddingProgress(false);
+                            setNewProgressEvent('');
+                            setNewProgressNote('');
+                          }}
+                          className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          取消
+                        </button>
+                        <button
+                          onClick={handleConfirmAddProgress}
+                          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          確認新增
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           

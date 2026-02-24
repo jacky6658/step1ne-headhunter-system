@@ -58,6 +58,20 @@ export async function apiPost<T>(endpoint: string, data?: any): Promise<T> {
   return response.json();
 }
 
+export async function apiPut<T>(endpoint: string, data?: any): Promise<T> {
+  const response = await fetch(getApiUrl(endpoint), {
+    ...defaultFetchConfig,
+    method: 'PUT',
+    body: data ? JSON.stringify(data) : undefined,
+  });
+  
+  if (!response.ok) {
+    throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
 // 除錯資訊
 console.log('🌐 API 配置:', {
   environment: isDevelopment ? '開發環境' : '生產環境',
