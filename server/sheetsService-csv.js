@@ -116,6 +116,10 @@ function parseCSV(csvText) {
       phone: phone || '',
       currentJobTitle: currentPosition || '',
       workExperience: totalYears ? `${totalYears}年` : '',
+      years: parseFloat(totalYears) || 0,  // 前端需要的數字欄位（年資）
+      jobChanges: parseInt(jobChanges) || 0,  // 轉職次數（數字）
+      avgTenure: parseInt(avgTenure) || 0,  // 平均任職（數字）
+      lastGap: parseInt(recentGap) || 0,  // 最近gap（數字）
       skills: skills ? skills.split(/[、,，]/).map(s => s.trim()).filter(s => s) : [],
       currentCompany: '',  // 從工作經歷提取
       desiredSalary: '',   // 從備註提取
@@ -126,6 +130,7 @@ function parseCSV(csvText) {
       notes: notes || '',
       location: location || '',
       education: education || '',
+      position: currentPosition || '',  // 職位（目前/最近工作）
       stability: stabilityScore || '',
       stabilityScore: parseInt(stabilityScore) || 0,  // 前端需要的數字欄位
       resumeLink: resumeLink || '',  // 履歷連結（U欄）

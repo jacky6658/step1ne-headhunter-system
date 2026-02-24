@@ -246,10 +246,10 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-blue-600" />
-                    工作經歷
+                    工作經歷（近3份）
                   </h3>
                   <div className="space-y-3">
-                    {workHistory.map((job: any, i: number) => (
+                    {workHistory.slice(0, 3).map((job: any, i: number) => (
                       <div key={i} className="border-l-2 border-blue-200 pl-4 py-2">
                         <div className="font-medium text-gray-900">{job.company}</div>
                         <div className="text-sm text-gray-600">{job.position}</div>

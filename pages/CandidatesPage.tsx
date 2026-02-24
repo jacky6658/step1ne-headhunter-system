@@ -620,19 +620,6 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                           指派給我
                         </button>
                       )}
-                      
-                      {/* 下載履歷按鈕 */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownloadResume(candidate);
-                        }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white text-xs font-medium rounded hover:bg-blue-600 transition-colors"
-                        title="下載 LinkedIn 履歷並上傳"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        下載履歷
-                      </button>
                     </div>
                   </td>
                 </tr>
