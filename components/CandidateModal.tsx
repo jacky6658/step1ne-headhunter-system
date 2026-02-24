@@ -21,6 +21,8 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
   const [addingProgress, setAddingProgress] = useState(false);
   const [newProgressEvent, setNewProgressEvent] = useState('');
   const [newProgressNote, setNewProgressNote] = useState('');
+  const [showInviteMessage, setShowInviteMessage] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState('');
   
   // 禁止背景滾動
   React.useEffect(() => {
@@ -72,6 +74,46 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
       setNewProgressEvent('');
       setNewProgressNote('');
     }
+  };
+  
+  // Task A: 生成 GitHub 候選人邀請訊息
+  const handleGenerateInviteMessage = () => {
+    const skills = Array.isArray(candidate.skills) 
+      ? candidate.skills 
+      : candidate.skills.split(/[、,，]/);
+    
+    const topSkills = skills.slice(0, 3).join('、');
+    const targetJob = candidate.notes?.match(/應徵：(.+?) \((.+?)\)/);
+    const jobTitle = targetJob ? targetJob[1] : '相關職位';
+    const companyName = targetJob ? targetJob[2] : '我們公司';
+    
+    const message = `Hi ${candidate.name}，
+
+我在 GitHub 上看到您的專案，對您的 ${topSkills} 技術能力印象深刻！
+
+我們目前有一個 ${jobTitle} 的機會，工作內容與您的技術背景非常匹配。${companyName} 是一家【公司簡介】，團隊氛圍開放，技術棧包括【技術棧】。
+
+如果您有興趣了解更多，歡迎回覆這封訊息或加我 LinkedIn，我們可以安排時間聊聊！
+
+期待與您交流 😊
+
+---
+最佳問候
+${JSON.parse(localStorage.getItem('step1ne-user') || '{}').name || 'HR Team'}
+Step1ne Recruitment`;
+    
+    setInviteMessage(message);
+    setShowInviteMessage(true);
+  };
+  
+  // 複製邀請訊息到剪貼簿
+  const handleCopyInviteMessage = () => {
+    navigator.clipboard.writeText(inviteMessage).then(() => {
+      alert('✅ 邀請訊息已複製到剪貼簿！');
+    }).catch(err => {
+      console.error('複製失敗:', err);
+      alert('❌ 複製失敗，請手動複製');
+    });
   };
   
   const getStabilityGrade = (score: number) => {
@@ -407,9 +449,10 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
                 </div>
               )}
               
-              {/* Resume Link */}
-              {candidate.resumeLink && (
-                <div>
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                {/* Resume Link */}
+                {candidate.resumeLink && (
                   <button
                     onClick={() => setShowResume(true)}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
@@ -417,8 +460,19 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
                     <FileText className="w-4 h-4" />
                     📄 查看完整履歷
                   </button>
-                </div>
-              )}
+                )}
+                
+                {/* GitHub Invite Message (Task A) */}
+                {candidate.source === 'GitHub' && (
+                  <button
+                    onClick={handleGenerateInviteMessage}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    💌 生成邀請訊息
+                  </button>
+                )}
+              </div>
               
               {/* Resume Preview Modal */}
               {showResume && candidate.resumeLink && (
@@ -450,6 +504,63 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
                         className="w-full h-full border-0"
                         title={`${candidate.name} 履歷`}
                       />
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* GitHub Invite Message Modal (Task A) */}
+              {showInviteMessage && (
+                <div
+                  className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                  onClick={() => setShowInviteMessage(false)}
+                >
+                  <div
+                    className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Invite Message Header */}
+                    <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 rounded-t-xl flex items-center justify-between">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5" />
+                        GitHub 候選人邀請訊息
+                      </h3>
+                      <button
+                        onClick={() => setShowInviteMessage(false)}
+                        className="text-white/80 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    {/* Invite Message Content */}
+                    <div className="flex-1 overflow-y-auto p-6">
+                      <div className="mb-4">
+                        <div className="text-sm text-gray-600 mb-2">
+                          📝 此訊息已根據候選人技能自動生成，請視情況調整後使用：
+                        </div>
+                        <textarea
+                          value={inviteMessage}
+                          onChange={(e) => setInviteMessage(e.target.value)}
+                          className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+                        />
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCopyInviteMessage}
+                          className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          複製到剪貼簿
+                        </button>
+                        <button
+                          onClick={() => setShowInviteMessage(false)}
+                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          關閉
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
