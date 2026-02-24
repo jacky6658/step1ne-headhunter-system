@@ -10,6 +10,7 @@ import * as sheetsService from './sheetsService-v2.js';
 import * as gradingService from './gradingService.js';
 import * as personaService from './personaService.js';
 import * as jobsService from './jobsService.js';
+import * as anonymousResumeService from './anonymousResumeService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -277,6 +278,50 @@ app.post('/api/candidates/:id/upload-resume', upload.single('resume'), async (re
     res.status(500).json({ 
       success: false, 
       error: error.message 
+    });
+  }
+});
+
+// 生成匿名履歷（Markdown）
+app.post('/api/candidates/:id/anonymous-resume', async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    const { jobId, consultant } = req.body;
+
+    console.log(`📄 生成匿名履歷：候選人 ${candidateId}${jobId ? ` / 職缺 ${jobId}` : ''}`);
+
+    // 1. 讀取候選人資料
+    const candidate = await sheetsService.getCandidateById(candidateId);
+    if (!candidate) {
+      return res.status(404).json({
+        success: false,
+        error: '找不到候選人'
+      });
+    }
+
+    // 2. 讀取職缺資料（如果有）
+    let job = null;
+    if (jobId) {
+      job = await jobsService.getJob(jobId);
+      if (!job) {
+        console.warn(`⚠️  找不到職缺 ${jobId}，使用通用範本`);
+      }
+    }
+
+    // 3. 生成匿名履歷
+    const result = await anonymousResumeService.generateAnonymousResume(
+      candidate,
+      job,
+      consultant || candidate.consultant || 'Jacky'
+    );
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ 生成匿名履歷失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
