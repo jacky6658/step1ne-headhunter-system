@@ -35,6 +35,20 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
     applyFilters();
   }, [candidates, searchQuery, statusFilter, sourceFilter, consultantFilter]);
   
+  // 自動重新整理（每 30 秒）- 雙向同步模式
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (!loading && !refreshing) {
+        console.log('🔄 自動重新整理候選人資料...');
+        clearCache();
+        const allCandidates = await getCandidates(userProfile);
+        setCandidates(allCandidates);
+      }
+    }, 30000); // 30 秒
+    
+    return () => clearInterval(interval);
+  }, [userProfile, loading, refreshing]);
+  
   const loadCandidates = async () => {
     setLoading(true);
     try {
@@ -224,7 +238,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
     }
   };
   
-  // 指派候選人給自己
+  // 指派候選人給自己（雙向同步模式：通知 AI 或手動編輯）
   const handleAssignToMe = async (candidate: Candidate, e: React.MouseEvent) => {
     e.stopPropagation(); // 防止觸發行點擊
     
@@ -233,37 +247,45 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
       return;
     }
     
+    // 生成 gog CLI 指令
+    const gogCommand = `gog sheets update "1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SEtxRk6Q" "履歷池v2!S${candidate.id}" "${userProfile.displayName}" --account aijessie88@step1ne.com`;
+    
+    // 顯示操作選項
+    const confirmed = confirm(`🎯 指派候選人「${candidate.name}」給 ${userProfile.displayName}
+
+請選擇以下任一方式：
+
+方式 1️⃣ 請 YuQi 協助（推薦）
+→ 複製以下指令，貼到 Telegram 給 @YuQi
+→ 指令：${gogCommand}
+
+方式 2️⃣ 手動編輯 Google Sheets
+→ 開啟履歷池v2
+→ 找到第 ${candidate.id} 行
+→ 在「獵頭顧問」欄位填入「${userProfile.displayName}」
+
+⏱️ 完成後，30 秒內會自動更新畫面
+
+是否繼續？`);
+    
+    if (!confirmed) return;
+    
+    // 複製指令到剪貼簿（如果瀏覽器支援）
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'https://backendstep1ne.zeabur.app';
-      const response = await fetch(`${API_URL}/api/candidates/${candidate.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          consultant: userProfile.displayName
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('更新失敗');
-      }
-      
-      // 更新本地狀態（立即反映變化）
-      setCandidates(prev => prev.map(c => 
-        c.id === candidate.id 
-          ? { ...c, consultant: userProfile.displayName }
-          : c
-      ));
-      
-      // 清除快取
-      clearCache();
-      
-      console.log(`✅ 已將候選人「${candidate.name}」指派給 ${userProfile.displayName}`);
-    } catch (error) {
-      console.error('指派候選人失敗:', error);
-      alert('指派失敗，請稍後再試');
+      await navigator.clipboard.writeText(gogCommand);
+      alert('✅ 指令已複製到剪貼簿！\n\n請貼到 Telegram 給 YuQi，或手動編輯 Google Sheets。\n\n⏱️ 30 秒後自動重新整理');
+    } catch (err) {
+      alert('✅ 請手動複製指令或編輯 Google Sheets\n\n⏱️ 30 秒後自動重新整理');
     }
+    
+    // 30 秒後自動重新載入
+    setTimeout(async () => {
+      clearCache();
+      await loadCandidates();
+      alert('✅ 已重新載入候選人資料');
+    }, 30000);
+    
+    console.log(`📋 指派請求：候選人「${candidate.name}」(ID: ${candidate.id}) → ${userProfile.displayName}`);
   };
   
   if (loading) {
