@@ -16,6 +16,7 @@ interface CandidateModalProps {
 
 export function CandidateModal({ candidate, onClose, onUpdateStatus }: CandidateModalProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes'>('info');
+  const [showResume, setShowResume] = useState(false);
   
   // 禁止背景滾動
   React.useEffect(() => {
@@ -291,17 +292,50 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
               )}
               
               {/* Resume Link */}
-              {candidate.resumeUrl && (
+              {candidate.resumeLink && (
                 <div>
-                  <a 
-                    href={candidate.resumeUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                  <button
+                    onClick={() => setShowResume(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
                   >
                     <FileText className="w-4 h-4" />
-                    查看完整履歷
-                  </a>
+                    📄 查看完整履歷
+                  </button>
+                </div>
+              )}
+              
+              {/* Resume Preview Modal */}
+              {showResume && candidate.resumeLink && (
+                <div
+                  className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                  onClick={() => setShowResume(false)}
+                >
+                  <div
+                    className="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Resume Modal Header */}
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-t-xl flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">
+                        {candidate.name} - 完整履歷
+                      </h3>
+                      <button
+                        onClick={() => setShowResume(false)}
+                        className="text-white/80 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    {/* Resume iframe */}
+                    <div className="flex-1 overflow-hidden">
+                      <iframe
+                        src={candidate.resumeLink}
+                        className="w-full h-full border-0"
+                        title={`${candidate.name} 履歷`}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

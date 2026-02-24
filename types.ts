@@ -265,6 +265,7 @@ export interface Candidate {
   consultant?: string;
   notes?: string;
   resumeFileUrl?: string;
+  resumeLink?: string;  // 履歷連結（Google Drive 嵌入式預覽 URL）
   createdAt: string;
   updatedAt: string;
   createdBy: string;
