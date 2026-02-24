@@ -330,3 +330,66 @@ export async function getJob(jobId) {
   
   return job;
 }
+
+/**
+ * 新增職缺到 Google Sheets
+ * 
+ * @param {Object} jobData - 職缺資料
+ * @returns {Promise<Object>} 新增結果
+ */
+export async function addJob(jobData) {
+  const { exec } = await import('child_process');
+  const { promisify } = await import('util');
+  const execPromise = promisify(exec);
+  
+  try {
+    // 準備資料（21 個欄位，用 | 分隔）
+    const fields = [
+      jobData.title || '',                    // A: 職位名稱
+      jobData.company?.name || '',            // B: 客戶公司
+      jobData.department || '',               // C: 部門
+      jobData.headcount || '1',               // D: 需求人數
+      jobData.salaryRange || '',              // E: 薪資範圍
+      Array.isArray(jobData.requiredSkills) ? jobData.requiredSkills.join('、') : '', // F: 主要技能
+      jobData.yearsRequired || '',            // G: 經驗要求
+      jobData.educationRequired || '',        // H: 學歷要求
+      jobData.workLocation || '台北',         // I: 工作地點
+      jobData.status || '開放中',             // J: 職位狀態
+      jobData.createdDate || new Date().toISOString().split('T')[0], // K: 建立日期
+      jobData.lastUpdated || new Date().toISOString().split('T')[0], // L: 最後更新
+      jobData.languageRequirement || '',      // M: 語言要求
+      jobData.specialConditions || '',        // N: 特殊條件
+      jobData.industryBackground || '',       // O: 產業背景要求
+      jobData.teamSize || '',                 // P: 團隊規模
+      jobData.keyChallenge || '',             // Q: 核心挑戰
+      jobData.highlights || '',               // R: 職位亮點
+      jobData.recruitmentDifficulty || '',    // S: 招募困難度
+      jobData.interviewProcess || '',         // T: 面試流程
+      jobData.consultantNotes || ''           // U: 顧問備註
+    ];
+    
+    // 使用 gog sheets append
+    const data = fields.join('|');
+    const command = `gog sheets append "${SHEET_ID}" "A:U" "${data}" --account "aijessie88@step1ne.com"`;
+    
+    console.log('📝 新增職缺:', jobData.title);
+    const { stdout, stderr } = await execPromise(command);
+    
+    if (stderr && !stderr.includes('INFO')) {
+      console.warn('⚠️ gog sheets 警告:', stderr);
+    }
+    
+    console.log('✅ 職缺新增成功:', stdout);
+    
+    return {
+      success: true,
+      message: '職缺新增成功',
+      jobId: `job-${Date.now()}`, // 簡單的 ID 生成
+      data: jobData
+    };
+    
+  } catch (error) {
+    console.error('❌ 新增職缺失敗:', error);
+    throw error;
+  }
+}

@@ -396,6 +396,33 @@ app.get('/api/jobs/:id', async (req, res) => {
   }
 });
 
+// 新增職缺
+app.post('/api/jobs', async (req, res) => {
+  try {
+    const jobData = req.body;
+    
+    console.log('📝 收到新增職缺請求:', jobData.title);
+    
+    // 驗證必填欄位
+    if (!jobData.title) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必填欄位：職位名稱'
+      });
+    }
+    
+    const result = await jobsService.addJob(jobData);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ 新增職缺失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // ========================================
 // Persona Matching API
 // ========================================
