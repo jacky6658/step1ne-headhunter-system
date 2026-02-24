@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, FileText, Users, ClipboardList, LayoutGrid, BarChart3, Download, History, Database, Camera, Link as LinkIcon, DollarSign, TrendingUp, MessageSquare, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { BookOpen, Users, Briefcase, Target, FileText, LayoutGrid, Link as LinkIcon, Download, CheckCircle, XCircle, AlertCircle, Sparkles, Database, Award } from 'lucide-react';
 
 interface HelpPageProps {
   userProfile?: any;
@@ -13,8 +13,8 @@ const HelpPage: React.FC<HelpPageProps> = () => {
         <div className="flex items-center gap-4 mb-4">
           <BookOpen size={48} className="text-white" />
           <div>
-            <h1 className="text-3xl font-black mb-2">AI案件管理系統使用說明</h1>
-            <p className="text-indigo-100 text-lg">完整的功能介紹與操作指南</p>
+            <h1 className="text-3xl font-black mb-2">Step1ne 獵頭系統使用說明</h1>
+            <p className="text-indigo-100 text-lg">AI 驅動的智能招聘管理平台</p>
           </div>
         </div>
       </div>
@@ -26,143 +26,317 @@ const HelpPage: React.FC<HelpPageProps> = () => {
           快速導覽
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <a href="#案件總表" className="p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
-            <ClipboardList className="text-indigo-600 mb-2" size={24} />
-            <h3 className="font-black text-slate-900 mb-1">案件總表</h3>
-            <p className="text-sm text-slate-600">查看和管理所有案件</p>
+          <a href="#候選人總表" className="p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
+            <Users className="text-indigo-600 mb-2" size={24} />
+            <h3 className="font-black text-slate-900 mb-1">候選人總表</h3>
+            <p className="text-sm text-slate-600">管理所有候選人資料</p>
           </a>
-          <a href="#流程看板" className="p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors">
-            <LayoutGrid className="text-purple-600 mb-2" size={24} />
-            <h3 className="font-black text-slate-900 mb-1">流程看板</h3>
-            <p className="text-sm text-slate-600">視覺化追蹤案件進度</p>
+          <a href="#職缺管理" className="p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors">
+            <Briefcase className="text-purple-600 mb-2" size={24} />
+            <h3 className="font-black text-slate-900 mb-1">職缺管理</h3>
+            <p className="text-sm text-slate-600">新增和管理招聘職缺</p>
           </a>
-          <a href="#財務分析" className="p-4 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition-colors">
-            <BarChart3 className="text-emerald-600 mb-2" size={24} />
-            <h3 className="font-black text-slate-900 mb-1">財務分析</h3>
-            <p className="text-sm text-slate-600">查看成本和利潤統計</p>
+          <a href="#AI配對" className="p-4 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition-colors">
+            <Sparkles className="text-emerald-600 mb-2" size={24} />
+            <h3 className="font-black text-slate-900 mb-1">AI 智能配對</h3>
+            <p className="text-sm text-slate-600">自動推薦最佳候選人</p>
           </a>
         </div>
       </div>
 
-      {/* 案件總表 */}
-      <div id="案件總表" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      {/* 候選人總表 */}
+      <div id="候選人總表" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-          <ClipboardList className="text-indigo-600" size={24} />
-          案件總表
+          <Users className="text-indigo-600" size={24} />
+          候選人總表
         </h2>
         <div className="space-y-4 text-slate-700">
           <div>
             <h3 className="font-black text-slate-900 mb-2">📋 功能說明</h3>
-            <p className="mb-3">案件總表是系統的核心功能，您可以在此查看、搜尋、新增和編輯所有案件。</p>
+            <p className="mb-3">候選人總表是系統的核心功能，您可以在此查看、搜尋和管理所有候選人資料。</p>
             <ul className="list-disc list-inside space-y-1 ml-4">
-              <li>查看所有案件的詳細資訊</li>
-              <li>使用搜尋功能快速找到特定案件</li>
-              <li>點擊表格中的任意行可直接開啟案件詳情</li>
-              <li>支援按各欄位排序（預設按建立時間降序）</li>
+              <li>查看所有候選人的詳細資訊（218 位候選人）</li>
+              <li>使用搜尋功能快速找到特定候選人</li>
+              <li>點擊表格中的任意行可開啟候選人詳情</li>
+              <li>支援按各欄位排序和篩選</li>
+              <li>顯示人才等級（S/A/B/C/D）</li>
             </ul>
           </div>
           
           <div>
-            <h3 className="font-black text-slate-900 mb-2">➕ 新增案件</h3>
-            <p className="mb-2">點擊右上角的「新增案件」按鈕，填寫以下資訊：</p>
-            <ul className="list-disc list-inside space-y-1 ml-4">
-              <li><strong>對方 ID / 名稱</strong>：案主名稱或平台 ID</li>
-              <li><strong>平台</strong>：案件來源平台（FB、Threads、PRO360 等）</li>
-              <li><strong>客戶原始需求</strong>：案件的核心需求描述</li>
-              <li><strong>預算狀況</strong>：客戶預算資訊</li>
-              <li><strong>聯絡資訊</strong>：電話、Email、地點（選填）</li>
-              <li><strong>預計製作週期</strong>：預估完成時間（選填）</li>
-              <li><strong>客戶聯繫方式</strong>：聯繫管道（選填）</li>
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="font-black text-slate-900 mb-2">
-              <Camera className="inline mr-2 text-indigo-600" size={18} />
-              OCR 截圖識別
-            </h3>
-            <p className="mb-2">快速匯入案件資訊：</p>
-            <ol className="list-decimal list-inside space-y-1 ml-4">
-              <li>點擊「OCR 截圖識別」按鈕</li>
-              <li>選擇或拖放案件截圖</li>
-              <li>系統會自動識別圖片中的文字並填入表單</li>
-              <li>檢查並修正識別結果後儲存</li>
-            </ol>
-            <p className="mt-2 text-sm text-slate-500">💡 提示：圖片越清晰，識別準確度越高</p>
-          </div>
-
-          <div>
             <h3 className="font-black text-slate-900 mb-2">
               <LinkIcon className="inline mr-2 text-indigo-600" size={18} />
-              URL 匯入
+              LinkedIn 快速查看
             </h3>
-            <p className="mb-2">支援從 PRO360 網址自動匯入案件：</p>
-            <ol className="list-decimal list-inside space-y-1 ml-4">
-              <li>在新增案件視窗中找到「URL 匯入」區塊</li>
-              <li>貼上 PRO360 案件網址</li>
-              <li>點擊「解析網址」按鈕</li>
-              <li>系統會自動填入案件資訊</li>
-            </ol>
+            <p className="mb-2">系統支援 LinkedIn 連結快速開啟：</p>
+            <ul className="list-disc list-inside space-y-1 ml-4">
+              <li>候選人列表中的 LinkedIn 資訊會顯示為可點擊連結</li>
+              <li>點擊 LinkedIn 圖標會在新分頁開啟候選人檔案</li>
+              <li>支援格式：<code className="bg-gray-100 px-1">LinkedIn: username</code> 或完整 URL</li>
+            </ul>
           </div>
 
           <div>
-            <h3 className="font-black text-slate-900 mb-2">⚡ 快速審核</h3>
-            <p className="mb-2">在案件總表中，每個案件都有快速審核按鈕：</p>
+            <h3 className="font-black text-slate-900 mb-2">⚡ 快速操作</h3>
+            <p className="mb-2">在候選人總表中，每個候選人都有快速操作按鈕：</p>
             <ul className="list-disc list-inside space-y-1 ml-4">
-              <li><CheckCircle className="inline text-green-600" size={14} /> 綠色按鈕：接受案件</li>
-              <li><XCircle className="inline text-red-600" size={14} /> 紅色按鈕：取消案件</li>
+              <li><strong>下載履歷</strong>：生成並下載匿名履歷（保護候選人隱私）</li>
+              <li><strong>更新狀態</strong>：快速變更候選人狀態（待審核/面試中/已錄取等）</li>
+              <li><strong>查看詳情</strong>：開啟完整的候選人資料視窗</li>
             </ul>
-            <p className="mt-2 text-sm text-slate-500">💡 點擊後會立即更新案件狀態</p>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">
+              <Award className="inline mr-2 text-indigo-600" size={18} />
+              人才等級評分
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <span className="font-black text-purple-700">S 級</span>
+                <p className="text-xs text-slate-600 mt-1">卓越人才，立即推薦</p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <span className="font-black text-blue-700">A 級</span>
+                <p className="text-xs text-slate-600 mt-1">優秀人才，優先推薦</p>
+              </div>
+              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                <span className="font-black text-green-700">B 級</span>
+                <p className="text-xs text-slate-600 mt-1">合格人才，符合基本要求</p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <span className="font-black text-amber-700">C 級</span>
+                <p className="text-xs text-slate-600 mt-1">待觀察，需進一步評估</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 流程看板 */}
-      <div id="流程看板" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      {/* 職缺管理 */}
+      <div id="職缺管理" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-          <LayoutGrid className="text-purple-600" size={24} />
-          流程看板
+          <Briefcase className="text-purple-600" size={24} />
+          職缺管理
         </h2>
         <div className="space-y-4 text-slate-700">
           <div>
             <h3 className="font-black text-slate-900 mb-2">📊 功能說明</h3>
-            <p className="mb-3">流程看板以視覺化的方式展示案件在各個階段的分布，讓您一目了然地掌握案件進度。</p>
+            <p className="mb-3">職缺管理頁面讓您新增、編輯和管理所有招聘職缺。</p>
           </div>
 
           <div>
-            <h3 className="font-black text-slate-900 mb-2">🔄 案件狀態</h3>
+            <h3 className="font-black text-slate-900 mb-2">➕ 新增職缺</h3>
+            <p className="mb-2">點擊「新增職缺」按鈕，填寫以下資訊：</p>
+            <ul className="list-disc list-inside space-y-1 ml-4">
+              <li><strong>職位名稱</strong>：例如：軟體工程師、產品經理</li>
+              <li><strong>部門</strong>：職缺所屬部門</li>
+              <li><strong>招聘人數</strong>：計畫招聘的人數</li>
+              <li><strong>薪資範圍</strong>：例如：80k-120k</li>
+              <li><strong>必備技能</strong>：職缺要求的核心技能</li>
+              <li><strong>加分技能</strong>：優先考慮的額外技能</li>
+              <li><strong>工作經驗</strong>：要求的年資</li>
+              <li><strong>學歷要求</strong>：最低學歷要求</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🔄 職缺狀態</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <span className="font-black text-amber-700">待篩選</span>
-                <p className="text-xs text-slate-600 mt-1">新案件，等待初步評估</p>
-              </div>
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <span className="font-black text-blue-700">已接洽</span>
-                <p className="text-xs text-slate-600 mt-1">已與客戶聯繫</p>
+                <span className="font-black text-blue-700">招募中</span>
+                <p className="text-xs text-slate-600 mt-1">職缺開放，積極招聘</p>
               </div>
-              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                <span className="font-black text-purple-700">報價中</span>
-                <p className="text-xs text-slate-600 mt-1">正在準備或已提交報價</p>
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <span className="font-black text-amber-700">暫停</span>
+                <p className="text-xs text-slate-600 mt-1">暫時停止招聘</p>
               </div>
-              <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                <span className="font-black text-indigo-700">製作中</span>
-                <p className="text-xs text-slate-600 mt-1">案件正在執行</p>
-              </div>
-              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-                <span className="font-black text-emerald-700">已成交</span>
-                <p className="text-xs text-slate-600 mt-1">案件已完成並成交</p>
+              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                <span className="font-black text-green-700">已滿額</span>
+                <p className="text-xs text-slate-600 mt-1">已招募足夠人數</p>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <span className="font-black text-gray-700">結案</span>
-                <p className="text-xs text-slate-600 mt-1">案件已結束</p>
+                <span className="font-black text-gray-700">關閉</span>
+                <p className="text-xs text-slate-600 mt-1">職缺已關閉</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🎯 公司資訊</h3>
+            <p className="mb-2">職缺可包含詳細的公司資訊（用於 AI 配對）：</p>
+            <ul className="list-disc list-inside space-y-1 ml-4">
+              <li><strong>公司名稱</strong>：職缺所屬公司</li>
+              <li><strong>產業別</strong>：例如：科技、金融、製造</li>
+              <li><strong>公司規模</strong>：例如：50-200人</li>
+              <li><strong>公司階段</strong>：例如：成長期、成熟期</li>
+              <li><strong>企業文化</strong>：公司文化描述</li>
+              <li><strong>技術棧</strong>：使用的技術和工具</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* AI 智能配對 */}
+      <div id="AI配對" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+          <Sparkles className="text-emerald-600" size={24} />
+          AI 智能配對
+        </h2>
+        <div className="space-y-4 text-slate-700">
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🤖 功能說明</h3>
+            <p className="mb-3">AI 配對系統使用先進的演算法，自動分析候選人與職缺的匹配度，並提供詳細的推薦報告。</p>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🎯 配對流程</h3>
+            <ol className="list-decimal list-inside space-y-2 ml-4">
+              <li><strong>選擇職缺</strong>：從職缺清單中選擇要配對的職位</li>
+              <li><strong>選擇候選人</strong>：勾選要參與配對的候選人（建議 5-30 位）</li>
+              <li><strong>執行配對</strong>：點擊「開始 AI 配對」按鈕</li>
+              <li><strong>查看結果</strong>：系統會自動生成配對報告</li>
+            </ol>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">📊 配對維度（4 大面向）</h3>
+            <div className="space-y-2 mt-2">
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <span className="font-black text-blue-700">技能匹配（35%）</span>
+                <p className="text-xs text-slate-600 mt-1">評估候選人技能與職缺要求的契合度</p>
+              </div>
+              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                <span className="font-black text-green-700">成長匹配（25%）</span>
+                <p className="text-xs text-slate-600 mt-1">評估候選人的學習能力和發展潛力</p>
+              </div>
+              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <span className="font-black text-purple-700">文化匹配（25%）</span>
+                <p className="text-xs text-slate-600 mt-1">評估候選人與公司文化的適配度</p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <span className="font-black text-amber-700">動機匹配（15%）</span>
+                <p className="text-xs text-slate-600 mt-1">評估候選人的轉職動機與職缺的吸引力</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🏆 推薦優先級</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                <span className="font-black text-emerald-700">P0 必推</span>
+                <p className="text-xs text-slate-600 mt-1">80 分以上，S/A 級人才</p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <span className="font-black text-blue-700">P1 優先</span>
+                <p className="text-xs text-slate-600 mt-1">70-79 分，B 級人才</p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <span className="font-black text-amber-700">P2 備選</span>
+                <p className="text-xs text-slate-600 mt-1">60-69 分，C 級人才</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">📄 配對報告內容</h3>
+            <ul className="list-disc list-inside space-y-1 ml-4">
+              <li><strong>總分與等級</strong>：0-100 分評分與 S/A/B/C/D 等級</li>
+              <li><strong>維度評分</strong>：4 大維度的詳細分數</li>
+              <li><strong>適配亮點</strong>：候選人的優勢與特色</li>
+              <li><strong>風險提示</strong>：需要注意的潛在問題</li>
+              <li><strong>面試建議</strong>：面試重點與評估要點</li>
+              <li><strong>薪資策略</strong>：建議的薪資範圍</li>
+              <li><strong>留任策略</strong>：如何提高錄取接受率</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* 匿名履歷 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+          <FileText className="text-blue-600" size={24} />
+          匿名履歷生成
+        </h2>
+        <div className="space-y-4 text-slate-700">
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🔒 功能說明</h3>
+            <p className="mb-3">匿名履歷功能可以生成去除個人識別資訊的候選人履歷，保護候選人隱私的同時提供完整的專業資訊。</p>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">
+              <Download className="inline mr-2 text-blue-600" size={18} />
+              下載匿名履歷
+            </h3>
+            <ol className="list-decimal list-inside space-y-1 ml-4">
+              <li>在候選人總表中找到目標候選人</li>
+              <li>點擊「下載履歷」按鈕</li>
+              <li>系統會自動生成匿名履歷（Markdown 格式）</li>
+              <li>前端會轉換為 PDF 格式並下載</li>
+            </ol>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🎭 匿名化處理</h3>
+            <p className="mb-2">系統會自動處理以下資訊：</p>
+            <ul className="list-disc list-inside space-y-1 ml-4">
+              <li><strong>姓名</strong>：替換為隨機代號（例如：Michael, Sarah）</li>
+              <li><strong>公司名稱</strong>：轉換為通用描述（例如：知名科技公司）</li>
+              <li><strong>聯絡資訊</strong>：完全移除電話、Email</li>
+              <li><strong>個人識別</strong>：移除身分證、地址等敏感資訊</li>
+              <li><strong>保留專業資訊</strong>：技能、經歷、學歷等專業內容完整保留</li>
+            </ul>
+          </div>
+
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-900">
+              💡 <strong>提示</strong>：匿名履歷適合初步推薦給客戶公司，待客戶表達興趣後再提供完整履歷。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 候選人看板 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+          <LayoutGrid className="text-purple-600" size={24} />
+          候選人流程看板
+        </h2>
+        <div className="space-y-4 text-slate-700">
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">📊 功能說明</h3>
+            <p className="mb-3">流程看板以視覺化的方式展示候選人在招聘流程中的進度，讓您一目了然地掌握所有候選人的狀態。</p>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🔄 招聘流程狀態</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <span className="font-black text-amber-700">待審核</span>
+                <p className="text-xs text-slate-600 mt-1">新候選人，等待初步評估</p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <span className="font-black text-blue-700">已聯繫</span>
+                <p className="text-xs text-slate-600 mt-1">已與候選人建立聯繫</p>
+              </div>
+              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <span className="font-black text-purple-700">面試中</span>
+                <p className="text-xs text-slate-600 mt-1">正在進行面試流程</p>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                <span className="font-black text-emerald-700">已錄取</span>
+                <p className="text-xs text-slate-600 mt-1">候選人已收到 offer</p>
+              </div>
+              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                <span className="font-black text-green-700">已到職</span>
+                <p className="text-xs text-slate-600 mt-1">候選人已正式入職</p>
               </div>
               <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                <span className="font-black text-red-700">取消</span>
-                <p className="text-xs text-slate-600 mt-1">未使用 Pro360 索取個資</p>
-              </div>
-              <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                <span className="font-black text-orange-700">婉拒/無法聯繫</span>
-                <p className="text-xs text-slate-600 mt-1">已使用 Pro360 索取個資但無法聯繫或決定不做</p>
+                <span className="font-black text-red-700">已拒絕</span>
+                <p className="text-xs text-slate-600 mt-1">候選人婉拒 offer</p>
               </div>
             </div>
           </div>
@@ -170,143 +344,58 @@ const HelpPage: React.FC<HelpPageProps> = () => {
           <div>
             <h3 className="font-black text-slate-900 mb-2">🖱️ 操作方式</h3>
             <ul className="list-disc list-inside space-y-1 ml-4">
-              <li><strong>拖放移動</strong>：直接拖動案件卡片到不同狀態欄位</li>
-              <li><strong>右鍵選單</strong>：在案件卡片上點擊右鍵，選擇目標狀態</li>
-              <li><strong>點擊查看</strong>：點擊案件卡片可開啟詳細資訊</li>
+              <li><strong>拖放移動</strong>：直接拖動候選人卡片到不同狀態欄位</li>
+              <li><strong>點擊查看</strong>：點擊候選人卡片可開啟詳細資訊</li>
+              <li><strong>快速評級</strong>：在卡片上直接查看人才等級</li>
             </ul>
           </div>
         </div>
       </div>
 
-      {/* 財務分析 */}
-      <div id="財務分析" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      {/* API 功能 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-          <BarChart3 className="text-emerald-600" size={24} />
-          財務分析
+          <Database className="text-slate-600" size={24} />
+          API 功能（開發者）
         </h2>
         <div className="space-y-4 text-slate-700">
           <div>
-            <h3 className="font-black text-slate-900 mb-2">💰 功能說明</h3>
-            <p className="mb-3">財務分析頁面提供完整的成本和利潤統計，幫助您掌握整體財務狀況。</p>
+            <h3 className="font-black text-slate-900 mb-2">🔌 完整 CRUD API</h3>
+            <p className="mb-3">系統提供完整的 REST API，支援候選人和職缺的新增、修改、刪除功能。</p>
           </div>
 
           <div>
-            <h3 className="font-black text-slate-900 mb-2">📊 統計資訊</h3>
-            <ul className="list-disc list-inside space-y-1 ml-4">
-              <li><strong>總成本</strong>：所有案件的成本總和</li>
-              <li><strong>總利潤</strong>：所有案件的利潤總和</li>
-              <li><strong>淨利潤</strong>：總利潤減去總成本</li>
-              <li><strong>利潤率</strong>：淨利潤佔總利潤的百分比</li>
-            </ul>
+            <h3 className="font-black text-slate-900 mb-2">📡 可用端點</h3>
+            <div className="space-y-3">
+              <div>
+                <p className="font-black text-slate-900 mb-1">Candidates（候選人）</p>
+                <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                  <li><code className="bg-gray-100 px-1">POST /api/candidates</code> - 新增候選人</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/candidates</code> - 取得候選人列表</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/candidates/:id</code> - 取得單一候選人</li>
+                  <li><code className="bg-gray-100 px-1">PUT /api/candidates/:id</code> - 更新候選人</li>
+                  <li><code className="bg-gray-100 px-1">DELETE /api/candidates/:id</code> - 刪除候選人（軟刪除）</li>
+                  <li><code className="bg-gray-100 px-1">PUT /api/candidates/:id/status</code> - 更新狀態</li>
+                  <li><code className="bg-gray-100 px-1">POST /api/candidates/:id/anonymous-resume</code> - 生成匿名履歷</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-black text-slate-900 mb-1">Jobs（職缺）</p>
+                <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                  <li><code className="bg-gray-100 px-1">POST /api/jobs</code> - 新增職缺</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/jobs</code> - 取得職缺列表</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/jobs/:id</code> - 取得單一職缺</li>
+                  <li><code className="bg-gray-100 px-1">PUT /api/jobs/:id</code> - 更新職缺</li>
+                  <li><code className="bg-gray-100 px-1">DELETE /api/jobs/:id</code> - 刪除職缺</li>
+                </ul>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <h3 className="font-black text-slate-900 mb-2">
-              <DollarSign className="inline mr-2 text-emerald-600" size={18} />
-              成本記錄
-            </h3>
-            <p className="mb-2">在案件詳情中，您可以新增成本記錄：</p>
-            <ol className="list-decimal list-inside space-y-1 ml-4">
-              <li>開啟案件詳情視窗</li>
-              <li>找到「成本記錄」區塊</li>
-              <li>選擇預設成本項目或輸入自訂項目</li>
-              <li>輸入金額和備註</li>
-              <li>點擊「新增成本記錄」</li>
-            </ol>
-            <p className="mt-2 text-sm text-slate-500">💡 預設成本項目包括：Gemini AI 使用費用、Cursor 開發軟體費用、Zeabur 雲端部署費用、預估人力費用、Pro360 索取個資成本</p>
-          </div>
-
-          <div>
-            <h3 className="font-black text-slate-900 mb-2">
-              <TrendingUp className="inline mr-2 text-emerald-600" size={18} />
-              利潤記錄
-            </h3>
-            <p className="mb-2">新增利潤記錄的方式與成本記錄相同：</p>
-            <ol className="list-decimal list-inside space-y-1 ml-4">
-              <li>在案件詳情中找到「利潤記錄」區塊</li>
-              <li>輸入利潤項目名稱和金額</li>
-              <li>可選填備註說明</li>
-              <li>點擊「新增利潤記錄」</li>
-            </ol>
-          </div>
-
-          <div>
-            <h3 className="font-black text-slate-900 mb-2">📈 各案件成本與利潤</h3>
-            <p className="mb-2">在財務分析頁面下方，您可以查看每個案件的詳細財務資訊：</p>
-            <ul className="list-disc list-inside space-y-1 ml-4">
-              <li>點擊案件名稱可查看詳細的成本和利潤明細</li>
-              <li>只有管理員可以刪除成本或利潤記錄</li>
-              <li>「取消」狀態的案件不會計入財務統計（未使用 Pro360 索取個資）</li>
-              <li>「婉拒/無法聯繫」狀態的案件會計入財務統計（已使用 Pro360 索取個資）</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* 近期進度更新 */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-          <MessageSquare className="text-blue-600" size={24} />
-          近期進度更新
-        </h2>
-        <div className="space-y-4 text-slate-700">
-          <div>
-            <h3 className="font-black text-slate-900 mb-2">📝 功能說明</h3>
-            <p className="mb-3">每個案件都可以記錄進度更新，方便團隊成員追蹤案件進展。</p>
-          </div>
-
-          <div>
-            <h3 className="font-black text-slate-900 mb-2">➕ 新增進度更新</h3>
-            <ol className="list-decimal list-inside space-y-1 ml-4">
-              <li>開啟案件詳情視窗</li>
-              <li>找到「近期進度更新」區塊</li>
-              <li>輸入進度內容</li>
-              <li>可選：上傳圖片或添加網址連結</li>
-              <li>點擊「新增進度」按鈕</li>
-            </ol>
-          </div>
-
-          <div>
-            <h3 className="font-black text-slate-900 mb-2">🗑️ 刪除進度更新</h3>
-            <p className="mb-2">只有管理員可以刪除進度更新記錄。</p>
-          </div>
-        </div>
-      </div>
-
-      {/* 其他功能 */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-          <FileText className="text-slate-600" size={24} />
-          其他功能
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-slate-50 rounded-xl">
-            <h3 className="font-black text-slate-900 mb-2 flex items-center gap-2">
-              <Download className="text-indigo-600" size={18} />
-              匯入案件
-            </h3>
-            <p className="text-sm text-slate-600">從本地儲存匯入案件資料（僅限管理員）</p>
-          </div>
-          <div className="p-4 bg-slate-50 rounded-xl">
-            <h3 className="font-black text-slate-900 mb-2 flex items-center gap-2">
-              <History className="text-indigo-600" size={18} />
-              操作紀錄
-            </h3>
-            <p className="text-sm text-slate-600">查看所有系統操作歷史記錄</p>
-          </div>
-          <div className="p-4 bg-slate-50 rounded-xl">
-            <h3 className="font-black text-slate-900 mb-2 flex items-center gap-2">
-              <Users className="text-indigo-600" size={18} />
-              成員管理
-            </h3>
-            <p className="text-sm text-slate-600">管理系統使用者（僅限管理員）</p>
-          </div>
-          <div className="p-4 bg-slate-50 rounded-xl">
-            <h3 className="font-black text-slate-900 mb-2 flex items-center gap-2">
-              <Database className="text-indigo-600" size={18} />
-              資料遷移
-            </h3>
-            <p className="text-sm text-slate-600">將本地資料遷移到雲端資料庫（僅限管理員）</p>
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <p className="text-sm text-slate-700">
+              📚 <strong>詳細 API 文檔</strong>：請參閱 <code className="bg-gray-100 px-1">docs/API.md</code>
+            </p>
           </div>
         </div>
       </div>
@@ -319,28 +408,33 @@ const HelpPage: React.FC<HelpPageProps> = () => {
         </h2>
         <div className="space-y-4">
           <div>
-            <h3 className="font-black text-slate-900 mb-2">Q: 如何區分「取消」和「婉拒/無法聯繫」？</h3>
+            <h3 className="font-black text-slate-900 mb-2">Q: AI 配對需要多久時間？</h3>
             <p className="text-slate-700">
-              <strong>A:</strong> 「取消」用於沒有產生任何成本的案件（未使用 Pro360 索取個資，例如：初步評估後直接拒絕）。
-              「婉拒/無法聯繫」用於已經產生成本但評估後決定不做或無法聯繫的案件（已使用 Pro360 索取個資，例如：已支付 Pro360 個資成本但評估後不做或無法聯繫客戶）。
+              <strong>A:</strong> 每位候選人約需 2 秒，配對 5 位候選人大約需要 10 秒。系統會自動並行處理，提高效率。
             </p>
           </div>
           <div>
-            <h3 className="font-black text-slate-900 mb-2">Q: 為什麼我的成本記錄消失了？</h3>
+            <h3 className="font-black text-slate-900 mb-2">Q: 匿名履歷可以下載為 PDF 嗎？</h3>
             <p className="text-slate-700">
-              <strong>A:</strong> 請確認案件狀態不是「取消」。如果問題持續，請檢查瀏覽器控制台的錯誤訊息，或聯繫管理員。
+              <strong>A:</strong> 可以！系統會自動將 Markdown 格式的匿名履歷轉換為 PDF 並下載。
             </p>
           </div>
           <div>
-            <h3 className="font-black text-slate-900 mb-2">Q: 如何修改案件資訊？</h3>
+            <h3 className="font-black text-slate-900 mb-2">Q: LinkedIn 連結無法開啟怎麼辦？</h3>
             <p className="text-slate-700">
-              <strong>A:</strong> 在案件總表中點擊案件行，或在流程看板中點擊案件卡片，即可開啟編輯視窗。
+              <strong>A:</strong> 請確認候選人資料中的 LinkedIn 欄位格式正確。支援格式：<code className="bg-gray-100 px-1">LinkedIn: username</code> 或完整 URL。
             </p>
           </div>
           <div>
-            <h3 className="font-black text-slate-900 mb-2">Q: OCR 識別不準確怎麼辦？</h3>
+            <h3 className="font-black text-slate-900 mb-2">Q: 如何修改候選人資訊？</h3>
             <p className="text-slate-700">
-              <strong>A:</strong> OCR 識別結果僅供參考，請手動檢查並修正。建議使用清晰、文字完整的截圖以提高準確度。
+              <strong>A:</strong> 在候選人總表中點擊候選人行，或在流程看板中點擊候選人卡片，即可開啟編輯視窗。
+            </p>
+          </div>
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">Q: 人才等級是如何計算的？</h3>
+            <p className="text-slate-700">
+              <strong>A:</strong> 人才等級由 6 個維度綜合評估：技能匹配（25%）、年資經歷（25%）、成長潛力（20%）、穩定度（15%）、學歷背景（10%）、特殊加分（5%）。
             </p>
           </div>
         </div>
@@ -349,7 +443,11 @@ const HelpPage: React.FC<HelpPageProps> = () => {
       {/* 聯絡支援 */}
       <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100">
         <h2 className="text-lg font-black text-slate-900 mb-2">需要協助？</h2>
-        <p className="text-slate-600">如有任何問題或建議，請聯繫系統管理員。</p>
+        <p className="text-slate-600 mb-3">如有任何問題或建議，請聯繫系統管理員。</p>
+        <div className="text-sm text-slate-500">
+          <p>📧 Email: support@step1ne.com</p>
+          <p>📱 Telegram: @YuQi0923_bot</p>
+        </div>
       </div>
     </div>
   );
