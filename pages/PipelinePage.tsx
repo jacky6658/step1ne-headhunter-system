@@ -104,11 +104,15 @@ function stageToEvent(stage: PipelineStageKey): string {
 function getLatestProgress(progress?: ProgressEvent[]): ProgressEvent | undefined {
   if (!progress || progress.length === 0) return undefined;
 
-  return [...progress].sort((a, b) => {
-    const aTime = new Date(a.date).getTime();
-    const bTime = new Date(b.date).getTime();
-    return bTime - aTime;
-  })[0];
+  // 找最大日期
+  const maxTime = progress.reduce((max, p) => {
+    const t = new Date(p.date).getTime();
+    return t > max ? t : max;
+  }, 0);
+
+  // 同一天有多筆時，取陣列最後一筆（最新加入的）
+  const sameDay = progress.filter(p => new Date(p.date).getTime() === maxTime);
+  return sameDay[sameDay.length - 1];
 }
 
 function getIdleDays(dateString?: string, now: Date = new Date()): number {
@@ -270,7 +274,6 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   }, [toastMessage]);
 
   const handleDragStart = (candidateId: string) => {
-    console.log('[Pipeline] dragStart:', candidateId);
     setDraggingCandidateId(candidateId);
   };
 
@@ -279,49 +282,34 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   };
 
   const handleDropToStage = async (stage: PipelineStageKey) => {
-    console.log('[Pipeline] drop → stage:', stage, '| draggingId:', draggingCandidateId);
-    if (!draggingCandidateId) {
-      console.warn('[Pipeline] drop ignored: draggingCandidateId is null');
-      return;
-    }
+    if (!draggingCandidateId) return;
 
     const targetCandidate = candidates.find(c => c.id === draggingCandidateId);
-    if (!targetCandidate) {
-      console.warn('[Pipeline] drop ignored: candidate not found');
-      return;
-    }
+    if (!targetCandidate) return;
 
     const latest = getLatestProgress(targetCandidate.progressTracking);
     const currentStage = latest ? mapEventToStage(latest.event) : mapStatusToStage(targetCandidate.status);
-    console.log('[Pipeline] currentStage:', currentStage, '| targetStage:', stage, '| latestEvent:', latest?.event);
     if (currentStage === stage) {
-      console.log('[Pipeline] drop ignored: same stage');
       setDraggingCandidateId(null);
       return;
     }
 
     const userName = userProfile.displayName || 'System';
+    const newStatus = stageToStatus(stage);
     const newEvent: ProgressEvent = {
       date: new Date().toISOString().split('T')[0],
       event: stageToEvent(stage),
       by: userName,
     };
-
     const updatedProgress = [...(targetCandidate.progressTracking || []), newEvent];
-    const newStatus = stageToStatus(stage);
 
-    console.log('[Pipeline] calling apiPut, newStatus:', newStatus, '| newEvent:', newEvent);
     try {
-      // 方案 A + B：同時更新 SQL + Google Sheets
-      // API 會先寫入 SQL（即時），再異步同步到 Google Sheets
-      const result = await apiPut(`/api/candidates/${targetCandidate.id}`, {
+      // 使用專用 pipeline-status 端點，同時寫入日誌（PIPELINE_CHANGE）
+      // 與 AIbot 操作使用相同端點，確保日誌一致性
+      await apiPut(`/api/candidates/${targetCandidate.id}/pipeline-status`, {
         status: newStatus,
-        name: targetCandidate.name,
-        consultant: userProfile.displayName || 'System',
-        notes: `改為「${stageToEvent(stage)}」於 ${new Date().toLocaleDateString('zh-TW')}`,
-        progressTracking: updatedProgress,
+        by: userName,
       });
-      console.log('[Pipeline] apiPut success:', result);
 
       // 本地更新 UI（快速反應）
       setCandidates(prev =>
@@ -336,9 +324,8 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
             : c
         )
       );
-      setToastMessage(`✅ ${targetCandidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」（已同步到後端 + Google Sheets）`);
+      setToastMessage(`✅ ${targetCandidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」`);
     } catch (error) {
-      console.warn('[Pipeline] ❌ apiPut 失敗:', error);
       console.error('❌ 拖拉更新 Pipeline 失敗:', error);
       alert('❌ 更新失敗，請稍後再試');
     } finally {
