@@ -57,17 +57,22 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
       // 更新候選人的進度追蹤
       const updatedProgress = [...(candidate.progressTracking || []), newEvent];
       
-      // 呼叫 API 更新（使用 W 欄位）
+      // 方案 A + B：同時更新 SQL + Google Sheets
+      // API 會先寫入 SQL（即時），再異步同步到 Google Sheets
       await apiPut(`/api/candidates/${candidate.id}`, {
+        name: candidate.name,
+        consultant: candidate.consultant || userName,
+        status: candidate.status,
+        notes: `${newProgressEvent}：${newProgressNote || ''}`,
         progressTracking: updatedProgress
       });
       
       // 成功後重新載入頁面以顯示最新資料
-      alert('✅ 進度新增成功！頁面將重新載入...');
+      alert('✅ 進度新增成功！已同步到後端 + Google Sheets');
       window.location.reload();
       
     } catch (error) {
-      console.error('新增進度失敗:', error);
+      console.error('❌ 新增進度失敗:', error);
       alert('❌ 新增進度失敗，請稍後再試');
     } finally {
       setAddingProgress(false);

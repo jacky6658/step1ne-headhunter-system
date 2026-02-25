@@ -286,11 +286,17 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     const newStatus = stageToStatus(stage);
 
     try {
+      // 方案 A + B：同時更新 SQL + Google Sheets
+      // API 會先寫入 SQL（即時），再異步同步到 Google Sheets
       await apiPut(`/api/candidates/${targetCandidate.id}`, {
         status: newStatus,
+        name: targetCandidate.name,
+        consultant: userProfile.displayName || 'System',
+        notes: `改為「${stageToEvent(stage)}」於 ${new Date().toLocaleDateString('zh-TW')}`,
         progressTracking: updatedProgress,
       });
 
+      // 本地更新 UI（快速反應）
       setCandidates(prev =>
         prev.map(c =>
           c.id === targetCandidate.id
@@ -303,10 +309,10 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
             : c
         )
       );
-      setToastMessage(`✅ ${targetCandidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」`);
+      setToastMessage(`✅ ${targetCandidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」（已同步到後端 + Google Sheets）`);
     } catch (error) {
-      console.error('拖拉更新 Pipeline 失敗:', error);
-      alert('更新失敗，請稍後再試');
+      console.error('❌ 拖拉更新 Pipeline 失敗:', error);
+      alert('❌ 更新失敗，請稍後再試');
     } finally {
       setDraggingCandidateId(null);
     }
