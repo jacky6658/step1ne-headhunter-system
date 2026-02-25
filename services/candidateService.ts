@@ -251,7 +251,7 @@ function getMockCandidates(): Candidate[] {
           end: '2013'
         }
       ],
-      status: CandidateStatus.TO_CONTACT,
+      status: CandidateStatus.NOT_STARTED,
       consultant: 'Jacky',
       notes: 'CELPIP 7分 | 具備加拿大工作經驗',
       createdAt: '2026-02-23T13:00:00Z',
@@ -275,7 +275,7 @@ function getMockCandidates(): Candidate[] {
       education: '國立台灣大學 資訊工程系 學士',
       source: CandidateSource.LINKEDIN,
       stabilityScore: 68,
-      status: CandidateStatus.INTERVIEWING,
+      status: CandidateStatus.INTERVIEWED,
       consultant: 'Phoebe',
       notes: '熟悉現代前端技術棧，有帶團隊經驗',
       createdAt: '2026-02-20T10:00:00Z',

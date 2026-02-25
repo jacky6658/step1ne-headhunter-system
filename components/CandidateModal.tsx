@@ -38,13 +38,13 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
     setAddingProgress(true);
   };
   
-  // 進度事件 → 候選人狀態映射
+  // 進度事件 → 候選人狀態映射（與 Pipeline 階段一致）
   const eventToStatus: Record<string, string> = {
     '已聯繫': '已聯繫',
-    '已面試': '面試中',
+    '已面試': '已面試',
     'Offer':  'Offer',
     '已上職': '已上職',
-    '婉拒':   '已拒絕',
+    '婉拒':   '婉拒',
   };
 
   // 確認新增進度

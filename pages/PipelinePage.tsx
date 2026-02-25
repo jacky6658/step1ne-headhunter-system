@@ -45,7 +45,7 @@ function mapStatusToStage(status: CandidateStatus): PipelineStageKey {
   switch (status) {
     case CandidateStatus.CONTACTED:
       return 'contacted';
-    case CandidateStatus.INTERVIEWING:
+    case CandidateStatus.INTERVIEWED:
       return 'interviewed';
     case CandidateStatus.OFFER:
       return 'offer';
@@ -53,6 +53,8 @@ function mapStatusToStage(status: CandidateStatus): PipelineStageKey {
       return 'onboarded';
     case CandidateStatus.REJECTED:
       return 'rejected';
+    case CandidateStatus.OTHER:
+      return 'other';
     default:
       return 'not_started';
   }
@@ -63,15 +65,17 @@ function stageToStatus(stage: PipelineStageKey): CandidateStatus {
     case 'contacted':
       return CandidateStatus.CONTACTED;
     case 'interviewed':
-      return CandidateStatus.INTERVIEWING;
+      return CandidateStatus.INTERVIEWED;
     case 'offer':
       return CandidateStatus.OFFER;
     case 'onboarded':
       return CandidateStatus.ONBOARDED;
     case 'rejected':
       return CandidateStatus.REJECTED;
+    case 'other':
+      return CandidateStatus.OTHER;
     default:
-      return CandidateStatus.TO_CONTACT;
+      return CandidateStatus.NOT_STARTED;
   }
 }
 
@@ -214,9 +218,11 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       const consultant = item.candidate.consultant || '未指派';
       const consultantMatched = consultantFilter === 'all' || consultant === consultantFilter;
       const jobMatched = jobFilter === 'all' || item.targetJob === jobFilter;
-      return consultantMatched && jobMatched;
+      // REVIEWER 只顯示自己的候選人，ADMIN 顯示全部
+      const roleMatched = userProfile.role === 'ADMIN' || consultant === userProfile.displayName;
+      return consultantMatched && jobMatched && roleMatched;
     });
-  }, [candidatesWithStage, consultantFilter, jobFilter]);
+  }, [candidatesWithStage, consultantFilter, jobFilter, userProfile]);
 
   const grouped = useMemo(() => {
     const result: Record<PipelineStageKey, PipelineItem[]> = {

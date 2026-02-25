@@ -87,7 +87,13 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       // 候選人管理頁面
-      case 'candidates': return <CandidatesPage userProfile={profile} />;
+      case 'candidates': return <CandidatesPage
+        userProfile={profile}
+        onNavigateToMatching={(candidateId) => {
+          setSelectedJobId(candidateId);
+          setActiveTab('ai-matching');
+        }}
+      />;
       case 'candidate-kanban': return <CandidateKanbanPage userProfile={profile} />;
       // 職缺管理
       case 'jobs': return <JobsPage 

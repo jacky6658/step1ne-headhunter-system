@@ -85,7 +85,7 @@ async function syncSQLToSheets(candidateRows) {
         c.stability_score || '',                        // O 穩定性
         c.education_details ? JSON.stringify(c.education_details) : '', // P 學歷JSON
         c.personality_type || '',                       // Q DISC
-        c.status || '新進',                             // R 狀態
+        c.status || '未開始',                             // R 狀態
         c.recruiter || '',                              // S 顧問
         c.notes || '',                                  // T 備註
         c.contact_link || '',                           // U 履歷連結
@@ -178,7 +178,7 @@ router.get('/candidates', async (req, res) => {
       skills: row.skills || '',
       education: row.education || '',
       source: row.source || '其他', // CandidateSource enum
-      status: row.status || '待聯繫', // CandidateStatus enum
+      status: row.status || '未開始', // CandidateStatus enum
       consultant: row.recruiter || 'Jacky',
       notes: row.notes || '',
       stabilityScore: isNaN(parseInt(row.stability_score)) ? 0 : parseInt(row.stability_score),
@@ -308,12 +308,13 @@ router.put('/candidates/:id', async (req, res) => {
 
 /**
  * PATCH /api/candidates/:id
- * 局部更新候選人（status / progressTracking）
+ * 局部更新候選人（支援欄位：status, progressTracking, recruiter, notes, talent_level, name）
+ * 適用於前端操作及 AIbot 呼叫
  */
 router.patch('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, progressTracking } = req.body;
+    const { status, progressTracking, recruiter, notes, talent_level, name } = req.body;
 
     const client = await pool.connect();
 
@@ -328,6 +329,22 @@ router.patch('/candidates/:id', async (req, res) => {
     if (progressTracking !== undefined) {
       setClauses.push(`progress_tracking = $${idx++}`);
       values.push(JSON.stringify(progressTracking));
+    }
+    if (recruiter !== undefined) {
+      setClauses.push(`recruiter = $${idx++}`);
+      values.push(recruiter);
+    }
+    if (notes !== undefined) {
+      setClauses.push(`notes = $${idx++}`);
+      values.push(notes);
+    }
+    if (talent_level !== undefined) {
+      setClauses.push(`talent_level = $${idx++}`);
+      values.push(talent_level);
+    }
+    if (name !== undefined) {
+      setClauses.push(`name = $${idx++}`);
+      values.push(name);
     }
 
     if (setClauses.length === 0) {
@@ -352,6 +369,74 @@ router.patch('/candidates/:id', async (req, res) => {
     res.json({ success: true, data: result.rows[0], message: 'Candidate patched successfully' });
   } catch (error) {
     console.error('❌ PATCH /candidates/:id error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/candidates/:id/pipeline-status
+ * 專用端點：更新候選人 Pipeline 階段狀態
+ * 給 AIbot 及外部系統使用
+ *
+ * Body: {
+ *   status: '未開始' | '已聯繫' | '已面試' | 'Offer' | '已上職' | '婉拒' | '其他',
+ *   by: '操作者名稱（顧問名或 AIbot）'
+ * }
+ */
+router.put('/candidates/:id/pipeline-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, by } = req.body;
+
+    const validStatuses = ['未開始', '已聯繫', '已面試', 'Offer', '已上職', '婉拒', '其他'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const client = await pool.connect();
+
+    // 取得目前候選人資料
+    const current = await client.query(
+      'SELECT * FROM candidates_pipeline WHERE id = $1',
+      [id]
+    );
+
+    if (current.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ success: false, error: 'Candidate not found' });
+    }
+
+    const candidate = current.rows[0];
+    const currentProgress = candidate.progress_tracking || [];
+
+    // 新增進度事件
+    const newEvent = {
+      date: new Date().toISOString().split('T')[0],
+      event: status,
+      by: by || 'AIbot'
+    };
+    const updatedProgress = [...currentProgress, newEvent];
+
+    const result = await client.query(
+      `UPDATE candidates_pipeline
+       SET status = $1, progress_tracking = $2, updated_at = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [status, JSON.stringify(updatedProgress), id]
+    );
+
+    client.release();
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: `Pipeline 狀態已更新為「${status}」`
+    });
+  } catch (error) {
+    console.error('❌ PUT /candidates/:id/pipeline-status error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -440,7 +525,7 @@ router.post('/candidates', async (req, res) => {
           c.name.trim(), c.phone || '', c.contact_link || '', c.location || '',
           c.current_position || '', String(c.years_experience || '0'),
           c.skills || '', c.education || '', c.source || 'GitHub',
-          c.status || '新進', c.recruiter || 'Jacky', c.notes || '',
+          c.status || '未開始', c.recruiter || 'Jacky', c.notes || '',
           String(c.stability_score || '0'), c.personality_type || '',
           String(c.job_changes || '0'), String(c.avg_tenure_months || '0'),
           String(c.recent_gap_months || '0'),
@@ -591,7 +676,7 @@ router.post('/candidates/bulk', async (req, res) => {
               c.skills || '',
               c.education || '',
               c.source || 'OpenClaw AI',
-              c.status || '新進',
+              c.status || '未開始',
               c.recruiter || 'Jacky',
               c.notes || '',
               String(c.stability_score || '0'),
@@ -1044,7 +1129,7 @@ router.post('/sync/sheets-to-sql', async (req, res) => {
               trunc(stabilityScore, 50),
               parsedEducationDetail ? JSON.stringify(parsedEducationDetail) : null,
               trunc(personality, 100),
-              trunc(status || '待聯繫', 50),
+              trunc(status || '未開始', 50),
               trunc(consultant, 100),
               (notes || '').trim(),
               trunc(talentGrade, 50),

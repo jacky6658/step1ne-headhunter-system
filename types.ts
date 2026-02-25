@@ -177,13 +177,13 @@ export interface ProfitRecord {
 
 // 候選人狀態
 export enum CandidateStatus {
-  TO_CONTACT = '待聯繫',
+  NOT_STARTED = '未開始',
   CONTACTED = '已聯繫',
-  INTERVIEWING = '面試中',
+  INTERVIEWED = '已面試',
   OFFER = 'Offer',
   ONBOARDED = '已上職',
-  REJECTED = '已拒絕',
-  ON_HOLD = '暫緩'
+  REJECTED = '婉拒',
+  OTHER = '其他'
 }
 
 // 候選人來源

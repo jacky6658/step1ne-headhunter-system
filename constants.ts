@@ -77,64 +77,66 @@ import { CandidateStatus, CandidateSource } from './types';
 
 // 候選人狀態配置
 export const CANDIDATE_STATUS_CONFIG = {
-  [CandidateStatus.TO_CONTACT]: {
-    label: '待聯繫',
-    color: 'gray',
-    bgColor: 'bg-gray-100',
-    textColor: 'text-gray-800',
-    borderColor: 'border-gray-300'
+  [CandidateStatus.NOT_STARTED]: {
+    label: '未開始',
+    color: 'slate',
+    bgColor: 'bg-slate-100',
+    textColor: 'text-slate-700',
+    borderColor: 'border-slate-300'
   },
   [CandidateStatus.CONTACTED]: {
     label: '已聯繫',
     color: 'blue',
     bgColor: 'bg-blue-100',
-    textColor: 'text-blue-800',
+    textColor: 'text-blue-700',
     borderColor: 'border-blue-300'
   },
-  [CandidateStatus.INTERVIEWING]: {
-    label: '面試中',
-    color: 'yellow',
-    bgColor: 'bg-yellow-100',
-    textColor: 'text-yellow-800',
-    borderColor: 'border-yellow-300'
+  [CandidateStatus.INTERVIEWED]: {
+    label: '已面試',
+    color: 'indigo',
+    bgColor: 'bg-indigo-100',
+    textColor: 'text-indigo-700',
+    borderColor: 'border-indigo-300'
   },
   [CandidateStatus.OFFER]: {
     label: 'Offer',
-    color: 'purple',
-    bgColor: 'bg-purple-100',
-    textColor: 'text-purple-800',
-    borderColor: 'border-purple-300'
+    color: 'amber',
+    bgColor: 'bg-amber-100',
+    textColor: 'text-amber-700',
+    borderColor: 'border-amber-300'
   },
   [CandidateStatus.ONBOARDED]: {
     label: '已上職',
     color: 'green',
     bgColor: 'bg-green-100',
-    textColor: 'text-green-800',
+    textColor: 'text-green-700',
     borderColor: 'border-green-300'
   },
   [CandidateStatus.REJECTED]: {
-    label: '已拒絕',
-    color: 'red',
-    bgColor: 'bg-red-100',
-    textColor: 'text-red-800',
-    borderColor: 'border-red-300'
+    label: '婉拒',
+    color: 'rose',
+    bgColor: 'bg-rose-100',
+    textColor: 'text-rose-700',
+    borderColor: 'border-rose-300'
   },
-  [CandidateStatus.ON_HOLD]: {
-    label: '暫緩',
-    color: 'gray',
-    bgColor: 'bg-gray-100',
-    textColor: 'text-gray-600',
-    borderColor: 'border-gray-300'
+  [CandidateStatus.OTHER]: {
+    label: '其他',
+    color: 'purple',
+    bgColor: 'bg-purple-100',
+    textColor: 'text-purple-700',
+    borderColor: 'border-purple-300'
   }
 };
 
 // Kanban 看板欄位順序
 export const KANBAN_COLUMNS = [
-  CandidateStatus.TO_CONTACT,
+  CandidateStatus.NOT_STARTED,
   CandidateStatus.CONTACTED,
-  CandidateStatus.INTERVIEWING,
+  CandidateStatus.INTERVIEWED,
   CandidateStatus.OFFER,
-  CandidateStatus.ONBOARDED
+  CandidateStatus.ONBOARDED,
+  CandidateStatus.REJECTED,
+  CandidateStatus.OTHER
 ];
 
 // 候選人來源配置

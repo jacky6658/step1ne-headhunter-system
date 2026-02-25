@@ -42,7 +42,7 @@ function parseCandidate(row: string, rowNumber: number): Candidate {
     stabilityScore: parseInt(fields[14]) || 0,
     educationJson: safeParseJSON(fields[15], []),
     discProfile: fields[16] || '',
-    status: (fields[17] as CandidateStatus) || CandidateStatus.TO_CONTACT,
+    status: (fields[17] as CandidateStatus) || CandidateStatus.NOT_STARTED,
     consultant: fields[18] || '',
     notes: fields[19] || '',
     

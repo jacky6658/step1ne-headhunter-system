@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Candidate, CandidateStatus, CandidateSource, UserProfile } from '../types';
 import { getCandidates, searchCandidates, updateCandidateStatus, filterCandidatesByPermission, clearCache } from '../services/candidateService';
-import { Users, Search, Filter, Plus, Download, Upload, Shield, RefreshCw } from 'lucide-react';
+import { Users, Search, Filter, Plus, Download, Upload, Shield, RefreshCw, Sparkles } from 'lucide-react';
 import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
 import { ColumnTooltip } from '../components/ColumnTooltip';
@@ -10,9 +10,10 @@ import { COLUMN_DESCRIPTIONS } from '../config/columnDescriptions';
 
 interface CandidatesPageProps {
   userProfile: UserProfile;
+  onNavigateToMatching?: (candidateId: string) => void;
 }
 
-export function CandidatesPage({ userProfile }: CandidatesPageProps) {
+export function CandidatesPage({ userProfile, onNavigateToMatching }: CandidatesPageProps) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -617,6 +618,18 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                         >
                           <Shield className="w-3.5 h-3.5" />
                           指派給我
+                        </button>
+                      )}
+                      {onNavigateToMatching && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNavigateToMatching(candidate.id.toString());
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
+                        >
+                          <Sparkles size={14} />
+                          AI 配對
                         </button>
                       )}
                     </div>
