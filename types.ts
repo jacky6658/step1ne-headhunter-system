@@ -56,6 +56,11 @@ export interface UserProfile {
   status?: string; // 個人狀態（例如：在線、忙碌、離開等）
   isOnline?: boolean; // 是否在線
   lastSeen?: string; // 最後上線時間
+  // 顧問聯絡資訊（供 AIbot 使用）
+  contactPhone?: string;  // 工作電話
+  contactEmail?: string;  // 工作 Email
+  lineId?: string;        // LINE ID
+  telegramHandle?: string; // Telegram 帳號
 }
 
 export interface Lead {

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { updateUserProfile } from '../services/userService';
-import { X, Upload, User, MessageSquare, Save, Loader2 } from 'lucide-react';
+import { apiPut, apiGet } from '../config/api';
+import { X, Upload, User, MessageSquare, Save, Loader2, Phone, Mail, Hash } from 'lucide-react';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -19,6 +20,10 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const [displayName, setDisplayName] = useState(userProfile.displayName);
   const [status, setStatus] = useState(userProfile.status || '');
   const [avatar, setAvatar] = useState(userProfile.avatar || '');
+  const [contactPhone, setContactPhone] = useState(userProfile.contactPhone || '');
+  const [contactEmail, setContactEmail] = useState(userProfile.contactEmail || '');
+  const [lineId, setLineId] = useState(userProfile.lineId || '');
+  const [telegramHandle, setTelegramHandle] = useState(userProfile.telegramHandle || '');
   const [saving, setSaving] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -29,6 +34,21 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       setDisplayName(userProfile.displayName);
       setStatus(userProfile.status || '');
       setAvatar(userProfile.avatar || '');
+      setContactPhone(userProfile.contactPhone || '');
+      setContactEmail(userProfile.contactEmail || '');
+      setLineId(userProfile.lineId || '');
+      setTelegramHandle(userProfile.telegramHandle || '');
+      // 從後端載入最新聯絡資訊
+      apiGet<any>(`/api/users/${encodeURIComponent(userProfile.displayName)}/contact`)
+        .then(res => {
+          if (res.success && res.data) {
+            if (res.data.contactPhone) setContactPhone(res.data.contactPhone);
+            if (res.data.contactEmail) setContactEmail(res.data.contactEmail);
+            if (res.data.lineId) setLineId(res.data.lineId);
+            if (res.data.telegramHandle) setTelegramHandle(res.data.telegramHandle);
+          }
+        })
+        .catch(() => {/* 後端不可用時靜默降級 */});
     }
   }, [isOpen, userProfile]);
 
@@ -90,14 +110,29 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 
     setSaving(true);
     try {
+      const contactData = {
+        contactPhone: contactPhone.trim() || undefined,
+        contactEmail: contactEmail.trim() || undefined,
+        lineId: lineId.trim() || undefined,
+        telegramHandle: telegramHandle.trim() || undefined,
+      };
+
+      // 同步儲存到後端（供 AIbot 使用）
+      await apiPut(`/api/users/${encodeURIComponent(displayName.trim())}/contact`, {
+        contactPhone: contactPhone.trim(),
+        contactEmail: contactEmail.trim(),
+        lineId: lineId.trim(),
+        telegramHandle: telegramHandle.trim(),
+      }).catch(() => {/* 後端不可用時靜默降級 */});
+
       const updated = await updateUserProfile(userProfile.uid, {
         displayName: displayName.trim(),
         status: status.trim() || undefined,
-        avatar: avatar || undefined
+        avatar: avatar || undefined,
+        ...contactData,
       });
 
       if (updated) {
-        // 更新 localStorage 中的 profile
         localStorage.setItem('caseflow_profile', JSON.stringify(updated));
         onUpdate(updated);
         onClose();
@@ -220,6 +255,57 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               placeholder="例如：在線、忙碌、離開等"
             />
             <p className="text-[10px] sm:text-xs text-slate-400">讓團隊成員了解您目前的狀態</p>
+          </div>
+
+          {/* 顧問聯絡資訊 */}
+          <div className="space-y-3">
+            <label className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest block flex items-center gap-2">
+              <Phone size={10} className="sm:w-3 sm:h-3" />
+              聯絡資訊（供 AIbot 代發信件使用）
+            </label>
+            <div className="grid grid-cols-1 gap-3">
+              <div className="flex items-center gap-2">
+                <Phone size={14} className="text-slate-400 shrink-0" />
+                <input
+                  type="tel"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl text-sm text-slate-800 transition-all"
+                  placeholder="工作電話（如 0912-345-678）"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Mail size={14} className="text-slate-400 shrink-0" />
+                <input
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl text-sm text-slate-800 transition-all"
+                  placeholder="工作 Email"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Hash size={14} className="text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  value={lineId}
+                  onChange={(e) => setLineId(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl text-sm text-slate-800 transition-all"
+                  placeholder="LINE ID"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Hash size={14} className="text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  value={telegramHandle}
+                  onChange={(e) => setTelegramHandle(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl text-sm text-slate-800 transition-all"
+                  placeholder="Telegram 帳號（如 @username）"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] sm:text-xs text-slate-400">這些資訊會同步到後端，AIbot 代發信件時可自動帶入您的聯絡方式</p>
           </div>
         </div>
 

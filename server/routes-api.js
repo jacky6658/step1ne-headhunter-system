@@ -36,6 +36,18 @@ pool.query(`
   )
 `).catch(err => console.warn('system_logs migration:', err.message));
 
+// 確保 user_contacts 資料表存在
+pool.query(`
+  CREATE TABLE IF NOT EXISTS user_contacts (
+    display_name VARCHAR(100) PRIMARY KEY,
+    contact_phone VARCHAR(50),
+    contact_email VARCHAR(255),
+    line_id VARCHAR(100),
+    telegram_handle VARCHAR(100),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )
+`).catch(err => console.warn('user_contacts migration:', err.message));
+
 // 寫入 system_logs 輔助函數
 async function writeLog({ action, actor, candidateId, candidateName, detail }) {
   const actorType = /aibot/i.test(actor) ? 'AIBOT' : 'HUMAN';
@@ -1323,6 +1335,66 @@ router.get('/health', async (req, res) => {
       status: 'error',
       error: error.message
     });
+  }
+});
+
+// ==================== 顧問聯絡資訊 API ====================
+
+/**
+ * GET /api/users/:displayName/contact
+ * 取得顧問聯絡資訊（供 AIbot 使用）
+ */
+router.get('/users/:displayName/contact', async (req, res) => {
+  try {
+    const { displayName } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM user_contacts WHERE display_name = $1',
+      [displayName]
+    );
+    if (result.rows.length === 0) {
+      return res.json({ success: true, data: { display_name: displayName } });
+    }
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      data: {
+        displayName: row.display_name,
+        contactPhone: row.contact_phone,
+        contactEmail: row.contact_email,
+        lineId: row.line_id,
+        telegramHandle: row.telegram_handle,
+      }
+    });
+  } catch (error) {
+    console.error('❌ GET /users/:displayName/contact error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/users/:displayName/contact
+ * 儲存顧問聯絡資訊（前端儲存設定時呼叫）
+ */
+router.put('/users/:displayName/contact', async (req, res) => {
+  try {
+    const { displayName } = req.params;
+    const { contactPhone, contactEmail, lineId, telegramHandle } = req.body;
+
+    await pool.query(`
+      INSERT INTO user_contacts (display_name, contact_phone, contact_email, line_id, telegram_handle, updated_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (display_name) DO UPDATE SET
+        contact_phone = EXCLUDED.contact_phone,
+        contact_email = EXCLUDED.contact_email,
+        line_id = EXCLUDED.line_id,
+        telegram_handle = EXCLUDED.telegram_handle,
+        updated_at = NOW()
+    `, [displayName, contactPhone || null, contactEmail || null, lineId || null, telegramHandle || null]);
+
+    res.json({ success: true, message: '聯絡資訊已儲存' });
+  } catch (error) {
+    console.error('❌ PUT /users/:displayName/contact error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
