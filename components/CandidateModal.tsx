@@ -282,7 +282,7 @@ Step1ne Recruitment`;
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Briefcase className="w-4 h-4" />
-                  {candidate.years} 年經驗
+                  {candidate.years > 0 ? `${candidate.years} 年經驗` : '年資未知'}
                 </div>
                 <div className={`flex items-center gap-1.5 px-2 py-1 rounded ${currentStatus.bgColor} ${currentStatus.textColor}`}>
                   {currentStatus.label}

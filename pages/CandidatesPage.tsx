@@ -642,8 +642,12 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                   </td>
                   
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{candidate.years} 年</div>
-                    <div className="text-sm text-gray-500">{candidate.jobChanges} 次</div>
+                    <div className="text-sm text-gray-900">
+                      {candidate.years > 0 ? `${candidate.years} 年` : <span className="text-gray-400">-</span>}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {candidate.jobChanges > 0 ? `${candidate.jobChanges} 次` : <span className="text-gray-400">-</span>}
+                    </div>
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap">

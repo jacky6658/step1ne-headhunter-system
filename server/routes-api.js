@@ -224,10 +224,10 @@ router.get('/candidates', async (req, res) => {
       phone: row.phone || '',
       location: row.location || '', // 數據庫沒有，使用空值
       position: row.current_position || '',
-      years: isNaN(parseInt(row.years_experience)) ? 0 : parseInt(row.years_experience),
-      jobChanges: isNaN(parseInt(row.job_changes)) ? 0 : parseInt(row.job_changes),
-      avgTenure: isNaN(parseInt(row.avg_tenure_months)) ? 0 : parseInt(row.avg_tenure_months),
-      lastGap: isNaN(parseInt(row.recent_gap_months)) ? 0 : parseInt(row.recent_gap_months),
+      years: (() => { const v = parseInt(row.years_experience); return (!isNaN(v) && v >= 0 && v <= 60) ? v : 0; })(),
+      jobChanges: (() => { const v = parseInt(row.job_changes); return (!isNaN(v) && v >= 0 && v <= 30) ? v : 0; })(),
+      avgTenure: (() => { const v = parseInt(row.avg_tenure_months); return (!isNaN(v) && v >= 0 && v <= 600) ? v : 0; })(),
+      lastGap: (() => { const v = parseInt(row.recent_gap_months); return (!isNaN(v) && v >= 0 && v <= 600) ? v : 0; })(),
       skills: row.skills || '',
       education: row.education || '',
       source: row.source || '其他', // CandidateSource enum
