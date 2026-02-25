@@ -20,6 +20,7 @@
     "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5",
     "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.5.31",
     "html2canvas": "^1.4.1",
     "body-parser": "^2.2.2",
     "cors": "^2.8.6",
