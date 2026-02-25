@@ -158,16 +158,16 @@ router.get('/candidates/:id', async (req, res) => {
 router.put('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes, consultant } = req.body;
+    const { status, notes, consultant, name } = req.body;
 
     const client = await pool.connect();
 
     const result = await client.query(
       `UPDATE candidates_pipeline 
-       SET status = $1, notes = $2, consultant = $3, last_updated = NOW()
+       SET status = $1, notes = $2, recruiter = $3, updated_at = NOW()
        WHERE id = $4
        RETURNING *`,
-      [status, notes || '', consultant || '', id]
+      [status || '', notes || '', consultant || '', id]
     );
 
     client.release();
