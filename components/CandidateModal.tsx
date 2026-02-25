@@ -299,19 +299,77 @@ Step1ne Recruitment`;
         <div className="flex-1 overflow-y-auto p-6">
           {activeTab === 'info' && (
             <div className="space-y-6">
-              {/* Contact Info */}
+              {/* Contact Info - 智能分離電話 + Email */}
               <div className="grid grid-cols-2 gap-4">
+                {/* 電話號碼 */}
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Phone className="w-5 h-5 text-gray-400" />
+                  <div>
+                    <div className="text-xs text-gray-500">電話</div>
+                    <div className="font-medium text-sm">
+                      {(() => {
+                        // 嘗試從 phone 欄位分離出電話號碼
+                        const phoneStr = candidate.phone || '';
+                        const emailStr = candidate.email || '';
+                        
+                        // 如果 phone 包含 / 或 @，可能是混合格式
+                        if (phoneStr.includes('/')) {
+                          const parts = phoneStr.split('/');
+                          const phoneNum = parts[0].trim();
+                          return phoneNum || '未提供';
+                        }
+                        
+                        // 如果 phone 是 LinkedIn/GitHub 格式，返回 N/A
+                        if (phoneStr.toLowerCase().includes('linkedin') || phoneStr.toLowerCase().includes('github')) {
+                          return '未提供';
+                        }
+                        
+                        // 檢查是否是電話號碼格式（含數字）
+                        if (/\d/.test(phoneStr)) {
+                          return phoneStr;
+                        }
+                        
+                        return '未提供';
+                      })()}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Email */}
                 <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                   <Mail className="w-5 h-5 text-gray-400" />
                   <div>
-                    <div className="text-xs text-gray-500">
-                      {(candidate.email || '').toLowerCase().includes('linkedin') ? 'LinkedIn' : 'Email'}
-                    </div>
-                    <div className="font-medium">
+                    <div className="text-xs text-gray-500">Email / 聯絡</div>
+                    <div className="font-medium text-sm break-all">
                       {(() => {
-                        const email = candidate.email || '';
-                        if (email.toLowerCase().includes('linkedin')) {
-                          const username = email.replace(/^(LinkedIn|linkedin):\s*/i, '').trim();
+                        const phoneStr = candidate.phone || '';
+                        const emailStr = candidate.email || '';
+                        
+                        // 優先檢查 email 欄位
+                        if (emailStr && emailStr.includes('@')) {
+                          return (
+                            <a href={`mailto:${emailStr}`} className="text-blue-600 hover:underline">
+                              {emailStr}
+                            </a>
+                          );
+                        }
+                        
+                        // 從 phone 欄位分離 email（包含 / 的格式）
+                        if (phoneStr.includes('/')) {
+                          const parts = phoneStr.split('/');
+                          const email = parts.slice(1).join('/').trim();
+                          if (email && email.includes('@')) {
+                            return (
+                              <a href={`mailto:${email}`} className="text-blue-600 hover:underline">
+                                {email}
+                              </a>
+                            );
+                          }
+                        }
+                        
+                        // 檢查 LinkedIn
+                        if (phoneStr.toLowerCase().includes('linkedin')) {
+                          const username = phoneStr.replace(/^(LinkedIn|linkedin):\s*/i, '').trim();
                           const linkedinUrl = username.startsWith('http') 
                             ? username 
                             : `https://www.linkedin.com/in/${username}`;
@@ -320,29 +378,40 @@ Step1ne Recruitment`;
                               href={linkedinUrl} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                              className="text-blue-600 hover:underline flex items-center gap-1"
                             >
                               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
                               </svg>
-                              查看 LinkedIn
+                              LinkedIn
                             </a>
                           );
                         }
-                        return email || '未提供';
+                        
+                        return emailStr || '未提供';
                       })()}
                     </div>
                   </div>
                 </div>
-                
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Phone className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <div className="text-xs text-gray-500">電話</div>
-                    <div className="font-medium">{candidate.phone || '未提供'}</div>
+              </div>
+              
+              {/* 履歷連結 */}
+              {candidate.resumeLink && (
+                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <FileText className="w-5 h-5 text-blue-600" />
+                  <div className="flex-1">
+                    <div className="text-xs text-gray-500">完整履歷</div>
+                    <a 
+                      href={candidate.resumeLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline text-sm"
+                    >
+                      Google Drive 預覽 →
+                    </a>
                   </div>
                 </div>
-              </div>
+              )}
               
               {/* Stability Score */}
               <div className={`p-4 rounded-lg border-2 ${stability.bg} border-${stability.color.replace('text-', '')}-200`}>
