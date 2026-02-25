@@ -1,11 +1,30 @@
-import React from 'react';
-import { BookOpen, Users, Briefcase, Target, FileText, LayoutGrid, Link as LinkIcon, Download, CheckCircle, XCircle, AlertCircle, Sparkles, Database, Award } from 'lucide-react';
+import React, { useState } from 'react';
+import { BookOpen, Users, Briefcase, Target, FileText, LayoutGrid, Link as LinkIcon, Download, CheckCircle, XCircle, AlertCircle, Sparkles, Database, Award, Bot, Copy, CheckCheck } from 'lucide-react';
 
 interface HelpPageProps {
   userProfile?: any;
 }
 
+const AIBOT_STARTUP_PROMPT = `請先閱讀以下兩份系統文件，學習完畢後立即向我自我介紹你的能力：
+
+1. 系統操作指南（API 操作手冊）：
+https://backendstep1ne.zeabur.app/api/guide
+
+2. 履歷分析教學指南：
+https://backendstep1ne.zeabur.app/api/resume-guide
+
+讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`;
+
 const HelpPage: React.FC<HelpPageProps> = () => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(AIBOT_STARTUP_PROMPT).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 p-6">
       {/* 標題 */}
@@ -40,6 +59,11 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <Sparkles className="text-emerald-600 mb-2" size={24} />
             <h3 className="font-black text-slate-900 mb-1">AI 智能配對</h3>
             <p className="text-sm text-slate-600">自動推薦最佳候選人</p>
+          </a>
+          <a href="#AIbot" className="p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
+            <Bot className="text-indigo-600 mb-2" size={24} />
+            <h3 className="font-black text-slate-900 mb-1">AIbot 啟動指南</h3>
+            <p className="text-sm text-slate-600">複製指令讓 AIbot 學習系統</p>
           </a>
         </div>
       </div>
@@ -436,6 +460,103 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <p className="text-slate-700">
               <strong>A:</strong> 人才等級由 6 個維度綜合評估：技能匹配（25%）、年資經歷（25%）、成長潛力（20%）、穩定度（15%）、學歷背景（10%）、特殊加分（5%）。
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* AIbot 助理啟動指南 */}
+      <div id="AIbot" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+          <Bot className="text-indigo-600" size={24} />
+          AIbot 助理啟動指南
+        </h2>
+        <div className="space-y-4 text-slate-700">
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🤖 什麼是 AIbot？</h3>
+            <p className="mb-3">
+              AIbot 是你的 AI 助理（例如 Claude、ChatGPT），讀取系統文件後可透過終端機或對話窗操作 Step1ne 系統，
+              協助顧問新增候選人、更新進度、分析履歷等。
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🚀 啟動步驟</h3>
+            <ol className="list-decimal list-inside space-y-2 ml-4">
+              <li>開啟你的 AI 助理對話視窗（Claude / ChatGPT 等）</li>
+              <li>複製下方的「AIbot 啟動指令」，貼到對話框並送出</li>
+              <li>等待 AIbot 讀完文件後，它會主動告知你它的能力</li>
+              <li>之後直接用自然語言下指令，AIbot 就會操作系統</li>
+            </ol>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-3 flex items-center gap-2">
+              <Copy size={16} className="text-indigo-600" />
+              AIbot 啟動指令
+              <span className="text-xs font-normal text-slate-500 ml-1">（複製後貼給你的 AI 助理）</span>
+            </h3>
+            <div className="relative">
+              <pre className="bg-slate-900 text-green-400 text-sm rounded-xl p-4 whitespace-pre-wrap leading-relaxed font-mono overflow-x-auto">
+{AIBOT_STARTUP_PROMPT}
+              </pre>
+              <button
+                onClick={handleCopyPrompt}
+                className={`absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  copied
+                    ? 'bg-green-500 text-white'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                {copied ? <CheckCheck size={14} /> : <Copy size={14} />}
+                {copied ? '已複製！' : '複製指令'}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">📋 AIbot 可以幫你做的事</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="font-semibold text-blue-700 text-sm mb-1">👤 候選人管理</p>
+                <p className="text-xs text-slate-600">新增候選人、查詢資料、批量匯入</p>
+              </div>
+              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <p className="font-semibold text-purple-700 text-sm mb-1">📊 履歷分析評分</p>
+                <p className="text-xs text-slate-600">計算穩定度、綜合評級、更新連結</p>
+              </div>
+              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                <p className="font-semibold text-green-700 text-sm mb-1">🔄 進度追蹤更新</p>
+                <p className="text-xs text-slate-600">更新面試進度、Pipeline 狀態移動</p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <p className="font-semibold text-amber-700 text-sm mb-1">📝 備註紀錄</p>
+                <p className="text-xs text-slate-600">新增備註、追加顧問筆記</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+            <p className="text-sm text-indigo-900">
+              💡 <strong>操作者身份規則</strong>：AIbot 呼叫 API 時，<code className="bg-white px-1 rounded">actor</code> 欄位必須填入
+              <code className="bg-white px-1 rounded ml-1">{'{顧問名稱}-aibot'}</code>，例如：
+              <code className="bg-white px-1 rounded ml-1">Jacky-aibot</code>、
+              <code className="bg-white px-1 rounded ml-1">Phoebe-aibot</code>。
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">系統操作指南 URL</p>
+              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-indigo-700 break-all">
+                https://backendstep1ne.zeabur.app/api/guide
+              </code>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">履歷分析教學 URL</p>
+              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-indigo-700 break-all">
+                https://backendstep1ne.zeabur.app/api/resume-guide
+              </code>
+            </div>
           </div>
         </div>
       </div>

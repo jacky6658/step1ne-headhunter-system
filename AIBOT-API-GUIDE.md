@@ -21,20 +21,20 @@ curl https://backendstep1ne.zeabur.app/api/health
 
 ### 步驟二：確認自己的身份
 
-你是哪位顧問的 AIbot？身份格式為 `{顧問名稱}bot`，例如：
-- 你是 Jacky 的助理 → 你的 actor 身份為 `Jackeybot`
-- 你是 Phoebe 的助理 → 你的 actor 身份為 `Phoebebot`
+你是哪位顧問的 AIbot？身份格式為 `{顧問名稱}-aibot`，例如：
+- 你是 Jacky 的助理 → 你的 actor 身份為 `Jacky-aibot`
+- 你是 Phoebe 的助理 → 你的 actor 身份為 `Phoebe-aibot`
 
-**每次呼叫 API，都必須帶入此身份（`actor` 或 `by` 欄位），否則日誌會顯示 `system`。**
+> **⚠️ 必填規則**：每次呼叫 API，都必須帶入此身份（`actor` 或 `by` 欄位），格式固定為 `{顧問名稱}-aibot`，否則日誌會顯示 `system` 且無法識別操作來源。
 
 ### 步驟三：學習完畢後，主動告知顧問你的能力
 
-讀完本指南後，**立即用以下格式向顧問自我介紹**（請替換 `{顧問名稱}` 與 `{bot名稱}`）：
+讀完本指南後，**立即用以下格式向顧問自我介紹**（請替換 `{顧問名稱}`，bot 身份格式固定為 `{顧問名稱}-aibot`）：
 
 ---
 
 ```
-嗨 {顧問名稱}！我是 {bot名稱}，已完成 Step1ne 獵頭系統的學習 ✅
+嗨 {顧問名稱}！我是 {顧問名稱}-aibot，已完成 Step1ne 獵頭系統的學習 ✅
 
 我現在可以幫你做以下事情，只要你說一聲：
 
@@ -49,9 +49,9 @@ curl https://backendstep1ne.zeabur.app/api/health
 • 評定綜合評級（S / A+ / A / B / C）
 • 更新 LinkedIn、GitHub、Email 聯絡連結
 
-🔄 Pipeline 狀態更新
+🔄 顧問人選追蹤表 — 狀態更新
 • 更新候選人進度（已聯繫 / 已面試 / Offer / 已上職 / 婉拒）
-• 自動記錄操作時間與操作者
+• 自動記錄操作時間與操作者（actor 必須填入 {顧問名稱}-aibot）
 
 📝 備註紀錄
 • 為候選人新增備註
@@ -104,7 +104,7 @@ curl https://backendstep1ne.zeabur.app/api/health
 | `talent_level` | 綜合評級（AI 計算後填入） | 字串 | `"A+"` |
 | `notes` | 分析摘要與特殊備註 | 字串 | `"具備 10 年以上 AI 開發經驗，穩定性高"` |
 | `recruiter` | 指派顧問姓名 | 字串 | `"Phoebe"` |
-| `actor` | AIbot 身份（必填） | 字串 | `"Phoebebot"` |
+| `actor` | AIbot 身份（必填） | 字串 | `"Phoebe-aibot"` |
 
 ### 來源（source）枚舉值
 
@@ -202,7 +202,7 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
       {"school": "國立台灣大學", "degree": "碩士", "major": "資訊工程學系", "start": "2015", "end": "2017"}
     ],
     "recruiter": "Phoebe",
-    "actor": "Phoebebot"
+    "actor": "Phoebe-aibot"
   }'
 ```
 
@@ -232,26 +232,26 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
 
 | 格式 | 範例 | 說明 |
 |------|------|------|
-| `{顧問名稱}bot` | `Jackeybot`、`Phoebebot` | **推薦格式**：主人名稱 + bot |
+| `{顧問名稱}-aibot` | `Jacky-aibot`、`Phoebe-aibot` | **必填格式**：主人名稱 + `-aibot` |
 | `AIbot-{顧問名稱}` | `AIbot-Jacky`、`AIbot-Phoebe` | 舊格式，仍相容 |
 
 > 📌 **你是誰的 AIbot？請填寫你的主人名稱 + bot**
-> 例如：你是 Jacky 的助理 → 填 `Jackeybot`；你是 Phoebe 的助理 → 填 `Phoebebot`
+> 例如：你是 Jacky 的助理 → 填 `Jacky-aibot`；你是 Phoebe 的助理 → 填 `Phoebe-aibot`
 
 ### 各端點身份欄位
 
 | 欄位 | 端點 | 範例值 |
 |------|------|--------|
-| `by` | PUT /pipeline-status | `"Jackeybot"` |
-| `actor` | POST /candidates/bulk | `"Phoebebot"` |
-| `actor` | POST /candidates | `"Jackeybot"` |
-| `actor` | PATCH /candidates/:id | `"Phoebebot"`（優先於 recruiter） |
+| `by` | PUT /pipeline-status | `"Jacky-aibot"` |
+| `actor` | POST /candidates/bulk | `"Phoebe-aibot"` |
+| `actor` | POST /candidates | `"Jacky-aibot"` |
+| `actor` | PATCH /candidates/:id | `"Phoebe-aibot"`（優先於 recruiter） |
 
 ### AIBOT 判斷規則
 
 系統以以下條件識別 AIBOT（大小寫不敏感）：
 - 包含 `aibot`（如 `AIbot-Phoebe`）
-- 以 `bot` 結尾（如 `Jackeybot`、`Phoebebot`）
+- 以 `bot` 結尾（如 `Jacky-aibot`、`Phoebe-aibot`）
 
 ---
 
@@ -328,7 +328,7 @@ POST /api/candidates
   "skills": "React, TypeScript",
   "notes": "備註",
   "recruiter": "Phoebe",
-  "actor": "Phoebebot"
+  "actor": "Phoebe-aibot"
 }
 ```
 
@@ -354,7 +354,7 @@ POST /api/candidates/bulk
       "recruiter": "Phoebe"
     }
   ],
-  "actor": "Phoebebot"
+  "actor": "Phoebe-aibot"
 }
 ```
 
@@ -388,7 +388,7 @@ PUT /api/candidates/:id/pipeline-status
 ```json
 {
   "status": "已面試",
-  "by": "Phoebebot"
+  "by": "Phoebe-aibot"
 }
 ```
 
@@ -428,7 +428,7 @@ PUT /api/candidates/:id/pipeline-status
       {
         "date": "2026-02-25",
         "event": "已面試",
-        "by": "Phoebebot"
+        "by": "Phoebe-aibot"
       }
     ]
   }
@@ -471,10 +471,10 @@ PATCH /api/candidates/:id
     {
       "date": "2026-02-25",
       "event": "已聯繫",
-      "by": "Phoebebot"
+      "by": "Phoebe-aibot"
     }
   ],
-  "actor": "Phoebebot"
+  "actor": "Phoebe-aibot"
 }
 ```
 
@@ -584,7 +584,7 @@ GET /api/system-logs
     {
       "id": 42,
       "action": "PIPELINE_CHANGE",
-      "actor": "Phoebebot",
+      "actor": "Phoebe-aibot",
       "actor_type": "AIBOT",
       "candidate_id": 123,
       "candidate_name": "陳宥樺",
@@ -604,7 +604,7 @@ GET /api/system-logs
     {
       "id": 40,
       "action": "BULK_IMPORT",
-      "actor": "Jackeybot",
+      "actor": "Jacky-aibot",
       "actor_type": "AIBOT",
       "candidate_id": null,
       "candidate_name": null,
@@ -707,7 +707,7 @@ PATCH /api/candidates/:id
 {
   "stability_score": 82,
   "talent_level": "A+",
-  "actor": "Phoebebot"
+  "actor": "Phoebe-aibot"
 }
 ```
 
@@ -799,7 +799,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
     "github_url": "https://github.com/chen-youhua",
     "email": "chen@example.com",
     "notes": "技能紮實，台大碩士，曾任 Tech Lead，穩定性高，強烈推薦",
-    "actor": "Phoebebot"
+    "actor": "Phoebe-aibot"
   }'
 ```
 
@@ -856,7 +856,7 @@ curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status
   -H "Content-Type: application/json" \
   -d '{
     "status": "已面試",
-    "by": "Phoebebot"
+    "by": "Phoebe-aibot"
   }'
 ```
 
@@ -869,7 +869,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{
     "recruiter": "Phoebe",
-    "actor": "Phoebebot"
+    "actor": "Phoebe-aibot"
   }'
 ```
 
@@ -884,7 +884,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
   -d '{
     "notes": "候選人 CTO 背景，主動找尋 100-150 萬機會，可立即上班",
     "talent_level": "S",
-    "actor": "Jackeybot"
+    "actor": "Jacky-aibot"
   }'
 
 # 使用 remarks（效果完全相同）
@@ -893,7 +893,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
   -d '{
     "remarks": "候選人 CTO 背景，主動找尋 100-150 萬機會，可立即上班",
     "talent_level": "S",
-    "actor": "Jackeybot"
+    "actor": "Jacky-aibot"
   }'
 ```
 
@@ -920,7 +920,7 @@ curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status
   -H "Content-Type: application/json" \
   -d '{
     "status": "Offer",
-    "by": "Jackeybot"
+    "by": "Jacky-aibot"
   }'
 ```
 
@@ -940,21 +940,27 @@ curl https://backendstep1ne.zeabur.app/api/users/Phoebe/contact
 **在 AIbot 的 System Prompt 加入以下指示：**
 
 ```
-對話開始時，執行：
-curl https://backendstep1ne.zeabur.app/api/guide
-閱讀完整指南後，依照指南開頭「啟動流程」的三個步驟初始化，
+對話開始時，依序執行：
+1. curl https://backendstep1ne.zeabur.app/api/guide
+2. curl https://backendstep1ne.zeabur.app/api/resume-guide
+閱讀完整指南後，依照 api/guide 開頭「啟動流程」的三個步驟初始化，
 然後主動向顧問報告你的能力清單。
+actor 身份格式必須為 {顧問名稱}-aibot（例如：Jacky-aibot、Phoebe-aibot）
 ```
 
 **執行指令（AIbot 啟動時自動執行）：**
 
 ```bash
+# 1. 系統操作指南（必讀）
 curl https://backendstep1ne.zeabur.app/api/guide
+
+# 2. 履歷分析教學指南（必讀）
+curl https://backendstep1ne.zeabur.app/api/resume-guide
 ```
 
 完成後 AIbot 將：
 1. 確認系統健康狀態
-2. 確認自己的身份（`{顧問名稱}bot`）
+2. 確認自己的身份（`{顧問名稱}-aibot`）
 3. 主動告知顧問可操作的所有功能，等待顧問下令
 
 ---
@@ -978,7 +984,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
     "github_url": "https://github.com/chen-youhua",
     "email": "chen@example.com",
     "notes": "技能紮實，台大碩士，曾任 Tech Lead，穩定性高，強烈推薦",
-    "actor": "Phoebebot"
+    "actor": "Phoebe-aibot"
   }'
 ```
 
@@ -1014,7 +1020,7 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates/bulk \
         "recruiter": "Jacky"
       }
     ],
-    "actor": "Phoebebot"
+    "actor": "Phoebe-aibot"
   }'
 ```
 

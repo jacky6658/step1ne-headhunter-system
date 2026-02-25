@@ -174,7 +174,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       const data = await getCandidates(userProfile);
       setCandidates(data);
     } catch (error) {
-      console.error('載入 Pipeline 失敗:', error);
+      console.error('載入顧問人選追蹤表失敗:', error);
     } finally {
       setLoading(false);
     }
@@ -198,9 +198,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       clearCache();
       const data = await getCandidates(userProfile);
       setCandidates(data);
-      setToastMessage('✅ Pipeline 已更新到最新資料');
+      setToastMessage('✅ 顧問人選追蹤表已更新到最新資料');
     } catch (error) {
-      console.error('重新整理 Pipeline 失敗:', error);
+      console.error('重新整理顧問人選追蹤表失敗:', error);
     } finally {
       setRefreshing(false);
     }
@@ -354,12 +354,12 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.href = url;
-    link.download = `pipeline-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `顧問人選追蹤表-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    setToastMessage('✅ Pipeline 報表已匯出 CSV');
+    setToastMessage('✅ 顧問人選追蹤報表已匯出 CSV');
   };
 
   if (loading) {
@@ -367,7 +367,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-slate-600">載入 Pipeline 追蹤資料中...</p>
+          <p className="mt-4 text-slate-600">載入顧問人選追蹤資料中...</p>
         </div>
       </div>
     );
@@ -380,9 +380,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
           <div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-indigo-600" />
-              Pipeline 追蹤
+              顧問人選追蹤表
             </h2>
-            <p className="text-slate-500 mt-1">依最新進度事件自動分欄，快速掌握整體招聘漏斗</p>
+            <p className="text-slate-500 mt-1">依最新進度事件自動分欄，追蹤顧問負責候選人的招募流程</p>
             {userProfile.role !== 'ADMIN' && (
               <p className="text-sm text-blue-600 mt-2 flex items-center gap-1">
                 <Shield className="w-4 h-4" />

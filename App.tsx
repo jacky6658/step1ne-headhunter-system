@@ -109,7 +109,7 @@ const App: React.FC = () => {
         userProfile={profile} 
         preSelectedJobId={selectedJobId}
       />;
-      // Pipeline 追蹤
+      // 顧問人選追蹤表
       case 'pipeline': return <PipelinePage userProfile={profile} />;
       // 操作日誌
       case 'system-log': return <SystemLogPage userProfile={profile} />;
@@ -191,7 +191,7 @@ const App: React.FC = () => {
                activeTab === 'help' ? '使用說明' :
                activeTab === 'jobs' ? '職缺管理' :
                activeTab === 'bd-clients' ? 'BD 客戶開發' :
-               activeTab === 'pipeline' ? 'Pipeline 追蹤' :
+               activeTab === 'pipeline' ? '顧問人選追蹤表' :
                activeTab === 'ai-matching' ? 'AI 配對推薦' :
                activeTab === 'system-log' ? '操作日誌' : 'Step1ne 獵頭系統'}
             </h1>

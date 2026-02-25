@@ -192,13 +192,13 @@ interface ProgressUpdate {
 
 ---
 
-#### 10. 📈 Pipeline 追蹤
-**狀態**：側邊欄顯示「即將推出」  
+#### 10. 📈 顧問人選追蹤表
+**狀態**：側邊欄顯示「即將推出」
 **預估時間**：2 天
 
 **需要實作**：
-- [ ] Jacky Pipeline 追蹤（連接獨立 Sheet）
-- [ ] Phoebe Pipeline 追蹤（連接獨立 Sheet）
+- [ ] Jacky 顧問人選追蹤表（連接獨立 Sheet）
+- [ ] Phoebe 顧問人選追蹤表（連接獨立 Sheet）
 - [ ] 視覺化圖表（漏斗圖、趨勢圖）
 - [ ] 週報自動生成
 
