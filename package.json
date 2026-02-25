@@ -6,12 +6,18 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "node server/server.js",
-    "init-db": "node server/init-db.js"
+    "init-db": "node server/init-db.js",
+    "import-data": "node server/import-full-data.js"
   },
   "engines": {
     "node": ">=14.0.0"
   },
   "dependencies": {
+    "body-parser": "^2.2.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "pg": "^8.18.0",
     "csv-parse": "^6.1.0"
   }
 }
