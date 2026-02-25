@@ -131,9 +131,42 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, pre
   const fetchJobs = async () => {
     setLoadingJobs(true);
     try {
-      const data = await apiGet<{ success: boolean; data: JobFromAPI[] }>('/jobs');
+      const data = await apiGet<{ success: boolean; data: any[] }>('/jobs');
       if (data.success) {
-        setJobs(data.data);
+        // 將 DB 欄位格式轉換為 JobFromAPI interface 格式
+        const mapped: JobFromAPI[] = data.data.map((row: any) => ({
+          id: String(row.id),
+          title: row.position_name || row.title || '',
+          department: row.department || '',
+          headcount: parseInt(row.open_positions) || 1,
+          salaryRange: row.salary_range || row.salaryRange || '',
+          requiredSkills: row.key_skills
+            ? (typeof row.key_skills === 'string'
+                ? row.key_skills.split(/[、,，]/).map((s: string) => s.trim()).filter(Boolean)
+                : row.key_skills)
+            : (row.requiredSkills || []),
+          preferredSkills: row.preferredSkills || [],
+          yearsRequired: parseInt(row.experience_required) || 0,
+          educationRequired: row.education_required || row.educationRequired || '',
+          status: row.job_status || row.status || '招募中',
+          responsibilities: row.responsibilities || [],
+          benefits: row.attractive_points
+            ? (typeof row.attractive_points === 'string'
+                ? [row.attractive_points]
+                : row.attractive_points)
+            : (row.benefits || []),
+          company: {
+            name: row.client_company || row.company?.name || '',
+            industry: row.industry_background || row.company?.industry || '',
+            size: row.team_size || row.company?.size || '',
+            stage: row.company?.stage || '',
+            culture: row.company?.culture || '',
+            techStack: row.company?.techStack || [],
+            workLocation: row.location || row.company?.workLocation || '',
+            remotePolicy: row.company?.remotePolicy || '',
+          },
+        }));
+        setJobs(mapped);
       } else {
         setError('載入職缺失敗');
       }
