@@ -365,7 +365,9 @@ router.put('/candidates/:id', async (req, res) => {
 router.patch('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, progressTracking, recruiter, notes, talent_level, name } = req.body;
+    const { status, progressTracking, recruiter, talent_level, name } = req.body;
+    // 支援 notes 與 remarks 兩種欄位名稱（AIbot 相容性）
+    const notes = req.body.notes !== undefined ? req.body.notes : req.body.remarks;
 
     const client = await pool.connect();
 

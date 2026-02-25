@@ -195,7 +195,7 @@ PATCH /api/candidates/:id
 |------|------|------|
 | `status` | string | Pipeline 狀態（見對照表） |
 | `recruiter` | string | 指派顧問姓名（如 `"Phoebe"`） |
-| `notes` | string | 備註內容（**整個覆蓋**，非追加） |
+| `notes` | string | 備註內容（**整個覆蓋**，非追加）；`remarks` 亦可，兩者等價 |
 | `talent_level` | string | 人才等級：`S`、`A+`、`A`、`B`、`C` |
 | `name` | string | 候選人姓名 |
 | `progressTracking` | array | 完整進度記錄陣列（**整個覆蓋**） |
