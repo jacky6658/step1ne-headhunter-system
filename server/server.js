@@ -16,6 +16,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const { Pool } = require('pg');
 
 // 環境變數相容：支援 DATABASE_URL 或 POSTGRES_URI（Zeabur 自動生成）
 if (!process.env.DATABASE_URL && process.env.POSTGRES_URI) {
@@ -23,6 +24,12 @@ if (!process.env.DATABASE_URL && process.env.POSTGRES_URI) {
 }
 
 const apiRouter = require('./routes-api');
+
+// PostgreSQL 連線池
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 
+    'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur'
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -97,8 +104,10 @@ async function startServer() {
   try {
     // 1. 測試 PostgreSQL 連線
     console.log('🔍 Testing PostgreSQL connection...');
-    const health = await sqlService.healthCheck();
-    console.log(`✅ PostgreSQL connected at ${health.timestamp}`);
+    const client = await pool.connect();
+    const result = await client.query('SELECT NOW()');
+    client.release();
+    console.log(`✅ PostgreSQL connected at ${result.rows[0].now}`);
 
     // 2. 啟動 Express 服務器
     const server = app.listen(PORT, () => {
@@ -112,20 +121,9 @@ async function startServer() {
       `);
     });
 
-    // 3. 定期同步待處理項目（每 5 分鐘）
-    const syncInterval = setInterval(async () => {
-      try {
-        console.log('🔄 Periodic sync triggered');
-        await require('./candidatesService').syncPendingChanges();
-      } catch (err) {
-        console.error('⚠️ Periodic sync failed:', err.message);
-      }
-    }, 5 * 60 * 1000); // 5 分鐘
-
-    // 4. 優雅關閉
+    // 3. 優雅關閉
     process.on('SIGTERM', async () => {
       console.log('🛑 SIGTERM received, shutting down...');
-      clearInterval(syncInterval);
       server.close(() => {
         console.log('✅ Server closed');
         process.exit(0);
