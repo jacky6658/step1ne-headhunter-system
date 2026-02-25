@@ -16,34 +16,85 @@ const SHEET_ID = process.env.SHEET_ID || '1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SE
 
 /**
  * 從 Google Sheets CSV export 下載資料
+ * 
+ * gid 參數用來指定特定工作表
  */
-function fetchSheetAsCSV(sheetId) {
+function fetchSheetAsCSV(sheetId, gid = 142613837) {
   return new Promise((resolve, reject) => {
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+    // 下載特定工作表（通過 gid 參數）
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+    
+    console.log(`📥 下載 CSV: ${csvUrl.split('?')[0]}...`);
     
     https.get(csvUrl, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve(data));
+      res.on('end', () => {
+        console.log(`✅ 下載完成，大小: ${(data.length / 1024).toFixed(2)} KB\n`);
+        resolve(data);
+      });
     }).on('error', reject);
   });
 }
 
 /**
- * 簡單 CSV 解析
+ * CSV 解析（支援引號欄位）
  */
 function parseCSV(csvText) {
-  const lines = csvText.split('\n');
   const rows = [];
-  
-  for (let i = 1; i < lines.length; i++) { // 跳過標題行
-    if (!lines[i].trim()) continue;
-    
-    // 簡單分割（假設沒有複雜的引號）
-    const fields = lines[i].split(',');
-    rows.push(fields);
+  let currentRow = [];
+  let currentField = '';
+  let insideQuotes = false;
+  let lineNumber = 0;
+
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        // 處理 "" （轉義引號）
+        currentField += '"';
+        i++; // 跳過下一個引號
+      } else {
+        // 切換引號狀態
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === ',' && !insideQuotes) {
+      // 欄位分隔符
+      currentRow.push(currentField.trim());
+      currentField = '';
+    } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+      // 行尾
+      if (currentField || currentRow.length > 0) {
+        currentRow.push(currentField.trim());
+        
+        // 跳過標題行（第 0 行）
+        if (lineNumber > 0 && currentRow[0]) {
+          rows.push(currentRow);
+        }
+        currentRow = [];
+        currentField = '';
+        lineNumber++;
+      }
+      
+      // 跳過 \r\n
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+    } else if (char !== '\r') {
+      currentField += char;
+    }
   }
-  
+
+  // 最後一個欄位
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    if (lineNumber > 0) {
+      rows.push(currentRow);
+    }
+  }
+
   return rows;
 }
 
@@ -61,6 +112,9 @@ async function importCandidates() {
     // 開始交易
     await client.query('BEGIN');
 
+    // 清空舊資料（可選）
+    // await client.query('DELETE FROM candidates_pipeline WHERE source = \'Google Sheets\'');
+
     let importedCount = 0;
     let skippedCount = 0;
 
@@ -75,9 +129,16 @@ async function importCandidates() {
       }
 
       try {
-        const candidateId = `candidate_${i + 2}`; // A2 開始
         const name = row[0];
+        if (!name) {
+          skippedCount++;
+          continue;
+        }
+
+        // 使用 LinkedIn ID 或名字作為候選人 ID
         const email = row[1];
+        const candidateId = email ? email.split('@')[0] : `candidate_${name.replace(/\s+/g, '_')}_${i}`;
+        
         const phone = row[2];
         const location = row[3];
         const currentTitle = row[4];
@@ -87,7 +148,7 @@ async function importCandidates() {
         const recentGap = row[8];
         const skills = row[9];
         const education = row[10];
-        const source = row[11] || '手動匯入';
+        const source = row[11] || 'Google Sheets';
         const workHistory = row[12];
         const resignReason = row[13];
         const stabilityScore = row[14];
@@ -101,21 +162,28 @@ async function importCandidates() {
           INSERT INTO candidates_pipeline (
             id, candidate_id, name, status, consultant, notes, last_updated, created_at
           ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          ON CONFLICT (candidate_id) DO NOTHING
+          ON CONFLICT (candidate_id) DO UPDATE SET
+            name = EXCLUDED.name,
+            status = EXCLUDED.status,
+            consultant = EXCLUDED.consultant,
+            notes = EXCLUDED.notes,
+            last_updated = CURRENT_TIMESTAMP
         `;
 
-        const notes = `
-Email: ${email}
-Phone: ${phone}
-Location: ${location}
-Title: ${currentTitle}
-Experience: ${yearsExperience} years
-Skills: ${skills}
-Remarks: ${remarks}
-        `.trim();
+        const notesArray = [
+          email && `Email: ${email}`,
+          phone && `Phone: ${phone}`,
+          location && `Location: ${location}`,
+          currentTitle && `Title: ${currentTitle}`,
+          yearsExperience && `Experience: ${yearsExperience} years`,
+          skills && `Skills: ${skills}`,
+          remarks && `Remarks: ${remarks}`
+        ].filter(Boolean);
+        
+        const notes = notesArray.join('\n');
 
         await client.query(query, [
-          candidateId,
+          `${candidateId}_${Date.now()}`,
           candidateId,
           name,
           status,
