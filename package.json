@@ -1,25 +1,39 @@
 {
   "name": "step1ne-headhunter-system",
+  "private": true,
   "version": "1.0.0",
-  "description": "Step1ne Headhunter System - Frontend + Backend",
-  "main": "index.tsx",
+  "type": "module",
+  "description": "Step1ne 獵頭顧問 AI 協作系統 - 完整的候選人管理、AI 智慧配對、進度追蹤平台",
   "scripts": {
-    "start": "vite preview --host",
     "dev": "vite",
     "build": "vite build",
+    "preview": "vite preview",
     "backend": "node server/server.js",
     "init-db": "node server/init-db.js",
     "import-data": "node server/import-full-data.js"
   },
-  "engines": {
-    "node": ">=14.0.0"
-  },
   "dependencies": {
+    "@google/genai": "^1.36.0",
+    "lucide-react": "^0.474.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5",
     "body-parser": "^2.2.2",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "pg": "^8.18.0",
     "csv-parse": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/xlsx": "^0.0.35",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.0.0"
   }
 }
