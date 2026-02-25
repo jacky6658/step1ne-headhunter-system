@@ -49,7 +49,7 @@ router.get('/candidates', async (req, res) => {
         created_at,
         updated_at
       FROM candidates_pipeline
-      ORDER BY created_at DESC
+      ORDER BY id ASC
       LIMIT 1000
     `);
 
