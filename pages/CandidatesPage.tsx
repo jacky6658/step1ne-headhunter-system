@@ -438,9 +438,9 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
           <table className="min-w-full divide-y divide-gray-200" style={{ minWidth: '1400px' }}>
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px' }}>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-20" style={{ minWidth: '200px' }}>
                 <div className="flex items-center">
-                  姓名
+                  <span className="whitespace-nowrap">姓名</span>
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.name} />
                 </div>
               </th>
@@ -517,11 +517,11 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                   className="hover:bg-gray-50 cursor-pointer transition-colors"
                   onClick={() => setSelectedCandidate(candidate)}
                 >
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4 whitespace-nowrap sticky left-0 bg-white z-10">
                     <div className="flex items-center">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {candidate.name}
+                          {candidate.name || '（未知）'}
                         </div>
                         <div className="text-sm text-gray-500">
                           {(() => {
