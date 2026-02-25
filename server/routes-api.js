@@ -25,30 +25,58 @@ router.get('/candidates', async (req, res) => {
     const result = await client.query(`
       SELECT 
         id, 
-        candidate_id, 
         name, 
+        contact_link,
+        phone,
+        location,
+        current_position,
+        years_experience,
+        job_changes,
+        avg_tenure_months,
+        recent_gap_months,
+        skills,
+        education,
+        source,
+        work_history,
+        leaving_reason,
+        stability_score,
+        education_details,
+        personality_type,
         status, 
-        progress_tracking,
-        notes, 
-        consultant,
-        job_matches,
-        ai_match_scores,
+        recruiter,
+        notes,
+        talent_level,
         created_at,
-        last_updated
+        updated_at
       FROM candidates_pipeline
       ORDER BY created_at DESC
-      LIMIT 500
+      LIMIT 1000
     `);
 
     const candidates = result.rows.map(row => ({
       id: row.id,
       name: row.name,
+      contact_link: row.contact_link,
+      phone: row.phone,
+      location: row.location,
+      current_position: row.current_position,
+      years_experience: row.years_experience,
+      job_changes: row.job_changes,
+      avg_tenure_months: row.avg_tenure_months,
+      recent_gap_months: row.recent_gap_months,
+      skills: row.skills,
+      education: row.education,
+      source: row.source,
+      work_history: row.work_history,
+      leaving_reason: row.leaving_reason,
+      stability_score: row.stability_score,
+      education_details: row.education_details,
+      personality_type: row.personality_type,
       status: row.status,
-      consultant: row.consultant,
+      recruiter: row.recruiter,
       notes: row.notes,
-      jobMatches: row.job_matches,
-      aiScores: row.ai_match_scores,
-      lastUpdated: row.last_updated
+      talent_level: row.talent_level,
+      lastUpdated: row.updated_at
     }));
 
     client.release();
@@ -221,34 +249,34 @@ router.get('/jobs', async (req, res) => {
         interview_process,
         consultant_notes,
         created_at,
-        last_updated
+        updated_at
       FROM jobs_pipeline
       ORDER BY created_at DESC
-      LIMIT 500
+      LIMIT 1000
     `);
 
     const jobs = result.rows.map(row => ({
       id: row.id,
-      title: row.position_name,
-      company: {
-        name: row.client_company
-      },
+      position_name: row.position_name,
+      client_company: row.client_company,
       department: row.department,
-      headcount: row.open_positions,
-      salaryRange: row.salary_range,
-      requiredSkills: row.key_skills ? JSON.parse(row.key_skills) : [],
-      yearsRequired: parseInt(row.experience_required) || 0,
-      educationRequired: row.education_required,
-      workLocation: row.location,
-      status: row.job_status,
-      languageRequirement: row.language_required,
-      specialConditions: row.special_conditions,
-      industryBackground: row.industry_background,
-      teamSize: row.team_size,
-      keyChallenge: row.key_challenges,
-      highlights: row.attractive_points,
-      recruitmentDifficulty: row.recruitment_difficulty,
-      lastUpdated: row.last_updated
+      open_positions: row.open_positions,
+      salary_range: row.salary_range,
+      key_skills: row.key_skills,
+      experience_required: row.experience_required,
+      education_required: row.education_required,
+      location: row.location,
+      job_status: row.job_status,
+      language_required: row.language_required,
+      special_conditions: row.special_conditions,
+      industry_background: row.industry_background,
+      team_size: row.team_size,
+      key_challenges: row.key_challenges,
+      attractive_points: row.attractive_points,
+      recruitment_difficulty: row.recruitment_difficulty,
+      interview_process: row.interview_process,
+      consultant_notes: row.consultant_notes,
+      lastUpdated: row.updated_at
     }));
 
     client.release();
