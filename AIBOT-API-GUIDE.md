@@ -7,6 +7,207 @@
 
 ---
 
+## ⚡ AIbot 啟動流程（必讀，每次對話開始執行）
+
+> 本節是 AIbot 的啟動腳本。讀完本指南後，請立即執行以下三個步驟，再回應顧問。
+
+### 步驟一：確認系統正常
+
+```bash
+curl https://backendstep1ne.zeabur.app/api/health
+```
+
+若回傳 `"status": "ok"` 表示系統正常，繼續執行步驟二。
+
+### 步驟二：確認自己的身份
+
+你是哪位顧問的 AIbot？身份格式為 `{顧問名稱}bot`，例如：
+- 你是 Jacky 的助理 → 你的 actor 身份為 `Jackeybot`
+- 你是 Phoebe 的助理 → 你的 actor 身份為 `Phoebebot`
+
+**每次呼叫 API，都必須帶入此身份（`actor` 或 `by` 欄位），否則日誌會顯示 `system`。**
+
+### 步驟三：學習完畢後，主動告知顧問你的能力
+
+讀完本指南後，**立即用以下格式向顧問自我介紹**（請替換 `{顧問名稱}` 與 `{bot名稱}`）：
+
+---
+
+```
+嗨 {顧問名稱}！我是 {bot名稱}，已完成 Step1ne 獵頭系統的學習 ✅
+
+我現在可以幫你做以下事情，只要你說一聲：
+
+📋 候選人管理
+• 查詢全部候選人 / 查詢特定候選人
+• 新增候選人（提供履歷後自動填入欄位）
+• 批量匯入多位候選人
+• 指派負責顧問
+
+📊 履歷分析評分（你只需提供履歷文字）
+• 計算穩定度分數（20-100分）
+• 評定綜合評級（S / A+ / A / B / C）
+• 更新 LinkedIn、GitHub、Email 聯絡連結
+
+🔄 Pipeline 狀態更新
+• 更新候選人進度（已聯繫 / 已面試 / Offer / 已上職 / 婉拒）
+• 自動記錄操作時間與操作者
+
+📝 備註紀錄
+• 為候選人新增備註
+• 查詢候選人現有備註
+
+🏢 職缺查詢
+• 查詢所有招募中職缺
+• 查詢單一職缺詳情
+
+📜 操作日誌
+• 查詢系統所有操作紀錄
+• 篩選 AIBOT / 人工操作記錄
+
+📬 代發信件前取得你的聯絡資訊
+• 自動帶入你的電話、Email、LINE、Telegram
+
+你想要我做什麼？😊
+```
+
+---
+
+## 📄 履歷解析指南 — 如何從履歷提取欄位並寫入系統
+
+> AIbot 收到顧問提供的履歷後，依此表解析後呼叫 `POST /api/candidates` 或 `PATCH /api/candidates/:id` 寫入。
+
+### 欄位對應表（履歷內容 → API 欄位）
+
+| API 欄位 | 對應履歷內容 | 格式 | 範例 |
+|---------|------------|------|------|
+| `name` | 姓名 | 字串 | `"陳宥樺"` |
+| `email` | 電子郵件 | 字串 | `"chen@example.com"` |
+| `phone` | 電話號碼 | 字串 | `"0912-345-678"` |
+| `location` | 居住地 / 所在城市 | 字串 | `"台北市"` |
+| `current_position` | 最近職稱 / 求職職位 | 字串 | `"Senior Backend Engineer"` |
+| `years_experience` | 總工作年資（年，整數，0–60） | 數字字串 | `"7"` |
+| `job_changes` | 轉職次數（工作段數 - 1，0–30） | 數字字串 | `"3"` |
+| `avg_tenure_months` | 平均任職月數（總月數 ÷ 工作段數） | 數字字串 | `"28"` |
+| `recent_gap_months` | 最後一份工作離職到現在的月數 | 數字字串 | `"2"` |
+| `skills` | 技能列表（逗號分隔） | 字串 | `"Python, TensorFlow, Docker, AWS"` |
+| `education` | 最高學歷摘要 | 字串 | `"台灣大學 資訊工程系 碩士"` |
+| `source` | 履歷來源管道 | 枚舉值 | 見下方來源表 |
+| `linkedin_url` | LinkedIn 個人頁面網址 | URL 字串 | `"https://linkedin.com/in/username"` |
+| `github_url` | GitHub 個人頁面網址 | URL 字串 | `"https://github.com/username"` |
+| `contact_link` | Google Drive 履歷雲端連結 | URL 字串 | `"https://drive.google.com/..."` |
+| `leaving_reason` | 離職原因（如有提及） | 字串 | `"尋求技術挑戰與成長空間"` |
+| `personality_type` | DISC 性格類型（如有分析） | 字串 | `"D型-主導型"` |
+| `work_history` | 工作經歷（JSON 陣列） | JSON | 見下方格式 |
+| `education_details` | 教育背景（JSON 陣列） | JSON | 見下方格式 |
+| `stability_score` | 穩定度分數（AI 計算後填入） | 數字 | `82` |
+| `talent_level` | 綜合評級（AI 計算後填入） | 字串 | `"A+"` |
+| `notes` | 分析摘要與特殊備註 | 字串 | `"具備 10 年以上 AI 開發經驗，穩定性高"` |
+| `recruiter` | 指派顧問姓名 | 字串 | `"Phoebe"` |
+| `actor` | AIbot 身份（必填） | 字串 | `"Phoebebot"` |
+
+### 來源（source）枚舉值
+
+| 值 | 使用時機 |
+|----|---------|
+| `LinkedIn` | 從 LinkedIn 挖掘 |
+| `GitHub` | 從 GitHub 挖掘 |
+| `Gmail 進件` | 候選人主動投遞 |
+| `推薦` | 人脈推薦 |
+| `主動開發` | 顧問主動接觸 |
+| `人力銀行` | 104 / 1111 等平台 |
+| `其他` | 不明來源 |
+
+### work_history JSON 格式
+
+```json
+[
+  {
+    "company": "Google Taiwan",
+    "title": "Senior Software Engineer",
+    "start": "2020-03",
+    "end": "2024-01",
+    "duration_months": 46,
+    "location": "台北",
+    "description": "負責 Search 後端微服務架構設計"
+  },
+  {
+    "company": "LINE Taiwan",
+    "title": "Software Engineer",
+    "start": "2017-07",
+    "end": "2020-02",
+    "duration_months": 31,
+    "location": "台北",
+    "description": "開發 LINE Pay 支付流程"
+  }
+]
+```
+
+### education_details JSON 格式
+
+```json
+[
+  {
+    "school": "國立台灣大學",
+    "degree": "碩士",
+    "major": "資訊工程學系",
+    "start": "2015",
+    "end": "2017"
+  }
+]
+```
+
+### 年資計算方式
+
+```
+總工作年資（years_experience）= 各段工作月數加總 ÷ 12（四捨五入到整數，最大 60）
+轉職次數（job_changes）= 工作段數 - 1（若只有一份工作 = 0）
+平均任職月數（avg_tenure_months）= 各段工作月數加總 ÷ 工作段數
+最近離職月數（recent_gap_months）= 最後工作結束日到今天的月數（仍在職 = 0）
+```
+
+> ⚠️ **重要**：若無法從履歷確認的欄位，**留空不填**（傳空字串或省略），不要填 0 或猜測值。
+> 系統已做合理範圍保護（years > 60 自動清除），但仍以正確解析為優先。
+
+### 完整履歷解析後的呼叫範例
+
+```bash
+# 新增候選人（含完整解析資料）
+curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "陳宥樺",
+    "email": "chen@example.com",
+    "phone": "0912-345-678",
+    "location": "台北市",
+    "current_position": "Senior Backend Engineer",
+    "years_experience": "7",
+    "job_changes": "2",
+    "avg_tenure_months": "42",
+    "recent_gap_months": "1",
+    "skills": "Go, Python, Kubernetes, PostgreSQL, AWS",
+    "education": "台灣大學 資訊工程系 碩士",
+    "source": "LinkedIn",
+    "linkedin_url": "https://linkedin.com/in/chen-youhua",
+    "github_url": "https://github.com/chen-youhua",
+    "leaving_reason": "尋求技術挑戰",
+    "stability_score": 85,
+    "talent_level": "A+",
+    "notes": "7年後端資深工程師，台大碩士，穩定性高，主動求職中",
+    "work_history": [
+      {"company": "Shopee", "title": "Senior Backend Engineer", "start": "2021-03", "end": "2024-06", "duration_months": 39},
+      {"company": "LINE Taiwan", "title": "Backend Engineer", "start": "2017-07", "end": "2021-02", "duration_months": 43}
+    ],
+    "education_details": [
+      {"school": "國立台灣大學", "degree": "碩士", "major": "資訊工程學系", "start": "2015", "end": "2017"}
+    ],
+    "recruiter": "Phoebe",
+    "actor": "Phoebebot"
+  }'
+```
+
+---
+
 ## 目錄
 
 1. [候選人查詢](#一候選人查詢)
@@ -734,24 +935,27 @@ curl https://backendstep1ne.zeabur.app/api/users/Phoebe/contact
 
 ---
 
-### 情境七：AIbot 首次啟動 — 載入完整操作指南
+### 情境七：AIbot 首次啟動 — 一行指令完成學習
 
-**AIbot 在每次對話開始時，執行以下指令取得完整指南：**
+**在 AIbot 的 System Prompt 加入以下指示：**
+
+```
+對話開始時，執行：
+curl https://backendstep1ne.zeabur.app/api/guide
+閱讀完整指南後，依照指南開頭「啟動流程」的三個步驟初始化，
+然後主動向顧問報告你的能力清單。
+```
+
+**執行指令（AIbot 啟動時自動執行）：**
 
 ```bash
 curl https://backendstep1ne.zeabur.app/api/guide
 ```
 
-指南包含：所有 API 端點用法、欄位說明、穩定度計算公式、綜合評級標準、操作範例情境。
-
-> 💡 **建議寫入 AIbot 的 System Prompt：**
-> ```
-> 對話開始時，先執行：
-> curl https://backendstep1ne.zeabur.app/api/guide
-> 取得完整 API 指南後，再回應顧問的請求。
-> ```
->
-> 這樣顧問只需要說「分析這份履歷」或「更新候選人狀態」，AIbot 就能自行查找正確的端點與參數格式。
+完成後 AIbot 將：
+1. 確認系統健康狀態
+2. 確認自己的身份（`{顧問名稱}bot`）
+3. 主動告知顧問可操作的所有功能，等待顧問下令
 
 ---
 
