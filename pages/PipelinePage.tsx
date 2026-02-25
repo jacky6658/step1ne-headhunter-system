@@ -310,16 +310,18 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     const updatedProgress = [...(targetCandidate.progressTracking || []), newEvent];
     const newStatus = stageToStatus(stage);
 
+    console.log('[Pipeline] calling apiPut, newStatus:', newStatus, '| newEvent:', newEvent);
     try {
       // 方案 A + B：同時更新 SQL + Google Sheets
       // API 會先寫入 SQL（即時），再異步同步到 Google Sheets
-      await apiPut(`/api/candidates/${targetCandidate.id}`, {
+      const result = await apiPut(`/api/candidates/${targetCandidate.id}`, {
         status: newStatus,
         name: targetCandidate.name,
         consultant: userProfile.displayName || 'System',
         notes: `改為「${stageToEvent(stage)}」於 ${new Date().toLocaleDateString('zh-TW')}`,
         progressTracking: updatedProgress,
       });
+      console.log('[Pipeline] apiPut success:', result);
 
       // 本地更新 UI（快速反應）
       setCandidates(prev =>
@@ -336,6 +338,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       );
       setToastMessage(`✅ ${targetCandidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」（已同步到後端 + Google Sheets）`);
     } catch (error) {
+      console.warn('[Pipeline] ❌ apiPut 失敗:', error);
       console.error('❌ 拖拉更新 Pipeline 失敗:', error);
       alert('❌ 更新失敗，請稍後再試');
     } finally {
