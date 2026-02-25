@@ -443,7 +443,10 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, pre
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {candidates.slice(0, 50).map((candidate) => (
+                {candidates
+                  .filter(c => c && c.id && c.name)  // 防守：過濾掉無效候選人
+                  .slice(0, 50)
+                  .map((candidate) => (
                   <tr
                     key={candidate.id}
                     className={`hover:bg-slate-50 transition-colors ${
@@ -459,13 +462,13 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, pre
                       />
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-slate-900">{candidate.name}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{candidate.position}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{candidate.years} 年</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{candidate.position || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{candidate.years || 0} 年</td>
                     <td className="px-4 py-3 text-sm text-slate-600">
                       <div className="max-w-xs truncate">
                         {Array.isArray(candidate.skills) 
                           ? candidate.skills.join(', ') 
-                          : candidate.skills}
+                          : candidate.skills || '-'}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -583,14 +586,16 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, pre
             Top 5 推薦
           </h2>
           <div className="space-y-3">
-            {matchResults.result.summary.top_5.map((candidate, idx) => (
+            {matchResults.result.summary.top_5
+              .filter(c => c && c.name)  // 防守：過濾掉無效候選人
+              .map((candidate, idx) => (
               <div key={idx} className="bg-white rounded-lg p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="text-2xl font-bold text-slate-400">#{idx + 1}</div>
                   <div>
-                    <div className="font-semibold text-slate-900">{candidate.name}</div>
+                    <div className="font-semibold text-slate-900">{candidate.name || '未知'}</div>
                     <div className="text-sm text-slate-600">
-                      總分 {candidate.total_score} · 優先級 <span className={getPriorityColor(candidate.priority)}>{candidate.priority}</span>
+                      總分 {candidate.total_score || 0} · 優先級 <span className={getPriorityColor(candidate.priority)}>{candidate.priority}</span>
                     </div>
                   </div>
                 </div>
