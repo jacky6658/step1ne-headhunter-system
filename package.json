@@ -1,32 +1,14 @@
 {
-  "name": "step1ne-headhunter-system",
-  "private": true,
+  "name": "step1ne-backend",
   "version": "1.0.0",
-  "type": "module",
-  "description": "Step1ne 獵頭顧問 AI 協作系統 - 完整的候選人管理、AI 智慧配對、進度追蹤平台",
+  "description": "Step1ne AI Recruitment System Backend",
+  "main": "server/server.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "start": "node server/server.js",
+    "dev": "node server/server.js",
+    "init-db": "node server/init-db.js"
   },
-  "dependencies": {
-    "@google/genai": "^1.36.0",
-    "jspdf": "^4.2.0",
-    "jspdf-autotable": "^5.0.7",
-    "lucide-react": "^0.474.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tesseract.js": "^7.0.0",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@types/xlsx": "^0.0.35",
-    "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
-    "vite": "^6.0.0"
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
