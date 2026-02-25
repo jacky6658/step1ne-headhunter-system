@@ -1187,6 +1187,33 @@ router.post('/sync/sheets-to-sql', async (req, res) => {
           try { JSON.parse(progressTracking); parsedProgress = progressTracking.trim(); } catch (e) { /* ignore */ }
         }
 
+        // ── 從 Sheets 欄位偵測 LinkedIn / GitHub URL ──────────────────
+        // B欄 (email 變數)：「連結/信箱」— 可能是 LinkedIn URL 或真實 email
+        // T欄 (notes 變數)：「備註」— 可能含 GitHub URL 或 LinkedIn: https://...
+        const emailVal = (email || '').trim();
+        const notesVal = (notes || '').trim();
+
+        let sheetLinkedin = '';
+        let sheetGithub   = '';
+
+        // 從 email 欄(B欄)抓 LinkedIn URL
+        const liInEmail = emailVal.match(/(https?:\/\/(www\.)?linkedin\.com\/[^\s"'<>]+)/i);
+        if (liInEmail) sheetLinkedin = liInEmail[1].replace(/[,;]+$/, '');
+
+        // 從 notes 欄(T欄)抓 GitHub URL
+        const ghInNotes = notesVal.match(/(https?:\/\/(www\.)?github\.com\/[^\s"'<>]+)/i);
+        if (ghInNotes) sheetGithub = ghInNotes[1].replace(/[,;]+$/, '');
+
+        // 若 notes 欄也含 LinkedIn（"LinkedIn: https://..."），且 email 欄未提供
+        if (!sheetLinkedin) {
+          const liInNotes = notesVal.match(/(https?:\/\/(www\.)?linkedin\.com\/[^\s"'<>]+)/i);
+          if (liInNotes) sheetLinkedin = liInNotes[1].replace(/[,;]+$/, '');
+          if (!sheetLinkedin) {
+            const liText = notesVal.match(/LinkedIn[:\s]+(https?:\/\/[^\s,;]+)/i);
+            if (liText) sheetLinkedin = liText[1].replace(/[,;]+$/, '');
+          }
+        }
+
         if (existingMap.has(nameKey)) {
           // UPDATE：已存在的候選人 — 用 Sheets 資料更新
           const existingId = existingMap.get(nameKey);
@@ -1217,6 +1244,8 @@ router.post('/sync/sheets-to-sql', async (req, res) => {
               recruiter = COALESCE(NULLIF($18, ''), recruiter),
               notes = COALESCE(NULLIF($19, ''), notes),
               talent_level = COALESCE(NULLIF($20, ''), talent_level),
+              linkedin_url = COALESCE(NULLIF($22, ''), linkedin_url),
+              github_url   = COALESCE(NULLIF($23, ''), github_url),
               updated_at = NOW()
             WHERE id = $21`,
             [
@@ -1238,9 +1267,11 @@ router.post('/sync/sheets-to-sql', async (req, res) => {
               trunc(personality, 100),
               trunc(status, 50),
               trunc(consultant, 100),
-              (notes || '').trim(),
+              notesVal,
               trunc(talentGrade, 50),
-              existingId
+              existingId,
+              trunc(sheetLinkedin, 500),
+              trunc(sheetGithub, 500),
             ]
           );
           results.updated++;
@@ -1252,8 +1283,9 @@ router.post('/sync/sheets-to-sql', async (req, res) => {
               job_changes, avg_tenure_months, recent_gap_months, skills, education, source,
               work_history, leaving_reason, stability_score, education_details,
               personality_type, status, recruiter, notes, talent_level, progress_tracking,
+              linkedin_url, github_url,
               created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW(),NOW())`,
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW(),NOW())`,
             [
               trimmedName,
               trunc(phone, 50),
@@ -1274,9 +1306,11 @@ router.post('/sync/sheets-to-sql', async (req, res) => {
               trunc(personality, 100),
               trunc(status || '未開始', 50),
               trunc(consultant, 100),
-              (notes || '').trim(),
+              notesVal,
               trunc(talentGrade, 50),
-              parsedProgress
+              parsedProgress,
+              trunc(sheetLinkedin, 500),
+              trunc(sheetGithub, 500),
             ]
           );
           existingMap.set(nameKey, 'inserted'); // 標記已插入，避免同名重複
@@ -1478,12 +1512,13 @@ router.get('/guide', (req, res) => {
   }
 });
 
-// POST /api/migrate/extract-links — 從舊欄位 (phone / contact_link) 提取 LinkedIn / GitHub 連結到專屬欄位
+// POST /api/migrate/extract-links — 從舊欄位 (email / notes / phone / contact_link) 提取 LinkedIn / GitHub 連結到專屬欄位
+// Google Sheets 欄位對應：B欄(連結/信箱) → email 欄位(含LinkedIn URL) / T欄(備註) → notes 欄位(含GitHub URL)
 router.post('/migrate/extract-links', async (req, res) => {
   try {
-    // 取出 linkedin_url 或 github_url 為空的所有候選人
+    // 取出 linkedin_url 或 github_url 為空的所有候選人，同時讀取 email 欄位（Sheets B欄）
     const result = await pool.query(`
-      SELECT id, name, phone, contact_link, notes, linkedin_url, github_url
+      SELECT id, name, email, phone, contact_link, notes, linkedin_url, github_url
       FROM candidates_pipeline
       WHERE (linkedin_url IS NULL OR linkedin_url = '')
          OR (github_url IS NULL OR github_url = '')
@@ -1493,53 +1528,52 @@ router.post('/migrate/extract-links', async (req, res) => {
     const details = [];
 
     for (const row of result.rows) {
-      const phone      = (row.phone        || '').trim();
+      const email       = (row.email        || '').trim();
+      const phone       = (row.phone        || '').trim();
       const contactLink = (row.contact_link || '').trim();
-      const notes      = (row.notes        || '');
+      const notes       = (row.notes        || '').trim();
 
       let newLinkedin = (row.linkedin_url || '').trim();
       let newGithub   = (row.github_url   || '').trim();
 
       // ── LinkedIn 提取 ─────────────────────────────────
       if (!newLinkedin) {
-        // 完整 URL 在 phone 或 contact_link 欄位
-        const liUrlMatch =
-          (phone + ' ' + contactLink).match(
-            /(https?:\/\/(www\.)?linkedin\.com\/[^\s"'<>]+)/i
-          );
-        if (liUrlMatch) {
-          newLinkedin = liUrlMatch[1].replace(/[,;]+$/, '');
-        }
+        // 1. email 欄位（Sheets B欄「連結/信箱」，常直接存 LinkedIn URL）
+        const liInEmail = email.match(/(https?:\/\/(www\.)?linkedin\.com\/[^\s"'<>]+)/i);
+        if (liInEmail) newLinkedin = liInEmail[1].replace(/[,;]+$/, '');
+      }
 
-        // 簡寫格式 "LinkedIn: username" 或 "linkedin:username"
+      if (!newLinkedin) {
+        // 2. notes 欄位（Sheets T欄「備註」，格式如 "LinkedIn: https://..."）
+        const liInNotes = notes.match(/(https?:\/\/(www\.)?linkedin\.com\/[^\s"'<>]+)/i);
+        if (liInNotes) newLinkedin = liInNotes[1].replace(/[,;]+$/, '');
         if (!newLinkedin) {
-          const liShortMatch = phone.match(/^linkedin[:\s]+([^\s/]+)/i);
-          if (liShortMatch) {
-            const u = liShortMatch[1];
-            newLinkedin = u.startsWith('http') ? u : `https://www.linkedin.com/in/${u}`;
-          }
+          const liTextInNotes = notes.match(/LinkedIn[:\s]+(https?:\/\/[^\s,;]+)/i);
+          if (liTextInNotes) newLinkedin = liTextInNotes[1].replace(/[,;]+$/, '');
         }
+      }
+
+      if (!newLinkedin) {
+        // 3. phone 或 contact_link 欄位（舊資料備用）
+        const liInOther = (phone + ' ' + contactLink).match(/(https?:\/\/(www\.)?linkedin\.com\/[^\s"'<>]+)/i);
+        if (liInOther) newLinkedin = liInOther[1].replace(/[,;]+$/, '');
       }
 
       // ── GitHub 提取 ───────────────────────────────────
       if (!newGithub) {
-        // 完整 URL 在 phone 或 contact_link 欄位
-        const ghUrlMatch =
-          (phone + ' ' + contactLink).match(
-            /(https?:\/\/(www\.)?github\.com\/[^\s"'<>]+)/i
-          );
-        if (ghUrlMatch) {
-          newGithub = ghUrlMatch[1].replace(/[,;]+$/, '');
-        }
-
-        // 簡寫格式 "GitHub: username" 或 "github:username"
+        // 1. notes 欄位（Sheets T欄「備註」，常直接存 GitHub URL）
+        const ghInNotes = notes.match(/(https?:\/\/(www\.)?github\.com\/[^\s"'<>]+)/i);
+        if (ghInNotes) newGithub = ghInNotes[1].replace(/[,;]+$/, '');
         if (!newGithub) {
-          const ghShortMatch = phone.match(/^github[:\s]+([^\s/]+)/i);
-          if (ghShortMatch) {
-            const u = ghShortMatch[1];
-            newGithub = u.startsWith('http') ? u : `https://github.com/${u}`;
-          }
+          const ghTextInNotes = notes.match(/GitHub[:\s]+(https?:\/\/[^\s,;]+)/i);
+          if (ghTextInNotes) newGithub = ghTextInNotes[1].replace(/[,;]+$/, '');
         }
+      }
+
+      if (!newGithub) {
+        // 2. phone 或 contact_link 欄位（舊資料備用）
+        const ghInOther = (phone + ' ' + contactLink).match(/(https?:\/\/(www\.)?github\.com\/[^\s"'<>]+)/i);
+        if (ghInOther) newGithub = ghInOther[1].replace(/[,;]+$/, '');
       }
 
       // ── 只有找到新值才寫入 ────────────────────────────

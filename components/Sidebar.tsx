@@ -35,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     // 工具
     { id: 'system-log', label: '📋 操作日誌', icon: ScrollText, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'help', label: '📖 使用說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    { id: 'migration', label: '🛠️ 資料維護', icon: Database, roles: [Role.ADMIN], disabled: false },
   ];
 
   const handleItemClick = (id: string) => {

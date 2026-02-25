@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Database, Download, Upload, CheckCircle, AlertCircle, Zap, Link } from 'lucide-react';
 import { apiRequest, useApiMode } from '../services/apiConfig';
-import { apiPost } from '../config/api';
+import { apiGet, apiPost } from '../config/api';
 
 interface MigrationPageProps {
   userProfile: any;
@@ -184,13 +184,87 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
     setTimeout(() => setMessage(''), 2000);
   };
 
-  // 從舊欄位提取 LinkedIn / GitHub 連結
+  // 從舊欄位提取 LinkedIn / GitHub 連結（前端直接處理，不需新 backend endpoint）
   const handleExtractLinks = async () => {
     setLinkMigStatus('running');
     setLinkMigResult(null);
     try {
-      const result = await apiPost('/api/migrate/extract-links', {});
-      setLinkMigResult(result);
+      // 1. 取得所有候選人
+      const res: any = await apiGet('/candidates?limit=2000');
+      const candidates: any[] = res.data || res.candidates || res || [];
+
+      // contact_link 欄位的格式分析：
+      // - 完整 URL：https://www.linkedin.com/in/xxx 或 https://github.com/xxx
+      // - 簡寫格式：LinkedIn: username 或 LinkedIn:username（需補全 URL）
+      const LI_FULL_RE = /(https?:\/\/(www\.|tw\.)?linkedin\.com\/[^\s"'<>,;]+)/i;
+      const GH_FULL_RE = /(https?:\/\/(www\.)?github\.com\/[^\s"'<>,;]+)/i;
+      // "LinkedIn: username" 或 "LinkedIn:username"（username 可含中文、數字、連字號）
+      const LI_SHORT_RE = /^LinkedIn[:\s]+([^\s/][^\s]*)$/i;
+
+      let updated = 0;
+      const details: any[] = [];
+
+      for (const c of candidates) {
+        const contactVal = (c.contactLink || c.contact_link || '').trim();
+
+        let newLinkedin = (c.linkedinUrl || c.linkedin_url || '').trim();
+        let newGithub   = (c.githubUrl  || c.github_url  || '').trim();
+
+        // ── LinkedIn：掃 contact_link
+        if (!newLinkedin) {
+          const fullMatch = contactVal.match(LI_FULL_RE);
+          if (fullMatch) {
+            newLinkedin = fullMatch[1].replace(/[,;.]+$/, '');
+          } else {
+            const shortMatch = contactVal.match(LI_SHORT_RE);
+            if (shortMatch) {
+              const username = shortMatch[1].trim();
+              // 若 username 本身就是完整 URL，直接用；否則補全
+              newLinkedin = username.startsWith('http')
+                ? username
+                : `https://www.linkedin.com/in/${encodeURIComponent(username)}`;
+            }
+          }
+        }
+
+        // ── GitHub：掃 contact_link（notes 裡的 "GitHub搜尋" 只是文字，不是 URL）
+        if (!newGithub) {
+          const fullMatch = contactVal.match(GH_FULL_RE);
+          if (fullMatch) newGithub = fullMatch[1].replace(/[,;.]+$/, '');
+        }
+
+        const liChanged = newLinkedin && newLinkedin !== (c.linkedinUrl || c.linkedin_url || '');
+        const ghChanged = newGithub   && newGithub   !== (c.githubUrl  || c.github_url  || '');
+
+        if (liChanged || ghChanged) {
+          // 2. PATCH 已有 endpoint
+          const apiBase = (window.location.hostname === 'localhost')
+            ? 'http://localhost:3001/api'
+            : 'https://backendstep1ne.zeabur.app/api';
+          await fetch(`${apiBase}/candidates/${c.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...(liChanged ? { linkedin_url: newLinkedin } : {}),
+              ...(ghChanged ? { github_url:   newGithub   } : {}),
+            }),
+          });
+          updated++;
+          details.push({
+            id:   c.id,
+            name: c.name,
+            ...(liChanged ? { linkedin: newLinkedin } : {}),
+            ...(ghChanged ? { github:   newGithub   } : {}),
+          });
+        }
+      }
+
+      setLinkMigResult({
+        message: `已更新 ${updated} 筆連結`,
+        total_scanned: candidates.length,
+        updated,
+        details,
+      });
       setLinkMigStatus('done');
     } catch (err: any) {
       setLinkMigResult({ error: err.message });
@@ -314,8 +388,9 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
             提取外部連結（LinkedIn / GitHub）
           </h3>
           <p className="text-sm text-blue-800 mb-4">
-            掃描現有候選人資料，將儲存在 <code className="bg-white px-1 rounded">phone</code> 或 <code className="bg-white px-1 rounded">contact_link</code> 欄位中的
-            LinkedIn / GitHub 連結，自動填入對應的專屬欄位。只會更新空白欄位，不覆蓋已有資料。
+            掃描現有候選人資料，從 <code className="bg-white px-1 rounded">email</code>（Sheets B欄「連結/信箱」）和
+            <code className="bg-white px-1 rounded">notes</code>（Sheets T欄「備註」）提取 LinkedIn / GitHub 連結，
+            自動填入對應的專屬欄位。只會更新空白欄位，不覆蓋已有資料。
           </p>
           <button
             onClick={handleExtractLinks}
