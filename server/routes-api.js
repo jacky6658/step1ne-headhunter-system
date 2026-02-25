@@ -1494,7 +1494,7 @@ const path = require('path');
 
 router.get('/guide', (req, res) => {
   try {
-    const guidePath = path.join(__dirname, '..', 'AIBOT-API-GUIDE.md');
+    const guidePath = path.join(__dirname, 'AIBOT-API-GUIDE.md');
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Guide file not found' });
     }
@@ -1614,7 +1614,7 @@ router.post('/migrate/extract-links', async (req, res) => {
 // GET /api/resume-guide — 回傳履歷分析教學指南（供 AIbot 學習使用）
 router.get('/resume-guide', (req, res) => {
   try {
-    const guidePath = path.join(__dirname, '..', 'RESUME-ANALYSIS-GUIDE.md');
+    const guidePath = path.join(__dirname, 'RESUME-ANALYSIS-GUIDE.md');
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Resume analysis guide not found' });
     }
