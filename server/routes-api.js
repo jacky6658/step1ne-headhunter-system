@@ -255,11 +255,27 @@ router.patch('/candidates/:id', async (req, res) => {
 
 /**
  * POST /api/candidates
- * 新增候選人
+ * 新增候選人 - 完整欄位
  */
 router.post('/candidates', async (req, res) => {
   try {
-    const { name, consultant, status = '新進', notes = '' } = req.body;
+    const {
+      name,
+      email = '',
+      phone = '',
+      location = '',
+      current_position = '',
+      years_experience = 0,
+      skills = '',
+      education = '',
+      source = 'GitHub',
+      resume_url = '',
+      status = '新進',
+      recruiter = 'Jacky',
+      notes = '',
+      stability_score = 0,
+      personality = ''
+    } = req.body;
 
     if (!name) {
       return res.status(400).json({
@@ -270,14 +286,18 @@ router.post('/candidates', async (req, res) => {
 
     const client = await pool.connect();
 
-    const candidateId = `${name}_${Date.now()}`.replace(/\s+/g, '_');
+    const candidateId = `${name.replace(/\s+/g, '_')}_${Date.now()}`;
 
     const result = await client.query(
       `INSERT INTO candidates_pipeline 
-       (id, candidate_id, name, status, consultant, notes, created_at, last_updated)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+       (id, name, email, phone, location, current_position, years_experience, 
+        skills, education, source, resume_url, status, recruiter, notes, 
+        stability_score, personality, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
        RETURNING *`,
-      [candidateId, candidateId, name, status, consultant || 'Jacky', notes]
+      [candidateId, name, email, phone, location, current_position, years_experience,
+       skills, education, source, resume_url, status, recruiter, notes,
+       stability_score, personality]
     );
 
     client.release();
@@ -285,6 +305,7 @@ router.post('/candidates', async (req, res) => {
     res.status(201).json({
       success: true,
       data: result.rows[0],
+      id: candidateId,
       message: 'Candidate created successfully'
     });
   } catch (error) {
