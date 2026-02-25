@@ -1478,6 +1478,105 @@ router.get('/guide', (req, res) => {
   }
 });
 
+// POST /api/migrate/extract-links — 從舊欄位 (phone / contact_link) 提取 LinkedIn / GitHub 連結到專屬欄位
+router.post('/migrate/extract-links', async (req, res) => {
+  try {
+    // 取出 linkedin_url 或 github_url 為空的所有候選人
+    const result = await pool.query(`
+      SELECT id, name, phone, contact_link, notes, linkedin_url, github_url
+      FROM candidates_pipeline
+      WHERE (linkedin_url IS NULL OR linkedin_url = '')
+         OR (github_url IS NULL OR github_url = '')
+    `);
+
+    let updated = 0;
+    const details = [];
+
+    for (const row of result.rows) {
+      const phone      = (row.phone        || '').trim();
+      const contactLink = (row.contact_link || '').trim();
+      const notes      = (row.notes        || '');
+
+      let newLinkedin = (row.linkedin_url || '').trim();
+      let newGithub   = (row.github_url   || '').trim();
+
+      // ── LinkedIn 提取 ─────────────────────────────────
+      if (!newLinkedin) {
+        // 完整 URL 在 phone 或 contact_link 欄位
+        const liUrlMatch =
+          (phone + ' ' + contactLink).match(
+            /(https?:\/\/(www\.)?linkedin\.com\/[^\s"'<>]+)/i
+          );
+        if (liUrlMatch) {
+          newLinkedin = liUrlMatch[1].replace(/[,;]+$/, '');
+        }
+
+        // 簡寫格式 "LinkedIn: username" 或 "linkedin:username"
+        if (!newLinkedin) {
+          const liShortMatch = phone.match(/^linkedin[:\s]+([^\s/]+)/i);
+          if (liShortMatch) {
+            const u = liShortMatch[1];
+            newLinkedin = u.startsWith('http') ? u : `https://www.linkedin.com/in/${u}`;
+          }
+        }
+      }
+
+      // ── GitHub 提取 ───────────────────────────────────
+      if (!newGithub) {
+        // 完整 URL 在 phone 或 contact_link 欄位
+        const ghUrlMatch =
+          (phone + ' ' + contactLink).match(
+            /(https?:\/\/(www\.)?github\.com\/[^\s"'<>]+)/i
+          );
+        if (ghUrlMatch) {
+          newGithub = ghUrlMatch[1].replace(/[,;]+$/, '');
+        }
+
+        // 簡寫格式 "GitHub: username" 或 "github:username"
+        if (!newGithub) {
+          const ghShortMatch = phone.match(/^github[:\s]+([^\s/]+)/i);
+          if (ghShortMatch) {
+            const u = ghShortMatch[1];
+            newGithub = u.startsWith('http') ? u : `https://github.com/${u}`;
+          }
+        }
+      }
+
+      // ── 只有找到新值才寫入 ────────────────────────────
+      const linkedinChanged = newLinkedin && newLinkedin !== (row.linkedin_url || '');
+      const githubChanged   = newGithub   && newGithub   !== (row.github_url   || '');
+
+      if (linkedinChanged || githubChanged) {
+        await pool.query(
+          `UPDATE candidates_pipeline
+           SET linkedin_url = COALESCE(NULLIF($1,''), linkedin_url),
+               github_url   = COALESCE(NULLIF($2,''), github_url)
+           WHERE id = $3`,
+          [newLinkedin || '', newGithub || '', row.id]
+        );
+        updated++;
+        details.push({
+          id:      row.id,
+          name:    row.name,
+          ...(linkedinChanged ? { linkedin: newLinkedin } : {}),
+          ...(githubChanged   ? { github:   newGithub   } : {}),
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `已從現有欄位提取並更新 ${updated} 筆連結`,
+      total_scanned: result.rows.length,
+      updated,
+      details,
+    });
+  } catch (error) {
+    console.error('extract-links migration error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/resume-guide — 回傳履歷分析教學指南（供 AIbot 學習使用）
 router.get('/resume-guide', (req, res) => {
   try {

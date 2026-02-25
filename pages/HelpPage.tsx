@@ -514,24 +514,66 @@ const HelpPage: React.FC<HelpPageProps> = () => {
           </div>
 
           <div>
-            <h3 className="font-black text-slate-900 mb-2">📋 AIbot 可以幫你做的事</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="font-semibold text-blue-700 text-sm mb-1">👤 候選人管理</p>
-                <p className="text-xs text-slate-600">新增候選人、查詢資料、批量匯入</p>
+            <h3 className="font-black text-slate-900 mb-3">📋 AIbot 可以幫你做的事</h3>
+            <div className="space-y-3">
+
+              {/* 候選人管理 */}
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="font-semibold text-blue-700 text-sm mb-2">👤 候選人管理</p>
+                <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside ml-1">
+                  <li>查詢全部候選人 / 查詢特定候選人資料</li>
+                  <li>新增候選人（提供履歷文字後自動填入所有欄位）</li>
+                  <li>批量匯入多位候選人</li>
+                  <li>指派或更換負責顧問</li>
+                  <li>更新 LinkedIn、GitHub、Email 連結</li>
+                </ul>
+                <p className="text-xs text-blue-600 mt-2 italic">例：「幫我新增候選人，以下是他的履歷：...」</p>
               </div>
-              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                <p className="font-semibold text-purple-700 text-sm mb-1">📊 履歷分析評分</p>
-                <p className="text-xs text-slate-600">計算穩定度、綜合評級、更新連結</p>
+
+              {/* 履歷分析評分 */}
+              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <p className="font-semibold text-purple-700 text-sm mb-2">📊 履歷分析評分（只需貼上履歷文字）</p>
+                <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside ml-1">
+                  <li>分析工作經歷，計算<strong>穩定度評分</strong>（20–100分）</li>
+                  <li>從 6 大維度評定<strong>綜合評級</strong>（S / A+ / A / B / C）</li>
+                  <li>推薦適合職缺，列出優劣勢分析</li>
+                  <li>提取教育背景、技能、年資自動寫入系統</li>
+                </ul>
+                <p className="text-xs text-purple-600 mt-2 italic">例：「幫我分析這份履歷並評分，更新到系統」</p>
               </div>
-              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                <p className="font-semibold text-green-700 text-sm mb-1">🔄 進度追蹤更新</p>
-                <p className="text-xs text-slate-600">更新面試進度、Pipeline 狀態移動</p>
+
+              {/* 顧問人選追蹤 */}
+              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                <p className="font-semibold text-green-700 text-sm mb-2">🔄 顧問人選追蹤表 — 狀態更新</p>
+                <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside ml-1">
+                  <li>更新候選人進度：未開始 → 已聯繫 → 已面試 → Offer → 已上職</li>
+                  <li>標記候選人為「婉拒」並記錄原因</li>
+                  <li>自動記錄操作時間與操作者到日誌</li>
+                </ul>
+                <p className="text-xs text-green-600 mt-2 italic">例：「幫我把 #123 的狀態改為已面試」</p>
               </div>
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <p className="font-semibold text-amber-700 text-sm mb-1">📝 備註紀錄</p>
-                <p className="text-xs text-slate-600">新增備註、追加顧問筆記</p>
+
+              {/* 備註紀錄 */}
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <p className="font-semibold text-amber-700 text-sm mb-2">📝 備註紀錄</p>
+                <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside ml-1">
+                  <li>為候選人追加備註（自動附加時間戳記）</li>
+                  <li>記錄每次溝通重點，方便日後查閱</li>
+                </ul>
+                <p className="text-xs text-amber-600 mt-2 italic">例：「幫 #456 加備註：今天電話聯繫，對方有意願」</p>
               </div>
+
+              {/* 數據查詢 */}
+              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <p className="font-semibold text-slate-700 text-sm mb-2">🔍 數據查詢</p>
+                <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside ml-1">
+                  <li>查詢特定顧問負責的全部候選人</li>
+                  <li>查詢特定狀態的候選人清單</li>
+                  <li>查看招募漏斗各階段人數統計</li>
+                </ul>
+                <p className="text-xs text-slate-500 mt-2 italic">例：「查詢 Jacky 負責的所有候選人」</p>
+              </div>
+
             </div>
           </div>
 

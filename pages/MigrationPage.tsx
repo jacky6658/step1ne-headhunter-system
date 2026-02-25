@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Database, Download, Upload, CheckCircle, AlertCircle, Zap } from 'lucide-react';
+import { Database, Download, Upload, CheckCircle, AlertCircle, Zap, Link } from 'lucide-react';
 import { apiRequest, useApiMode } from '../services/apiConfig';
+import { apiPost } from '../config/api';
 
 interface MigrationPageProps {
   userProfile: any;
@@ -10,6 +11,8 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
   const [migrationSQL, setMigrationSQL] = useState<string>('');
   const [status, setStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string>('');
+  const [linkMigStatus, setLinkMigStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [linkMigResult, setLinkMigResult] = useState<any>(null);
 
   // 從 localStorage 讀取資料
   const getLocalStorageData = () => {
@@ -181,6 +184,20 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
     setTimeout(() => setMessage(''), 2000);
   };
 
+  // 從舊欄位提取 LinkedIn / GitHub 連結
+  const handleExtractLinks = async () => {
+    setLinkMigStatus('running');
+    setLinkMigResult(null);
+    try {
+      const result = await apiPost('/api/migrate/extract-links', {});
+      setLinkMigResult(result);
+      setLinkMigStatus('done');
+    } catch (err: any) {
+      setLinkMigResult({ error: err.message });
+      setLinkMigStatus('error');
+    }
+  };
+
   // 自動匯入到資料庫
   const handleAutoMigrate = async () => {
     if (!useApiMode()) {
@@ -288,6 +305,52 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
             <li>複製生成的 SQL 語句，在資料庫中執行</li>
             <li>執行完成後，您的本地資料就會同步到雲端資料庫</li>
           </ol>
+        </div>
+
+        {/* LinkedIn / GitHub 連結提取區塊 */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 mb-8">
+          <h3 className="font-black text-blue-900 mb-2 flex items-center gap-2">
+            <Link size={18} />
+            提取外部連結（LinkedIn / GitHub）
+          </h3>
+          <p className="text-sm text-blue-800 mb-4">
+            掃描現有候選人資料，將儲存在 <code className="bg-white px-1 rounded">phone</code> 或 <code className="bg-white px-1 rounded">contact_link</code> 欄位中的
+            LinkedIn / GitHub 連結，自動填入對應的專屬欄位。只會更新空白欄位，不覆蓋已有資料。
+          </p>
+          <button
+            onClick={handleExtractLinks}
+            disabled={linkMigStatus === 'running'}
+            className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            <Link size={16} />
+            {linkMigStatus === 'running' ? '提取中...' : '🔗 開始提取連結'}
+          </button>
+
+          {linkMigStatus === 'done' && linkMigResult && (
+            <div className="mt-4 p-4 bg-white rounded-xl border border-blue-200">
+              <p className="font-bold text-emerald-700 mb-2">
+                ✅ {linkMigResult.message}（共掃描 {linkMigResult.total_scanned} 筆）
+              </p>
+              {linkMigResult.details && linkMigResult.details.length > 0 && (
+                <div className="text-xs text-slate-600 space-y-1 max-h-48 overflow-y-auto">
+                  {linkMigResult.details.map((d: any) => (
+                    <div key={d.id} className="flex gap-2 border-b border-slate-100 py-1">
+                      <span className="text-slate-400">#{d.id}</span>
+                      <span className="font-semibold">{d.name}</span>
+                      {d.linkedin && <span className="text-blue-600 truncate">LinkedIn: {d.linkedin}</span>}
+                      {d.github   && <span className="text-gray-700 truncate">GitHub: {d.github}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {linkMigStatus === 'error' && (
+            <div className="mt-4 p-3 bg-red-50 rounded-xl border border-red-200 text-sm text-red-700">
+              ❌ 提取失敗：{linkMigResult?.error || '請檢查後端連線'}
+            </div>
+          )}
         </div>
 
         {/* 操作按鈕 */}
