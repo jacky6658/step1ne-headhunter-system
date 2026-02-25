@@ -1,7 +1,7 @@
 {
   "name": "step1ne-headhunter-system",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Step1ne 獵頭顧問 AI 協作系統 - 完整的候選人管理、AI 智慧配對、進度追蹤平台",
   "scripts": {
