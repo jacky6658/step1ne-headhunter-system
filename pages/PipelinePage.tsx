@@ -33,6 +33,7 @@ function mapEventToStage(event?: string): PipelineStageKey {
   const e = (event || '').trim();
   if (!e) return 'not_started';
 
+  if (e.includes('未開始')) return 'not_started';
   if (e.includes('已聯繫')) return 'contacted';
   if (e.includes('已面試') || e.includes('面試')) return 'interviewed';
   if (e.toLowerCase().includes('offer')) return 'offer';
@@ -81,6 +82,8 @@ function stageToStatus(stage: PipelineStageKey): CandidateStatus {
 
 function stageToEvent(stage: PipelineStageKey): string {
   switch (stage) {
+    case 'not_started':
+      return '未開始';
     case 'contacted':
       return '已聯繫';
     case 'interviewed':
@@ -94,7 +97,7 @@ function stageToEvent(stage: PipelineStageKey): string {
     case 'other':
       return '其他';
     default:
-      return '已聯繫';
+      return '未開始';
   }
 }
 
