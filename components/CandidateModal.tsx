@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Candidate, CandidateStatus } from '../types';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
-import { apiPut } from '../config/api';
+import { apiPatch } from '../config/api';
 import { 
   X, User, Mail, Phone, MapPin, Briefcase, Calendar, 
   TrendingUp, Award, FileText, MessageSquare, Clock,
@@ -38,39 +38,42 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
     setAddingProgress(true);
   };
   
+  // 進度事件 → 候選人狀態映射
+  const eventToStatus: Record<string, string> = {
+    '已聯繫': '已聯繫',
+    '已面試': '面試中',
+    'Offer':  'Offer',
+    '已上職': '已上職',
+    '婉拒':   '已拒絕',
+  };
+
   // 確認新增進度
   const handleConfirmAddProgress = async () => {
     if (!newProgressEvent) return;
-    
+
     try {
       const user = JSON.parse(localStorage.getItem('step1ne-user') || '{}');
       const userName = user.name || 'Unknown';
-      
-      // 建立新的進度事件
+
       const newEvent = {
-        date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+        date: new Date().toISOString().split('T')[0],
         event: newProgressEvent,
         by: userName,
         ...(newProgressNote ? { note: newProgressNote } : {})
       };
-      
-      // 更新候選人的進度追蹤
+
       const updatedProgress = [...(candidate.progressTracking || []), newEvent];
-      
-      // 方案 A + B：同時更新 SQL + Google Sheets
-      // API 會先寫入 SQL（即時），再異步同步到 Google Sheets
-      await apiPut(`/api/candidates/${candidate.id}`, {
-        name: candidate.name,
-        consultant: candidate.consultant || userName,
-        status: candidate.status,
-        notes: `${newProgressEvent}：${newProgressNote || ''}`,
-        progressTracking: updatedProgress
+      const newStatus = eventToStatus[newProgressEvent] || candidate.status;
+
+      // 用 PATCH 同時更新 status + progressTracking
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        status: newStatus,
+        progressTracking: updatedProgress,
       });
-      
-      // 成功後重新載入頁面以顯示最新資料
-      alert('✅ 進度新增成功！已同步到後端 + Google Sheets');
+
+      alert('✅ 進度新增成功！看板與 Pipeline 欄位已同步更新');
       window.location.reload();
-      
+
     } catch (error) {
       console.error('❌ 新增進度失敗:', error);
       alert('❌ 新增進度失敗，請稍後再試');

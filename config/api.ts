@@ -64,11 +64,25 @@ export async function apiPut<T>(endpoint: string, data?: any): Promise<T> {
     method: 'PUT',
     body: data ? JSON.stringify(data) : undefined,
   });
-  
+
   if (!response.ok) {
     throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
   }
-  
+
+  return response.json();
+}
+
+export async function apiPatch<T>(endpoint: string, data?: any): Promise<T> {
+  const response = await fetch(getApiUrl(endpoint), {
+    ...defaultFetchConfig,
+    method: 'PATCH',
+    body: data ? JSON.stringify(data) : undefined,
+  });
+
+  if (!response.ok) {
+    throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
+  }
+
   return response.json();
 }
 

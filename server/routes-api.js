@@ -12,6 +12,12 @@ const DATABASE_URL = process.env.DATABASE_URL ||
 
 const pool = new Pool({ connectionString: DATABASE_URL });
 
+// 確保 progress_tracking 欄位存在
+pool.query(`
+  ALTER TABLE candidates_pipeline
+  ADD COLUMN IF NOT EXISTS progress_tracking JSONB DEFAULT '[]'
+`).catch(err => console.warn('progress_tracking migration:', err.message));
+
 // ==================== 候選人 API ====================
 
 /**
@@ -46,6 +52,7 @@ router.get('/candidates', async (req, res) => {
         recruiter,
         notes,
         talent_level,
+        progress_tracking,
         created_at,
         updated_at
       FROM candidates_pipeline
@@ -82,6 +89,7 @@ router.get('/candidates', async (req, res) => {
       quitReasons: row.leaving_reason || '',
       educationJson: row.education_details || [],
       discProfile: row.personality_type || '',
+      progressTracking: row.progress_tracking || [],
       
       // 向後相容：保留 DB 字段名
       contact_link: row.contact_link || '',
@@ -158,16 +166,18 @@ router.get('/candidates/:id', async (req, res) => {
 router.put('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes, consultant, name } = req.body;
+    const { status, notes, consultant, name, progressTracking } = req.body;
 
     const client = await pool.connect();
 
     const result = await client.query(
-      `UPDATE candidates_pipeline 
-       SET status = $1, notes = $2, recruiter = $3, updated_at = NOW()
-       WHERE id = $4
+      `UPDATE candidates_pipeline
+       SET status = $1, notes = $2, recruiter = $3,
+           progress_tracking = $4, updated_at = NOW()
+       WHERE id = $5
        RETURNING *`,
-      [status || '', notes || '', consultant || '', id]
+      [status || '', notes || '', consultant || '',
+       JSON.stringify(progressTracking || []), id]
     );
 
     client.release();
@@ -190,6 +200,56 @@ router.put('/candidates/:id', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+/**
+ * PATCH /api/candidates/:id
+ * 局部更新候選人（status / progressTracking）
+ */
+router.patch('/candidates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, progressTracking } = req.body;
+
+    const client = await pool.connect();
+
+    const setClauses = [];
+    const values = [];
+    let idx = 1;
+
+    if (status !== undefined) {
+      setClauses.push(`status = $${idx++}`);
+      values.push(status);
+    }
+    if (progressTracking !== undefined) {
+      setClauses.push(`progress_tracking = $${idx++}`);
+      values.push(JSON.stringify(progressTracking));
+    }
+
+    if (setClauses.length === 0) {
+      client.release();
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+
+    setClauses.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const result = await client.query(
+      `UPDATE candidates_pipeline SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+
+    client.release();
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Candidate not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0], message: 'Candidate patched successfully' });
+  } catch (error) {
+    console.error('❌ PATCH /candidates/:id error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
