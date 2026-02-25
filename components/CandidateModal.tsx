@@ -455,55 +455,61 @@ Step1ne Recruitment`;
               </div>
               
               {/* Work History */}
-              {workHistory.length > 0 && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Briefcase className="w-5 h-5 text-blue-600" />
-                    💼 工作經歷
-                  </h3>
-                  <div className="text-xs text-gray-500 mb-3">
-                    顯示前 {Math.min(3, workHistory.length)} 段工作經歷
-                  </div>
-                  <div className="space-y-4">
-                    {workHistory.slice(0, 3).map((job: any, i: number) => (
-                      <div key={i} className="border-l-4 border-blue-400 pl-4 py-2 bg-blue-50/30 rounded-r-lg">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <div className="font-semibold text-gray-900 text-base">{job.company}</div>
-                        </div>
-                        
-                        {job.period && (
-                          <div className="text-sm text-gray-600 mb-2 flex items-center gap-2">
-                            <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                            {job.duration && <span className="font-medium">{job.duration}</span>}
-                            <span>({job.period})</span>
-                          </div>
-                        )}
-                        
-                        {job.description && (
-                          <div className="text-sm text-gray-700 leading-relaxed mt-2 bg-white/50 p-2 rounded">
-                            {job.description}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {workHistory.length > 3 && (
-                    <div className="text-xs text-gray-400 mt-3 text-center">
-                      還有 {workHistory.length - 3} 段工作經歷未顯示
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-blue-600" />
+                  💼 工作經歷
+                </h3>
+                {workHistory.length > 0 ? (
+                  <>
+                    <div className="text-xs text-gray-500 mb-3">
+                      顯示前 {Math.min(3, workHistory.length)} 段工作經歷
                     </div>
-                  )}
-                </div>
-              )}
+                    <div className="space-y-4">
+                      {workHistory.slice(0, 3).map((job: any, i: number) => (
+                        <div key={i} className="border-l-4 border-blue-400 pl-4 py-2 bg-blue-50/30 rounded-r-lg">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <div className="font-semibold text-gray-900 text-base">{job.company}</div>
+                          </div>
+                          
+                          {job.period && (
+                            <div className="text-sm text-gray-600 mb-2 flex items-center gap-2">
+                              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                              {job.duration && <span className="font-medium">{job.duration}</span>}
+                              <span>({job.period})</span>
+                            </div>
+                          )}
+                          
+                          {job.description && (
+                            <div className="text-sm text-gray-700 leading-relaxed mt-2 bg-white/50 p-2 rounded">
+                              {job.description}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {workHistory.length > 3 && (
+                      <div className="text-xs text-gray-400 mt-3 text-center">
+                        還有 {workHistory.length - 3} 段工作經歷未顯示
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-lg text-center text-gray-500 text-sm">
+                    暫無工作經歷資料
+                  </div>
+                )}
+              </div>
               
               {/* Education */}
-              {education.length > 0 && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Award className="w-5 h-5 text-blue-600" />
-                    教育背景
-                  </h3>
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-blue-600" />
+                  教育背景
+                </h3>
+                {education.length > 0 ? (
                   <div className="space-y-2">
                     {education.map((edu: any, i: number) => (
                       <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
@@ -520,8 +526,12 @@ Step1ne Recruitment`;
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-lg text-center text-gray-500 text-sm">
+                    暫無教育背景資料
+                  </div>
+                )}
+              </div>
               
               {/* Action Buttons */}
               <div className="flex gap-3">
