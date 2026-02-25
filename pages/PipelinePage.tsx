@@ -108,9 +108,8 @@ function getLatestProgress(progress?: ProgressEvent[]): ProgressEvent | undefine
   })[0];
 }
 
-function getIdleDays(dateString?: string): number {
+function getIdleDays(dateString?: string, now: Date = new Date()): number {
   if (!dateString) return 999;
-  const now = new Date();
   const target = new Date(dateString);
   const diff = now.getTime() - target.getTime();
   return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
@@ -157,6 +156,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [draggingCandidateId, setDraggingCandidateId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string>('');
+  const [now, setNow] = useState(() => new Date());
 
   const [consultantFilter, setConsultantFilter] = useState<string>('all');
   const [jobFilter, setJobFilter] = useState<string>('all');
@@ -179,6 +179,12 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }
   }, [userProfile]);
 
+  // 每小時更新一次「現在時間」，讓停留天數與 SLA 自動重算
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -197,11 +203,11 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     return candidates.map(candidate => {
       const latestProgress = getLatestProgress(candidate.progressTracking);
       const stage = latestProgress ? mapEventToStage(latestProgress.event) : mapStatusToStage(candidate.status);
-      const idleDays = latestProgress?.date ? getIdleDays(latestProgress.date) : getIdleDays(candidate.updatedAt);
+      const idleDays = latestProgress?.date ? getIdleDays(latestProgress.date, now) : getIdleDays(candidate.updatedAt, now);
       const targetJob = parseTargetJob(candidate.notes);
       return { candidate, stage, latestProgress, idleDays, targetJob };
     });
-  }, [candidates]);
+  }, [candidates, now]);
 
   const consultantOptions = useMemo(() => {
     const list = [...new Set(candidatesWithStage.map(item => item.candidate.consultant || '未指派'))];
