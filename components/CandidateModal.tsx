@@ -13,9 +13,11 @@ interface CandidateModalProps {
   candidate: Candidate;
   onClose: () => void;
   onUpdateStatus?: (candidateId: string, newStatus: CandidateStatus) => void;
+  currentUserName?: string;
+  onAssignRecruiter?: (candidateId: string, recruiter: string) => void;
 }
 
-export function CandidateModal({ candidate, onClose, onUpdateStatus }: CandidateModalProps) {
+export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUserName, onAssignRecruiter }: CandidateModalProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes'>('info');
   const [showResume, setShowResume] = useState(false);
   const [addingProgress, setAddingProgress] = useState(false);
@@ -23,6 +25,8 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus }: Candidate
   const [newProgressNote, setNewProgressNote] = useState('');
   const [showInviteMessage, setShowInviteMessage] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
+  const [editingRecruiter, setEditingRecruiter] = useState(false);
+  const [recruiterInput, setRecruiterInput] = useState(candidate.consultant || '');
   
   // 禁止背景滾動
   React.useEffect(() => {
@@ -114,6 +118,21 @@ Step1ne Recruitment`;
     setShowInviteMessage(true);
   };
   
+  // 指派/更新負責顧問
+  const handleSaveRecruiter = async () => {
+    try {
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        recruiter: recruiterInput,
+        actor: currentUserName || 'system',
+      });
+      candidate.consultant = recruiterInput;
+      onAssignRecruiter?.(candidate.id, recruiterInput);
+      setEditingRecruiter(false);
+    } catch (err) {
+      alert('❌ 指派失敗，請稍後再試');
+    }
+  };
+
   // 複製邀請訊息到剪貼簿
   const handleCopyInviteMessage = () => {
     navigator.clipboard.writeText(inviteMessage).then(() => {
@@ -302,6 +321,49 @@ Step1ne Recruitment`;
         <div className="flex-1 overflow-y-auto p-6">
           {activeTab === 'info' && (
             <div className="space-y-6">
+              {/* 負責顧問 */}
+              <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-indigo-500" />
+                  <span className="text-xs text-indigo-600 font-medium">負責顧問</span>
+                  {editingRecruiter ? (
+                    <input
+                      value={recruiterInput}
+                      onChange={e => setRecruiterInput(e.target.value)}
+                      className="ml-2 border border-indigo-300 rounded px-2 py-0.5 text-sm w-36 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="顧問姓名"
+                      autoFocus
+                    />
+                  ) : (
+                    <span className="ml-2 text-sm font-semibold text-indigo-900">
+                      {candidate.consultant || '未指派'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {editingRecruiter ? (
+                    <>
+                      <button onClick={handleSaveRecruiter} className="text-xs px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">儲存</button>
+                      <button onClick={() => { setEditingRecruiter(false); setRecruiterInput(candidate.consultant || ''); }} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
+                    </>
+                  ) : (
+                    <>
+                      {currentUserName && (
+                        <button
+                          onClick={() => { setRecruiterInput(currentUserName); setEditingRecruiter(true); }}
+                          className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                        >
+                          指派給我
+                        </button>
+                      )}
+                      <button onClick={() => setEditingRecruiter(true)} className="text-xs px-2 py-1 border border-indigo-200 rounded text-indigo-600 hover:bg-indigo-100">
+                        更改
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
               {/* Contact Info - 智能分離電話 + Email */}
               <div className="grid grid-cols-2 gap-4">
                 {/* 電話號碼 */}

@@ -1,12 +1,13 @@
 // Step1ne Headhunter System - 候選人總表頁面
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Candidate, CandidateStatus, CandidateSource, UserProfile } from '../types';
 import { getCandidates, searchCandidates, updateCandidateStatus, filterCandidatesByPermission, clearCache } from '../services/candidateService';
-import { Users, Search, Filter, Plus, Download, Upload, Shield, RefreshCw, Sparkles } from 'lucide-react';
+import { Users, Search, Filter, Plus, Download, Upload, Shield, RefreshCw, Sparkles, X } from 'lucide-react';
 import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
 import { ColumnTooltip } from '../components/ColumnTooltip';
 import { COLUMN_DESCRIPTIONS } from '../config/columnDescriptions';
+import { apiPost, apiPatch } from '../config/api';
 
 interface CandidatesPageProps {
   userProfile: UserProfile;
@@ -23,6 +24,11 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [consultantFilter, setConsultantFilter] = useState<string>('all');
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', position: '', email: '', phone: '', location: '', years: '', skills: '', notes: '' });
+  const [addLoading, setAddLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // 載入候選人資料
   useEffect(() => {
@@ -236,54 +242,125 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
     }
   };
   
-  // 指派候選人給自己（雙向同步模式：通知 AI 或手動編輯）
+  // 指派候選人給自己（直接 API）
   const handleAssignToMe = async (candidate: Candidate, e: React.MouseEvent) => {
-    e.stopPropagation(); // 防止觸發行點擊
-    
-    if (!userProfile) {
-      alert('無法取得用戶資訊');
-      return;
-    }
-    
-    // 生成 gog CLI 指令
-    const gogCommand = `gog sheets update "1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SEtxRk6Q" "履歷池v2!S${candidate.id}" "${userProfile.displayName}" --account aijessie88@step1ne.com`;
-    
-    // 顯示操作選項
-    const confirmed = confirm(`🎯 指派候選人「${candidate.name}」給 ${userProfile.displayName}
-
-請選擇以下任一方式：
-
-方式 1️⃣ 請 YuQi 協助（推薦）
-→ 複製以下指令，貼到 Telegram 給 @YuQi
-→ 指令：${gogCommand}
-
-方式 2️⃣ 手動編輯 Google Sheets
-→ 開啟履歷池v2
-→ 找到第 ${candidate.id} 行
-→ 在「獵頭顧問」欄位填入「${userProfile.displayName}」
-
-⏱️ 完成後，30 秒內會自動更新畫面
-
-是否繼續？`);
-    
-    if (!confirmed) return;
-    
-    // 複製指令到剪貼簿（如果瀏覽器支援）
+    e.stopPropagation();
+    if (!userProfile) return;
     try {
-      await navigator.clipboard.writeText(gogCommand);
-      alert('✅ 指令已複製到剪貼簿！\n\n請貼到 Telegram 給 YuQi，或手動編輯 Google Sheets。\n\n⏱️ 30 秒後自動重新整理');
-    } catch (err) {
-      alert('✅ 請手動複製指令或編輯 Google Sheets\n\n⏱️ 30 秒後自動重新整理');
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        recruiter: userProfile.displayName,
+        actor: userProfile.displayName,
+      });
+      setCandidates(prev =>
+        prev.map(c => c.id === candidate.id ? { ...c, consultant: userProfile.displayName } : c)
+      );
+    } catch (error) {
+      alert('❌ 指派失敗，請稍後再試');
     }
-    
-    // 30 秒後自動重新載入
-    setTimeout(async () => {
-      clearCache();
-      await loadCandidates();
-      alert('✅ 已重新載入候選人資料');
-    }, 30000);
-    
-    console.log(`📋 指派請求：候選人「${candidate.name}」(ID: ${candidate.id}) → ${userProfile.displayName}`);
+  };
+
+  // 匯出 CSV
+  const handleExportCsv = () => {
+    const headers = ['姓名', '職稱', 'Email', '電話', '地點', '年資', '技能', '狀態', '顧問', '備註'];
+    const rows = filteredCandidates.map(c => [
+      c.name, c.position, c.email, c.phone, c.location,
+      String(c.years),
+      Array.isArray(c.skills) ? c.skills.join(', ') : (c.skills || ''),
+      c.status, c.consultant || '', c.notes || '',
+    ]);
+    const csv = [headers, ...rows]
+      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `candidates-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
+  // 匯入 CSV
+  const handleImportCsvChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setImportLoading(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) throw new Error('CSV 至少需要標題列和一筆資料');
+
+      const parseRow = (line: string) =>
+        [...line.matchAll(/("(?:[^"]|"")*"|[^,]*),?/g)]
+          .slice(0, -1)
+          .map(m => m[1].replace(/^"|"$/g, '').replace(/""/g, '"').trim());
+
+      const headers = parseRow(lines[0]);
+      const candidatesList = lines.slice(1)
+        .map(line => {
+          const vals = parseRow(line);
+          const obj: Record<string, string> = {};
+          headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+          return obj;
+        })
+        .filter(c => c['姓名'] || c['name'])
+        .map(c => ({
+          name: c['姓名'] || c['name'],
+          position: c['職稱'] || c['position'] || '',
+          email: c['Email'] || c['email'] || '',
+          phone: c['電話'] || c['phone'] || '',
+          location: c['地點'] || c['location'] || '',
+          years: parseInt(c['年資'] || c['years'] || '0') || 0,
+          skills: c['技能'] || c['skills'] || '',
+          notes: c['備註'] || c['notes'] || '',
+          recruiter: userProfile.displayName,
+          actor: userProfile.displayName,
+        }));
+
+      if (candidatesList.length === 0) throw new Error('找不到有效資料（需要「姓名」或「name」欄位）');
+
+      const result = await apiPost<any>('/api/candidates/bulk', {
+        candidates: candidatesList,
+        actor: userProfile.displayName,
+      });
+
+      if (result.success) {
+        alert(`✅ 匯入完成！\n新增 ${result.created} 筆，更新 ${result.updated} 筆，失敗 ${result.failed} 筆`);
+        clearCache();
+        setCandidates(await getCandidates(userProfile));
+      }
+    } catch (err) {
+      alert('❌ 匯入失敗：' + (err as Error).message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  // 新增候選人
+  const handleAddCandidate = async () => {
+    if (!addForm.name.trim()) { alert('請填寫姓名'); return; }
+    setAddLoading(true);
+    try {
+      const result = await apiPost<any>('/api/candidates', {
+        ...addForm,
+        years: parseInt(addForm.years) || 0,
+        recruiter: userProfile.displayName,
+        actor: userProfile.displayName,
+        status: '未開始',
+      });
+      if (result.success) {
+        setShowAddModal(false);
+        setAddForm({ name: '', position: '', email: '', phone: '', location: '', years: '', skills: '', notes: '' });
+        clearCache();
+        setCandidates(await getCandidates(userProfile));
+      }
+    } catch (err) {
+      alert('❌ 新增失敗：' + (err as Error).message);
+    } finally {
+      setAddLoading(false);
+    }
   };
   
   if (loading) {
@@ -330,18 +407,29 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing ? '更新中...' : '重新整理'}
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60"
+            >
               <Upload className="w-4 h-4" />
-              匯入履歷
+              {importLoading ? '匯入中...' : '匯入履歷'}
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <button
+              onClick={handleExportCsv}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
               <Download className="w-4 h-4" />
               匯出 CSV
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
               <Plus className="w-4 h-4" />
               新增候選人
             </button>
+            <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImportCsvChange} />
           </div>
         </div>
       </div>
@@ -660,18 +748,81 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
         <CandidateModal
           candidate={selectedCandidate}
           onClose={() => setSelectedCandidate(null)}
+          currentUserName={userProfile.displayName}
           onUpdateStatus={async (candidateId, newStatus) => {
             await updateCandidateStatus(candidateId, newStatus);
-            setCandidates(prev => 
-              prev.map(c => 
-                c.id === candidateId 
+            setCandidates(prev =>
+              prev.map(c =>
+                c.id === candidateId
                   ? { ...c, status: newStatus, updatedAt: new Date().toISOString() }
                   : c
               )
             );
             setSelectedCandidate(null);
           }}
+          onAssignRecruiter={(candidateId, recruiter) => {
+            setCandidates(prev =>
+              prev.map(c => c.id === candidateId ? { ...c, consultant: recruiter } : c)
+            );
+          }}
         />
+      )}
+
+      {/* 新增候選人 Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-bold text-slate-900">新增候選人</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-700">姓名 *</label>
+                  <input value={addForm.name} onChange={e => setAddForm(p => ({...p, name: e.target.value}))} className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="王小明" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-700">應徵職位</label>
+                  <input value={addForm.position} onChange={e => setAddForm(p => ({...p, position: e.target.value}))} className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Frontend Engineer" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-700">Email</label>
+                  <input value={addForm.email} onChange={e => setAddForm(p => ({...p, email: e.target.value}))} className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="wang@example.com" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-700">電話</label>
+                  <input value={addForm.phone} onChange={e => setAddForm(p => ({...p, phone: e.target.value}))} className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0912-345-678" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-700">地點</label>
+                  <input value={addForm.location} onChange={e => setAddForm(p => ({...p, location: e.target.value}))} className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="台北" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-700">年資（年）</label>
+                  <input type="number" min="0" value={addForm.years} onChange={e => setAddForm(p => ({...p, years: e.target.value}))} className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="5" />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">技能</label>
+                <input value={addForm.skills} onChange={e => setAddForm(p => ({...p, skills: e.target.value}))} className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="React, TypeScript, Node.js" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">備註</label>
+                <textarea value={addForm.notes} onChange={e => setAddForm(p => ({...p, notes: e.target.value}))} className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={3} placeholder="其他備註..." />
+              </div>
+              <p className="text-xs text-slate-400">負責顧問：{userProfile.displayName}（自動帶入）</p>
+            </div>
+            <div className="flex justify-end gap-3 p-6 border-t">
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">取消</button>
+              <button onClick={handleAddCandidate} disabled={addLoading} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {addLoading ? '新增中...' : '新增候選人'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
