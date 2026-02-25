@@ -173,6 +173,29 @@ export async function updateCandidateStatus(
 }
 
 /**
+ * 從 Google Sheets 同步到 SQL
+ */
+export async function syncFromSheets(): Promise<{ success: boolean; message: string }> {
+  try {
+    if (API_BASE_URL) {
+      const response = await fetch(`${API_BASE_URL}/api/sync/sheets-to-sql`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (response.ok) {
+        const result = await response.json();
+        clearCache();
+        return { success: true, message: result.message };
+      }
+    }
+    return { success: false, message: 'API 無法連接' };
+  } catch (error) {
+    console.error('Sheets → SQL 同步失敗:', error);
+    return { success: false, message: String(error) };
+  }
+}
+
+/**
  * 清除快取
  */
 export function clearCache(): void {

@@ -65,11 +65,8 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      // 清除快取
+      // 清除快取，直接從 SQL 重新載入（SQL 是唯一資料來源）
       clearCache();
-      console.log('✅ 快取已清除，重新載入候選人資料...');
-      
-      // 重新載入（傳入 userProfile）
       const allCandidates = await getCandidates(userProfile);
       setCandidates(allCandidates);
     } catch (error) {
