@@ -22,8 +22,7 @@ if (!process.env.DATABASE_URL && process.env.POSTGRES_URI) {
   process.env.DATABASE_URL = process.env.POSTGRES_URI;
 }
 
-const sqlService = require('./sqlService');
-const candidatesRouter = require('./routes-candidates');
+const apiRouter = require('./routes-api');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -65,8 +64,8 @@ app.use((req, res, next) => {
 
 // ==================== 路由 ====================
 
-// 主要的候選人 API
-app.use('/api', candidatesRouter);
+// 完整的 API 路由（候選人 + 職缺）
+app.use('/api', apiRouter);
 
 // 根路由
 app.get('/', (req, res) => {
