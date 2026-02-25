@@ -15,9 +15,10 @@
 4. [職缺查詢](#四職缺查詢)
 5. [查詢操作日誌](#五查詢操作日誌)
 6. [顧問聯絡資訊](#六顧問聯絡資訊)
-7. [健康檢查](#七健康檢查)
-8. [狀態值對照表](#狀態值對照表)
-9. [操作範例情境](#操作範例情境)
+7. [AI 履歷分析評分（穩定度 + 綜合評級）](#七ai-履歷分析評分穩定度--綜合評級)
+8. [健康檢查](#八健康檢查)
+9. [狀態值對照表](#狀態值對照表)
+10. [操作範例情境](#操作範例情境)
 
 ---
 
@@ -260,6 +261,10 @@ PATCH /api/candidates/:id
   "recruiter": "Phoebe",
   "notes": "候選人對 CTO 職位有高度興趣",
   "talent_level": "A+",
+  "stability_score": 82,
+  "linkedin_url": "https://linkedin.com/in/username",
+  "github_url": "https://github.com/username",
+  "email": "candidate@example.com",
   "name": "王小明",
   "progressTracking": [
     {
@@ -278,7 +283,11 @@ PATCH /api/candidates/:id
 | `recruiter` | string | 指派顧問姓名（如 `"Phoebe"`） |
 | `notes` | string | 備註內容（**整個覆蓋**，非追加）；`remarks` 為等價別名 |
 | `remarks` | string | 同 `notes`，兩者等價，傳其中一個即可 |
-| `talent_level` | string | 人才等級：`S`、`A+`、`A`、`B`、`C` |
+| `talent_level` | string | 綜合評級：`S`、`A+`、`A`、`B`、`C`（由 AI 分析後填入） |
+| `stability_score` | number | 穩定度分數：20–100（由 AI 分析後填入） |
+| `linkedin_url` | string | LinkedIn 個人頁面網址 |
+| `github_url` | string | GitHub 個人頁面網址 |
+| `email` | string | 候選人 Email |
 | `name` | string | 候選人姓名 |
 | `progressTracking` | array | 完整進度記錄陣列（**整個覆蓋**） |
 | `actor` | string | 操作者身份（用於日誌，不寫入候選人資料） |
@@ -469,7 +478,142 @@ PUT /api/users/:displayName/contact
 
 ---
 
-## 七、健康檢查
+## 七、AI 履歷分析評分（穩定度 + 綜合評級）
+
+> 獵頭顧問只需將候選人履歷交給 AIbot，AIbot 自行分析後呼叫 PATCH 端點將結果寫回系統。
+> 顧問無需手動計算或輸入任何分數。
+
+### 作業流程
+
+```
+顧問 → 提供履歷文字/連結給 AIbot
+AIbot → 解析履歷，計算 stability_score 與 talent_level
+AIbot → 呼叫 PATCH /api/candidates/:id 寫入結果
+系統 → 在候選人卡片與表格中顯示評分
+```
+
+---
+
+### 端點
+
+```
+PATCH /api/candidates/:id
+```
+
+**Request Body（最小範例）：**
+
+```json
+{
+  "stability_score": 82,
+  "talent_level": "A+",
+  "actor": "Phoebebot"
+}
+```
+
+---
+
+### 穩定度評分（stability_score）計算方法
+
+> 範圍：20–100 分。由 AIbot 根據履歷內容計算後傳入。
+
+**基礎分：70 分**，再依下列因素加減：
+
+| 條件 | 調整 |
+|------|------|
+| 總工作年資 > 8 年 | +5 |
+| 總工作年資 < 2 年 | -5 |
+| 平均任職 > 24 個月 | +10 |
+| 平均任職 18–24 個月 | +5 |
+| 平均任職 < 12 個月 | -10 |
+| 轉職次數 ≤ 2 次 | +5 |
+| 轉職次數 3–4 次 | ±0 |
+| 轉職次數 5–6 次 | -10 |
+| 轉職次數 > 6 次 | -20 |
+| 最近離職間隔 < 3 個月 | +5 |
+| 職涯有明顯晉升軌跡 | +5 |
+| 有超過 1 年的職涯空白期 | -10 |
+
+> 最終分數限制在 20–100 之間（低於 20 取 20，高於 100 取 100）
+
+**等級對應：**
+
+| 分數 | 等級 | 說明 |
+|------|------|------|
+| 80–100 | A 級 | 穩定，長期任職 |
+| 60–79 | B 級 | 一般，正常流動 |
+| 40–59 | C 級 | 頻繁轉職，需評估 |
+| 20–39 | D 級 | 不穩定，謹慎推薦 |
+
+---
+
+### 綜合評級（talent_level）評分方法
+
+> AIbot 分析履歷後，依 6 大維度評分加總，得出最終等級。
+
+#### 評分維度（滿分 100）
+
+| 維度 | 佔比 | 評分說明 |
+|------|------|---------|
+| 技能匹配度 | 25% | 核心技能深度（主力技術年資）+ 廣度（技術棧多元性） |
+| 職涯發展軌跡 | 25% | 職位是否持續晉升（工程師→高級→Lead→Manager）、是否在知名公司任職 |
+| 工作穩定性 | 20% | 直接使用 `stability_score`，正規化到 0–20 分 |
+| 工作年資 | 15% | 0–3年=6分，3–5年=9分，5–8年=12分，8+年=15分 |
+| 學歷背景 | 10% | 博士=10，碩士=8，學士=6，專科=4，其他=2 |
+| 特殊加分 | 5% | 開源貢獻、技術著作、專利、知名獎項、知名公司 |
+
+#### 等級判定
+
+| 總分 | 等級 | 說明 |
+|------|------|------|
+| 90–100 | `S` | 頂尖人才（稀缺），強烈推薦 |
+| 80–89 | `A+` | 優秀人才，強力推薦 |
+| 70–79 | `A` | 合格人才，可推薦 |
+| 60–69 | `B` | 基本合格，需評估後推薦 |
+| < 60 | `C` | 需補強，謹慎推薦 |
+
+#### 評分範例
+
+```
+候選人：陳宥樺，Senior Frontend Engineer，7年資歷
+- 技能匹配度：React 5年、TypeScript 4年、Node.js 3年 → 22/25
+- 職涯軌跡：Engineer → Senior → Tech Lead，曾任職台灣知名獨角獸 → 22/25
+- 工作穩定性：stability_score=82 → 82/100 * 20 = 16.4/20
+- 工作年資：7年 → 12/15
+- 學歷：台大資工碩士 → 8/10
+- 特殊加分：GitHub 500 stars 開源項目 → 4/5
+總分 ≈ 84 → 等級：A+
+```
+
+---
+
+### 呼叫範例（分析完成後回寫系統）
+
+```bash
+curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "stability_score": 82,
+    "talent_level": "A+",
+    "linkedin_url": "https://linkedin.com/in/chen-youhua",
+    "github_url": "https://github.com/chen-youhua",
+    "email": "chen@example.com",
+    "notes": "技能紮實，台大碩士，曾任 Tech Lead，穩定性高，強烈推薦",
+    "actor": "Phoebebot"
+  }'
+```
+
+**成功回應：**
+
+```json
+{
+  "success": true,
+  "message": "Candidate patched successfully"
+}
+```
+
+---
+
+## 八、健康檢查
 
 ```
 GET /api/health
@@ -590,7 +734,55 @@ curl https://backendstep1ne.zeabur.app/api/users/Phoebe/contact
 
 ---
 
-### 情境七：批量匯入候選人
+### 情境七：AIbot 首次啟動 — 載入完整操作指南
+
+**AIbot 在每次對話開始時，執行以下指令取得完整指南：**
+
+```bash
+curl https://backendstep1ne.zeabur.app/api/guide
+```
+
+指南包含：所有 API 端點用法、欄位說明、穩定度計算公式、綜合評級標準、操作範例情境。
+
+> 💡 **建議寫入 AIbot 的 System Prompt：**
+> ```
+> 對話開始時，先執行：
+> curl https://backendstep1ne.zeabur.app/api/guide
+> 取得完整 API 指南後，再回應顧問的請求。
+> ```
+>
+> 這樣顧問只需要說「分析這份履歷」或「更新候選人狀態」，AIbot 就能自行查找正確的端點與參數格式。
+
+---
+
+### 情境八：顧問提供履歷給 AIbot → 自動分析後寫回系統
+
+**完整流程（AIbot 執行）：**
+
+```bash
+# 步驟 1：確認系統中是否有此候選人（用名字搜尋）
+curl "https://backendstep1ne.zeabur.app/api/candidates" | \
+  jq '.data[] | select(.name == "陳宥樺")'
+
+# 步驟 2：分析履歷後，一次寫入所有評分結果
+curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "stability_score": 82,
+    "talent_level": "A+",
+    "linkedin_url": "https://linkedin.com/in/chen-youhua",
+    "github_url": "https://github.com/chen-youhua",
+    "email": "chen@example.com",
+    "notes": "技能紮實，台大碩士，曾任 Tech Lead，穩定性高，強烈推薦",
+    "actor": "Phoebebot"
+  }'
+```
+
+> 若候選人尚未在系統中，先用 `POST /api/candidates` 建立，再呼叫 `PATCH` 寫入評分。
+
+---
+
+### 情境九：批量匯入候選人（附完整欄位）
 
 ```bash
 curl -X POST https://backendstep1ne.zeabur.app/api/candidates/bulk \

@@ -279,6 +279,8 @@ export interface Candidate {
   notes?: string;
   resumeFileUrl?: string;
   resumeLink?: string;  // 履歷連結（Google Drive 嵌入式預覽 URL）
+  linkedinUrl?: string;  // LinkedIn 連結
+  githubUrl?: string;    // GitHub 連結
   progressTracking?: ProgressEvent[];  // 進度追蹤（W 欄）
   createdAt: string;
   updatedAt: string;

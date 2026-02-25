@@ -22,6 +22,14 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS progress_tracking JSONB DEFAULT '[]'
 `).catch(err => console.warn('progress_tracking migration:', err.message));
 
+// 確保 linkedin_url / github_url / email 欄位存在
+pool.query(`
+  ALTER TABLE candidates_pipeline
+  ADD COLUMN IF NOT EXISTS linkedin_url VARCHAR(500),
+  ADD COLUMN IF NOT EXISTS github_url VARCHAR(500),
+  ADD COLUMN IF NOT EXISTS email VARCHAR(255)
+`).catch(err => console.warn('linkedin_url/github_url/email migration:', err.message));
+
 // 確保 system_logs 資料表存在
 pool.query(`
   CREATE TABLE IF NOT EXISTS system_logs (
@@ -174,11 +182,14 @@ router.get('/candidates', async (req, res) => {
     const client = await pool.connect();
     
     const result = await client.query(`
-      SELECT 
-        id, 
-        name, 
+      SELECT
+        id,
+        name,
         contact_link,
         phone,
+        email,
+        linkedin_url,
+        github_url,
         location,
         current_position,
         years_experience,
@@ -193,7 +204,7 @@ router.get('/candidates', async (req, res) => {
         stability_score,
         education_details,
         personality_type,
-        status, 
+        status,
         recruiter,
         notes,
         talent_level,
@@ -209,7 +220,7 @@ router.get('/candidates', async (req, res) => {
       // 基本必需欄位（Candidate interface）
       id: row.id.toString(),
       name: row.name || '',
-      email: '', // 數據庫沒有，使用空值
+      email: row.email || '',
       phone: row.phone || '',
       location: row.location || '', // 數據庫沒有，使用空值
       position: row.current_position || '',
@@ -229,6 +240,8 @@ router.get('/candidates', async (req, res) => {
       createdBy: 'system',
       
       // 可選欄位（詳細資訊）
+      linkedinUrl: row.linkedin_url || '',
+      githubUrl: row.github_url || '',
       resumeLink: row.contact_link || '',
       workHistory: row.work_history || [],
       quitReasons: row.leaving_reason || '',
@@ -366,9 +379,11 @@ router.put('/candidates/:id', async (req, res) => {
 router.patch('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, progressTracking, recruiter, talent_level, name } = req.body;
+    const { status, progressTracking, recruiter, talent_level, name,
+            stability_score, linkedin_url, github_url } = req.body;
     // 支援 notes 與 remarks 兩種欄位名稱（AIbot 相容性）
     const notes = req.body.notes !== undefined ? req.body.notes : req.body.remarks;
+    const email = req.body.email;
 
     const client = await pool.connect();
 
@@ -399,6 +414,22 @@ router.patch('/candidates/:id', async (req, res) => {
     if (name !== undefined) {
       setClauses.push(`name = $${idx++}`);
       values.push(name);
+    }
+    if (stability_score !== undefined) {
+      setClauses.push(`stability_score = $${idx++}`);
+      values.push(String(stability_score));
+    }
+    if (linkedin_url !== undefined) {
+      setClauses.push(`linkedin_url = $${idx++}`);
+      values.push(linkedin_url);
+    }
+    if (github_url !== undefined) {
+      setClauses.push(`github_url = $${idx++}`);
+      values.push(github_url);
+    }
+    if (email !== undefined) {
+      setClauses.push(`email = $${idx++}`);
+      values.push(email);
     }
 
     if (setClauses.length === 0) {
@@ -565,8 +596,11 @@ router.post('/candidates', async (req, res) => {
           education_details = COALESCE(education_details, $16),
           leaving_reason = COALESCE(NULLIF(leaving_reason, ''), $17),
           talent_level = COALESCE(NULLIF(talent_level, ''), $18),
+          email = COALESCE(NULLIF(email, ''), $19),
+          linkedin_url = COALESCE(NULLIF(linkedin_url, ''), $20),
+          github_url = COALESCE(NULLIF(github_url, ''), $21),
           updated_at = NOW()
-        WHERE id = $19
+        WHERE id = $22
         RETURNING id, name, contact_link, current_position, status`,
         [
           c.phone || '', c.contact_link || '', c.location || '',
@@ -578,6 +612,7 @@ router.post('/candidates', async (req, res) => {
           c.work_history ? JSON.stringify(c.work_history) : null,
           c.education_details ? JSON.stringify(c.education_details) : null,
           c.leaving_reason || '', c.talent_level || '',
+          c.email || '', c.linkedin_url || '', c.github_url || '',
           existing.rows[0].id
         ]
       );
@@ -586,16 +621,18 @@ router.post('/candidates', async (req, res) => {
       action = 'created';
       result = await client.query(
         `INSERT INTO candidates_pipeline
-         (name, phone, contact_link, location, current_position, years_experience,
+         (name, phone, email, linkedin_url, github_url, contact_link,
+          location, current_position, years_experience,
           skills, education, source, status, recruiter, notes,
           stability_score, personality_type, job_changes, avg_tenure_months,
           recent_gap_months, work_history, education_details, leaving_reason,
           talent_level, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW(),NOW())
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW(),NOW())
          RETURNING id, name, contact_link, current_position, status`,
         [
-          c.name.trim(), c.phone || '', c.contact_link || '', c.location || '',
-          c.current_position || '', String(c.years_experience || '0'),
+          c.name.trim(), c.phone || '', c.email || '',
+          c.linkedin_url || '', c.github_url || '', c.contact_link || '',
+          c.location || '', c.current_position || '', String(c.years_experience || '0'),
           c.skills || '', c.education || '', c.source || 'GitHub',
           c.status || '未開始', c.recruiter || 'Jacky', c.notes || '',
           String(c.stability_score || '0'), c.personality_type || '',
@@ -710,8 +747,11 @@ router.post('/candidates/bulk', async (req, res) => {
               education_details = COALESCE(education_details, $16),
               leaving_reason = COALESCE(NULLIF(leaving_reason, ''), $17),
               talent_level = COALESCE(NULLIF(talent_level, ''), $18),
+              email = COALESCE(NULLIF(email, ''), $19),
+              linkedin_url = COALESCE(NULLIF(linkedin_url, ''), $20),
+              github_url = COALESCE(NULLIF(github_url, ''), $21),
               updated_at = NOW()
-            WHERE id = $19
+            WHERE id = $22
             RETURNING id, name, contact_link, current_position, status`,
             [
               c.phone || '',
@@ -732,6 +772,9 @@ router.post('/candidates/bulk', async (req, res) => {
               c.education_details ? JSON.stringify(c.education_details) : null,
               c.leaving_reason || '',
               c.talent_level || '',
+              c.email || '',
+              c.linkedin_url || '',
+              c.github_url || '',
               existingId
             ]
           );
@@ -740,16 +783,20 @@ router.post('/candidates/bulk', async (req, res) => {
           // 新人選 → 建立
           const result = await client.query(
             `INSERT INTO candidates_pipeline
-             (name, phone, contact_link, location, current_position, years_experience,
+             (name, phone, email, linkedin_url, github_url, contact_link,
+              location, current_position, years_experience,
               skills, education, source, status, recruiter, notes,
               stability_score, personality_type, job_changes, avg_tenure_months,
               recent_gap_months, work_history, education_details, leaving_reason,
               talent_level, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW(), NOW())
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW(),NOW())
              RETURNING id, name, contact_link, current_position, status`,
             [
               c.name.trim(),
               c.phone || '',
+              c.email || '',
+              c.linkedin_url || '',
+              c.github_url || '',
               c.contact_link || '',
               c.location || '',
               c.current_position || '',
@@ -1397,6 +1444,36 @@ router.put('/users/:displayName/contact', async (req, res) => {
     res.json({ success: true, message: '聯絡資訊已儲存' });
   } catch (error) {
     console.error('❌ PUT /users/:displayName/contact error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== AI 指南端點 ====================
+
+/**
+ * GET /api/guide
+ * 回傳 AIbot 操作指南（Markdown 格式）
+ * AIbot 可透過此端點學習所有 API 端點、欄位說明、評分標準
+ */
+const fs = require('fs');
+const path = require('path');
+
+router.get('/guide', (req, res) => {
+  try {
+    const guidePath = path.join(__dirname, '..', 'AIBOT-API-GUIDE.md');
+    if (!fs.existsSync(guidePath)) {
+      return res.status(404).json({ success: false, error: 'Guide file not found' });
+    }
+    const content = fs.readFileSync(guidePath, 'utf-8');
+    // 根據 Accept 標頭決定回傳格式
+    const accept = req.headers['accept'] || '';
+    if (accept.includes('application/json')) {
+      res.json({ success: true, content });
+    } else {
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.send(content);
+    }
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -542,6 +542,18 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.experience} />
                 </div>
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '90px' }}>
+                <div className="flex items-center">
+                  穩定度
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.stability} />
+                </div>
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '90px' }}>
+                <div className="flex items-center">
+                  綜合評級
+                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.talentGrade} />
+                </div>
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '160px' }}>
                 <div className="flex items-center">
                   聯繫方式
@@ -633,7 +645,39 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                     <div className="text-sm text-gray-900">{candidate.years} 年</div>
                     <div className="text-sm text-gray-500">{candidate.jobChanges} 次</div>
                   </td>
-                  
+
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {candidate.stabilityScore > 0 ? (
+                      <div className="text-sm">
+                        <span className={`font-bold ${
+                          candidate.stabilityScore >= 80 ? 'text-green-600' :
+                          candidate.stabilityScore >= 60 ? 'text-blue-600' :
+                          candidate.stabilityScore >= 40 ? 'text-yellow-600' :
+                          'text-red-600'
+                        }`}>{candidate.stabilityScore}</span>
+                        <span className="text-gray-400 text-xs ml-1">分</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {(candidate as any).talent_level ? (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border ${
+                        (candidate as any).talent_level === 'S' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                        (candidate as any).talent_level === 'A' ? 'bg-green-100 text-green-800 border-green-300' :
+                        (candidate as any).talent_level === 'B' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                        (candidate as any).talent_level === 'C' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                        'bg-gray-100 text-gray-700 border-gray-300'
+                      }`}>
+                        {(candidate as any).talent_level}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
+
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900">
                       {(() => {

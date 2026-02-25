@@ -27,6 +27,9 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [inviteMessage, setInviteMessage] = useState('');
   const [editingRecruiter, setEditingRecruiter] = useState(false);
   const [recruiterInput, setRecruiterInput] = useState(candidate.consultant || '');
+  const [newNoteText, setNewNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [localNotes, setLocalNotes] = useState(candidate.notes || '');
   
   // 禁止背景滾動
   React.useEffect(() => {
@@ -130,6 +133,30 @@ Step1ne Recruitment`;
       setEditingRecruiter(false);
     } catch (err) {
       alert('❌ 指派失敗，請稍後再試');
+    }
+  };
+
+  // 儲存新備註（附加到現有備註後）
+  const handleSaveNote = async () => {
+    if (!newNoteText.trim()) return;
+    setSavingNote(true);
+    try {
+      const timestamp = new Date().toLocaleString('zh-TW', { hour12: false });
+      const author = currentUserName || JSON.parse(localStorage.getItem('step1ne-user') || '{}').name || '顧問';
+      const newEntry = `[${timestamp}] ${author}：${newNoteText.trim()}`;
+      const merged = localNotes ? `${localNotes}\n${newEntry}` : newEntry;
+
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        notes: merged,
+        actor: author,
+      });
+
+      setLocalNotes(merged);
+      setNewNoteText('');
+    } catch (err) {
+      alert('❌ 儲存備註失敗，請稍後再試');
+    } finally {
+      setSavingNote(false);
     }
   };
 
@@ -460,40 +487,112 @@ Step1ne Recruitment`;
                 </div>
               </div>
               
-              {/* 履歷連結 */}
-              {candidate.resumeLink && (
-                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <FileText className="w-5 h-5 text-blue-600" />
-                  <div className="flex-1">
-                    <div className="text-xs text-gray-500">完整履歷</div>
-                    <a 
-                      href={candidate.resumeLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline text-sm"
-                    >
-                      Google Drive 預覽 →
-                    </a>
-                  </div>
+              {/* 外部連結：LinkedIn / GitHub / Google Drive */}
+              {((candidate as any).linkedinUrl || (candidate as any).githubUrl || candidate.resumeLink) && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">外部連結</h3>
+                  {(candidate as any).linkedinUrl && (
+                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <svg className="w-5 h-5 text-blue-600 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-gray-500">LinkedIn</div>
+                        <a href={(candidate as any).linkedinUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-sm font-medium text-blue-600 hover:underline truncate block">
+                          {(candidate as any).linkedinUrl}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {(candidate as any).githubUrl && (
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <svg className="w-5 h-5 text-gray-700 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-gray-500">GitHub</div>
+                        <a href={(candidate as any).githubUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-sm font-medium text-gray-700 hover:underline truncate block">
+                          {(candidate as any).githubUrl}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {candidate.resumeLink && (
+                    <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <FileText className="w-5 h-5 text-green-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-gray-500">完整履歷（Google Drive）</div>
+                        <a href={candidate.resumeLink} target="_blank" rel="noopener noreferrer"
+                          className="text-sm font-medium text-green-700 hover:underline truncate block">
+                          查看完整履歷 →
+                        </a>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               
-              {/* Stability Score */}
-              <div className={`p-4 rounded-lg border-2 ${stability.bg} border-${stability.color.replace('text-', '')}-200`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <TrendingUp className={`w-6 h-6 ${stability.color}`} />
-                    <div>
-                      <div className="text-sm text-gray-600">穩定度評分</div>
-                      <div className={`text-2xl font-bold ${stability.color}`}>
-                        {stability.grade} 級 ({candidate.stabilityScore} 分)
+              {/* 穩定度 & 綜合評級 並排 */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* 穩定度 */}
+                <div className={`p-4 rounded-lg border-2 ${stability.bg}`}>
+                  <div className="flex items-center gap-1 mb-2">
+                    <TrendingUp className={`w-4 h-4 ${stability.color}`} />
+                    <span className="text-xs font-semibold text-gray-600">穩定度評分</span>
+                    <div className="relative group ml-1">
+                      <div className="w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-xs flex items-center justify-center cursor-help select-none">?</div>
+                      <div className="absolute left-0 bottom-6 w-56 bg-gray-800 text-white text-xs rounded-lg p-2.5 hidden group-hover:block z-20 shadow-lg leading-relaxed">
+                        <p className="font-semibold mb-1">穩定度評分說明</p>
+                        <p>基於轉職次數、平均任期與工作年資計算（20-100分）</p>
+                        <p className="mt-1">🟢 80+分 A級 穩定</p>
+                        <p>🔵 60-79分 B級 一般</p>
+                        <p>🟡 40-59分 C級 頻繁轉職</p>
+                        <p>🔴 &lt;40分 D級 不穩定</p>
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="text-right text-sm text-gray-600">
-                    <div>離職次數: {candidate.jobChanges} 次</div>
-                    <div>平均任期: {(candidate.years / Math.max(candidate.jobChanges, 1)).toFixed(1)} 年</div>
+                  <div className={`text-2xl font-bold ${stability.color}`}>
+                    {candidate.stabilityScore > 0 ? candidate.stabilityScore : '—'}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {candidate.stabilityScore > 0 ? `${stability.grade} 級` : '待評分'} · 離職 {candidate.jobChanges} 次 · 平均 {(candidate.years / Math.max(candidate.jobChanges, 1)).toFixed(1)} 年
+                  </div>
+                </div>
+
+                {/* 綜合評級 */}
+                <div className="p-4 rounded-lg border-2 bg-purple-50 border-purple-200">
+                  <div className="flex items-center gap-1 mb-2">
+                    <Award className="w-4 h-4 text-purple-600" />
+                    <span className="text-xs font-semibold text-gray-600">綜合評級</span>
+                    <div className="relative group ml-1">
+                      <div className="w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-xs flex items-center justify-center cursor-help select-none">?</div>
+                      <div className="absolute left-0 bottom-6 w-60 bg-gray-800 text-white text-xs rounded-lg p-2.5 hidden group-hover:block z-20 shadow-lg leading-relaxed">
+                        <p className="font-semibold mb-1">綜合評級說明</p>
+                        <p>由 AI 分析技能、年資、學歷、穩定性等 6 大維度後填入</p>
+                        <p className="mt-1">🟣 S（90+）頂尖人才（稀缺）</p>
+                        <p>🟢 A+（80-89）優秀（強力推薦）</p>
+                        <p>🔵 A（70-79）合格（可推薦）</p>
+                        <p>🟡 B（60-69）基本合格</p>
+                        <p>⚪ C（&lt;60）需補強</p>
+                      </div>
+                    </div>
+                  </div>
+                  {(candidate as any).talent_level ? (
+                    <div className={`text-2xl font-bold ${
+                      (candidate as any).talent_level === 'S' ? 'text-purple-700' :
+                      (candidate as any).talent_level.startsWith('A') ? 'text-green-700' :
+                      (candidate as any).talent_level === 'B' ? 'text-blue-700' :
+                      'text-gray-600'
+                    }`}>
+                      {(candidate as any).talent_level}
+                    </div>
+                  ) : (
+                    <div className="text-2xl font-bold text-gray-300">—</div>
+                  )}
+                  <div className="text-xs text-gray-500 mt-1">
+                    {(candidate as any).talent_level ? '已評分' : '待 AI 分析後填入'}
                   </div>
                 </div>
               </div>
@@ -838,10 +937,67 @@ Step1ne Recruitment`;
           )}
           
           {activeTab === 'notes' && (
-            <div className="text-center py-8 text-gray-400">
-              <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>備註功能開發中...</p>
-              <p className="text-sm mt-2">即將支援：新增備註、標記重點、團隊協作</p>
+            <div className="space-y-4">
+              {/* 現有備註 */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" />
+                  備註紀錄
+                </h3>
+                {localNotes ? (
+                  <div className="space-y-2">
+                    {localNotes.split('\n').filter(line => line.trim()).map((line, i) => {
+                      // 嘗試解析 [時間] 作者：內容 格式
+                      const match = line.match(/^\[(.+?)\]\s*(.+?)：(.+)$/);
+                      if (match) {
+                        const [, time, author, content] = match;
+                        return (
+                          <div key={i} className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-semibold text-yellow-800">{author}</span>
+                              <span className="text-xs text-gray-400">{time}</span>
+                            </div>
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{content}</p>
+                          </div>
+                        );
+                      }
+                      // 未格式化的行直接顯示
+                      return (
+                        <div key={i} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                          <p className="text-sm text-gray-800 whitespace-pre-wrap">{line}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-gray-400">
+                    <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">尚無備註紀錄</p>
+                    <p className="text-xs mt-1">顧問或 AIbot 新增的備註將顯示於此</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 新增備註 */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">新增備註</h3>
+                <textarea
+                  value={newNoteText}
+                  onChange={(e) => setNewNoteText(e.target.value)}
+                  placeholder="輸入備註內容，儲存後將附加時間戳與您的名稱..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
+                  rows={3}
+                />
+                <div className="flex justify-end mt-2">
+                  <button
+                    onClick={handleSaveNote}
+                    disabled={!newNoteText.trim() || savingNote}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                  >
+                    {savingNote ? '儲存中...' : '儲存備註'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
