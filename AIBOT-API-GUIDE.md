@@ -14,8 +14,27 @@
 3. [局部更新候選人資料](#三局部更新候選人資料)
 4. [職缺查詢](#四職缺查詢)
 5. [健康檢查](#五健康檢查)
-6. [狀態值對照表](#狀態值對照表)
-7. [操作範例情境](#操作範例情境)
+6. [查詢操作日誌](#六查詢操作日誌)
+7. [狀態值對照表](#狀態值對照表)
+8. [操作範例情境](#操作範例情境)
+
+---
+
+## AIbot 身份識別規則
+
+> ⚠️ **重要**：所有 AIbot 呼叫 API 時，**必須**在請求中帶入自己的身份識別，格式為 `AIbot-{顧問名稱}`。
+> 系統會根據此欄位自動判斷操作者類型（HUMAN vs AIBOT），並記錄到操作日誌。
+
+| 欄位 | 端點 | 說明 |
+|------|------|------|
+| `by` | PUT /pipeline-status | AIbot 身份，例如 `"AIbot-Phoebe"` |
+| `actor` | POST /candidates/bulk | AIbot 身份，例如 `"AIbot-Jacky"` |
+| `actor` | POST /candidates | AIbot 身份 |
+| `recruiter` + `actor` | PATCH /candidates/:id | `recruiter` 寫入 DB，`actor` 只用於日誌 |
+
+**命名規則**：`AIbot-{顧問姓名}`，例如：
+- `AIbot-Phoebe`（Phoebe 的 AI 助理）
+- `AIbot-Jacky`（Jacky 的 AI 助理）
 
 ---
 
@@ -231,6 +250,66 @@ GET /api/jobs
 
 ```
 GET /api/jobs/:id
+```
+
+---
+
+## 六、查詢操作日誌
+
+```
+GET /api/system-logs
+```
+
+查詢所有操作紀錄，可篩選操作者、操作類型、人為/AIbot。
+
+### Query 參數
+
+| 參數 | 說明 | 範例 |
+|------|------|------|
+| `limit` | 回傳筆數，預設 200，最大 1000 | `?limit=50` |
+| `actor` | 操作者名稱（模糊比對） | `?actor=Phoebe` |
+| `action` | 操作類型（精確比對） | `?action=PIPELINE_CHANGE` |
+| `type` | 操作者類型 | `?type=AIBOT` |
+
+### 操作類型（action）對照
+
+| action | 說明 |
+|--------|------|
+| `PIPELINE_CHANGE` | Pipeline 階段異動（拖拉或 API） |
+| `IMPORT_CREATE` | 新增候選人（POST /candidates） |
+| `IMPORT_UPDATE` | 補充既有候選人資料 |
+| `BULK_IMPORT` | 批量匯入（POST /candidates/bulk） |
+| `UPDATE` | 局部更新欄位（PATCH） |
+
+### 回應範例
+
+```json
+{
+  "success": true,
+  "count": 3,
+  "data": [
+    {
+      "id": 42,
+      "action": "PIPELINE_CHANGE",
+      "actor": "AIbot-Phoebe",
+      "actor_type": "AIBOT",
+      "candidate_id": 123,
+      "candidate_name": "陳宥樺",
+      "detail": { "from": "已聯繫", "to": "已面試" },
+      "created_at": "2026-02-25T10:30:00.000Z"
+    },
+    {
+      "id": 41,
+      "action": "BULK_IMPORT",
+      "actor": "AIbot-Jacky",
+      "actor_type": "AIBOT",
+      "candidate_id": null,
+      "candidate_name": null,
+      "detail": { "created": 5, "updated": 2, "failed": 0, "total": 7 },
+      "created_at": "2026-02-25T09:00:00.000Z"
+    }
+  ]
+}
 ```
 
 ---

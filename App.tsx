@@ -17,6 +17,7 @@ import { CandidateKanbanPage } from './pages/CandidateKanbanPage';
 import { AIMatchingPage } from './pages/AIMatchingPage';
 import { JobsPage } from './pages/JobsPage';
 import { PipelinePage } from './pages/PipelinePage';
+import { SystemLogPage } from './pages/SystemLogPage';
 import { Menu, X as XIcon } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -110,6 +111,8 @@ const App: React.FC = () => {
       />;
       // Pipeline 追蹤
       case 'pipeline': return <PipelinePage userProfile={profile} />;
+      // 操作日誌
+      case 'system-log': return <SystemLogPage userProfile={profile} />;
       case 'members': 
         // 只有管理員可以訪問成員管理
         if (profile.role !== Role.ADMIN) {
@@ -189,7 +192,8 @@ const App: React.FC = () => {
                activeTab === 'jobs' ? '職缺管理' :
                activeTab === 'bd-clients' ? 'BD 客戶開發' :
                activeTab === 'pipeline' ? 'Pipeline 追蹤' :
-               activeTab === 'ai-matching' ? 'AI 配對推薦' : 'Step1ne 獵頭系統'}
+               activeTab === 'ai-matching' ? 'AI 配對推薦' :
+               activeTab === 'system-log' ? '操作日誌' : 'Step1ne 獵頭系統'}
             </h1>
                 <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mt-0.5 hidden sm:block">Collaborative Workspace</p>
           </div>

@@ -22,6 +22,35 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS progress_tracking JSONB DEFAULT '[]'
 `).catch(err => console.warn('progress_tracking migration:', err.message));
 
+// 確保 system_logs 資料表存在
+pool.query(`
+  CREATE TABLE IF NOT EXISTS system_logs (
+    id SERIAL PRIMARY KEY,
+    action VARCHAR(50) NOT NULL,
+    actor VARCHAR(100) NOT NULL,
+    actor_type VARCHAR(10) NOT NULL DEFAULT 'HUMAN',
+    candidate_id INTEGER,
+    candidate_name VARCHAR(255),
+    detail JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`).catch(err => console.warn('system_logs migration:', err.message));
+
+// 寫入 system_logs 輔助函數
+async function writeLog({ action, actor, candidateId, candidateName, detail }) {
+  const actorType = /aibot/i.test(actor) ? 'AIBOT' : 'HUMAN';
+  try {
+    await pool.query(
+      `INSERT INTO system_logs (action, actor, actor_type, candidate_id, candidate_name, detail)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [action, actor || 'system', actorType, candidateId || null, candidateName || null,
+       detail ? JSON.stringify(detail) : null]
+    );
+  } catch (err) {
+    console.warn('⚠️ writeLog 失敗（非阻塞）:', err.message);
+  }
+}
+
 // ==================== SQL → Google Sheets 同步 ====================
 
 const GOG_SHEET_ID = process.env.SHEET_ID || '1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SEtxRk6Q';
@@ -292,6 +321,16 @@ router.put('/candidates/:id', async (req, res) => {
       });
     }
 
+    // 寫入操作日誌
+    const actor = consultant || 'system';
+    writeLog({
+      action: 'PIPELINE_CHANGE',
+      actor,
+      candidateId: parseInt(id),
+      candidateName: result.rows[0].name,
+      detail: { status, notes: notes?.substring(0, 100) }
+    });
+
     res.json({
       success: true,
       data: result.rows[0],
@@ -366,6 +405,15 @@ router.patch('/candidates/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Candidate not found' });
     }
 
+    // 寫入操作日誌
+    writeLog({
+      action: 'UPDATE',
+      actor: req.body.recruiter || req.body.actor || 'system',
+      candidateId: parseInt(id),
+      candidateName: result.rows[0].name,
+      detail: { fields: Object.keys(req.body).filter(k => k !== 'actor') }
+    });
+
     res.json({ success: true, data: result.rows[0], message: 'Candidate patched successfully' });
   } catch (error) {
     console.error('❌ PATCH /candidates/:id error:', error.message);
@@ -429,6 +477,15 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
     );
 
     client.release();
+
+    // 寫入操作日誌
+    writeLog({
+      action: 'PIPELINE_CHANGE',
+      actor: by || 'AIbot',
+      candidateId: parseInt(id),
+      candidateName: candidate.name,
+      detail: { from: candidate.status, to: status }
+    });
 
     res.json({
       success: true,
@@ -543,6 +600,15 @@ router.post('/candidates', async (req, res) => {
       console.warn('⚠️ Sheets sync failed (non-blocking):', err.message)
     );
 
+    // 寫入操作日誌
+    writeLog({
+      action: action === 'created' ? 'IMPORT_CREATE' : 'IMPORT_UPDATE',
+      actor: c.actor || c.recruiter || 'system',
+      candidateId: result.rows[0].id,
+      candidateName: c.name,
+      detail: { source: c.source, position: c.current_position }
+    });
+
     res.status(action === 'created' ? 201 : 200).json({
       success: true,
       action,
@@ -569,7 +635,7 @@ router.post('/candidates', async (req, res) => {
  */
 router.post('/candidates/bulk', async (req, res) => {
   try {
-    const { candidates } = req.body;
+    const { candidates, actor } = req.body;  // actor: AIbot 或顧問名稱，例如 "AIbot-Phoebe"
 
     if (!Array.isArray(candidates) || candidates.length === 0) {
       return res.status(400).json({
@@ -704,6 +770,21 @@ router.post('/candidates/bulk', async (req, res) => {
     syncSQLToSheets(results.created.concat(results.updated)).catch(err =>
       console.warn('⚠️ Sheets sync failed (non-blocking):', err.message)
     );
+
+    // 寫入操作日誌（一筆批量 log）
+    const bulkActor = actor || 'system';
+    writeLog({
+      action: 'BULK_IMPORT',
+      actor: bulkActor,
+      candidateId: null,
+      candidateName: null,
+      detail: {
+        created: results.created.length,
+        updated: results.updated.length,
+        failed: results.failed.length,
+        total: candidates.length
+      }
+    });
 
     const total = candidates.length;
     res.status(201).json({
@@ -1159,6 +1240,62 @@ router.post('/sync/sheets-to-sql', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// ==================== 系統日誌 API ====================
+
+/**
+ * GET /api/system-logs
+ * 查詢操作日誌
+ * Query params:
+ *   limit  - 回傳筆數，預設 200，最大 1000
+ *   actor  - 篩選操作者（模糊比對）
+ *   action - 篩選操作類型（PIPELINE_CHANGE / IMPORT_CREATE / IMPORT_UPDATE / BULK_IMPORT / UPDATE）
+ *   type   - 篩選操作者類型（HUMAN / AIBOT）
+ */
+router.get('/system-logs', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+    const { actor, action, type } = req.query;
+
+    const conditions = [];
+    const values = [];
+    let idx = 1;
+
+    if (actor) {
+      conditions.push(`actor ILIKE $${idx++}`);
+      values.push(`%${actor}%`);
+    }
+    if (action) {
+      conditions.push(`action = $${idx++}`);
+      values.push(action);
+    }
+    if (type) {
+      conditions.push(`actor_type = $${idx++}`);
+      values.push(type.toUpperCase());
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    values.push(limit);
+
+    const result = await pool.query(
+      `SELECT id, action, actor, actor_type, candidate_id, candidate_name, detail, created_at
+       FROM system_logs
+       ${where}
+       ORDER BY created_at DESC
+       LIMIT $${idx}`,
+      values
+    );
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('❌ GET /system-logs error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
