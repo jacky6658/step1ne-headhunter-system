@@ -13,10 +13,11 @@
 2. [更新 Pipeline 階段狀態](#二更新-pipeline-階段狀態推薦-aibot-主要操作)
 3. [局部更新候選人資料](#三局部更新候選人資料)
 4. [職缺查詢](#四職缺查詢)
-5. [健康檢查](#五健康檢查)
-6. [查詢操作日誌](#六查詢操作日誌)
-7. [狀態值對照表](#狀態值對照表)
-8. [操作範例情境](#操作範例情境)
+5. [查詢操作日誌](#五查詢操作日誌)
+6. [顧問聯絡資訊](#六顧問聯絡資訊)
+7. [健康檢查](#七健康檢查)
+8. [狀態值對照表](#狀態值對照表)
+9. [操作範例情境](#操作範例情境)
 
 ---
 
@@ -92,15 +93,79 @@ GET /api/candidates/:id
 
 ---
 
+### 新增單一候選人
+
+```
+POST /api/candidates
+```
+
+**Request Body：**
+
+```json
+{
+  "name": "王小明",
+  "position": "Frontend Engineer",
+  "email": "wang@example.com",
+  "phone": "0912-345-678",
+  "location": "台北",
+  "years": 5,
+  "skills": "React, TypeScript",
+  "notes": "備註",
+  "recruiter": "Phoebe",
+  "actor": "AIbot-Phoebe"
+}
+```
+
+> 若候選人已存在（同姓名），自動補充空欄位（不覆蓋已有資料）。
+
+---
+
+### 批量匯入候選人
+
+```
+POST /api/candidates/bulk
+```
+
+**Request Body：**
+
+```json
+{
+  "candidates": [
+    {
+      "name": "王小明",
+      "position": "Frontend Engineer",
+      "email": "wang@example.com",
+      "recruiter": "Phoebe"
+    }
+  ],
+  "actor": "AIbot-Phoebe"
+}
+```
+
+**回應：**
+
+```json
+{
+  "success": true,
+  "created": 3,
+  "updated": 1,
+  "failed": 0,
+  "total": 4
+}
+```
+
+---
+
 ## 二、更新 Pipeline 階段狀態（推薦 AIbot 主要操作）
 
 ```
 PUT /api/candidates/:id/pipeline-status
 ```
 
-**這是 AIbot 更新候選人進度的主要端點。** 呼叫後會：
+**這是更新候選人進度的統一端點。** 顧問在前端拖拉看板卡片，以及 AIbot 呼叫 API，都使用此端點。呼叫後會：
 1. 更新 `status` 欄位
 2. 自動在 `progress_tracking` 新增一筆進度事件（含日期、操作者）
+3. 寫入操作日誌（`PIPELINE_CHANGE`）
 
 ### 請求 Body
 
@@ -181,13 +246,15 @@ PATCH /api/candidates/:id
   "recruiter": "Phoebe",
   "notes": "候選人對 CTO 職位有高度興趣",
   "talent_level": "A+",
+  "name": "王小明",
   "progressTracking": [
     {
       "date": "2026-02-25",
       "event": "已聯繫",
-      "by": "AIbot"
+      "by": "AIbot-Phoebe"
     }
-  ]
+  ],
+  "actor": "AIbot-Phoebe"
 }
 ```
 
@@ -195,10 +262,12 @@ PATCH /api/candidates/:id
 |------|------|------|
 | `status` | string | Pipeline 狀態（見對照表） |
 | `recruiter` | string | 指派顧問姓名（如 `"Phoebe"`） |
-| `notes` | string | 備註內容（**整個覆蓋**，非追加）；`remarks` 亦可，兩者等價 |
+| `notes` | string | 備註內容（**整個覆蓋**，非追加）；`remarks` 為等價別名 |
+| `remarks` | string | 同 `notes`，兩者等價，傳其中一個即可 |
 | `talent_level` | string | 人才等級：`S`、`A+`、`A`、`B`、`C` |
 | `name` | string | 候選人姓名 |
 | `progressTracking` | array | 完整進度記錄陣列（**整個覆蓋**） |
+| `actor` | string | 操作者身份（用於日誌，不寫入候選人資料） |
 
 > ⚠️ **注意**：`notes` 與 `progressTracking` 是整個覆蓋（非追加）。
 > 若要追加進度，請先 GET 取得現有資料，append 後再傳回。
@@ -210,7 +279,7 @@ PATCH /api/candidates/:id
 {
   "success": true,
   "message": "Candidate patched successfully",
-  "data": { ... }
+  "data": { "..." }
 }
 ```
 
@@ -254,7 +323,7 @@ GET /api/jobs/:id
 
 ---
 
-## 六、查詢操作日誌
+## 五、查詢操作日誌
 
 ```
 GET /api/system-logs
@@ -273,13 +342,13 @@ GET /api/system-logs
 
 ### 操作類型（action）對照
 
-| action | 說明 |
-|--------|------|
-| `PIPELINE_CHANGE` | Pipeline 階段異動（拖拉或 API） |
-| `IMPORT_CREATE` | 新增候選人（POST /candidates） |
-| `IMPORT_UPDATE` | 補充既有候選人資料 |
-| `BULK_IMPORT` | 批量匯入（POST /candidates/bulk） |
-| `UPDATE` | 局部更新欄位（PATCH） |
+| action | 說明 | 觸發來源 |
+|--------|------|----------|
+| `PIPELINE_CHANGE` | Pipeline 階段異動 | 前端拖拉 **或** AIbot 呼叫 `/pipeline-status` |
+| `IMPORT_CREATE` | 新增候選人 | POST /candidates（新建） |
+| `IMPORT_UPDATE` | 補充既有候選人資料 | POST /candidates（已存在） |
+| `BULK_IMPORT` | 批量匯入 | POST /candidates/bulk |
+| `UPDATE` | 局部更新欄位 | PATCH /candidates/:id |
 
 ### 回應範例
 
@@ -300,6 +369,16 @@ GET /api/system-logs
     },
     {
       "id": 41,
+      "action": "PIPELINE_CHANGE",
+      "actor": "Jacky",
+      "actor_type": "HUMAN",
+      "candidate_id": 120,
+      "candidate_name": "林志明",
+      "detail": { "from": "未開始", "to": "已聯繫" },
+      "created_at": "2026-02-25T09:30:00.000Z"
+    },
+    {
+      "id": 40,
       "action": "BULK_IMPORT",
       "actor": "AIbot-Jacky",
       "actor_type": "AIBOT",
@@ -314,7 +393,69 @@ GET /api/system-logs
 
 ---
 
-## 五、健康檢查
+## 六、顧問聯絡資訊
+
+顧問可在系統右上角「個人化設定」填寫聯絡資訊，儲存後同步到後端。
+AIbot 代發信件或通知時，可透過此 API 取得對應顧問的聯絡方式。
+
+### 取得顧問聯絡資訊
+
+```
+GET /api/users/:displayName/contact
+```
+
+| 參數 | 位置 | 說明 |
+|------|------|------|
+| `displayName` | URL | 顧問姓名，例如 `Phoebe` |
+
+**回應範例：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "displayName": "Phoebe",
+    "contactPhone": "0912-345-678",
+    "contactEmail": "phoebe@step1ne.com",
+    "lineId": "phoebe_hr",
+    "telegramHandle": "@phoebe_step1ne"
+  }
+}
+```
+
+| 欄位 | 說明 |
+|------|------|
+| `contactPhone` | 工作電話 |
+| `contactEmail` | 工作 Email |
+| `lineId` | LINE ID |
+| `telegramHandle` | Telegram 帳號 |
+
+> 若顧問尚未填寫聯絡資訊，回傳 `{ "success": true, "data": { "displayName": "Phoebe" } }`（其餘欄位為 null）
+
+---
+
+### 更新顧問聯絡資訊
+
+```
+PUT /api/users/:displayName/contact
+```
+
+**Request Body：**
+
+```json
+{
+  "contactPhone": "0912-345-678",
+  "contactEmail": "phoebe@step1ne.com",
+  "lineId": "phoebe_hr",
+  "telegramHandle": "@phoebe_step1ne"
+}
+```
+
+> 此端點主要由前端「個人化設定」呼叫，AIbot 一般只需讀取（GET）。
+
+---
+
+## 七、健康檢查
 
 ```
 GET /api/health
@@ -368,20 +509,32 @@ curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status
 curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{
-    "recruiter": "Phoebe"
+    "recruiter": "Phoebe",
+    "actor": "AIbot-Phoebe"
   }'
 ```
 
 ---
 
-### 情境三：更新備註並設定人才等級
+### 情境三：更新備註並設定人才等級（notes 與 remarks 均可）
 
 ```bash
+# 使用 notes
 curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{
     "notes": "候選人 CTO 背景，主動找尋 100-150 萬機會，可立即上班",
-    "talent_level": "S"
+    "talent_level": "S",
+    "actor": "AIbot-Jacky"
+  }'
+
+# 使用 remarks（效果完全相同）
+curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "remarks": "候選人 CTO 背景，主動找尋 100-150 萬機會，可立即上班",
+    "talent_level": "S",
+    "actor": "AIbot-Jacky"
   }'
 ```
 
@@ -414,6 +567,49 @@ curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status
 
 ---
 
+### 情境六：AIbot 代發信件前，取得顧問聯絡資訊
+
+```bash
+# 取得 Phoebe 的聯絡方式，作為信件寄件人簽名
+curl https://backendstep1ne.zeabur.app/api/users/Phoebe/contact
+```
+
+---
+
+### 情境七：批量匯入候選人
+
+```bash
+curl -X POST https://backendstep1ne.zeabur.app/api/candidates/bulk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "candidates": [
+      {
+        "name": "王小明",
+        "position": "Frontend Engineer",
+        "email": "wang@example.com",
+        "phone": "0912-000-001",
+        "location": "台北",
+        "years": 5,
+        "skills": "React, TypeScript",
+        "recruiter": "Phoebe"
+      },
+      {
+        "name": "陳大華",
+        "position": "Backend Engineer",
+        "email": "chen@example.com",
+        "phone": "0912-000-002",
+        "location": "新竹",
+        "years": 8,
+        "skills": "Node.js, PostgreSQL",
+        "recruiter": "Jacky"
+      }
+    ],
+    "actor": "AIbot-Phoebe"
+  }'
+```
+
+---
+
 ## 重要注意事項
 
 1. **停留天數計算**：後端不直接回傳，需由 AIbot 自行計算：
@@ -424,7 +620,12 @@ curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status
 2. **SLA 判斷**：停留天數超過對應閾值即為逾期（見對照表）
 
 3. **`PUT /pipeline-status` vs `PATCH`**：
-   - 建議更新 Pipeline 狀態一律用 `PUT /pipeline-status`，它自動寫進度記錄
-   - `PATCH` 適合更新 recruiter、notes、talent_level 等其他欄位
+   - 更新 Pipeline 狀態一律用 `PUT /pipeline-status`，它自動追加進度記錄並寫入 `PIPELINE_CHANGE` 日誌
+   - `PATCH` 適合更新 recruiter、notes/remarks、talent_level 等其他欄位
+   - 前端顧問拖拉看板卡片也使用 `PUT /pipeline-status`，因此 `PIPELINE_CHANGE` 日誌同時涵蓋人為與 AIbot 操作
 
-4. **並發注意**：目前無鎖定機制，多個 AIbot 同時操作同一候選人可能造成進度記錄順序混亂，建議序列化操作
+4. **notes 與 remarks 欄位**：`PATCH /candidates/:id` 同時接受 `notes` 和 `remarks`，兩者效果完全相同，寫其中一個即可
+
+5. **並發注意**：目前無鎖定機制，多個 AIbot 同時操作同一候選人可能造成進度記錄順序混亂，建議序列化操作
+
+6. **AIbot 身份判斷規則**：`by` 或 `actor` 欄位符合 `/aibot/i` 正則（包含 "aibot" 字串，大小寫不限）即視為 AIBOT；否則視為 HUMAN
