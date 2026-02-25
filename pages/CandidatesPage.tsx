@@ -435,10 +435,10 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
               background: #94a3b8;
             }
           `}</style>
-          <table className="min-w-full divide-y divide-gray-200" style={{ minWidth: '1400px' }}>
+          <table className="min-w-full divide-y divide-gray-200" style={{ minWidth: '900px' }}>
           <thead className="bg-gray-50 sticky top-0 z-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px' }}>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '180px' }}>
                 <div className="flex items-center">
                   姓名
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.name} />
@@ -450,28 +450,15 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.position} />
                 </div>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '80px' }}>
                 <div className="flex items-center">
                   年資
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.experience} />
                 </div>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '160px' }}>
                 <div className="flex items-center">
-                  工作穩定性
-                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.stability} />
-                </div>
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '80px' }}>
-                <div className="flex items-center">
-                  綜合評級
-                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.talentGrade} />
-                </div>
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '400px' }}>
-                <div className="flex items-center">
-                  技能
-                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.skills} />
+                  聯繫方式
                 </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
@@ -480,19 +467,13 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.status} />
                 </div>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
-                <div className="flex items-center">
-                  來源
-                  <ColumnTooltip {...COLUMN_DESCRIPTIONS.source} />
-                </div>
-              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
                 <div className="flex items-center">
                   顧問
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.consultant} />
                 </div>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
                 <div className="flex items-center">
                   操作
                 </div>
@@ -567,39 +548,60 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                     <div className="text-sm text-gray-500">{candidate.jobChanges} 次</div>
                   </td>
                   
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStabilityColor(candidate.stabilityScore)}`}>
-                      {getStabilityGrade(candidate.stabilityScore)} 級 ({candidate.stabilityScore})
-                    </div>
-                  </td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {candidate.talentGrade ? (
-                      <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${getTalentGradeColor(candidate.talentGrade)}`}>
-                        {candidate.talentGrade}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-400">未評級</span>
-                    )}
-                  </td>
-                  
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 max-w-md whitespace-normal">
-                      {Array.isArray(candidate.skills) 
-                        ? candidate.skills.join(', ') 
-                        : candidate.skills}
+                    <div className="text-sm text-gray-900">
+                      {(() => {
+                        const phoneStr = candidate.phone || '';
+                        const emailStr = candidate.email || '';
+                        
+                        // 分離電話號碼
+                        let phone = '';
+                        if (phoneStr.includes('/')) {
+                          phone = phoneStr.split('/')[0].trim();
+                        } else if (/\d/.test(phoneStr) && !phoneStr.toLowerCase().includes('linkedin')) {
+                          phone = phoneStr;
+                        }
+                        
+                        // 分離 email
+                        let email = '';
+                        if (emailStr && emailStr.includes('@')) {
+                          email = emailStr;
+                        } else if (phoneStr.includes('/')) {
+                          const parts = phoneStr.split('/');
+                          const emailPart = parts.slice(1).join('/').trim();
+                          if (emailPart && emailPart.includes('@')) {
+                            email = emailPart;
+                          }
+                        }
+                        
+                        return (
+                          <div className="space-y-1">
+                            {phone && (
+                              <div className="text-xs">
+                                <span className="text-gray-600">📱 </span>
+                                <span className="text-gray-900">{phone}</span>
+                              </div>
+                            )}
+                            {email && (
+                              <div className="text-xs">
+                                <span className="text-gray-600">✉️ </span>
+                                <a href={`mailto:${email}`} className="text-blue-600 hover:underline">
+                                  {email}
+                                </a>
+                              </div>
+                            )}
+                            {!phone && !email && (
+                              <span className="text-xs text-gray-400">未提供</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </td>
                   
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.textColor}`}>
                       {statusConfig.label}
-                    </span>
-                  </td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">
-                      {sourceConfig.icon} {sourceConfig.label}
                     </span>
                   </td>
                   
