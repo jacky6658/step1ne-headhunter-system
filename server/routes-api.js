@@ -54,35 +54,49 @@ router.get('/candidates', async (req, res) => {
     `);
 
     const candidates = result.rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      // 主表顯示欄位（前端期望的欄位名）
-      position: row.current_position,
-      years: row.years_experience,
-      skills: row.skills,
-      talentGrade: row.talent_level,
-      // 詳細欄位（Modal 顯示）
-      contact_link: row.contact_link,
-      phone: row.phone,
-      location: row.location,
-      current_position: row.current_position,
-      years_experience: row.years_experience,
-      job_changes: row.job_changes,
-      avg_tenure_months: row.avg_tenure_months,
-      recent_gap_months: row.recent_gap_months,
-      education: row.education,
-      source: row.source,
-      work_history: row.work_history,
-      leaving_reason: row.leaving_reason,
-      stability_score: row.stability_score,
-      education_details: row.education_details,
-      personality_type: row.personality_type,
-      status: row.status,
-      recruiter: row.recruiter,
-      notes: row.notes,
-      talent_level: row.talent_level,
-      created_at: row.created_at,
-      updated_at: row.updated_at
+      // 基本必需欄位（Candidate interface）
+      id: row.id.toString(),
+      name: row.name || '',
+      email: '', // 數據庫沒有，使用空值
+      phone: row.phone || '',
+      location: row.location || '', // 數據庫沒有，使用空值
+      position: row.current_position || '',
+      years: isNaN(parseInt(row.years_experience)) ? 0 : parseInt(row.years_experience),
+      jobChanges: isNaN(parseInt(row.job_changes)) ? 0 : parseInt(row.job_changes),
+      avgTenure: isNaN(parseInt(row.avg_tenure_months)) ? 0 : parseInt(row.avg_tenure_months),
+      lastGap: isNaN(parseInt(row.recent_gap_months)) ? 0 : parseInt(row.recent_gap_months),
+      skills: row.skills || '',
+      education: row.education || '',
+      source: row.source || '其他', // CandidateSource enum
+      status: row.status || '待聯繫', // CandidateStatus enum
+      consultant: row.recruiter || 'Jacky',
+      notes: row.notes || '',
+      stabilityScore: isNaN(parseInt(row.stability_score)) ? 0 : parseInt(row.stability_score),
+      createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString(),
+      createdBy: 'system',
+      
+      // 可選欄位（詳細資訊）
+      resumeLink: row.contact_link || '',
+      workHistory: row.work_history || [],
+      quitReasons: row.leaving_reason || '',
+      educationJson: row.education_details || [],
+      discProfile: row.personality_type || '',
+      
+      // 向後相容：保留 DB 字段名
+      contact_link: row.contact_link || '',
+      current_position: row.current_position || '',
+      years_experience: row.years_experience || '',
+      job_changes: row.job_changes || '',
+      avg_tenure_months: row.avg_tenure_months || '',
+      recent_gap_months: row.recent_gap_months || '',
+      work_history: row.work_history || [],
+      leaving_reason: row.leaving_reason || '',
+      stability_score: row.stability_score || '',
+      education_details: row.education_details || [],
+      personality_type: row.personality_type || '',
+      recruiter: row.recruiter || 'Jacky',
+      talent_level: row.talent_level || ''
     }));
 
     client.release();
