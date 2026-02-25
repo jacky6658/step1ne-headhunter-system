@@ -56,6 +56,12 @@ router.get('/candidates', async (req, res) => {
     const candidates = result.rows.map(row => ({
       id: row.id,
       name: row.name,
+      // 主表顯示欄位（前端期望的欄位名）
+      position: row.current_position,
+      years: row.years_experience,
+      skills: row.skills,
+      talentGrade: row.talent_level,
+      // 詳細欄位（Modal 顯示）
       contact_link: row.contact_link,
       phone: row.phone,
       location: row.location,
@@ -64,7 +70,6 @@ router.get('/candidates', async (req, res) => {
       job_changes: row.job_changes,
       avg_tenure_months: row.avg_tenure_months,
       recent_gap_months: row.recent_gap_months,
-      skills: row.skills,
       education: row.education,
       source: row.source,
       work_history: row.work_history,
@@ -76,7 +81,8 @@ router.get('/candidates', async (req, res) => {
       recruiter: row.recruiter,
       notes: row.notes,
       talent_level: row.talent_level,
-      lastUpdated: row.updated_at
+      created_at: row.created_at,
+      updated_at: row.updated_at
     }));
 
     client.release();
