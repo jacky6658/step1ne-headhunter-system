@@ -1,11 +1,13 @@
 {
-  "name": "step1ne-backend",
+  "name": "step1ne-headhunter-system",
   "version": "1.0.0",
-  "description": "Step1ne AI Recruitment System Backend",
-  "main": "server/server.js",
+  "description": "Step1ne Headhunter System - Frontend + Backend",
+  "main": "index.tsx",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "node server/server.js",
+    "start": "vite preview --host",
+    "dev": "vite",
+    "build": "vite build",
+    "backend": "node server/server.js",
     "init-db": "node server/init-db.js",
     "import-data": "node server/import-full-data.js"
   },
