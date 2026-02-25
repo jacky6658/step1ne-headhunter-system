@@ -10,5 +10,8 @@
   },
   "engines": {
     "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "csv-parse": "^6.1.0"
   }
 }
