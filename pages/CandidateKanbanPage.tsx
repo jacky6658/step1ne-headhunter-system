@@ -4,7 +4,7 @@ import { Candidate, CandidateStatus, UserProfile } from '../types';
 import { getCandidates, updateCandidateStatus, filterCandidatesByPermission } from '../services/candidateService';
 import { KANBAN_COLUMNS, CANDIDATE_STATUS_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
-import { Users, RefreshCw, Shield } from 'lucide-react';
+import { Users, RefreshCw } from 'lucide-react';
 
 interface CandidateKanbanPageProps {
   userProfile: UserProfile;
@@ -25,8 +25,8 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
   const loadCandidates = async () => {
     setLoading(true);
     try {
-      // 傳入 userProfile，後端會自動過濾
-      const allCandidates = await getCandidates(userProfile);
+      // 不帶 userProfile，取得所有顧問的候選人（總覽模式）
+      const allCandidates = await getCandidates();
       setCandidates(allCandidates);
     } catch (error) {
       console.error('載入候選人失敗:', error);
@@ -45,7 +45,11 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
   
   const handleDrop = async (newStatus: CandidateStatus) => {
     if (!draggedCandidate) return;
-    
+    if (!isMyCandidate(draggedCandidate)) {
+      setDraggedCandidate(null);
+      return;
+    }
+
     if (draggedCandidate.status === newStatus) {
       setDraggedCandidate(null);
       return;
@@ -82,6 +86,12 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
     if (score >= 20) return 'border-l-orange-500';
     return 'border-l-red-500';
   };
+
+  // 判斷是否為自己負責的候選人（ADMIN 可拖所有人）
+  const isMyCandidate = (candidate: Candidate) => {
+    if (userProfile.role === 'ADMIN') return true;
+    return candidate.consultant === userProfile.displayName;
+  };
   
   if (loading) {
     return (
@@ -105,14 +115,8 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
               候選人流程看板
             </h1>
             <p className="text-gray-600 mt-1">
-              拖放候選人卡片來更新狀態 · 共 {candidates.length} 位候選人
+              所有顧問的候選人總覽 · 共 {candidates.length} 位候選人
             </p>
-            {userProfile.role !== 'ADMIN' && (
-              <p className="text-sm text-blue-600 mt-1 flex items-center gap-1">
-                <Shield className="w-4 h-4" />
-                只顯示您負責的候選人
-              </p>
-            )}
           </div>
           
           <button 
@@ -151,11 +155,14 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
                 
                 {/* Cards Container */}
                 <div className="flex-1 bg-gray-50 p-4 rounded-b-lg space-y-3 overflow-y-auto">
-                  {statusCandidates.map(candidate => (
+                  {statusCandidates.map(candidate => {
+                    const canDrag = isMyCandidate(candidate);
+                    return (
                     <div
                       key={candidate.id}
-                      draggable
+                      draggable={canDrag}
                       onDragStart={(e) => {
+                        if (!canDrag) { e.preventDefault(); return; }
                         e.stopPropagation();
                         handleDragStart(candidate);
                       }}
@@ -165,9 +172,10 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
                         setSelectedCandidate(candidate);
                       }}
                       className={`
-                        bg-white rounded-lg shadow-sm p-4 cursor-pointer
-                        hover:shadow-md transition-all hover:scale-[1.02]
+                        bg-white rounded-lg shadow-sm p-4
+                        hover:shadow-md transition-all
                         border-l-4 ${getStabilityColor(candidate.stabilityScore)}
+                        ${canDrag ? 'cursor-grab hover:scale-[1.02]' : 'cursor-pointer opacity-80'}
                       `}
                     >
                       {/* Candidate Info */}
@@ -204,12 +212,18 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
                         <span className="text-xs text-gray-500">
                           {candidate.consultant || '未分配'}
                         </span>
-                        <span className="text-xs text-gray-400">
-                          {new Date(candidate.updatedAt).toLocaleDateString('zh-TW')}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          {!canDrag && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">唯讀</span>
+                          )}
+                          <span className="text-xs text-gray-400">
+                            {new Date(candidate.updatedAt).toLocaleDateString('zh-TW')}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   
                   {statusCandidates.length === 0 && (
                     <div className="text-center py-8 text-gray-400 text-sm">
