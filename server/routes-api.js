@@ -422,7 +422,7 @@ router.patch('/candidates/:id', async (req, res) => {
     // 寫入操作日誌
     writeLog({
       action: 'UPDATE',
-      actor: req.body.recruiter || req.body.actor || 'system',
+      actor: req.body.actor || req.body.recruiter || 'system',
       candidateId: parseInt(id),
       candidateName: result.rows[0].name,
       detail: { fields: Object.keys(req.body).filter(k => k !== 'actor') }
