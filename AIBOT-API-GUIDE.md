@@ -23,19 +23,33 @@
 
 ## AIbot 身份識別規則
 
-> ⚠️ **重要**：所有 AIbot 呼叫 API 時，**必須**在請求中帶入自己的身份識別，格式為 `AIbot-{顧問名稱}`。
+> ⚠️ **重要**：所有 AIbot 呼叫 API 時，**必須**在請求中帶入自己的身份識別。
 > 系統會根據此欄位自動判斷操作者類型（HUMAN vs AIBOT），並記錄到操作日誌。
 
-| 欄位 | 端點 | 說明 |
-|------|------|------|
-| `by` | PUT /pipeline-status | AIbot 身份，例如 `"AIbot-Phoebe"` |
-| `actor` | POST /candidates/bulk | AIbot 身份，例如 `"AIbot-Jacky"` |
-| `actor` | POST /candidates | AIbot 身份 |
-| `recruiter` + `actor` | PATCH /candidates/:id | `recruiter` 寫入 DB，`actor` 只用於日誌 |
+### 命名格式（擇一使用）
 
-**命名規則**：`AIbot-{顧問姓名}`，例如：
-- `AIbot-Phoebe`（Phoebe 的 AI 助理）
-- `AIbot-Jacky`（Jacky 的 AI 助理）
+| 格式 | 範例 | 說明 |
+|------|------|------|
+| `{顧問名稱}bot` | `Jackeybot`、`Phoebebot` | **推薦格式**：主人名稱 + bot |
+| `AIbot-{顧問名稱}` | `AIbot-Jacky`、`AIbot-Phoebe` | 舊格式，仍相容 |
+
+> 📌 **你是誰的 AIbot？請填寫你的主人名稱 + bot**
+> 例如：你是 Jacky 的助理 → 填 `Jackeybot`；你是 Phoebe 的助理 → 填 `Phoebebot`
+
+### 各端點身份欄位
+
+| 欄位 | 端點 | 範例值 |
+|------|------|--------|
+| `by` | PUT /pipeline-status | `"Jackeybot"` |
+| `actor` | POST /candidates/bulk | `"Phoebebot"` |
+| `actor` | POST /candidates | `"Jackeybot"` |
+| `actor` | PATCH /candidates/:id | `"Phoebebot"`（優先於 recruiter） |
+
+### AIBOT 判斷規則
+
+系統以以下條件識別 AIBOT（大小寫不敏感）：
+- 包含 `aibot`（如 `AIbot-Phoebe`）
+- 以 `bot` 結尾（如 `Jackeybot`、`Phoebebot`）
 
 ---
 
@@ -112,7 +126,7 @@ POST /api/candidates
   "skills": "React, TypeScript",
   "notes": "備註",
   "recruiter": "Phoebe",
-  "actor": "AIbot-Phoebe"
+  "actor": "Phoebebot"
 }
 ```
 
@@ -138,7 +152,7 @@ POST /api/candidates/bulk
       "recruiter": "Phoebe"
     }
   ],
-  "actor": "AIbot-Phoebe"
+  "actor": "Phoebebot"
 }
 ```
 
@@ -172,7 +186,7 @@ PUT /api/candidates/:id/pipeline-status
 ```json
 {
   "status": "已面試",
-  "by": "AIbot-Phoebe"
+  "by": "Phoebebot"
 }
 ```
 
@@ -212,7 +226,7 @@ PUT /api/candidates/:id/pipeline-status
       {
         "date": "2026-02-25",
         "event": "已面試",
-        "by": "AIbot-Phoebe"
+        "by": "Phoebebot"
       }
     ]
   }
@@ -251,10 +265,10 @@ PATCH /api/candidates/:id
     {
       "date": "2026-02-25",
       "event": "已聯繫",
-      "by": "AIbot-Phoebe"
+      "by": "Phoebebot"
     }
   ],
-  "actor": "AIbot-Phoebe"
+  "actor": "Phoebebot"
 }
 ```
 
@@ -360,7 +374,7 @@ GET /api/system-logs
     {
       "id": 42,
       "action": "PIPELINE_CHANGE",
-      "actor": "AIbot-Phoebe",
+      "actor": "Phoebebot",
       "actor_type": "AIBOT",
       "candidate_id": 123,
       "candidate_name": "陳宥樺",
@@ -380,7 +394,7 @@ GET /api/system-logs
     {
       "id": 40,
       "action": "BULK_IMPORT",
-      "actor": "AIbot-Jacky",
+      "actor": "Jackeybot",
       "actor_type": "AIBOT",
       "candidate_id": null,
       "candidate_name": null,
@@ -497,7 +511,7 @@ curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status
   -H "Content-Type: application/json" \
   -d '{
     "status": "已面試",
-    "by": "AIbot-Phoebe"
+    "by": "Phoebebot"
   }'
 ```
 
@@ -510,7 +524,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{
     "recruiter": "Phoebe",
-    "actor": "AIbot-Phoebe"
+    "actor": "Phoebebot"
   }'
 ```
 
@@ -525,7 +539,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
   -d '{
     "notes": "候選人 CTO 背景，主動找尋 100-150 萬機會，可立即上班",
     "talent_level": "S",
-    "actor": "AIbot-Jacky"
+    "actor": "Jackeybot"
   }'
 
 # 使用 remarks（效果完全相同）
@@ -534,7 +548,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
   -d '{
     "remarks": "候選人 CTO 背景，主動找尋 100-150 萬機會，可立即上班",
     "talent_level": "S",
-    "actor": "AIbot-Jacky"
+    "actor": "Jackeybot"
   }'
 ```
 
@@ -561,7 +575,7 @@ curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status
   -H "Content-Type: application/json" \
   -d '{
     "status": "Offer",
-    "by": "AIbot-Jacky"
+    "by": "Jackeybot"
   }'
 ```
 
@@ -604,7 +618,7 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates/bulk \
         "recruiter": "Jacky"
       }
     ],
-    "actor": "AIbot-Phoebe"
+    "actor": "Phoebebot"
   }'
 ```
 

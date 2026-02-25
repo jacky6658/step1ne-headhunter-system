@@ -50,7 +50,8 @@ pool.query(`
 
 // 寫入 system_logs 輔助函數
 async function writeLog({ action, actor, candidateId, candidateName, detail }) {
-  const actorType = /aibot/i.test(actor) ? 'AIBOT' : 'HUMAN';
+  // 判斷 AIBOT：包含 "aibot" 或以 "bot" 結尾（如 Jackeybot、Phoebebot）
+  const actorType = /aibot|bot$/i.test(actor) ? 'AIBOT' : 'HUMAN';
   try {
     await pool.query(
       `INSERT INTO system_logs (action, actor, actor_type, candidate_id, candidate_name, detail)
