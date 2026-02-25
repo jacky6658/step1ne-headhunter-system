@@ -270,6 +270,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   }, [toastMessage]);
 
   const handleDragStart = (candidateId: string) => {
+    console.log('[Pipeline] dragStart:', candidateId);
     setDraggingCandidateId(candidateId);
   };
 
@@ -278,14 +279,23 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   };
 
   const handleDropToStage = async (stage: PipelineStageKey) => {
-    if (!draggingCandidateId) return;
+    console.log('[Pipeline] drop → stage:', stage, '| draggingId:', draggingCandidateId);
+    if (!draggingCandidateId) {
+      console.warn('[Pipeline] drop ignored: draggingCandidateId is null');
+      return;
+    }
 
     const targetCandidate = candidates.find(c => c.id === draggingCandidateId);
-    if (!targetCandidate) return;
+    if (!targetCandidate) {
+      console.warn('[Pipeline] drop ignored: candidate not found');
+      return;
+    }
 
     const latest = getLatestProgress(targetCandidate.progressTracking);
     const currentStage = latest ? mapEventToStage(latest.event) : mapStatusToStage(targetCandidate.status);
+    console.log('[Pipeline] currentStage:', currentStage, '| targetStage:', stage, '| latestEvent:', latest?.event);
     if (currentStage === stage) {
+      console.log('[Pipeline] drop ignored: same stage');
       setDraggingCandidateId(null);
       return;
     }
