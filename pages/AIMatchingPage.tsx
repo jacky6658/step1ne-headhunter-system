@@ -147,9 +147,14 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, pre
 
   const fetchCandidates = async () => {
     try {
-      const data = await apiGet<{ success: boolean; data: CandidateFromAPI[] }>('/candidates');
+      const data = await apiGet<{ success: boolean; data: Candidate[] }>('/candidates');
       if (data.success) {
-        setCandidates(data.data);
+        // 確保 years 是 number 型（API 可能返回 string）
+        const candidatesWithTypes = data.data.map(c => ({
+          ...c,
+          years: typeof c.years === 'string' ? parseInt(c.years) || 0 : c.years || 0
+        }));
+        setCandidates(candidatesWithTypes);
       }
     } catch (err) {
       console.error('載入候選人失敗:', err);
