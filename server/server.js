@@ -30,9 +30,27 @@ const PORT = process.env.PORT || 3001;
 
 // ==================== 中間件 ====================
 
+// CORS 設定：允許特定的 origins
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://step1ne.zeabur.app',
+  'https://step1ne.com'
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || ['http://localhost:3000', 'https://step1ne.com'],
-  credentials: true
+  origin: function(origin, callback) {
+    // 允許沒有 origin 的請求（如 curl, mobile apps）
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS 拒絕: ${origin}`);
+      callback(new Error('CORS 不允許此 origin'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(bodyParser.json({ limit: '10mb' }));
