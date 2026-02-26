@@ -16,11 +16,33 @@ try:
     import requests
     from bs4 import BeautifulSoup
 except ImportError:
-    print(json.dumps({
-        "error": "missing_dependencies",
-        "message": "請執行：pip3 install requests beautifulsoup4"
-    }), flush=True)
-    sys.exit(1)
+    import subprocess
+    print("[scraper] 自動安裝 Python 依賴...", file=sys.stderr, flush=True)
+    cmds = [
+        [sys.executable, '-m', 'pip', 'install', 'requests', 'beautifulsoup4', 'lxml',
+         '--break-system-packages', '-q'],
+        [sys.executable, '-m', 'pip', 'install', 'requests', 'beautifulsoup4', 'lxml',
+         '--user', '-q'],
+        [sys.executable, '-m', 'pip', 'install', 'requests', 'beautifulsoup4', 'lxml', '-q'],
+    ]
+    installed = False
+    for cmd in cmds:
+        try:
+            subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            installed = True
+            break
+        except Exception:
+            continue
+    if installed:
+        import requests
+        from bs4 import BeautifulSoup
+        print("[scraper] 依賴安裝成功", file=sys.stderr, flush=True)
+    else:
+        print(json.dumps({
+            "error": "missing_dependencies",
+            "message": "無法自動安裝 requests beautifulsoup4，請手動執行：pip3 install requests beautifulsoup4"
+        }), flush=True)
+        sys.exit(1)
 
 # ============================================================
 # 反爬蟲設定
