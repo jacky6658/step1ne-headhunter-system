@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UserProfile } from '../types';
 import { API_BASE_URL } from '../constants';
 import {
@@ -6,6 +6,66 @@ import {
   XCircle, AlertCircle, Briefcase, Calendar, Activity,
   ChevronDown, ChevronUp, Info, Zap, Timer, Search, X as XIcon, User
 } from 'lucide-react';
+
+// ──────────────── 日誌解析 ────────────────
+interface LogStatus {
+  isRunning: boolean;
+  isDone: boolean;
+  isError: boolean;
+  phase: 'crawl' | 'score' | 'idle';
+  totalJobs: number;
+  completedJobs: number;
+  currentJob: string | null;
+  imported: number;
+  scored: number;
+  elapsedSec: number | null;
+}
+
+function parseLogStatus(log: string | null): LogStatus {
+  const empty: LogStatus = { isRunning: false, isDone: false, isError: false, phase: 'idle', totalJobs: 0, completedJobs: 0, currentJob: null, imported: 0, scored: 0, elapsedSec: null };
+  if (!log || !log.includes('Bot 啟動時間')) return empty;
+
+  const jobIdsMatch = log.match(/--job-ids ([\d,]+)/);
+  const totalJobs = jobIdsMatch ? jobIdsMatch[1].split(',').length : 0;
+
+  // 每個職缺完成的標記（找到0位也算完成）
+  const completedJobs = (log.match(/爬取完成，共 \d+ 位候選人|無候選人，跳過此職缺/g) || []).length;
+
+  // 當前職缺
+  const jobMatches = [...log.matchAll(/══ 職缺：(.+?)（#\d+）/g)];
+  const currentJob = jobMatches.length > 0 ? jobMatches[jobMatches.length - 1][1] : null;
+
+  // 匯入數
+  const importMatch = log.match(/合計：匯入 (\d+)/);
+  const imported = importMatch ? parseInt(importMatch[1]) : 0;
+
+  // 評分數
+  const scoredMatches = log.match(/\[S\]|\[A\+\]|\[A\]|\[B\]|\[C\]/g);
+  const scored = scoredMatches ? scoredMatches.length : 0;
+
+  // 階段判斷
+  const isScoring = log.includes('評分階段');
+  const phase = isScoring ? 'score' : 'crawl';
+
+  // 完成判斷
+  const isDone = log.includes('今日無新增候選人，評分結束') ||
+    (log.includes('合計：') && log.includes('評分結束')) ||
+    log.includes('評分全部完成') ||
+    (isScoring && log.includes('今日無新增候選人'));
+  const isError = log.includes('Traceback (most recent call last)') || log.includes('ModuleNotFoundError') || log.includes('SyntaxError');
+
+  // 執行時間
+  const startMatch = log.match(/Bot 啟動時間：(.+)/);
+  let elapsedSec: number | null = null;
+  if (startMatch) {
+    const startTime = new Date(startMatch[1].trim()).getTime();
+    if (!isNaN(startTime)) elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+  }
+
+  const isRunning = !isDone && !isError && log.trim().length > 100;
+
+  return { isRunning, isDone, isError, phase, totalJobs, completedJobs, currentJob, imported, scored, elapsedSec };
+}
 
 // ──────────────── 型別定義 ────────────────
 
@@ -129,6 +189,7 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
   const [runLog, setRunLog] = useState<string | null>(null);
   const [runLogLoading, setRunLogLoading] = useState(false);
   const [showRunLog, setShowRunLog] = useState(false);
+  const logPreRef = useRef<HTMLPreElement>(null);
 
   // ─── 載入資料 ───
   const safeJson = async (res: Response, fallback: any = { success: false, data: [] }) => {
@@ -181,6 +242,28 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
   }, [userProfile.displayName]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ─── 自動輪詢：Bot 執行中時每 4 秒刷新日誌 ───
+  useEffect(() => {
+    if (!showRunLog) return;
+    const status = parseLogStatus(runLog);
+    if (!status.isRunning) return; // 已結束或未開始，不輪詢
+    const timer = setInterval(() => {
+      fetch(`${API_BASE_URL}/api/bot/run-log`)
+        .then(r => r.json())
+        .then(json => {
+          if (json.log) {
+            setRunLog(json.log);
+            // 自動捲到底
+            setTimeout(() => {
+              if (logPreRef.current) logPreRef.current.scrollTop = logPreRef.current.scrollHeight;
+            }, 50);
+          }
+        })
+        .catch(() => {});
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [showRunLog, runLog]);
 
   // ─── 儲存設定 ───
   const handleSave = async () => {
@@ -456,43 +539,108 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
         </div>
 
         {/* 執行日誌展開區 */}
-        {showRunLog && (
-          <div className="border-t border-slate-100">
-            <div className="flex items-center justify-between px-5 py-2.5 bg-slate-50">
-              <div className="flex items-center gap-2">
-                <Activity size={14} className="text-slate-500" />
-                <span className="text-xs font-semibold text-slate-600">最近一次執行日誌（Python 輸出）</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={fetchRunLog}
-                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  <RefreshCw size={11} />
-                  重新整理
-                </button>
-                <button
-                  onClick={() => setShowRunLog(false)}
-                  className="text-slate-400 hover:text-slate-600 ml-1"
-                >
-                  <XIcon size={14} />
-                </button>
-              </div>
-            </div>
-            <div className="px-5 py-3">
-              {runLogLoading ? (
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <RefreshCw size={12} className="animate-spin" />
-                  讀取中...
+        {showRunLog && (() => {
+          const st = parseLogStatus(runLog);
+          const crawlPct = st.totalJobs > 0 ? Math.round((st.completedJobs / st.totalJobs) * 100) : 0;
+          const elapsed = st.elapsedSec != null
+            ? st.elapsedSec >= 60 ? `${Math.floor(st.elapsedSec / 60)}m ${st.elapsedSec % 60}s` : `${st.elapsedSec}s`
+            : null;
+          return (
+            <div className="border-t border-slate-100">
+              {/* 進度狀態列 */}
+              {(st.isRunning || st.isDone || st.isError) && (
+                <div className={`px-5 py-3 border-b ${
+                  st.isError ? 'bg-red-50 border-red-100' :
+                  st.isDone  ? 'bg-green-50 border-green-100' :
+                               'bg-amber-50 border-amber-100'
+                }`}>
+                  {/* 狀態標題列 */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {st.isError ? (
+                        <XCircle size={14} className="text-red-500" />
+                      ) : st.isDone ? (
+                        <CheckCircle2 size={14} className="text-green-600" />
+                      ) : (
+                        <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse inline-block" />
+                      )}
+                      <span className={`text-xs font-bold ${
+                        st.isError ? 'text-red-700' : st.isDone ? 'text-green-700' : 'text-amber-700'
+                      }`}>
+                        {st.isError ? '執行發生錯誤' :
+                         st.isDone  ? `執行完成 — 匯入 ${st.imported} 位，評分 ${st.scored} 位` :
+                         st.phase === 'score' ? `評分中... （${st.scored} 位已評）` :
+                         `爬取中... ${st.completedJobs}/${st.totalJobs} 個職缺`}
+                      </span>
+                    </div>
+                    {elapsed && (
+                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                        <Timer size={10} />
+                        {elapsed}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 進度條（爬取階段） */}
+                  {!st.isDone && !st.isError && st.phase === 'crawl' && st.totalJobs > 0 && (
+                    <div className="mb-1.5">
+                      <div className="w-full bg-amber-200 rounded-full h-1.5">
+                        <div
+                          className="bg-amber-500 h-1.5 rounded-full transition-all duration-700"
+                          style={{ width: `${Math.max(crawlPct, 3)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 當前職缺 */}
+                  {st.isRunning && st.currentJob && (
+                    <p className="text-[10px] text-slate-500 truncate">
+                      正在處理：{st.currentJob}
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <pre className="text-[11px] leading-5 font-mono text-slate-700 whitespace-pre-wrap bg-slate-950 text-green-400 rounded-lg p-4 max-h-80 overflow-y-auto">
-                  {runLog || '（尚無日誌）'}
-                </pre>
               )}
+
+              {/* 日誌標題列 */}
+              <div className="flex items-center justify-between px-5 py-2.5 bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <Activity size={14} className="text-slate-500" />
+                  <span className="text-xs font-semibold text-slate-600">最近一次執行日誌（Python 輸出）</span>
+                  {st.isRunning && (
+                    <span className="text-[10px] text-amber-600 font-medium animate-pulse">● 自動更新中</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={fetchRunLog} className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                    <RefreshCw size={11} className={runLogLoading ? 'animate-spin' : ''} />
+                    重新整理
+                  </button>
+                  <button onClick={() => setShowRunLog(false)} className="text-slate-400 hover:text-slate-600 ml-1">
+                    <XIcon size={14} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 日誌內容 */}
+              <div className="px-5 py-3">
+                {runLogLoading && !runLog ? (
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <RefreshCw size={12} className="animate-spin" />
+                    讀取中...
+                  </div>
+                ) : (
+                  <pre
+                    ref={logPreRef}
+                    className="text-[11px] leading-5 font-mono whitespace-pre-wrap bg-slate-950 text-green-400 rounded-lg p-4 max-h-80 overflow-y-auto"
+                  >
+                    {runLog || '（尚無日誌）'}
+                  </pre>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* ── 爬蟲參數設定 ── */}
