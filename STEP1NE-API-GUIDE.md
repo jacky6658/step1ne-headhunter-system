@@ -1,7 +1,8 @@
 # Step1ne API 完整指南（給 AI Bot 使用）
 
-**版本**: v1.0  
-**最後更新**: 2026-02-24  
+**版本**: v1.1  
+**最後更新**: 2026-02-26  
+**新增**: 人才智能爬蟲 API (完整 4 個端點 + 使用範例)  
 **適用對象**: 所有 AI Bot（YuQi, Phoebe Bot, 其他顧問的 Bot）
 
 ---
@@ -780,10 +781,419 @@ curl -X PUT "https://backendstep1ne.zeabur.app/api/candidates/1" \
 
 ---
 
+## 🚀 人才智能爬蟲 API (NEW - 2026-02-26)
+
+**功能**: 透過 API 調用爬蟲系統，進行候選人搜尋、評分、遷移分析
+
+**整合來源**: https://github.com/jacky6658/step1ne-headhunter-skill
+
+**核心優勢**:
+- 🔍 自動搜尋 GitHub + LinkedIn 候選人
+- ⭐ 6 維度評分系統（技能、經驗、地點、訊號、公司、產業）
+- 🔄 跨產業遷移能力分析
+- ⚡ 50 倍效率提升（6+ 小時 → 7 分鐘）
+
+---
+
+### 1. 搜尋候選人
+
+**端點**:
+```http
+POST /api/talent-sourcing/search
+```
+
+**請求 Body**:
+```json
+{
+  "jobTitle": "AI工程師",
+  "industry": "internet",
+  "requiredSkills": ["Python", "機器學習", "深度學習"],
+  "layer": 1
+}
+```
+
+**參數說明**:
+- `jobTitle` (必填): 職位名稱
+- `industry` (必填): 產業
+  - `internet` - 網際網路
+  - `gaming` - 遊戲
+  - `fintech` - 金融科技
+  - `healthcare` - 醫療
+  - `manufacturing` - 製造
+  - `devops` - DevOps/基礎設施
+  - 等等
+- `requiredSkills` (可選): 必備技能陣列
+- `layer` (可選): 優先級
+  - `1` = P0 (優先搜尋)
+  - `2` = P1 (次要搜尋)
+  - 預設: 1
+
+**回應範例**:
+```json
+{
+  "success": true,
+  "candidateCount": 25,
+  "executionTime": "12.34s",
+  "timestamp": "2026-02-26T12:30:00.000Z",
+  "data": [
+    {
+      "id": "1",
+      "name": "陳宥樺",
+      "email": "chen@github.com",
+      "phone": "0912345678",
+      "skills": ["Python", "Go", "Kubernetes"],
+      "experience_years": 5,
+      "source": "github",
+      "github_url": "https://github.com/chen",
+      "overall_score": 92,
+      "talent_level": "A+",
+      "migration_potential": 85
+    },
+    {
+      "id": "2",
+      "name": "李明哲",
+      "email": "li@linkedin.com",
+      "skills": ["Python", "PyTorch"],
+      "experience_years": 3,
+      "source": "linkedin",
+      "overall_score": 78,
+      "talent_level": "A",
+      "migration_potential": 72
+    }
+  ]
+}
+```
+
+**使用範例**:
+
+**Python**:
+```python
+import requests
+
+response = requests.post(
+  'https://backendstep1ne.zeabur.app/api/talent-sourcing/search',
+  json={
+    'jobTitle': 'AI工程師',
+    'industry': 'internet',
+    'requiredSkills': ['Python', 'ML'],
+    'layer': 1
+  }
+)
+
+candidates = response.json()['data']
+print(f"找到 {len(candidates)} 位候選人")
+```
+
+**Bash/cURL**:
+```bash
+curl -X POST "https://backendstep1ne.zeabur.app/api/talent-sourcing/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobTitle": "AI工程師",
+    "industry": "internet",
+    "requiredSkills": ["Python", "ML"],
+    "layer": 1
+  }' | jq '.data[].name'
+```
+
+---
+
+### 2. 評分候選人
+
+**端點**:
+```http
+POST /api/talent-sourcing/score
+```
+
+**請求 Body**:
+```json
+{
+  "candidates": [
+    {
+      "id": "1",
+      "name": "陳宥樺",
+      "skills": ["Python", "Go"],
+      "experience_years": 5,
+      "source_industry": "internet",
+      "company_level": "large",
+      "location": "台北"
+    }
+  ],
+  "jobRequirement": {
+    "title": "AI工程師",
+    "requiredSkills": ["Python", "ML"],
+    "years": 3,
+    "location": "台北"
+  }
+}
+```
+
+**評分維度**:
+- `skill_score` (25%) - 技能匹配度
+- `experience_score` (20%) - 經驗年資匹配
+- `location_score` (15%) - 地點偏好
+- `signal_score` (15%) - 招聘訊號（開源貢獻、活躍度等）
+- `company_score` (15%) - 前公司等級
+- `industry_score` (10%) - 產業經驗
+
+**回應範例**:
+```json
+{
+  "success": true,
+  "executionTime": "1.23s",
+  "data": [
+    {
+      "candidate_id": "1",
+      "name": "陳宥樺",
+      "overall_score": 85,
+      "talent_level": "A",
+      "skill_score": 90,
+      "experience_score": 80,
+      "location_score": 75,
+      "signal_score": 88,
+      "company_score": 82,
+      "industry_score": 79,
+      "strengths": [
+        "深厚的 Python 經驗",
+        "開源貢獻豐富",
+        "有機器學習專案經驗"
+      ],
+      "weaknesses": [
+        "年資略低於要求",
+        "地點在竹科，可能需要遠端或搬遷"
+      ],
+      "transferable_skills": [
+        "系統設計",
+        "大規模數據處理",
+        "團隊協作"
+      ]
+    }
+  ]
+}
+```
+
+**使用範例**:
+
+```bash
+# 搜尋後評分
+CANDIDATES=$(curl -s -X POST "https://backendstep1ne.zeabur.app/api/talent-sourcing/search" \
+  -H "Content-Type: application/json" \
+  -d '{"jobTitle":"AI工程師","industry":"internet"}')
+
+curl -X POST "https://backendstep1ne.zeabur.app/api/talent-sourcing/score" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"candidates\": $(echo $CANDIDATES | jq '.data'),
+    \"jobRequirement\": {\"title\": \"AI工程師\", \"years\": 3}
+  }"
+```
+
+---
+
+### 3. 分析遷移能力
+
+**端點**:
+```http
+POST /api/talent-sourcing/migration
+```
+
+**用途**: 評估候選人跨產業轉移的可能性
+
+**請求 Body**:
+```json
+{
+  "candidates": [
+    {
+      "id": "1",
+      "name": "陳宥樺",
+      "skills": ["Python", "Go"],
+      "experience_years": 5,
+      "source_industry": "internet"
+    }
+  ],
+  "targetIndustry": "fintech"
+}
+```
+
+**回應範例**:
+```json
+{
+  "success": true,
+  "executionTime": "2.34s",
+  "data": [
+    {
+      "candidate_id": "1",
+      "name": "陳宥樺",
+      "source_industry": "internet",
+      "target_industry": "fintech",
+      "migration_potential": 78,
+      "skill_transferability": 85,
+      "industry_similarity": 72,
+      "learning_readiness": 75,
+      "recommendation": "建議考慮，具備必要技能基礎且學習能力強",
+      "key_factors": {
+        "positive": [
+          "已有大規模系統開發經驗",
+          "熟悉並發和性能優化",
+          "快速學習能力強"
+        ],
+        "concerns": [
+          "金融領域知識需補充",
+          "合規和安全需求理解不足"
+        ]
+      }
+    }
+  ]
+}
+```
+
+**使用範例**:
+
+```python
+import requests
+
+# 從搜尋結果取得候選人
+response = requests.post(
+  'https://backendstep1ne.zeabur.app/api/talent-sourcing/search',
+  json={'jobTitle': 'AI工程師', 'industry': 'internet'}
+)
+
+candidates = response.json()['data'][:5]  # 前 5 個
+
+# 分析他們遷移到 fintech 的潛力
+migration_response = requests.post(
+  'https://backendstep1ne.zeabur.app/api/talent-sourcing/migration',
+  json={
+    'candidates': candidates,
+    'targetIndustry': 'fintech'
+  }
+)
+
+for result in migration_response.json()['data']:
+  print(f"{result['name']}: {result['migration_potential']}% 遷移潛力")
+```
+
+---
+
+### 4. 健康檢查
+
+**端點**:
+```http
+GET /api/talent-sourcing/health
+```
+
+**用途**: 驗證爬蟲系統是否就緒
+
+**回應範例**:
+```json
+{
+  "success": true,
+  "status": "ready",
+  "health": {
+    "scriptsReady": true,
+    "toolsDir": "/Users/user/clawd/hr-tools",
+    "scriptsAvailable": {
+      "scraper": true,
+      "scorer": true,
+      "migration": true
+    }
+  }
+}
+```
+
+**使用範例**:
+
+```bash
+curl "https://backendstep1ne.zeabur.app/api/talent-sourcing/health" | jq '.status'
+# 回傳 "ready" 或 "not-ready"
+```
+
+---
+
+### 完整工作流範例
+
+**Python - 完整端到端流程**:
+
+```python
+import requests
+import json
+
+API_BASE = 'https://backendstep1ne.zeabur.app/api'
+
+# 第 1 步：搜尋候選人
+print("🔍 第 1 步：搜尋候選人...")
+search_response = requests.post(
+  f'{API_BASE}/talent-sourcing/search',
+  json={
+    'jobTitle': 'AI工程師',
+    'industry': 'internet',
+    'requiredSkills': ['Python', 'ML'],
+    'layer': 1
+  }
+)
+
+if not search_response.json()['success']:
+  print("搜尋失敗")
+  exit(1)
+
+candidates = search_response.json()['data']
+print(f"✅ 找到 {len(candidates)} 位候選人")
+
+# 第 2 步：評分
+print("\n⭐ 第 2 步：評分...")
+score_response = requests.post(
+  f'{API_BASE}/talent-sourcing/score',
+  json={
+    'candidates': candidates,
+    'jobRequirement': {
+      'title': 'AI工程師',
+      'requiredSkills': ['Python', 'ML'],
+      'years': 3
+    }
+  }
+)
+
+scores = score_response.json()['data']
+print(f"✅ 評分完成")
+
+# 第 3 步：篩選高分候選人
+top_candidates = [s for s in scores if s['overall_score'] >= 80]
+print(f"\n📊 高分候選人 ({len(top_candidates)} 位):")
+for candidate in top_candidates[:3]:
+  print(f"  • {candidate['name']}: {candidate['overall_score']} 分 ({candidate['talent_level']})")
+
+# 第 4 步：導入到履歷池
+print("\n📥 第 4 步：導入到履歷池...")
+for candidate in top_candidates:
+  response = requests.post(
+    f'{API_BASE}/candidates',
+    json={
+      'name': candidate['name'],
+      'email': candidate.get('email'),
+      'skills': candidate.get('skills', []),
+      'consultant': 'Jacky',
+      'notes': f"AI爬蟲推薦 (評分: {candidate['overall_score']})",
+      'talentGrade': candidate['talent_level']
+    }
+  )
+  
+  if response.json()['success']:
+    print(f"  ✅ {candidate['name']} 已導入")
+  else:
+    print(f"  ❌ {candidate['name']} 導入失敗")
+
+print("\n🎉 流程完成！")
+```
+
+---
+
 ## 📚 相關文檔
 
 - **前端使用手冊**: https://step1ne.zeabur.app/#help
 - **GitHub Repo**: https://github.com/jacky6658/step1ne-headhunter-system
+- **爬蟲系統**: https://github.com/jacky6658/step1ne-headhunter-skill
+- **爬蟲文檔**: https://github.com/jacky6658/step1ne-headhunter-skill/tree/main/docs/talent-sourcing
+- **整合記錄**: INTEGRATION-NOTES.md
 - **部署文檔**: ZEABUR-DEPLOYMENT.md
 - **本地開發**: LOCAL-DEVELOPMENT.md
 
