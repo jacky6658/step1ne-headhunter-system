@@ -27,13 +27,15 @@ const { execSync } = require('child_process');
   } catch {
     console.log('⏳ 安裝 Python 依賴（requests, beautifulsoup4, lxml）...');
     const cmds = [
+      'python3 -m pip install requests beautifulsoup4 lxml --break-system-packages -q',
+      'python3 -m pip install requests beautifulsoup4 lxml --user -q',
+      'python3 -m pip install requests beautifulsoup4 lxml -q',
       'pip3 install requests beautifulsoup4 lxml --break-system-packages -q',
-      'pip3 install requests beautifulsoup4 lxml -q',
       'pip install requests beautifulsoup4 lxml -q',
     ];
     for (const cmd of cmds) {
       try {
-        execSync(cmd, { stdio: 'inherit', timeout: 60000 });
+        execSync(cmd, { stdio: 'inherit', timeout: 120000 });
         console.log('✅ Python 依賴安裝成功');
         return;
       } catch { /* 嘗試下一個 */ }
