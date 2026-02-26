@@ -252,17 +252,32 @@ def scrape_candidates(job: Dict, pages: int = 2) -> List[Dict]:
 
 
 # ─── 去重 ─────────────────────────────────────────────────────────────────────
-def get_existing_linkedin_urls() -> set:
-    """取得 DB 中所有 linkedin_url（用於去重）"""
-    resp = api_get('/api/candidates?limit=2000')
+def get_existing_identifiers() -> tuple:
+    """
+    取得 DB 中所有已存在的候選人識別碼，用於匯入前去重：
+      - linkedin_urls : set of str（完整 URL）
+      - github_ids    : set of str（username 小寫 + 完整 URL 都放進去，方便比對）
+    """
+    resp = api_get('/api/candidates?limit=5000')
     if not resp or not resp.get('success'):
-        return set()
-    urls = set()
+        return set(), set()
+
+    linkedin_urls: set = set()
+    github_ids:    set = set()
+
     for c in resp.get('data', []):
-        u = c.get('linkedinUrl') or c.get('linkedin_url') or ''
-        if u:
-            urls.add(u.strip().rstrip('/'))
-    return urls
+        li = (c.get('linkedinUrl') or c.get('linkedin_url') or '').strip().rstrip('/')
+        gh = (c.get('githubUrl')   or c.get('github_url')   or '').strip().rstrip('/')
+        if li:
+            linkedin_urls.add(li)
+        if gh:
+            github_ids.add(gh)                          # 完整 URL
+            username = gh.split('/')[-1].lower()
+            if username:
+                github_ids.add(username)                # username 小寫（快速比對）
+
+    log(f"DB 現有識別碼：LinkedIn {len(linkedin_urls)} 筆，GitHub {len(github_ids)} 筆")
+    return linkedin_urls, github_ids
 
 
 # ─── 匯入候選人 ───────────────────────────────────────────────────────────────
@@ -423,8 +438,12 @@ def _template_conclusion(scoring: Dict, job: Dict) -> str:
 
 
 # ─── 主流程 ───────────────────────────────────────────────────────────────────
-def process_job(job: Dict, existing_urls: set, args, consultant: str = '') -> Dict:
-    """處理單一職缺的完整閉環"""
+def process_job(job: Dict, existing_linkedin: set, existing_github: set, args, consultant: str = '') -> Dict:
+    """
+    處理單一職缺的完整閉環。
+    existing_linkedin : DB 中已有的 LinkedIn URL set（匯入前查重）
+    existing_github   : DB 中已有的 GitHub URL / username set（匯入前查重）
+    """
     job_title = job.get('title', f"Job#{job.get('id')}")
     log(f"{'='*50}", 'HEAD')
     log(f"職缺：{job_title}（#{job.get('id')}）| 公司：{job.get('company','')}", 'HEAD')
@@ -432,10 +451,10 @@ def process_job(job: Dict, existing_urls: set, args, consultant: str = '') -> Di
 
     stats = {'job': job_title, 'found': 0, 'skipped': 0, 'imported': 0, 'scored': 0, 'errors': 0}
 
-    # 1. 爬取（使用職缺預設關鍵字，或備援至 required_skills）
+    # 1. 爬取
     raw_candidates = scrape_candidates(job, pages=args.pages)
     stats['found'] = len(raw_candidates)
-    log(f"爬取完成，共 {len(raw_candidates)} 位候選人")
+    log(f"爬取完成，共 {len(raw_candidates)} 位候選人（每頁隨機抽樣後）")
 
     if not raw_candidates:
         log("無候選人，跳過此職缺", 'WARN')
@@ -443,16 +462,26 @@ def process_job(job: Dict, existing_urls: set, args, consultant: str = '') -> Di
 
     # 2. 逐一處理
     for i, raw in enumerate(raw_candidates, 1):
-        name = raw.get('name') or raw.get('display_name', f'#{i}')
-        li_url = (raw.get('linkedin_url', '') or '').strip().rstrip('/')
+        name    = raw.get('name') or raw.get('display_name', f'#{i}')
+        li_url  = (raw.get('linkedin_url',   '') or '').strip().rstrip('/')
+        gh_url  = (raw.get('github_url',     '') or '').strip().rstrip('/')
+        gh_user = (raw.get('github_username','') or '').lower()
 
-        # 去重
-        if li_url and li_url in existing_urls:
-            log(f"[{i}/{len(raw_candidates)}] 已存在，跳過：{name}")
+        # ── DB 層去重（匯入前查現有履歷池）──
+        if li_url and li_url in existing_linkedin:
+            log(f"[{i}/{len(raw_candidates)}] LinkedIn 已存在，跳過：{name}")
+            stats['skipped'] += 1
+            continue
+        if gh_url and gh_url in existing_github:
+            log(f"[{i}/{len(raw_candidates)}] GitHub URL 已存在，跳過：{name}")
+            stats['skipped'] += 1
+            continue
+        if gh_user and gh_user in existing_github:
+            log(f"[{i}/{len(raw_candidates)}] GitHub 帳號已存在，跳過：{name}")
             stats['skipped'] += 1
             continue
 
-        log(f"[{i}/{len(raw_candidates)}] 處理：{name}")
+        log(f"[{i}/{len(raw_candidates)}] 匯入：{name}")
 
         # 3. 匯入
         cid = import_candidate(raw, job, dry_run=args.dry_run, consultant=consultant)
@@ -460,13 +489,16 @@ def process_job(job: Dict, existing_urls: set, args, consultant: str = '') -> Di
             stats['errors'] += 1
             continue
         stats['imported'] += 1
-        if li_url:
-            existing_urls.add(li_url)  # 更新本地去重集合
+
+        # 匯入成功後立即更新本地去重集合（同批次內去重）
+        if li_url:  existing_linkedin.add(li_url)
+        if gh_url:  existing_github.add(gh_url)
+        if gh_user: existing_github.add(gh_user)
 
         if args.dry_run:
             continue
 
-        # 4. 反爬蟲延遲（每位候選人之間 1-3 秒）
+        # 4. 反爬蟲延遲
         if i < len(raw_candidates):
             time.sleep(random.uniform(1.0, 3.0))
 
@@ -704,10 +736,9 @@ def run_scrape_phase(args):
             log("無啟用的 Bot 設定，請在系統 Bot 排程設定頁面啟用", 'WARN')
             sys.exit(0)
 
-    # 取得現有 LinkedIn URLs（去重用，所有顧問共用）
-    log("載入現有候選人 LinkedIn URLs...")
-    existing_urls = get_existing_linkedin_urls()
-    log(f"DB 中已有 {len(existing_urls)} 個 LinkedIn URL")
+    # 載入 DB 現有識別碼（LinkedIn URL + GitHub URL/username），所有顧問共用
+    log("載入現有候選人識別碼（LinkedIn + GitHub）進行去重...")
+    existing_linkedin, existing_github = get_existing_identifiers()
 
     # 依序執行每位顧問的設定（顧問間加延遲，避免同時爬蟲被偵測）
     all_stats = []
@@ -754,7 +785,7 @@ def run_scrape_phase(args):
                 'talent_profile':   raw_job.get('talent_profile', '') or '',
             }
 
-            stats = process_job(job, existing_urls, args, consultant=consultant)
+            stats = process_job(job, existing_linkedin, existing_github, args, consultant=consultant)
             all_stats.append(stats)
 
             # 職缺之間加較長延遲（反爬蟲）
@@ -782,12 +813,12 @@ def main():
                         help='full=爬取+評分（預設），scrape=只爬取匯入，score=只評分今日新增')
     parser.add_argument('--consultant', default='', help='指定顧問名稱（空=讀取所有已啟用顧問）')
     parser.add_argument('--job-ids',   default='', help='指定職缺 ID（逗號分隔），覆蓋 DB 設定')
-    parser.add_argument('--pages',     type=int, default=2, help='每次搜尋頁數（1-3）')
+    parser.add_argument('--pages',     type=int, default=10, help='每次搜尋頁數（1-10），每頁隨機抽 5 筆')
     parser.add_argument('--dry-run',         action='store_true', help='試跑，不寫入 DB')
     parser.add_argument('--no-claude',       action='store_true', help='跳過 AI 結語，使用模板')
     parser.add_argument('--no-profile-read', action='store_true', help='跳過 Playwright 讀頁面（快速模式）')
     args = parser.parse_args()
-    args.pages = max(1, min(3, args.pages))
+    args.pages = max(1, min(10, args.pages))
 
     log(f"Step1ne AI Bot Pipeline v2 啟動", 'HEAD')
     log(f"模式：{args.mode} | API: {API_BASE} | Actor: {BOT_ACTOR} | Dry-run: {args.dry_run} | Claude: {not args.no_claude}", 'HEAD')

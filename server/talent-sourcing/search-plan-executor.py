@@ -133,6 +133,9 @@ def check_github_rate_limit(token=None):
     rate = data.get('rate', {})
     return rate.get('remaining', 0), rate.get('limit', 60), rate.get('reset', 0)
 
+SAMPLE_PER_PAGE = 5   # 每頁隨機抽取人數
+
+
 def _github_search_page(query, page, gh_headers):
     try:
         anti_scraping_delay(0.3, 0.8)
@@ -144,7 +147,11 @@ def _github_search_page(query, page, gh_headers):
         if status != 200:
             log(f"GitHub search HTTP {status} page {page}")
             return [], False
-        return data.get('items', []), False
+        items = data.get('items', [])
+        # 每頁隨機抽取，讓結果更多樣（不總是同前幾名）
+        if len(items) > SAMPLE_PER_PAGE:
+            items = random.sample(items, SAMPLE_PER_PAGE)
+        return items, False
     except Exception as e:
         log(f"GitHub search page {page} error: {e}")
         return [], False
@@ -183,7 +190,7 @@ def fetch_github_user_detail(username, gh_headers):
         log(f"GitHub detail error ({username}): {e}")
         return None
 
-def search_github_users(skills, location="Taiwan", token=None, pages=2):
+def search_github_users(skills, location="Taiwan", token=None, pages=10):
     remaining, limit, _ = check_github_rate_limit(token)
     log(f"GitHub rate limit: {remaining}/{limit} remaining")
     if remaining < 10:
@@ -456,7 +463,7 @@ def extract_linkedin_urls_from_html(html_text):
 # ============================================================
 # LinkedIn via Playwright（真實 Chrome 瀏覽器，主要方法）
 # ============================================================
-def search_linkedin_via_playwright(skills, location="台灣", pages=2):
+def search_linkedin_via_playwright(skills, location="台灣", pages=10):
     """
     用 Playwright 啟動真實 Chromium，在 Google 搜尋 site:linkedin.com/in/ 關鍵字。
     比 urllib 更不容易被 CAPTCHA 擋。
@@ -514,13 +521,17 @@ def search_linkedin_via_playwright(skills, location="台灣", pages=2):
                         log("Playwright: Google CAPTCHA 偵測到，停止搜尋")
                         break
 
-                    for item in extract_linkedin_urls_from_html(html):
+                    page_items = extract_linkedin_urls_from_html(html)
+                    # 每頁隨機抽 5 筆，增加多樣性
+                    if len(page_items) > SAMPLE_PER_PAGE:
+                        page_items = random.sample(page_items, SAMPLE_PER_PAGE)
+                    for item in page_items:
                         li_url = item['linkedin_url']
                         if li_url not in seen_urls:
                             seen_urls.add(li_url)
                             results.append(item)
 
-                    log(f"Playwright page {pg+1}: 累計 {len(results)} 筆 LinkedIn")
+                    log(f"Playwright page {pg+1}: 本頁 {len(page_items)} 筆，累計 {len(results)} 筆")
 
                     if pg < pages - 1:
                         time.sleep(random.uniform(3.0, 6.0))
@@ -539,7 +550,7 @@ def search_linkedin_via_playwright(skills, location="台灣", pages=2):
 # ============================================================
 # LinkedIn via Google / Bing / Brave
 # ============================================================
-def search_linkedin_via_google(skills, location="台灣", pages=2):
+def search_linkedin_via_google(skills, location="台灣", pages=10):
     results = []
     seen_urls = set()
     captcha_detected = False
@@ -565,7 +576,10 @@ def search_linkedin_via_google(skills, location="台灣", pages=2):
             captcha_detected = True
             break
 
-        for item in extract_linkedin_urls_from_html(text):
+        page_items = extract_linkedin_urls_from_html(text)
+        if len(page_items) > SAMPLE_PER_PAGE:
+            page_items = random.sample(page_items, SAMPLE_PER_PAGE)
+        for item in page_items:
             url = item['linkedin_url']
             if url not in seen_urls:
                 seen_urls.add(url)
@@ -575,7 +589,7 @@ def search_linkedin_via_google(skills, location="台灣", pages=2):
     return {'success': True, 'data': results, 'captcha': captcha_detected}
 
 
-def search_linkedin_via_bing(skills, location="Taiwan", pages=2):
+def search_linkedin_via_bing(skills, location="Taiwan", pages=10):
     results = []
     seen_urls = set()
 
@@ -593,7 +607,10 @@ def search_linkedin_via_bing(skills, location="Taiwan", pages=2):
             log(f"Bing search HTTP {status}")
             continue
 
-        for item in extract_linkedin_urls_from_html(text):
+        page_items = extract_linkedin_urls_from_html(text)
+        if len(page_items) > SAMPLE_PER_PAGE:
+            page_items = random.sample(page_items, SAMPLE_PER_PAGE)
+        for item in page_items:
             url = item['linkedin_url']
             if url not in seen_urls:
                 seen_urls.add(url)
@@ -603,7 +620,7 @@ def search_linkedin_via_bing(skills, location="Taiwan", pages=2):
     return {'success': True, 'data': results}
 
 
-def search_linkedin_via_brave(skills, brave_api_key, location="Taiwan", pages=2):
+def search_linkedin_via_brave(skills, brave_api_key, location="Taiwan", pages=10):
     """Brave Search API（官方 JSON API，不需解析 HTML）"""
     results = []
     seen_urls = set()
@@ -632,7 +649,11 @@ def search_linkedin_via_brave(skills, brave_api_key, location="Taiwan", pages=2)
             continue
 
         anti_scraping_delay(0.5, 1.5)
-        for r in data.get('web', {}).get('results', []):
+        page_raw = data.get('web', {}).get('results', [])
+        # 每頁隨機抽 5 筆
+        if len(page_raw) > SAMPLE_PER_PAGE:
+            page_raw = random.sample(page_raw, SAMPLE_PER_PAGE)
+        for r in page_raw:
             url = clean_linkedin_url(r.get('url', ''))
             if not url or url in seen_urls:
                 continue
@@ -727,7 +748,7 @@ def main():
     parser.add_argument('--location', default='Taiwan')
     parser.add_argument('--github-token', default='')
     parser.add_argument('--brave-key', default='')
-    parser.add_argument('--pages', type=int, default=2)
+    parser.add_argument('--pages', type=int, default=10)
     parser.add_argument('--output-format', default='json')
     args = parser.parse_args()
 
@@ -742,7 +763,7 @@ def main():
         secondary_skills = skills[2:]
     token = args.github_token.strip() or None
     brave_key = args.brave_key.strip() or None
-    pages = max(1, min(3, args.pages))
+    pages = max(1, min(10, args.pages))
 
     log(f"v4 搜尋: {args.job_title} | 技能: {skills} | 頁數: {pages} | GitHub: {'有' if token else '無'} | Brave: {'有' if brave_key else '無'}")
 
