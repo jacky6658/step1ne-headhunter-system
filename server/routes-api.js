@@ -590,6 +590,47 @@ router.patch('/candidates/:id', async (req, res) => {
     }
     // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析
     let resolvedAiMatch = ai_match_result;
+
+    // 若 ai_match_result 是字串（AI 寫成純文字），自動轉為結構化 JSON
+    if (typeof resolvedAiMatch === 'string' && resolvedAiMatch.trim()) {
+      const text = resolvedAiMatch.trim();
+      const scoreMatch = text.match(/AI評分\s*(\d+)\s*分/);
+      const levelMatch = text.match(/(\d+)\s*分\s*[\/／]\s*([SA+ABCS]+)/);
+      const jobMatch = text.match(/配對職位[：:]\s*(.+?)(?:（|$)/);
+      const score = scoreMatch ? parseInt(scoreMatch[1]) : (stability_score || 0);
+      const level = levelMatch ? levelMatch[2] : (talent_level || '');
+      const recommendation = score >= 85 ? '強力推薦' : score >= 70 ? '推薦' : score >= 55 ? '觀望' : '不推薦';
+
+      // 提取優勢列表
+      const strengthsMatch = text.match(/優勢[：:]?\s*\n([\s\S]+?)(?=⚠️|待確認|💡|$)/);
+      const strengths = strengthsMatch
+        ? strengthsMatch[1].split('\n').map(l => l.replace(/^[-•*]\s*/, '').trim()).filter(Boolean)
+        : [];
+
+      // 提取待確認列表
+      const pendingMatch = text.match(/待確認[：:]?\s*\n([\s\S]+?)(?=💡|顧問建議|$)/);
+      const pending = pendingMatch
+        ? pendingMatch[1].split('\n').map(l => l.replace(/^[-•*]\s*/, '').trim()).filter(Boolean)
+        : [];
+
+      // 提取顧問建議
+      const conclusionMatch = text.match(/顧問建議[：:]\s*([\s\S]+?)(?:\n---|\s*$)/);
+      const conclusion = conclusionMatch ? conclusionMatch[1].trim() : text;
+
+      resolvedAiMatch = {
+        score,
+        recommendation,
+        job_title: jobMatch ? jobMatch[1].trim() : undefined,
+        matched_skills: [],
+        missing_skills: pending.slice(0, 3),
+        strengths,
+        probing_questions: pending,
+        conclusion,
+        evaluated_at: new Date().toISOString(),
+        evaluated_by: actor || 'AIbot',
+      };
+    }
+
     if (resolvedAiMatch === undefined && isAIBot && notes) {
       const parsed = parseNotesToAiMatchResult(notes, actor);
       if (parsed) {
