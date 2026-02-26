@@ -62,7 +62,7 @@ const ReviewPage: React.FC<ReviewPageProps> = ({ leads, userProfile }) => {
                 </div>
                 <div className="flex items-center gap-2 text-slate-400">
                   <Clock size={16} className="text-indigo-400" />
-                  <span className="text-[10px] font-bold">{new Date(lead.posted_at || lead.created_at).toLocaleDateString()}</span>
+                  <span className="text-[10px] font-bold">{new Date(lead.posted_at || lead.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}</span>
                 </div>
               </div>
             </div>

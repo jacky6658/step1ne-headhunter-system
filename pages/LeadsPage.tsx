@@ -149,7 +149,7 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ leads, userProfile }) => {
 平台：${existing.platform}
 案主：${existing.platform_id}
 狀態：${existing.status}
-建立時間：${new Date(existing.created_at).toLocaleString('zh-TW')}
+建立時間：${new Date(existing.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false })}
         `.trim();
         
         const userChoice = window.confirm(
@@ -302,7 +302,7 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ leads, userProfile }) => {
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';
     const date = new Date(dateStr);
-    return isNaN(date.getTime()) ? '-' : date.toLocaleDateString('zh-TW');
+    return isNaN(date.getTime()) ? '-' : date.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' });
   };
 
   return (

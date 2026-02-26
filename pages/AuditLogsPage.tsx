@@ -45,7 +45,7 @@ const AuditLogsPage: React.FC<AuditLogsPageProps> = ({ leads }) => {
               {logs.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-mono">
-                    {new Date(log.created_at).toLocaleString()}
+                    {new Date(log.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false })}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">

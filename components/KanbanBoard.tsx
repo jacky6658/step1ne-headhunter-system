@@ -142,7 +142,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ leads, onSelectLead, userRole
                 >
                   <div className="flex justify-between items-start mb-2">
                     <Badge className="bg-indigo-50 text-indigo-600">{lead.platform}</Badge>
-                    <span className="text-[10px] text-gray-400">{new Date(lead.posted_at || lead.created_at).toLocaleDateString()}</span>
+                    <span className="text-[10px] text-gray-400">{new Date(lead.posted_at || lead.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}</span>
                   </div>
                   <p className="text-sm font-medium text-gray-800 line-clamp-2 mb-2">{lead.need}</p>
                   <div className="flex items-center justify-between">
