@@ -24,6 +24,7 @@ const ACTION_CONFIG: Record<string, { label: string; color: string }> = {
   IMPORT_UPDATE:   { label: '補充候選人資料',  color: 'bg-teal-100 text-teal-700' },
   BULK_IMPORT:     { label: '批量匯入',        color: 'bg-indigo-100 text-indigo-700' },
   UPDATE:          { label: '更新資料',        color: 'bg-amber-100 text-amber-700' },
+  DELETE:          { label: '刪除候選人',      color: 'bg-red-100 text-red-700' },
 };
 
 function formatDetail(log: SystemLog): string {

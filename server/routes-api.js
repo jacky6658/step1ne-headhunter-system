@@ -668,6 +668,120 @@ router.patch('/candidates/batch-status', async (req, res) => {
 });
 
 /**
+ * DELETE /api/candidates/batch
+ * 批量刪除多位候選人（AIbot 批量操作專用）
+ *
+ * Body：
+ * {
+ *   "ids": [123, 124, 125],   // 候選人 ID 陣列（最多 200 筆）
+ *   "actor": "Jacky-aibot"    // 操作者（必填，用於日誌）
+ * }
+ *
+ * ⚠️ 此操作不可逆，請確認後再執行
+ */
+router.delete('/candidates/batch', async (req, res) => {
+  try {
+    const { ids, actor } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'ids 必須為非空陣列' });
+    }
+    if (ids.length > 200) {
+      return res.status(400).json({ success: false, error: '單次最多刪除 200 筆' });
+    }
+    if (!actor) {
+      return res.status(400).json({ success: false, error: 'actor 必填' });
+    }
+
+    const client = await pool.connect();
+    const succeeded = [];
+    const failed = [];
+
+    for (const id of ids) {
+      try {
+        const result = await client.query(
+          'DELETE FROM candidates_pipeline WHERE id = $1 RETURNING id, name',
+          [id]
+        );
+        if (result.rows.length > 0) {
+          succeeded.push({ id, name: result.rows[0].name });
+          writeLog({
+            action: 'DELETE',
+            actor,
+            candidateId: parseInt(id),
+            candidateName: result.rows[0].name,
+            detail: { batch: true }
+          });
+        } else {
+          failed.push({ id, reason: '找不到此候選人' });
+        }
+      } catch (err) {
+        failed.push({ id, reason: err.message });
+      }
+    }
+
+    client.release();
+
+    res.json({
+      success: true,
+      deleted_count: succeeded.length,
+      failed_count: failed.length,
+      deleted: succeeded,
+      failed,
+      message: `批量刪除完成：${succeeded.length} 位成功，${failed.length} 位失敗`
+    });
+  } catch (error) {
+    console.error('❌ DELETE /candidates/batch error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/candidates/:id
+ * 刪除單一候選人
+ *
+ * Body：{ "actor": "Jacky-aibot" }  // 操作者（建議填入，用於日誌）
+ *
+ * ⚠️ 此操作不可逆
+ */
+router.delete('/candidates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { actor } = req.body || {};
+
+    const client = await pool.connect();
+
+    const result = await client.query(
+      'DELETE FROM candidates_pipeline WHERE id = $1 RETURNING id, name',
+      [id]
+    );
+
+    client.release();
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: `找不到候選人 ID ${id}` });
+    }
+
+    writeLog({
+      action: 'DELETE',
+      actor: actor || 'system',
+      candidateId: parseInt(id),
+      candidateName: result.rows[0].name,
+      detail: { batch: false }
+    });
+
+    res.json({
+      success: true,
+      deleted: { id: result.rows[0].id, name: result.rows[0].name },
+      message: `候選人「${result.rows[0].name}」已刪除`
+    });
+  } catch (error) {
+    console.error('❌ DELETE /candidates/:id error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/candidates
  * 智慧匯入單一候選人（單一入口 → SQL → Sheets）
  * - 已存在：只補充空欄位

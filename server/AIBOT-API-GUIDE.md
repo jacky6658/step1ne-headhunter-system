@@ -518,7 +518,95 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/batch-status \
 
 ---
 
-## 四、局部更新候選人資料
+## 四、刪除候選人（單筆 & 批量）
+
+> ⚠️ **不可逆操作**：刪除後無法復原。執行前請向顧問確認，或先用 GET 查詢確認 ID 正確。
+
+### 4-1 刪除單一候選人
+
+```
+DELETE /api/candidates/:id
+```
+
+**Request Body：**
+
+```json
+{
+  "actor": "Jacky-aibot"
+}
+```
+
+**成功回應：**
+
+```json
+{
+  "success": true,
+  "deleted": { "id": 123, "name": "王小明" },
+  "message": "候選人「王小明」已刪除"
+}
+```
+
+**AIbot 呼叫：**
+```bash
+curl -X DELETE https://backendstep1ne.zeabur.app/api/candidates/123 \
+  -H "Content-Type: application/json" \
+  -d '{ "actor": "Jacky-aibot" }'
+```
+
+---
+
+### 4-2 批量刪除多位候選人
+
+```
+DELETE /api/candidates/batch
+```
+
+**Request Body：**
+
+```json
+{
+  "ids": [123, 124, 125],
+  "actor": "Jacky-aibot"
+}
+```
+
+| 欄位 | 必填 | 說明 |
+|------|------|------|
+| `ids` | ✅ | 候選人 ID 陣列（最多 200 筆） |
+| `actor` | ✅ | AIbot 身份，格式：`{顧問名稱}-aibot` |
+
+**成功回應：**
+
+```json
+{
+  "success": true,
+  "deleted_count": 3,
+  "failed_count": 0,
+  "deleted": [
+    { "id": 123, "name": "王小明" },
+    { "id": 124, "name": "李大華" },
+    { "id": 125, "name": "陳美玲" }
+  ],
+  "failed": [],
+  "message": "批量刪除完成：3 位成功，0 位失敗"
+}
+```
+
+**AIbot 呼叫：**
+```bash
+curl -X DELETE https://backendstep1ne.zeabur.app/api/candidates/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ids": [123, 124, 125],
+    "actor": "Jacky-aibot"
+  }'
+```
+
+> ⚠️ `ids` 中不存在的 ID 會列在 `failed` 陣列，不影響其他成功的刪除。
+
+---
+
+## 五、局部更新候選人資料
 
 ```
 PATCH /api/candidates/:id
