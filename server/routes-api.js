@@ -2655,53 +2655,71 @@ router.get('/bot-logs', async (req, res) => {
   }
 });
 
-// POST /api/migrate/fix-ai-match-result — 把所有字串格式的 ai_match_result 轉成結構化 JSON
+// POST /api/migrate/fix-ai-match-result — 修正所有格式錯誤的 ai_match_result（字串 or 欄位名稱錯誤的物件）
 router.post('/migrate/fix-ai-match-result', async (req, res) => {
   const client = await pool.connect();
   try {
-    // 找出 ai_match_result 是 JSON string 而非 object 的候選人
+    // 取出所有有 ai_match_result 的候選人（字串 or 物件都要檢查）
     const rows = await client.query(`
-      SELECT id, ai_match_result, stability_score, talent_level, consultant as actor
+      SELECT id, ai_match_result, stability_score, talent_level
       FROM candidates_pipeline
       WHERE ai_match_result IS NOT NULL
-        AND jsonb_typeof(ai_match_result) = 'string'
     `);
+
+    const gradeToRec = (g) => {
+      if (!g) return null;
+      if (['強力推薦','推薦','觀望','不推薦'].includes(g)) return g;
+      const score = parseInt(g);
+      if (!isNaN(score)) return score >= 85 ? '強力推薦' : score >= 70 ? '推薦' : score >= 55 ? '觀望' : '不推薦';
+      // grade 是 S/A+/A/B/C
+      if (g === 'S' || g === 'A+') return '強力推薦';
+      if (g === 'A') return '推薦';
+      if (g === 'B') return '觀望';
+      return '不推薦';
+    };
 
     let fixed = 0;
     for (const row of rows.rows) {
-      const text = row.ai_match_result;
-      if (typeof text !== 'string' || !text.trim()) continue;
+      let amr = row.ai_match_result;
+      let structured = null;
 
-      const scoreMatch = text.match(/AI評分\s*(\d+)\s*分/);
-      const jobMatch = text.match(/配對職位[：:]\s*(.+?)(?:（|\(|$)/);
-      const score = scoreMatch ? parseInt(scoreMatch[1]) : (row.stability_score || 0);
-      const recommendation = score >= 85 ? '強力推薦' : score >= 70 ? '推薦' : score >= 55 ? '觀望' : '不推薦';
-
-      const strengthsMatch = text.match(/優勢[：:]?\s*\n([\s\S]+?)(?=⚠️|待確認|💡|顧問建議|$)/);
-      const strengths = strengthsMatch
-        ? strengthsMatch[1].split('\n').map(l => l.replace(/^[-–•*]\s*/, '').trim()).filter(Boolean)
-        : [];
-
-      const pendingMatch = text.match(/待確認[：:]?\s*\n([\s\S]+?)(?=💡|顧問建議|$)/);
-      const pending = pendingMatch
-        ? pendingMatch[1].split('\n').map(l => l.replace(/^[-–•*]\s*/, '').trim()).filter(Boolean)
-        : [];
-
-      const conclusionMatch = text.match(/顧問建議[：:]\s*([\s\S]+?)(?:\n---|\s*$)/);
-      const conclusion = conclusionMatch ? conclusionMatch[1].trim() : '';
-
-      const structured = {
-        score,
-        recommendation,
-        job_title: jobMatch ? jobMatch[1].trim() : undefined,
-        matched_skills: [],
-        missing_skills: pending.slice(0, 3),
-        strengths,
-        probing_questions: pending,
-        conclusion,
-        evaluated_at: new Date().toISOString(),
-        evaluated_by: row.actor || 'AIbot',
-      };
+      if (typeof amr === 'string' && amr.trim()) {
+        // 字串格式：解析文字
+        const scoreMatch = amr.match(/AI評分\s*(\d+)\s*分/);
+        const jobMatch = amr.match(/配對職位[：:]\s*(.+?)(?:（|\(|\n|$)/);
+        const score = scoreMatch ? parseInt(scoreMatch[1]) : (row.stability_score || 0);
+        const strengthsMatch = amr.match(/優勢[：:]?\s*\n([\s\S]+?)(?=⚠️|待確認|💡|顧問建議|$)/);
+        const strengths = strengthsMatch ? strengthsMatch[1].split('\n').map(l=>l.replace(/^[-–•*]\s*/,'').trim()).filter(Boolean) : [];
+        const pendingMatch = amr.match(/待確認[：:]?\s*\n([\s\S]+?)(?=💡|顧問建議|$)/);
+        const pending = pendingMatch ? pendingMatch[1].split('\n').map(l=>l.replace(/^[-–•*]\s*/,'').trim()).filter(Boolean) : [];
+        const conclusionMatch = amr.match(/顧問建議[：:]\s*([\s\S]+?)(?:\n---|\s*$)/);
+        structured = {
+          score, recommendation: gradeToRec(score.toString()),
+          job_title: jobMatch ? jobMatch[1].trim() : undefined,
+          matched_skills: [], missing_skills: pending.slice(0,3),
+          strengths, probing_questions: pending,
+          conclusion: conclusionMatch ? conclusionMatch[1].trim() : '',
+          evaluated_at: new Date().toISOString(), evaluated_by: 'AIbot',
+        };
+      } else if (amr && typeof amr === 'object') {
+        // 物件格式：檢查是否用了錯誤的欄位名稱
+        const hasWrongFields = amr.grade !== undefined || amr.position !== undefined || amr.suggestion !== undefined || amr.to_confirm !== undefined;
+        if (!hasWrongFields) continue; // 欄位正確就跳過
+        structured = {
+          score: amr.score || row.stability_score || 0,
+          recommendation: gradeToRec(amr.recommendation || amr.grade),
+          job_title: amr.job_title || (amr.position && amr.company ? `${amr.position}（${amr.company}）` : amr.position) || undefined,
+          matched_skills: amr.matched_skills || [],
+          missing_skills: amr.missing_skills || amr.to_confirm?.slice(0,3) || [],
+          strengths: amr.strengths || [],
+          probing_questions: amr.probing_questions || amr.to_confirm || [],
+          conclusion: amr.conclusion || amr.suggestion || '',
+          evaluated_at: amr.evaluated_at || new Date().toISOString(),
+          evaluated_by: amr.evaluated_by || 'AIbot',
+        };
+      } else {
+        continue;
+      }
 
       await client.query(
         `UPDATE candidates_pipeline SET ai_match_result = $1 WHERE id = $2`,
