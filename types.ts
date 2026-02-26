@@ -303,6 +303,22 @@ export interface Education {
   gpa?: number;
 }
 
+// AI 匹配結果
+export interface AiMatchResult {
+  score: number;                   // 0-100 綜合評分
+  recommendation: string;          // 強力推薦 / 推薦 / 觀望 / 不推薦
+  job_id?: number;                  // 對應職缺 ID
+  job_title?: string;               // 對應職缺名稱
+  matched_skills: string[];         // 符合的技能
+  missing_skills: string[];         // 缺少的技能
+  strengths: string[];              // 優勢亮點（顧問簡報用）
+  probing_questions: string[];      // 建議顧問詢問的問題
+  salary_fit?: string;              // 薪資符合度說明
+  conclusion: string;               // AI 完整結論
+  evaluated_at: string;             // ISO datetime
+  evaluated_by: string;             // AIBot-xxx
+}
+
 // 候選人
 // 進度追蹤事件
 export interface ProgressEvent {
@@ -339,6 +355,7 @@ export interface Candidate {
   linkedinUrl?: string;  // LinkedIn 連結
   githubUrl?: string;    // GitHub 連結
   progressTracking?: ProgressEvent[];  // 進度追蹤（W 欄）
+  aiMatchResult?: AiMatchResult | null; // AI 匹配評分結果
   createdAt: string;
   updatedAt: string;
   createdBy: string;

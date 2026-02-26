@@ -974,7 +974,98 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
 
 ---
 
-## 九、健康檢查
+## 九、AI 匹配評分結語（ai_match_result）
+
+> 專門用於 AI 針對特定職缺對候選人進行配對評分後，將完整結論回寫系統。
+> 結果會顯示在候選人卡片的「AI 匹配結語」分頁，供顧問查閱。
+
+### 作業流程
+
+```
+顧問 → 點擊職缺管理的「AI 配對」或指定職缺給 AIbot
+AIbot → 取得候選人資料 + 職缺 JD/需求
+AIbot → 計算評分、分析符合度
+AIbot → 呼叫 PATCH /api/candidates/:id 寫入 ai_match_result
+系統 → 候選人卡片「AI 匹配結語」分頁即時顯示結果
+```
+
+### 端點
+
+```
+PATCH /api/candidates/:id
+```
+
+### ai_match_result 欄位說明
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `score` | number | ✅ | 0–100 綜合評分 |
+| `recommendation` | string | ✅ | `強力推薦` / `推薦` / `觀望` / `不推薦` |
+| `job_id` | number | | 對應職缺 ID（從職缺管理取得） |
+| `job_title` | string | | 對應職缺名稱 |
+| `matched_skills` | string[] | ✅ | 候選人具備的符合技能 |
+| `missing_skills` | string[] | ✅ | 候選人缺少的技能（可空陣列） |
+| `strengths` | string[] | ✅ | 3–5 條優勢亮點（供顧問簡報用） |
+| `probing_questions` | string[] | ✅ | 建議顧問詢問的問題（3–5 條） |
+| `salary_fit` | string | | 薪資符合度說明（如：「期望 60K 符合職缺範圍 55–70K」） |
+| `conclusion` | string | ✅ | AI 完整結論（2–4 段） |
+| `evaluated_at` | string | ✅ | ISO 8601 時間（`new Date().toISOString()`） |
+| `evaluated_by` | string | ✅ | AIbot 識別名稱（如 `Phoebe-aibot`） |
+
+### 推薦等級判定參考
+
+| 分數範圍 | 推薦等級 |
+|---------|---------|
+| 85–100 | 強力推薦 |
+| 70–84 | 推薦 |
+| 55–69 | 觀望 |
+| < 55 | 不推薦 |
+
+### 呼叫範例
+
+```bash
+curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ai_match_result": {
+      "score": 87,
+      "recommendation": "推薦",
+      "job_id": 12,
+      "job_title": "資深 iOS 工程師",
+      "matched_skills": ["Swift", "SwiftUI", "iOS", "Xcode"],
+      "missing_skills": ["Flutter"],
+      "strengths": [
+        "5 年 iOS 原生開發，App Store 上架 3 款產品",
+        "熟悉 MVVM + Combine 架構，程式碼品質佳",
+        "曾帶領 3 人小組，具一定管理經驗"
+      ],
+      "probing_questions": [
+        "目前薪資區間與期望薪資為何？",
+        "為何考慮離開現職？",
+        "對帶領團隊的意願與經驗如何？",
+        "是否有 Flutter 或跨平台開發的學習計劃？"
+      ],
+      "salary_fit": "期望月薪 65K，符合職缺範圍 60–75K",
+      "conclusion": "候選人技術背景與此職缺吻合度高，iOS 原生開發資歷扎實，具備 App Store 實際上架經驗。\n\n主要缺口為 Flutter 跨平台能力，但若職缺以原生 iOS 為主則影響有限。整體推薦進行初步電話面談，重點確認薪資期望與離職動機。",
+      "evaluated_at": "2026-02-26T10:30:00.000Z",
+      "evaluated_by": "Phoebe-aibot"
+    },
+    "actor": "Phoebe-aibot"
+  }'
+```
+
+**成功回應：**
+
+```json
+{
+  "success": true,
+  "message": "Candidate patched successfully"
+}
+```
+
+---
+
+## 十、健康檢查
 
 ```
 GET /api/health

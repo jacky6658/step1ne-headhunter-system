@@ -30,6 +30,12 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS email VARCHAR(255)
 `).catch(err => console.warn('linkedin_url/github_url/email migration:', err.message));
 
+// 確保 ai_match_result 欄位存在
+pool.query(`
+  ALTER TABLE candidates_pipeline
+  ADD COLUMN IF NOT EXISTS ai_match_result JSONB
+`).catch(err => console.warn('ai_match_result migration:', err.message));
+
 // 確保 system_logs 資料表存在
 pool.query(`
   CREATE TABLE IF NOT EXISTS system_logs (
@@ -286,7 +292,8 @@ router.get('/candidates', async (req, res) => {
       education_details: row.education_details || [],
       personality_type: row.personality_type || '',
       recruiter: row.recruiter || 'Jacky',
-      talent_level: row.talent_level || ''
+      talent_level: row.talent_level || '',
+      aiMatchResult: row.ai_match_result || null,
     }));
 
     client.release();
@@ -404,7 +411,7 @@ router.patch('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { status, progressTracking, recruiter, talent_level, name,
-            stability_score, linkedin_url, github_url } = req.body;
+            stability_score, linkedin_url, github_url, ai_match_result } = req.body;
     // 支援 notes 與 remarks 兩種欄位名稱（AIbot 相容性）
     const notes = req.body.notes !== undefined ? req.body.notes : req.body.remarks;
     const email = req.body.email;
@@ -454,6 +461,10 @@ router.patch('/candidates/:id', async (req, res) => {
     if (email !== undefined) {
       setClauses.push(`email = $${idx++}`);
       values.push(email);
+    }
+    if (ai_match_result !== undefined) {
+      setClauses.push(`ai_match_result = $${idx++}`);
+      values.push(JSON.stringify(ai_match_result));
     }
 
     if (setClauses.length === 0) {

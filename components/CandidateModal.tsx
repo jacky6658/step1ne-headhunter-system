@@ -1,12 +1,13 @@
 // Step1ne Headhunter System - 候選人詳情 Modal
 import React, { useState } from 'react';
-import { Candidate, CandidateStatus } from '../types';
+import { Candidate, CandidateStatus, AiMatchResult } from '../types';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
 import { apiPatch } from '../config/api';
-import { 
-  X, User, Mail, Phone, MapPin, Briefcase, Calendar, 
+import {
+  X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
-  CheckCircle2, AlertCircle
+  CheckCircle2, AlertCircle, Bot, Star, ThumbsUp, ThumbsDown,
+  HelpCircle, Sparkles, Target
 } from 'lucide-react';
 
 interface CandidateModalProps {
@@ -18,7 +19,7 @@ interface CandidateModalProps {
 }
 
 export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUserName, onAssignRecruiter }: CandidateModalProps) {
-  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes' | 'ai_match'>('info');
   const [showResume, setShowResume] = useState(false);
   const [addingProgress, setAddingProgress] = useState(false);
   const [newProgressEvent, setNewProgressEvent] = useState('');
@@ -375,14 +376,32 @@ Step1ne Recruitment`;
             <button
               onClick={() => setActiveTab('notes')}
               className={`px-6 py-3 text-sm font-medium transition-all ${
-                activeTab === 'notes' 
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-white' 
+                activeTab === 'notes'
+                  ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-4 h-4" />
                 備註紀錄
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('ai_match')}
+              className={`px-6 py-3 text-sm font-medium transition-all ${
+                activeTab === 'ai_match'
+                  ? 'text-violet-600 border-b-2 border-violet-600 bg-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                AI 匹配結語
+                {candidate.aiMatchResult && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold">
+                    {candidate.aiMatchResult.score}
+                  </span>
+                )}
               </div>
             </button>
           </div>
@@ -1088,8 +1107,177 @@ Step1ne Recruitment`;
               </div>
             </div>
           )}
+
+          {activeTab === 'ai_match' && (() => {
+            const ai = candidate.aiMatchResult as AiMatchResult | null | undefined;
+
+            const recConfig: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
+              '強力推薦': { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: <ThumbsUp className="w-4 h-4" /> },
+              '推薦':     { color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200',       icon: <ThumbsUp className="w-4 h-4" /> },
+              '觀望':     { color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200',     icon: <HelpCircle className="w-4 h-4" /> },
+              '不推薦':   { color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',       icon: <ThumbsDown className="w-4 h-4" /> },
+            };
+
+            if (!ai) {
+              return (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-16 h-16 rounded-full bg-violet-50 flex items-center justify-center mb-4">
+                    <Bot className="w-8 h-8 text-violet-300" />
+                  </div>
+                  <p className="text-slate-600 font-semibold">尚未進行 AI 匹配評分</p>
+                  <p className="text-slate-400 text-sm mt-2 max-w-xs">
+                    請透過職缺管理的「AI 配對」功能，或由 AIbot 呼叫評分 API，結果將顯示在此
+                  </p>
+                  <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-left max-w-sm w-full">
+                    <p className="text-xs font-semibold text-slate-600 mb-2">AIbot 寫入欄位：</p>
+                    <code className="text-xs text-violet-700 break-all">
+                      PATCH /api/candidates/{'{id}'}<br/>
+                      {'{ "ai_match_result": { ... } }'}
+                    </code>
+                  </div>
+                </div>
+              );
+            }
+
+            const rec = recConfig[ai.recommendation] || recConfig['觀望'];
+            const scoreColor =
+              ai.score >= 85 ? 'text-emerald-600' :
+              ai.score >= 70 ? 'text-blue-600' :
+              ai.score >= 55 ? 'text-amber-600' : 'text-rose-600';
+            const scoreRing =
+              ai.score >= 85 ? 'border-emerald-400' :
+              ai.score >= 70 ? 'border-blue-400' :
+              ai.score >= 55 ? 'border-amber-400' : 'border-rose-400';
+
+            return (
+              <div className="space-y-5">
+                {/* 頂部：分數 + 推薦等級 + 對應職缺 */}
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                  {/* 分數環 */}
+                  <div className={`w-24 h-24 rounded-full border-4 ${scoreRing} flex flex-col items-center justify-center shrink-0 bg-white shadow-sm`}>
+                    <span className={`text-3xl font-black ${scoreColor}`}>{ai.score}</span>
+                    <span className="text-[10px] text-slate-400 font-medium">/ 100</span>
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    {/* 推薦等級 */}
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold text-sm ${rec.bg} ${rec.color}`}>
+                      {rec.icon}
+                      {ai.recommendation}
+                    </div>
+
+                    {/* 對應職缺 */}
+                    {ai.job_title && (
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <Target className="w-4 h-4 text-violet-500 shrink-0" />
+                        <span>對應職缺：</span>
+                        <span className="font-semibold text-slate-800">
+                          {ai.job_title}
+                          {ai.job_id && <span className="text-slate-400 font-normal ml-1">#{ai.job_id}</span>}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* 評分時間 */}
+                    <div className="text-xs text-slate-400">
+                      由 <span className="font-medium text-violet-600">{ai.evaluated_by}</span> 評分
+                      {ai.evaluated_at && (
+                        <span> · {new Date(ai.evaluated_at).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 技能符合度 */}
+                {(ai.matched_skills?.length > 0 || ai.missing_skills?.length > 0) && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">技能符合度</h4>
+                    {ai.matched_skills?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {ai.matched_skills.map((s, i) => (
+                          <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3" /> {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {ai.missing_skills?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {ai.missing_skills.map((s, i) => (
+                          <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-600 border border-rose-200">
+                            <AlertCircle className="w-3 h-3" /> {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-3 text-[11px] text-slate-400 mt-1">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />符合</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-400 inline-block" />缺少</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 優勢亮點 */}
+                {ai.strengths?.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <Star className="w-3.5 h-3.5 text-amber-500" /> 優勢亮點
+                    </h4>
+                    <ul className="space-y-1.5">
+                      {ai.strengths.map((s, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                          <span className="mt-0.5 w-5 h-5 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0 text-amber-600 text-[10px] font-bold">{i + 1}</span>
+                          {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 薪資符合度 */}
+                {ai.salary_fit && (
+                  <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700 flex items-start gap-2">
+                    <span className="text-base shrink-0">💰</span>
+                    <div>
+                      <span className="text-xs font-semibold text-slate-500 block mb-0.5">薪資符合度</span>
+                      {ai.salary_fit}
+                    </div>
+                  </div>
+                )}
+
+                {/* 建議詢問問題（顧問用） */}
+                {ai.probing_questions?.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <HelpCircle className="w-3.5 h-3.5 text-blue-500" /> 建議顧問詢問
+                    </h4>
+                    <div className="space-y-2">
+                      {ai.probing_questions.map((q, i) => (
+                        <div key={i} className="flex items-start gap-2 p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
+                          <span className="shrink-0 font-bold text-blue-400">Q{i + 1}</span>
+                          {q}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* AI 完整結論 */}
+                {ai.conclusion && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <Bot className="w-3.5 h-3.5 text-violet-500" /> AI 完整結論
+                    </h4>
+                    <div className="p-4 bg-violet-50 border border-violet-100 rounded-xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                      {ai.conclusion}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
-        
+
         {/* Footer Actions */}
         <div className="border-t border-gray-200 p-4 bg-gray-50">
           <div className="flex items-center justify-between">
