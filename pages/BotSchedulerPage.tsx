@@ -233,13 +233,22 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
       const json = await res.json();
       if (json.success) {
         if (json.script_found === false) {
-          setRunMsg('⚠️ 已記錄請求，但 Python 腳本尚未部署。請確認 one-bot-pipeline.py 已上傳至 Zeabur。');
+          setRunMsg('⚠️ Python 腳本找不到');
+          // 把路徑資訊寫到日誌面板方便除錯
+          const paths = (json.checked_paths || []).join('\n');
+          setRunLog(`⚠️ Python 腳本找不到，檢查了以下路徑：\n\n${paths}\n\n伺服器 __dirname：${json.cwd || '未知'}\n\n請確認 one-bot-pipeline.py 已上傳並在上述其中一個路徑`);
+          setShowRunLog(true);
         } else {
           const msg = `Bot 已啟動（背景執行）— ${config.pages} 頁 × 每頁抽 ${config.sample_per_page} 筆`;
           setRunMsg(msg);
           setToast(msg);
           setTimeout(() => setToast(null), 6000);
           setTimeout(() => fetchAll(), 3000);
+          // 啟動成功後，自動開啟日誌面板並持續刷新（每 5 秒，共 3 次）
+          setShowRunLog(true);
+          fetchRunLog();
+          setTimeout(() => fetchRunLog(), 5000);
+          setTimeout(() => fetchRunLog(), 15000);
         }
       } else {
         setRunMsg('啟動失敗：' + json.error);

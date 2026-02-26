@@ -2522,11 +2522,13 @@ router.post('/bot/run-now', async (req, res) => {
     const scriptPath = possibleScripts.find(p => fs.existsSync(p));
 
     if (!scriptPath) {
-      // 腳本尚未建立時，仍回傳 success 並提示
+      // 腳本找不到，回傳路徑資訊供除錯
       return res.json({
         success: true,
-        message: '已記錄執行請求。注意：one-bot-pipeline.py 尚未部署，請先在 Zeabur 上傳腳本後再使用此功能。',
+        message: 'Python 腳本找不到',
         script_found: false,
+        checked_paths: possibleScripts,
+        cwd: __dirname,
       });
     }
 
