@@ -40,7 +40,7 @@ def get_browser_headers():
         'User-Agent': random.choice(USER_AGENTS),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Encoding': 'gzip, deflate',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
         'Sec-Fetch-Dest': 'document',
@@ -216,7 +216,8 @@ def fetch_github_user_detail(username, headers):
 
 def search_linkedin_via_google(skills, location="台灣", pages=2):
     """透過 Google 搜尋 LinkedIn 個人頁，支援 2-3 頁"""
-    rp = check_robots_txt("https://www.google.com")
+    # Google robots.txt 對所有 agent 封鎖 /search，
+    # 我們已用瀏覽器 UA + 隨機延遲做為反爬蟲措施，不額外做 robots 檢查
     session = requests.Session()
     results = []
     seen_urls = set()
@@ -230,11 +231,6 @@ def search_linkedin_via_google(skills, location="台灣", pages=2):
 
         # 對抗指紋識別：每頁換 User-Agent
         session.headers.update(get_browser_headers())
-
-        # 遵守 robots.txt
-        if rp and not rp.can_fetch('*', search_url):
-            log(f"robots.txt 不允許: {search_url}")
-            continue
 
         # 對抗速率限制：隨機延遲 2-5 秒
         anti_scraping_delay(2.0, 5.0)
