@@ -454,12 +454,14 @@ class TalentSourceService {
         const jsonMatch = stdout.match(/\{[\s\S]*\}/);
         scraperOutput = jsonMatch ? JSON.parse(jsonMatch[0]) : { all_candidates: [] };
       } catch (e) {
-        const stderr = e.stderr ? e.stderr.slice(0, 800) : '';
-        console.error('[Step2] 搜尋失敗:', e.message, '\nstderr:', stderr);
+        const stderr = (e.stderr || '').slice(0, 800);
+        const stdout = (e.stdout || '').slice(0, 800);
+        console.error('[Step2] 搜尋失敗:', e.message, '\nstderr:', stderr, '\nstdout:', stdout);
         return {
           success: false,
           error: `搜尋失敗：${e.message}`,
-          debug_stderr: stderr || '（無 stderr 輸出）',
+          debug_stderr: stderr || '（無 stderr）',
+          debug_stdout: stdout || '（無 stdout）',
         };
       }
 
