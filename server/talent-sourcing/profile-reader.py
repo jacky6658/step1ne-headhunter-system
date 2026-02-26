@@ -10,7 +10,7 @@ Anti-detection 機制：
   - 隨機滾動行為（速度 + 幅度隨機）
   - 隨機滑鼠晃動
   - 隱藏 webdriver / automation 特徵（JS injection）
-  - 候選人之間長時間停頓（8-20 秒）
+  - 候選人之間長時間停頓（10-20 秒）
   - 模擬台灣時區 + 語言設定
 """
 
@@ -116,7 +116,7 @@ def _random_mouse_wiggle(page: 'Page'):
 
 def _between_candidates_delay():
     """候選人之間的長停頓（防止連續高頻請求被偵測）"""
-    t = random.uniform(8, 20)
+    t = random.uniform(10, 20)
     _log(f"  候選人間隔停頓 {t:.1f} 秒（反偵測）")
     time.sleep(t)
 

@@ -20,6 +20,8 @@ interface BotConfig {
   schedule_once_at: string;       // ISO datetime，once 用
   target_job_ids: number[];
   consultant: string;             // 負責顧問 displayName
+  pages: number;                  // 每次搜尋頁數（1-10）
+  sample_per_page: number;        // 每頁隨機抽取人數（1-10）
   last_run_at: string | null;
   last_run_status: 'success' | 'error' | 'running' | null;
   last_run_summary: string | null;
@@ -99,6 +101,8 @@ const DEFAULT_CONFIG: BotConfig = {
   schedule_once_at: '',
   target_job_ids: [],
   consultant: '',
+  pages: 10,
+  sample_per_page: 5,
   last_run_at: null,
   last_run_status: null,
   last_run_summary: null,
@@ -116,6 +120,7 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [jobsExpanded, setJobsExpanded] = useState(false);
   const [logsExpanded, setLogsExpanded] = useState(false);
   const [jobSearch, setJobSearch] = useState('');
@@ -185,6 +190,8 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
           schedule_once_at: config.schedule_once_at,
           target_job_ids: config.target_job_ids,
           consultant: config.consultant,
+          pages: config.pages,
+          sample_per_page: config.sample_per_page,
         }),
       });
       const json = await res.json();
@@ -209,11 +216,22 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
       const res = await fetch(`${API_BASE_URL}/api/bot/run-now`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_job_ids: config.target_job_ids }),
+        body: JSON.stringify({
+          target_job_ids: config.target_job_ids,
+          pages: config.pages,
+          sample_per_page: config.sample_per_page,
+        }),
       });
       const json = await res.json();
-      setRunMsg(json.success ? 'Bot 已啟動，執行中（背景運行）' : '啟動失敗：' + json.error);
-      if (json.success) setTimeout(() => fetchAll(), 3000);
+      if (json.success) {
+        const msg = `Bot 已啟動（背景執行）— ${config.pages} 頁 × 每頁抽 ${config.sample_per_page} 筆`;
+        setRunMsg(msg);
+        setToast(msg);
+        setTimeout(() => setToast(null), 6000);
+        setTimeout(() => fetchAll(), 3000);
+      } else {
+        setRunMsg('啟動失敗：' + json.error);
+      }
     } catch (e: any) {
       setRunMsg('啟動失敗：' + e.message);
     } finally {
@@ -285,6 +303,20 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+
+      {/* ── 成功 Toast 通知（右下角浮現） ── */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-green-600 text-white px-5 py-3.5 rounded-xl shadow-2xl animate-fade-in max-w-sm">
+          <CheckCircle2 size={20} className="shrink-0" />
+          <div>
+            <p className="font-semibold text-sm">Bot 啟動成功</p>
+            <p className="text-xs text-green-100 mt-0.5">{toast}</p>
+          </div>
+          <button onClick={() => setToast(null)} className="ml-2 text-green-200 hover:text-white shrink-0">
+            <XIcon size={16} />
+          </button>
+        </div>
+      )}
 
       {/* ── 說明橫幅 ── */}
       <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 flex gap-3">
@@ -369,6 +401,67 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
               {runMsg}
             </span>
           )}
+        </div>
+      </div>
+
+      {/* ── 爬蟲參數設定 ── */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+          <Search size={18} className="text-indigo-600" />
+          <h2 className="font-bold text-slate-800">爬蟲參數設定</h2>
+          <span className="text-xs text-slate-400 ml-1">（套用於立即執行與排程）</span>
+        </div>
+        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+          {/* 搜尋頁數 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-slate-700">搜尋頁數</p>
+              <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg">{config.pages} 頁</span>
+            </div>
+            <input
+              type="range"
+              min={1} max={10}
+              value={config.pages}
+              onChange={e => setConfig(prev => ({ ...prev, pages: Number(e.target.value) }))}
+              className="w-full accent-indigo-600"
+            />
+            <div className="flex justify-between text-xs text-slate-400 mt-1">
+              <span>1 頁（快）</span>
+              <span>10 頁（廣）</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1.5">每個搜尋查詢翻幾頁，頁數越多抓到越多候選人</p>
+          </div>
+
+          {/* 每頁抽取人數 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-slate-700">每頁抽取人數</p>
+              <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg">{config.sample_per_page} 筆</span>
+            </div>
+            <input
+              type="range"
+              min={1} max={10}
+              value={config.sample_per_page}
+              onChange={e => setConfig(prev => ({ ...prev, sample_per_page: Number(e.target.value) }))}
+              className="w-full accent-indigo-600"
+            />
+            <div className="flex justify-between text-xs text-slate-400 mt-1">
+              <span>1 筆（精）</span>
+              <span>10 筆（多樣）</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1.5">每頁隨機抽取幾筆，避免每次都取排名前幾的重複人選</p>
+          </div>
+
+        </div>
+        <div className="px-6 pb-4">
+          <div className="bg-slate-50 rounded-lg px-4 py-2.5 text-xs text-slate-500 flex items-center gap-2">
+            <Activity size={13} className="text-slate-400 shrink-0" />
+            預計每次執行最多抓取 <strong className="text-slate-700">{config.pages * config.sample_per_page * config.target_job_ids.length || config.pages * config.sample_per_page} 筆</strong>
+            {config.target_job_ids.length > 0 && (
+              <span>（{config.pages} 頁 × {config.sample_per_page} 筆 × {config.target_job_ids.length} 個職缺）</span>
+            )}，去重後實際匯入數量會較少。
+          </div>
         </div>
       </div>
 

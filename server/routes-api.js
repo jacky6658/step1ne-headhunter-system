@@ -2457,10 +2457,13 @@ router.post('/bot-config', async (req, res) => {
 /** POST /api/bot/run-now - 立即觸發 Bot 執行一次 */
 router.post('/bot/run-now', async (req, res) => {
   try {
-    const { target_job_ids } = req.body;
+    const { target_job_ids, pages, sample_per_page } = req.body;
     if (!target_job_ids || target_job_ids.length === 0) {
       return res.status(400).json({ success: false, error: '請指定至少一個目標職缺' });
     }
+
+    const crawlPages      = Math.max(1, Math.min(10, parseInt(pages)      || 10));
+    const crawlSamplePer  = Math.max(1, Math.min(10, parseInt(sample_per_page) || 5));
 
     // 先記錄 log
     await writeLog({
@@ -2468,7 +2471,7 @@ router.post('/bot/run-now', async (req, res) => {
       actor: 'scheduler-ui',
       candidateId: null,
       candidateName: null,
-      detail: { target_job_ids, triggered_by: 'manual' },
+      detail: { target_job_ids, pages: crawlPages, sample_per_page: crawlSamplePer, triggered_by: 'manual' },
     });
 
     // 嘗試找到 Python 腳本路徑
@@ -2493,16 +2496,23 @@ router.post('/bot/run-now', async (req, res) => {
     // 背景執行腳本（不阻塞 API）
     const jobIdsArg = target_job_ids.join(',');
     const child = require('child_process').spawn(
-      'python3', [scriptPath, '--job-ids', jobIdsArg],
+      'python3', [
+        scriptPath,
+        '--job-ids',          jobIdsArg,
+        '--pages',            String(crawlPages),
+        '--sample-per-page',  String(crawlSamplePer),
+      ],
       { detached: true, stdio: 'ignore' }
     );
     child.unref();
 
     res.json({
       success: true,
-      message: `Bot 已啟動（PID: ${child.pid}），背景執行中`,
+      message: `Bot 已啟動（PID: ${child.pid}）— ${crawlPages} 頁 × 每頁抽 ${crawlSamplePer} 筆，背景執行中`,
       script_found: true,
       pid: child.pid,
+      pages: crawlPages,
+      sample_per_page: crawlSamplePer,
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

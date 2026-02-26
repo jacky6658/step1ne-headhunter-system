@@ -133,7 +133,7 @@ def check_github_rate_limit(token=None):
     rate = data.get('rate', {})
     return rate.get('remaining', 0), rate.get('limit', 60), rate.get('reset', 0)
 
-SAMPLE_PER_PAGE = 5   # 每頁隨機抽取人數
+SAMPLE_PER_PAGE = 5   # 每頁隨機抽取人數（可被 --sample-per-page 覆蓋）
 
 
 def _github_search_page(query, page, gh_headers):
@@ -749,8 +749,14 @@ def main():
     parser.add_argument('--github-token', default='')
     parser.add_argument('--brave-key', default='')
     parser.add_argument('--pages', type=int, default=10)
+    parser.add_argument('--sample-per-page', type=int, default=5, dest='sample_per_page',
+                        help='每頁隨機抽取人數（1-10）')
     parser.add_argument('--output-format', default='json')
     args = parser.parse_args()
+
+    # 動態覆蓋每頁抽樣數（module-level global，thread safe 因已在 threading 前設定）
+    global SAMPLE_PER_PAGE
+    SAMPLE_PER_PAGE = max(1, min(10, args.sample_per_page))
 
     # 若有明確指定 primary/secondary，用那個；否則從 required-skills 自動分割
     if args.primary_skills:

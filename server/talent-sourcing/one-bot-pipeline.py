@@ -150,7 +150,7 @@ def api_patch(path: str, body: Dict) -> Optional[Dict]:
 
 
 # ─── 爬蟲 ─────────────────────────────────────────────────────────────────────
-def scrape_candidates(job: Dict, pages: int = 2) -> List[Dict]:
+def scrape_candidates(job: Dict, pages: int = 10, sample_per_page: int = 5) -> List[Dict]:
     """
     人才搜尋：優先使用職缺預設關鍵字（search_primary / search_secondary）。
     若未設定，則直接使用 required_skills 作備援搜尋。
@@ -203,11 +203,12 @@ def scrape_candidates(job: Dict, pages: int = 2) -> List[Dict]:
 
         cmd = [
             sys.executable, SCRAPER,
-            '--job-title',       job_title,
-            '--primary-skills',  primary_str,
+            '--job-title',        job_title,
+            '--primary-skills',   primary_str,
             '--secondary-skills', secondary_str,
-            '--location',        'Taiwan',
-            '--pages',           str(pages),
+            '--location',         'Taiwan',
+            '--pages',            str(pages),
+            '--sample-per-page',  str(sample_per_page),
         ]
         if GITHUB_TOKEN:
             cmd += ['--github-token', GITHUB_TOKEN]
@@ -452,7 +453,7 @@ def process_job(job: Dict, existing_linkedin: set, existing_github: set, args, c
     stats = {'job': job_title, 'found': 0, 'skipped': 0, 'imported': 0, 'scored': 0, 'errors': 0}
 
     # 1. 爬取
-    raw_candidates = scrape_candidates(job, pages=args.pages)
+    raw_candidates = scrape_candidates(job, pages=args.pages, sample_per_page=args.sample_per_page)
     stats['found'] = len(raw_candidates)
     log(f"爬取完成，共 {len(raw_candidates)} 位候選人（每頁隨機抽樣後）")
 
@@ -813,15 +814,19 @@ def main():
                         help='full=爬取+評分（預設），scrape=只爬取匯入，score=只評分今日新增')
     parser.add_argument('--consultant', default='', help='指定顧問名稱（空=讀取所有已啟用顧問）')
     parser.add_argument('--job-ids',   default='', help='指定職缺 ID（逗號分隔），覆蓋 DB 設定')
-    parser.add_argument('--pages',     type=int, default=10, help='每次搜尋頁數（1-10），每頁隨機抽 5 筆')
+    parser.add_argument('--pages',          type=int, default=10, help='每次搜尋頁數（1-10）')
+    parser.add_argument('--sample-per-page', type=int, default=5,  dest='sample_per_page',
+                        help='每頁隨機抽取人數（1-10，預設 5）')
     parser.add_argument('--dry-run',         action='store_true', help='試跑，不寫入 DB')
     parser.add_argument('--no-claude',       action='store_true', help='跳過 AI 結語，使用模板')
     parser.add_argument('--no-profile-read', action='store_true', help='跳過 Playwright 讀頁面（快速模式）')
     args = parser.parse_args()
-    args.pages = max(1, min(10, args.pages))
+    args.pages          = max(1, min(10, args.pages))
+    args.sample_per_page = max(1, min(10, args.sample_per_page))
 
     log(f"Step1ne AI Bot Pipeline v2 啟動", 'HEAD')
     log(f"模式：{args.mode} | API: {API_BASE} | Actor: {BOT_ACTOR} | Dry-run: {args.dry_run} | Claude: {not args.no_claude}", 'HEAD')
+    log(f"爬蟲參數：{args.pages} 頁 × 每頁抽 {args.sample_per_page} 筆", 'HEAD')
 
     if args.mode in ('scrape', 'full'):
         run_scrape_phase(args)
