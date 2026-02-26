@@ -222,6 +222,10 @@ def scrape_candidates(job: Dict, pages: int = 10, sample_per_page: int = 5) -> L
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
             if result.returncode != 0:
                 log(f"  爬蟲退出碼 {result.returncode}", 'WARN')
+            # 把爬蟲的 stderr 輸出到主日誌（方便在執行日誌面板看到搜尋細節）
+            if result.stderr and result.stderr.strip():
+                for line in result.stderr.strip().splitlines():
+                    log(f"  [scraper] {line}")
             data = json.loads(result.stdout) if result.stdout.strip() else {}
             batch = data.get('all_candidates', [])
         except subprocess.TimeoutExpired:
