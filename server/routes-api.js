@@ -2533,13 +2533,15 @@ router.post('/bot/run-now', async (req, res) => {
       });
     }
 
-    // 背景執行腳本（不阻塞 API），stdout/stderr 寫入 bot-latest.log
+    // 背景執行腳本（不阻塞 API），每個顧問獨立 log 檔避免混用
     const jobIdsArg = target_job_ids.join(',');
-    const logFilePath = path.join(__dirname, 'bot-latest.log');
+    const safeConsultant = consultantName.replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]/g, '_') || 'shared';
+    const logFilePath = path.join(__dirname, `bot-${safeConsultant}-latest.log`);
     // 寫入啟動標頭
     fs.writeFileSync(logFilePath,
       `=== Bot 啟動時間：${new Date().toISOString()} ===\n` +
       `腳本：${scriptPath}\n` +
+      `顧問：${consultantName || '(未指定)'}\n` +
       `參數：--job-ids ${jobIdsArg} --pages ${crawlPages} --sample-per-page ${crawlSamplePer}\n` +
       `=======================================================\n`
     );
@@ -2578,12 +2580,14 @@ router.post('/bot/run-now', async (req, res) => {
 /** GET /api/bot/run-log - 取得最近一次 Bot 執行的 Python stdout/stderr 輸出 */
 router.get('/bot/run-log', (req, res) => {
   try {
-    const logFilePath = path.join(__dirname, 'bot-latest.log');
+    // 每個顧問讀自己的 log 檔，用 ?consultant=Jacky 區分
+    const consultant = (req.query.consultant || '').trim();
+    const safeConsultant = consultant.replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]/g, '_') || 'shared';
+    const logFilePath = path.join(__dirname, `bot-${safeConsultant}-latest.log`);
     if (!fs.existsSync(logFilePath)) {
       return res.json({ success: true, log: '（尚無執行記錄，請先按「立即執行」啟動 Bot）' });
     }
     const log = fs.readFileSync(logFilePath, 'utf8');
-    // 只回傳最後 200 行，避免回應過大
     const lines = log.split('\n');
     const tail = lines.slice(-200).join('\n');
     res.json({ success: true, log: tail, total_lines: lines.length });

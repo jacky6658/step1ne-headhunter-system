@@ -248,8 +248,9 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
     if (!showRunLog) return;
     const status = parseLogStatus(runLog);
     if (!status.isRunning) return; // 已結束或未開始，不輪詢
+    const consultantParam = encodeURIComponent(userProfile.displayName || '');
     const timer = setInterval(() => {
-      fetch(`${API_BASE_URL}/api/bot/run-log`)
+      fetch(`${API_BASE_URL}/api/bot/run-log?consultant=${consultantParam}`)
         .then(r => r.json())
         .then(json => {
           if (json.log) {
@@ -345,12 +346,13 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
     }
   };
 
-  // ─── 查看執行日誌 ───
+  // ─── 查看執行日誌（每個顧問讀自己的 log） ───
   const fetchRunLog = async () => {
     setRunLogLoading(true);
     setShowRunLog(true);
+    const consultantParam = encodeURIComponent(userProfile.displayName || '');
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bot/run-log`);
+      const res = await fetch(`${API_BASE_URL}/api/bot/run-log?consultant=${consultantParam}`);
       const contentType = res.headers.get('content-type') || '';
       if (!res.ok || !contentType.includes('application/json')) {
         setRunLog(`⚠️ 端點回傳 ${res.status}（非 JSON）。\n\n可能原因：\n1. 本地開發環境 → 請在 server/ 目錄下重啟 node server.js\n2. 或前往 Zeabur 生產環境測試`);
