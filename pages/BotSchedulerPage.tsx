@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../constants';
 import {
   Bot, Clock, Play, Pause, Save, RefreshCw, CheckCircle2,
   XCircle, AlertCircle, Briefcase, Calendar, Activity,
-  ChevronDown, ChevronUp, Info, Zap, Timer
+  ChevronDown, ChevronUp, Info, Zap, Timer, Search, X as XIcon
 } from 'lucide-react';
 
 // ──────────────── 型別定義 ────────────────
@@ -114,6 +114,7 @@ export const BotSchedulerPage: React.FC<Props> = () => {
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState<string | null>(null);
   const [logsExpanded, setLogsExpanded] = useState(false);
+  const [jobSearch, setJobSearch] = useState('');
 
   // ─── 載入資料 ───
   const fetchAll = useCallback(async () => {
@@ -236,8 +237,14 @@ export const BotSchedulerPage: React.FC<Props> = () => {
   };
 
   const ACTIVE_STATUSES = ['招募中', '開放中', '開發中'];
-  const activeJobs = jobs.filter(j => ACTIVE_STATUSES.includes(j.status));
-  const otherJobs  = jobs.filter(j => !ACTIVE_STATUSES.includes(j.status));
+
+  const filteredJobs = jobs.filter(j => {
+    if (!jobSearch.trim()) return true;
+    const q = jobSearch.toLowerCase();
+    return j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q);
+  });
+  const activeJobs = filteredJobs.filter(j => ACTIVE_STATUSES.includes(j.status));
+  const otherJobs  = filteredJobs.filter(j => !ACTIVE_STATUSES.includes(j.status));
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -357,9 +364,30 @@ export const BotSchedulerPage: React.FC<Props> = () => {
             {config.target_job_ids.length > 0 ? '清除全部' : `全選前 ${Math.min(activeJobs.length, MAX_JOBS)} 個`}
           </button>
         </div>
+        {/* 搜尋框 */}
+        <div className="px-4 pt-3 pb-1">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="搜尋職缺名稱或公司..."
+              value={jobSearch}
+              onChange={e => setJobSearch(e.target.value)}
+              className="w-full pl-8 pr-8 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50"
+            />
+            {jobSearch && (
+              <button onClick={() => setJobSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <XIcon size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="p-4 space-y-1">
           {jobs.length === 0 ? (
             <p className="text-sm text-slate-500 text-center py-4">尚無職缺資料</p>
+          ) : filteredJobs.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">找不到符合「{jobSearch}」的職缺</p>
           ) : (
             <>
               {activeJobs.length > 0 && (
