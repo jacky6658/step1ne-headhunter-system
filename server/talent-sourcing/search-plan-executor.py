@@ -12,37 +12,72 @@ import re
 from urllib.parse import quote, unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import os
+
+# 本地 lib 目錄（腳本旁邊，確保有寫入權限）
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_LIB_DIR = os.path.join(_SCRIPT_DIR, 'lib')
+
+def _ensure_deps():
+    """確保 requests / beautifulsoup4 可用，優先裝到本地 lib 目錄"""
+    try:
+        import requests  # noqa
+        from bs4 import BeautifulSoup  # noqa
+        return True
+    except ImportError:
+        pass
+
+    import subprocess
+    print("[scraper] 安裝 Python 依賴到本地 lib/...", file=sys.stderr, flush=True)
+    os.makedirs(_LIB_DIR, exist_ok=True)
+
+    # 嘗試順序：local target → break-system-packages → user → global
+    cmds = [
+        [sys.executable, '-m', 'pip', 'install',
+         'requests', 'beautifulsoup4', 'lxml',
+         '--target', _LIB_DIR, '-q'],
+        [sys.executable, '-m', 'pip', 'install',
+         'requests', 'beautifulsoup4', 'lxml',
+         '--break-system-packages', '-q'],
+        [sys.executable, '-m', 'pip', 'install',
+         'requests', 'beautifulsoup4', 'lxml',
+         '--user', '-q'],
+        [sys.executable, '-m', 'pip', 'install',
+         'requests', 'beautifulsoup4', 'lxml', '-q'],
+    ]
+    for cmd in cmds:
+        try:
+            subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # 如果裝到 local target，需要加入 sys.path
+            if _LIB_DIR not in sys.path:
+                sys.path.insert(0, _LIB_DIR)
+            try:
+                import requests  # noqa
+                from bs4 import BeautifulSoup  # noqa
+                print("[scraper] 依賴安裝成功", file=sys.stderr, flush=True)
+                return True
+            except ImportError:
+                continue
+        except Exception:
+            continue
+    return False
+
+# 若 lib/ 已存在（前次安裝），加入 path
+if os.path.isdir(_LIB_DIR) and _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+
 try:
     import requests
     from bs4 import BeautifulSoup
 except ImportError:
-    import subprocess
-    print("[scraper] 自動安裝 Python 依賴...", file=sys.stderr, flush=True)
-    cmds = [
-        [sys.executable, '-m', 'pip', 'install', 'requests', 'beautifulsoup4', 'lxml',
-         '--break-system-packages', '-q'],
-        [sys.executable, '-m', 'pip', 'install', 'requests', 'beautifulsoup4', 'lxml',
-         '--user', '-q'],
-        [sys.executable, '-m', 'pip', 'install', 'requests', 'beautifulsoup4', 'lxml', '-q'],
-    ]
-    installed = False
-    for cmd in cmds:
-        try:
-            subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            installed = True
-            break
-        except Exception:
-            continue
-    if installed:
-        import requests
-        from bs4 import BeautifulSoup
-        print("[scraper] 依賴安裝成功", file=sys.stderr, flush=True)
-    else:
+    if not _ensure_deps():
         print(json.dumps({
             "error": "missing_dependencies",
-            "message": "無法自動安裝 requests beautifulsoup4，請手動執行：pip3 install requests beautifulsoup4"
+            "message": "無法安裝 requests beautifulsoup4，請確認 Python pip 可用"
         }), flush=True)
         sys.exit(1)
+    import requests
+    from bs4 import BeautifulSoup
 
 # ============================================================
 # 反爬蟲設定
