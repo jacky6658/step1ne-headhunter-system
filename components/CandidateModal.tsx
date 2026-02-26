@@ -82,6 +82,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
       await apiPatch(`/api/candidates/${candidate.id}`, {
         status: newStatus,
         progressTracking: updatedProgress,
+        actor: currentUserName || userName,
       });
 
       alert('✅ 進度新增成功！看板與 Pipeline 欄位已同步更新');

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles } from 'lucide-react';
-import { apiGet } from '../config/api';
+import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles, FileText, Edit3, Save, X as XIcon } from 'lucide-react';
+import { apiGet, apiPut } from '../config/api';
 
 interface JobsPageProps {
   userProfile: UserProfile;
@@ -29,6 +29,7 @@ interface Job {
   recruitment_difficulty: string;
   interview_process: string;
   consultant_notes: string;
+  job_description: string;
   lastUpdated: string;
 }
 
@@ -39,6 +40,9 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
   const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [editingJD, setEditingJD] = useState(false);
+  const [jdDraft, setJdDraft] = useState('');
+  const [savingJD, setSavingJD] = useState(false);
 
   useEffect(() => {
     fetchJobs();
@@ -119,6 +123,22 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
 
   const handleJobClick = (job: Job) => {
     setSelectedJob(job);
+    setEditingJD(false);
+    setJdDraft(job.job_description || '');
+  };
+
+  const handleSaveJD = async () => {
+    if (!selectedJob) return;
+    setSavingJD(true);
+    try {
+      await apiPut(`/api/jobs/${selectedJob.id}`, { job_description: jdDraft });
+      setSelectedJob(prev => prev ? { ...prev, job_description: jdDraft } : null);
+      setEditingJD(false);
+    } catch (err) {
+      alert('❌ 儲存失敗，請稍後再試');
+    } finally {
+      setSavingJD(false);
+    }
   };
 
   const handleStartMatching = (jobId: string) => {
@@ -379,7 +399,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
       {selectedJob && (
         <div 
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedJob(null)}
+          onClick={() => { setSelectedJob(null); setEditingJD(false); }}
         >
           <div 
             className="bg-white rounded-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
@@ -392,7 +412,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                   <p className="text-slate-600 mt-1">{selectedJob.client_company}</p>
                 </div>
                 <button
-                  onClick={() => setSelectedJob(null)}
+                  onClick={() => { setSelectedJob(null); setEditingJD(false); }}
                   className="text-slate-400 hover:text-slate-600"
                 >
                   ✕
@@ -499,6 +519,61 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                   <p className="text-sm text-slate-900 mt-1 whitespace-pre-line">{selectedJob.consultant_notes}</p>
                 </div>
               )}
+
+              {/* JD 工作內容區塊 */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
+                    <FileText size={13} />
+                    工作內容 JD
+                  </label>
+                  {!editingJD ? (
+                    <button
+                      onClick={() => { setEditingJD(true); setJdDraft(selectedJob.job_description || ''); }}
+                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
+                    >
+                      <Edit3 size={12} />
+                      {selectedJob.job_description ? '編輯' : '新增 JD'}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSaveJD}
+                        disabled={savingJD}
+                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        <Save size={11} />
+                        {savingJD ? '儲存中...' : '儲存'}
+                      </button>
+                      <button
+                        onClick={() => setEditingJD(false)}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+                      >
+                        <XIcon size={12} />
+                        取消
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {editingJD ? (
+                  <textarea
+                    value={jdDraft}
+                    onChange={e => setJdDraft(e.target.value)}
+                    rows={12}
+                    placeholder={`貼上職缺完整 JD，例如：\n\n自我介紹\n我們是一家...\n\n工作內容\n- 負責...\n- 維護...\n\n職位需求\n- 3年以上經驗\n- 熟悉 React`}
+                    className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y font-mono leading-relaxed"
+                  />
+                ) : selectedJob.job_description ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed max-h-72 overflow-y-auto">
+                    {selectedJob.job_description}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center text-slate-400 text-sm">
+                    尚未填入工作內容 JD，點擊「新增 JD」貼上職缺說明
+                  </div>
+                )}
+              </div>
 
               <div className="pt-4 border-t border-slate-200">
                 <button

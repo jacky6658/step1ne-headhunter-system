@@ -74,6 +74,12 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS brave_api_key VARCHAR(500)
 `).catch(err => console.warn('brave_api_key migration:', err.message));
 
+// 確保 job_description 欄位存在（職缺完整 JD）
+pool.query(`
+  ALTER TABLE jobs_pipeline
+  ADD COLUMN IF NOT EXISTS job_description TEXT
+`).catch(err => console.warn('job_description migration:', err.message));
+
 // 寫入 system_logs 輔助函數
 async function writeLog({ action, actor, candidateId, candidateName, detail }) {
   // 判斷 AIBOT：包含 "aibot" 或以 "bot" 結尾（如 Jackeybot、Phoebebot）
@@ -1016,6 +1022,7 @@ router.get('/jobs', async (req, res) => {
         recruitment_difficulty,
         interview_process,
         consultant_notes,
+        job_description,
         created_at,
         updated_at
       FROM jobs_pipeline
@@ -1044,6 +1051,7 @@ router.get('/jobs', async (req, res) => {
       recruitment_difficulty: row.recruitment_difficulty,
       interview_process: row.interview_process,
       consultant_notes: row.consultant_notes,
+      job_description: row.job_description,
       lastUpdated: row.updated_at
     }));
 
@@ -1106,7 +1114,7 @@ router.get('/jobs/:id', async (req, res) => {
 router.put('/jobs/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { position_name, job_status, consultant_notes } = req.body;
+    const { position_name, job_status, consultant_notes, job_description } = req.body;
 
     const client = await pool.connect();
 
@@ -1120,13 +1128,15 @@ router.put('/jobs/:id', async (req, res) => {
 
     const result = await client.query(
       `UPDATE jobs_pipeline
-       SET position_name = $1, job_status = $2, consultant_notes = $3, last_updated = NOW()
-       WHERE id = $4
+       SET position_name = $1, job_status = $2, consultant_notes = $3,
+           job_description = $4, last_updated = NOW()
+       WHERE id = $5
        RETURNING *`,
       [
         position_name !== undefined ? position_name : existing.position_name,
         job_status !== undefined ? job_status : existing.job_status,
         consultant_notes !== undefined ? consultant_notes : existing.consultant_notes,
+        job_description !== undefined ? job_description : existing.job_description,
         id
       ]
     );
