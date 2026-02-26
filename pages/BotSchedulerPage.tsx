@@ -134,9 +134,9 @@ export const BotSchedulerPage: React.FC<Props> = () => {
       if (jobsJson.success) {
         setJobs((jobsJson.data || []).map((j: any) => ({
           id: j.id,
-          title: j.title,
-          company: j.client_name || j.company || '',
-          status: j.status || '',
+          title: j.position_name || j.title || '(未命名)',
+          company: j.client_company || j.client_name || j.company || '',
+          status: j.job_status || j.status || '',
         })));
       }
       if (logsJson.success) setLogs(logsJson.data || []);
@@ -201,14 +201,17 @@ export const BotSchedulerPage: React.FC<Props> = () => {
     }
   };
 
+  const MAX_JOBS = 5;
+
   // ─── 職缺勾選 ───
   const toggleJob = (jobId: number) => {
-    setConfig(prev => ({
-      ...prev,
-      target_job_ids: prev.target_job_ids.includes(jobId)
-        ? prev.target_job_ids.filter(id => id !== jobId)
-        : [...prev.target_job_ids, jobId],
-    }));
+    setConfig(prev => {
+      if (prev.target_job_ids.includes(jobId)) {
+        return { ...prev, target_job_ids: prev.target_job_ids.filter(id => id !== jobId) };
+      }
+      if (prev.target_job_ids.length >= MAX_JOBS) return prev; // 超過上限，不加入
+      return { ...prev, target_job_ids: [...prev.target_job_ids, jobId] };
+    });
   };
 
   const toggleDay = (d: number) => {
@@ -232,8 +235,9 @@ export const BotSchedulerPage: React.FC<Props> = () => {
     return <AlertCircle size={16} className="text-slate-400" />;
   };
 
-  const activeJobs = jobs.filter(j => j.status === '招募中');
-  const otherJobs  = jobs.filter(j => j.status !== '招募中');
+  const ACTIVE_STATUSES = ['招募中', '開放中', '開發中'];
+  const activeJobs = jobs.filter(j => ACTIVE_STATUSES.includes(j.status));
+  const otherJobs  = jobs.filter(j => !ACTIVE_STATUSES.includes(j.status));
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -333,19 +337,24 @@ export const BotSchedulerPage: React.FC<Props> = () => {
           <div className="flex items-center gap-2">
             <Briefcase size={18} className="text-indigo-600" />
             <h2 className="font-bold text-slate-800">目標職缺</h2>
-            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-              已選 {config.target_job_ids.length} 個
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              config.target_job_ids.length >= MAX_JOBS
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-slate-100 text-slate-500'
+            }`}>
+              已選 {config.target_job_ids.length} / {MAX_JOBS}
             </span>
           </div>
           <button
             onClick={() => setConfig(prev => ({
               ...prev,
-              target_job_ids: prev.target_job_ids.length === activeJobs.length
-                ? [] : activeJobs.map(j => j.id),
+              target_job_ids: prev.target_job_ids.length > 0
+                ? []
+                : activeJobs.slice(0, MAX_JOBS).map(j => j.id),
             }))}
             className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
           >
-            {config.target_job_ids.length === activeJobs.length ? '取消全選' : '全選招募中'}
+            {config.target_job_ids.length > 0 ? '清除全部' : `全選前 ${Math.min(activeJobs.length, MAX_JOBS)} 個`}
           </button>
         </div>
         <div className="p-4 space-y-1">
@@ -357,7 +366,7 @@ export const BotSchedulerPage: React.FC<Props> = () => {
                 <>
                   <p className="text-xs font-semibold text-green-700 uppercase tracking-wide px-2 mb-1">招募中</p>
                   {activeJobs.map(job => (
-                    <JobRow key={job.id} job={job} selected={config.target_job_ids.includes(job.id)} onToggle={() => toggleJob(job.id)} />
+                    <JobRow key={job.id} job={job} selected={config.target_job_ids.includes(job.id)} onToggle={() => toggleJob(job.id)} disabled={!config.target_job_ids.includes(job.id) && config.target_job_ids.length >= MAX_JOBS} />
                   ))}
                 </>
               )}
@@ -365,7 +374,7 @@ export const BotSchedulerPage: React.FC<Props> = () => {
                 <>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-2 mt-3 mb-1">其他職缺</p>
                   {otherJobs.map(job => (
-                    <JobRow key={job.id} job={job} selected={config.target_job_ids.includes(job.id)} onToggle={() => toggleJob(job.id)} />
+                    <JobRow key={job.id} job={job} selected={config.target_job_ids.includes(job.id)} onToggle={() => toggleJob(job.id)} disabled={!config.target_job_ids.includes(job.id) && config.target_job_ids.length >= MAX_JOBS} />
                   ))}
                 </>
               )}
@@ -569,24 +578,35 @@ export const BotSchedulerPage: React.FC<Props> = () => {
 
 // ──────────────── 子元件 ────────────────
 
-const JobRow: React.FC<{ job: JobOption; selected: boolean; onToggle: () => void }> = ({ job, selected, onToggle }) => (
+const ACTIVE_STATUS_COLORS: Record<string, string> = {
+  '招募中': 'text-green-700 bg-green-100',
+  '開放中': 'text-blue-700 bg-blue-100',
+  '開發中': 'text-violet-700 bg-violet-100',
+};
+
+const JobRow: React.FC<{ job: JobOption; selected: boolean; onToggle: () => void; disabled?: boolean }> = ({ job, selected, onToggle, disabled }) => (
   <label
-    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
-      selected ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-slate-50 border border-transparent'
+    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+      disabled && !selected
+        ? 'opacity-40 cursor-not-allowed border border-transparent'
+        : selected
+          ? 'bg-indigo-50 border border-indigo-200 cursor-pointer'
+          : 'hover:bg-slate-50 border border-transparent cursor-pointer'
     }`}
   >
     <input
       type="checkbox"
       checked={selected}
       onChange={onToggle}
-      className="w-4 h-4 rounded accent-indigo-600"
+      disabled={disabled && !selected}
+      className="w-4 h-4 rounded accent-indigo-600 disabled:cursor-not-allowed"
     />
     <div className="flex-1 min-w-0">
       <p className="text-sm font-medium text-slate-800 truncate">{job.title}</p>
       <p className="text-xs text-slate-500 truncate">{job.company}</p>
     </div>
     <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
-      job.status === '招募中' ? 'text-green-700 bg-green-100' : 'text-slate-500 bg-slate-100'
+      ACTIVE_STATUS_COLORS[job.status] || 'text-slate-500 bg-slate-100'
     }`}>
       {job.status || '—'}
     </span>
