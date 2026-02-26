@@ -1,12 +1,7 @@
 // API 配置 - 自動偵測開發/生產環境
 
-// 環境偵測
-const isDevelopment = import.meta.env.DEV || window.location.hostname === 'localhost';
-
-// API Base URL
-export const API_BASE_URL = isDevelopment
-  ? 'http://localhost:3001/api'  // 開發環境
-  : 'https://backendstep1ne.zeabur.app/api';  // 生產環境（Zeabur）
+// API Base URL - 統一連 Zeabur（本地開發無需跑本地後端）
+export const API_BASE_URL = 'https://backendstep1ne.zeabur.app/api';
 
 // 完整 URL 生成器
 export function getApiUrl(endpoint: string): string {

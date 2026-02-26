@@ -66,7 +66,7 @@ export const STORAGE_KEYS_EXT = {
 };
 
 // API 端點
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backendstep1ne.zeabur.app';
 
 // 快取過期時間（毫秒）
 export const CACHE_EXPIRY = 30 * 60 * 1000; // 30 分鐘

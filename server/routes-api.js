@@ -1524,14 +1524,12 @@ router.post('/jobs', async (req, res) => {
 
     const client = await pool.connect();
 
-    const jobId = `${position_name}_${Date.now()}`.replace(/\s+/g, '_');
-
     const result = await client.query(
-      `INSERT INTO jobs_pipeline 
-       (id, position_name, client_company, department, job_status, created_at, last_updated)
-       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+      `INSERT INTO jobs_pipeline
+       (position_name, client_company, department, job_status, created_at, last_updated)
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
        RETURNING *`,
-      [jobId, position_name, client_company || '', department || '', job_status]
+      [position_name, client_company || '', department || '', job_status]
     );
 
     client.release();

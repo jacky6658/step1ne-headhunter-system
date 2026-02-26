@@ -657,6 +657,32 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                 </div>
               )}
 
+              {/* ── 企業畫像 ── */}
+              {selectedJob.company_profile && (
+                <div className="pt-2 border-t border-slate-200">
+                  <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5 mb-2">
+                    <Building2 size={13} />
+                    企業畫像
+                  </label>
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed">
+                    {selectedJob.company_profile}
+                  </div>
+                </div>
+              )}
+
+              {/* ── 人才畫像 ── */}
+              {selectedJob.talent_profile && (
+                <div className="pt-2 border-t border-slate-200">
+                  <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5 mb-2">
+                    <Users size={13} />
+                    人才畫像
+                  </label>
+                  <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed">
+                    {selectedJob.talent_profile}
+                  </div>
+                </div>
+              )}
+
               {/* JD 工作內容區塊 */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-2">
@@ -725,7 +751,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                       className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
                     >
                       <Edit3 size={12} />
-                      {(selectedJob.search_primary || selectedJob.company_profile) ? '編輯' : '設定'}
+                      {(selectedJob.search_primary || selectedJob.search_secondary || selectedJob.company_profile || selectedJob.talent_profile) ? '編輯' : '設定'}
                     </button>
                   ) : (
                     <div className="flex items-center gap-2">
@@ -848,20 +874,8 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                       </div>
                     </div>
                   </div>
-                ) : (selectedJob.search_primary || selectedJob.company_profile || selectedJob.talent_profile) ? (
+                ) : (selectedJob.search_primary || selectedJob.search_secondary) ? (
                   <div className="space-y-2 text-sm">
-                    {selectedJob.company_profile && (
-                      <div>
-                        <span className="text-xs text-slate-400">公司畫像</span>
-                        <p className="text-slate-700 mt-0.5 whitespace-pre-line text-xs bg-slate-50 rounded-lg p-2">{selectedJob.company_profile}</p>
-                      </div>
-                    )}
-                    {selectedJob.talent_profile && (
-                      <div>
-                        <span className="text-xs text-slate-400">人才畫像</span>
-                        <p className="text-slate-700 mt-0.5 whitespace-pre-line text-xs bg-slate-50 rounded-lg p-2">{selectedJob.talent_profile}</p>
-                      </div>
-                    )}
                     {selectedJob.search_primary && (
                       <div>
                         <span className="text-xs text-slate-400">主關鍵字 AND</span>
