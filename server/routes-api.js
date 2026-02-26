@@ -1845,6 +1845,30 @@ router.get('/health', async (req, res) => {
 // ==================== 顧問聯絡資訊 API ====================
 
 /**
+ * GET /api/users — 取得所有顧問名單（從 user_contacts + candidates recruiter 合併去重）
+ */
+router.get('/users', async (req, res) => {
+  try {
+    // 從 user_contacts 取登入過的顧問
+    const uc = await pool.query('SELECT display_name FROM user_contacts ORDER BY display_name');
+    // 從 candidates_pipeline 取出現過的 recruiter 名稱（補充未存聯絡資訊的顧問）
+    const cp = await pool.query(`
+      SELECT DISTINCT recruiter AS display_name
+      FROM candidates_pipeline
+      WHERE recruiter IS NOT NULL AND recruiter <> '' AND recruiter NOT LIKE 'AIBot%'
+      ORDER BY 1
+    `);
+    const names = Array.from(new Set([
+      ...uc.rows.map(r => r.display_name),
+      ...cp.rows.map(r => r.display_name),
+    ])).filter(Boolean).sort();
+    res.json({ success: true, data: names });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/users/:displayName/contact
  * 取得顧問聯絡資訊（供 AIbot 使用）
  */
@@ -2273,6 +2297,7 @@ router.get('/bot-config', async (req, res) => {
         schedule_interval_hours: config.schedule_interval_hours ?? 12,
         schedule_once_at: config.schedule_once_at ?? '',
         target_job_ids: config.target_job_ids ?? [],
+        consultant: config.consultant ?? '',      // 負責顧問 displayName
         last_run_at: config.last_run_at ?? null,
         last_run_status: config.last_run_status ?? null,
         last_run_summary: config.last_run_summary ?? null,
@@ -2294,6 +2319,7 @@ router.post('/bot-config', async (req, res) => {
       schedule_interval_hours,
       schedule_once_at,
       target_job_ids,
+      consultant,
     } = req.body;
     const db = await pool.connect();
     const entries = {
@@ -2304,6 +2330,7 @@ router.post('/bot-config', async (req, res) => {
       schedule_interval_hours,
       schedule_once_at,
       target_job_ids,
+      consultant,
     };
     for (const [key, val] of Object.entries(entries)) {
       if (val !== undefined) {

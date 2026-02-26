@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../constants';
 import {
   Bot, Clock, Play, Pause, Save, RefreshCw, CheckCircle2,
   XCircle, AlertCircle, Briefcase, Calendar, Activity,
-  ChevronDown, ChevronUp, Info, Zap, Timer, Search, X as XIcon
+  ChevronDown, ChevronUp, Info, Zap, Timer, Search, X as XIcon, User
 } from 'lucide-react';
 
 // ──────────────── 型別定義 ────────────────
@@ -19,6 +19,7 @@ interface BotConfig {
   schedule_interval_hours: number; // interval 用
   schedule_once_at: string;       // ISO datetime，once 用
   target_job_ids: number[];
+  consultant: string;             // 負責顧問 displayName
   last_run_at: string | null;
   last_run_status: 'success' | 'error' | 'running' | null;
   last_run_summary: string | null;
@@ -97,6 +98,7 @@ const DEFAULT_CONFIG: BotConfig = {
   schedule_interval_hours: 12,
   schedule_once_at: '',
   target_job_ids: [],
+  consultant: '',
   last_run_at: null,
   last_run_status: null,
   last_run_summary: null,
@@ -108,6 +110,7 @@ export const BotSchedulerPage: React.FC<Props> = () => {
   const [config, setConfig] = useState<BotConfig>(DEFAULT_CONFIG);
   const [jobs, setJobs] = useState<JobOption[]>([]);
   const [logs, setLogs] = useState<BotLog[]>([]);
+  const [consultants, setConsultants] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
@@ -123,14 +126,16 @@ export const BotSchedulerPage: React.FC<Props> = () => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [cfgRes, jobsRes, logsRes] = await Promise.all([
+      const [cfgRes, jobsRes, logsRes, usersRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/bot-config`),
         fetch(`${API_BASE_URL}/api/jobs`),
         fetch(`${API_BASE_URL}/api/bot-logs`),
+        fetch(`${API_BASE_URL}/api/users`),
       ]);
-      const cfgJson = await cfgRes.json();
-      const jobsJson = await jobsRes.json();
-      const logsJson = await logsRes.json();
+      const cfgJson   = await cfgRes.json();
+      const jobsJson  = await jobsRes.json();
+      const logsJson  = await logsRes.json();
+      const usersJson = await usersRes.json();
 
       if (cfgJson.success) {
         setConfig(prev => ({ ...DEFAULT_CONFIG, ...cfgJson.data }));
@@ -144,6 +149,7 @@ export const BotSchedulerPage: React.FC<Props> = () => {
         })));
       }
       if (logsJson.success) setLogs(logsJson.data || []);
+      if (usersJson.success) setConsultants(usersJson.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -168,6 +174,7 @@ export const BotSchedulerPage: React.FC<Props> = () => {
           schedule_interval_hours: config.schedule_interval_hours,
           schedule_once_at: config.schedule_once_at,
           target_job_ids: config.target_job_ids,
+          consultant: config.consultant,
         }),
       });
       const json = await res.json();
@@ -348,6 +355,52 @@ export const BotSchedulerPage: React.FC<Props> = () => {
             <span className={`text-xs font-medium ${runMsg.includes('失敗') || runMsg.includes('請先') ? 'text-red-600' : 'text-green-600'}`}>
               {runMsg}
             </span>
+          )}
+        </div>
+      </div>
+
+      {/* ── 負責顧問 ── */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+          <User size={18} className="text-indigo-600" />
+          <h2 className="font-bold text-slate-800">負責顧問</h2>
+          <span className="text-xs text-slate-400">爬取到的候選人將指派給此顧問</span>
+        </div>
+        <div className="p-6">
+          {consultants.length === 0 ? (
+            <p className="text-sm text-slate-400">尚無顧問資料（請確認帳號已設定聯絡資訊）</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {consultants.map(name => (
+                <button
+                  key={name}
+                  onClick={() => setConfig(prev => ({ ...prev, consultant: prev.consultant === name ? '' : name }))}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
+                    config.consultant === name
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                  }`}
+                >
+                  <User size={14} />
+                  {name}
+                  {config.consultant === name && (
+                    <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded">已選</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          {config.consultant && (
+            <p className="mt-3 text-xs text-indigo-600 flex items-center gap-1">
+              <CheckCircle2 size={13} />
+              爬取到的候選人將指派給：<strong>{config.consultant}</strong>
+            </p>
+          )}
+          {!config.consultant && consultants.length > 0 && (
+            <p className="mt-3 text-xs text-amber-600 flex items-center gap-1">
+              <AlertCircle size={13} />
+              請選擇負責顧問，否則將使用預設值「AIBot-pipeline」
+            </p>
           )}
         </div>
       </div>

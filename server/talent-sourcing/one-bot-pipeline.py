@@ -42,6 +42,17 @@ Step1ne 正式後端位址：
   BOT_ACTOR      Bot 名稱（預設 AIBot-pipeline）
   BRAVE_KEY      Brave Search API Key（LinkedIn 搜尋備援）
   GITHUB_TOKEN   GitHub Personal Access Token（GitHub 搜尋用）
+
+⏰ 定時任務設定提醒（本機 AI 評分機器）：
+  建議設定 cron 每 2 小時自動執行一次 score 模式，範例：
+
+  # crontab -e  →  加入以下這行（每 2 小時整點執行）
+  0 */2 * * * API_BASE_URL=https://backendstep1ne.zeabur.app \
+              /usr/bin/python3 /path/to/one-bot-pipeline.py \
+              --mode score >> /tmp/step1ne-score.log 2>&1
+
+  macOS 也可用 launchd，或用 claude 幫你寫 plist 設定檔。
+  預設每 2 小時輪詢一次；若當天無新增候選人則自動跳過。
 """
 
 import os
@@ -64,6 +75,9 @@ BRAVE_KEY   = os.getenv('BRAVE_KEY', '')
 GITHUB_TOKEN= os.getenv('GITHUB_TOKEN', '')
 SCRAPER     = os.path.join(os.path.dirname(__file__), 'search-plan-executor.py')
 THIS_DIR    = os.path.dirname(os.path.abspath(__file__))
+
+# 負責顧問（從 bot-config 讀取，可被 --consultant 覆蓋）
+BOT_CONSULTANT = os.getenv('BOT_CONSULTANT', '')  # 留空則從 API 讀取
 
 # 引入同目錄的評分引擎（檔名含連字號，使用 importlib 載入）
 import importlib.util
@@ -175,10 +189,11 @@ def get_existing_linkedin_urls() -> set:
 
 
 # ─── 匯入候選人 ───────────────────────────────────────────────────────────────
-def import_candidate(raw: Dict, job: Dict, dry_run: bool = False) -> Optional[int]:
+def import_candidate(raw: Dict, job: Dict, dry_run: bool = False, consultant: str = '') -> Optional[int]:
     """
     將爬蟲原始資料轉換後匯入 DB，回傳候選人 ID。
     raw 欄位來自 search-plan-executor.py 的輸出格式。
+    consultant: 負責顧問 displayName（從 bot-config 讀取）
     """
     name     = raw.get('name') or raw.get('display_name', '')
     if not name or name.lower() in ('unknown', ''):
@@ -191,6 +206,7 @@ def import_candidate(raw: Dict, job: Dict, dry_run: bool = False) -> Optional[in
     source   = 'GitHub' if gh_url and not li_url else 'LinkedIn'
 
     skills   = job.get('required_skills', [])[:8]
+    assigned = consultant or BOT_ACTOR   # 指派給設定的顧問，未設定則記 Bot 名稱
 
     payload = {
         'name':        name,
@@ -200,8 +216,8 @@ def import_candidate(raw: Dict, job: Dict, dry_run: bool = False) -> Optional[in
         'github_url':  gh_url,
         'source':      source,
         'status':      '未開始',   # 匯入時先進「今日新增」，等本機 AI 評分後再路由
-        'consultant':  BOT_ACTOR,
-        'notes':       f"Bot 自動匯入 | 目標職缺：{job.get('title','')} | {datetime.now().strftime('%Y-%m-%d')}",
+        'consultant':  assigned,
+        'notes':       f"Bot 自動匯入 | 目標職缺：{job.get('title','')} | 負責顧問：{assigned} | {datetime.now().strftime('%Y-%m-%d')}",
         'by':          BOT_ACTOR,
         'actor':       BOT_ACTOR,
     }
@@ -330,7 +346,7 @@ def _template_conclusion(scoring: Dict, job: Dict) -> str:
 
 
 # ─── 主流程 ───────────────────────────────────────────────────────────────────
-def process_job(job: Dict, existing_urls: set, args) -> Dict:
+def process_job(job: Dict, existing_urls: set, args, consultant: str = '') -> Dict:
     """處理單一職缺的完整閉環"""
     job_title = job.get('title', f"Job#{job.get('id')}")
     log(f"{'='*50}", 'HEAD')
@@ -362,7 +378,7 @@ def process_job(job: Dict, existing_urls: set, args) -> Dict:
         log(f"[{i}/{len(raw_candidates)}] 處理：{name}")
 
         # 3. 匯入
-        cid = import_candidate(raw, job, dry_run=args.dry_run)
+        cid = import_candidate(raw, job, dry_run=args.dry_run, consultant=consultant)
         if cid is None:
             stats['errors'] += 1
             continue
@@ -525,16 +541,25 @@ def run_score_phase(args):
 
 def run_scrape_phase(args):
     """爬取匯入階段：抓取候選人並以「未開始」狀態存入 DB"""
-    # 取得目標職缺 ID
+    # 取得 Bot 設定（職缺 ID + 負責顧問）
+    consultant = BOT_CONSULTANT  # 環境變數優先
+
     if args.job_ids:
         job_ids = [int(x.strip()) for x in args.job_ids.split(',') if x.strip().isdigit()]
     else:
         cfg_resp = api_get('/api/bot-config')
         if cfg_resp and cfg_resp.get('success'):
             job_ids = cfg_resp['data'].get('target_job_ids', [])
+            if not consultant:
+                consultant = cfg_resp['data'].get('consultant', '')  # 從 DB 設定讀取
         else:
             log("無法讀取 Bot 設定，請用 --job-ids 指定職缺", 'ERR')
             sys.exit(1)
+
+    if consultant:
+        log(f"負責顧問：{consultant}")
+    else:
+        log("未設定負責顧問，將使用預設值 AIBot-pipeline", 'WARN')
 
     if not job_ids:
         log("目標職缺清單為空，請在 Bot 排程設定頁面選擇職缺", 'WARN')
@@ -566,7 +591,7 @@ def run_scrape_phase(args):
             'nice_to_have_skills': [],
         }
 
-        stats = process_job(job, existing_urls, args)
+        stats = process_job(job, existing_urls, args, consultant=consultant)
         all_stats.append(stats)
 
         # 職缺之間加較長延遲（反爬蟲）
