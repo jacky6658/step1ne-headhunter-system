@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { updateUserProfile } from '../services/userService';
 import { apiPut, apiGet } from '../config/api';
-import { X, Upload, User, MessageSquare, Save, Loader2, Phone, Mail, Hash } from 'lucide-react';
+import { X, Upload, User, MessageSquare, Save, Loader2, Phone, Mail, Hash, Eye, EyeOff, Github } from 'lucide-react';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -24,6 +24,8 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const [contactEmail, setContactEmail] = useState(userProfile.contactEmail || '');
   const [lineId, setLineId] = useState(userProfile.lineId || '');
   const [telegramHandle, setTelegramHandle] = useState(userProfile.telegramHandle || '');
+  const [githubToken, setGithubToken] = useState(userProfile.githubToken || '');
+  const [showGithubToken, setShowGithubToken] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +40,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       setContactEmail(userProfile.contactEmail || '');
       setLineId(userProfile.lineId || '');
       setTelegramHandle(userProfile.telegramHandle || '');
+      setGithubToken(userProfile.githubToken || '');
       // 從後端載入最新聯絡資訊
       apiGet<any>(`/api/users/${encodeURIComponent(userProfile.displayName)}/contact`)
         .then(res => {
@@ -46,6 +49,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
             if (res.data.contactEmail) setContactEmail(res.data.contactEmail);
             if (res.data.lineId) setLineId(res.data.lineId);
             if (res.data.telegramHandle) setTelegramHandle(res.data.telegramHandle);
+            if (res.data.githubToken) setGithubToken(res.data.githubToken);
           }
         })
         .catch(() => {/* 後端不可用時靜默降級 */});
@@ -115,6 +119,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         contactEmail: contactEmail.trim() || undefined,
         lineId: lineId.trim() || undefined,
         telegramHandle: telegramHandle.trim() || undefined,
+        githubToken: githubToken.trim() || undefined,
       };
 
       // 同步儲存到後端（供 AIbot 使用）
@@ -123,6 +128,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         contactEmail: contactEmail.trim(),
         lineId: lineId.trim(),
         telegramHandle: telegramHandle.trim(),
+        githubToken: githubToken.trim(),
       }).catch(() => {/* 後端不可用時靜默降級 */});
 
       const updated = await updateUserProfile(userProfile.uid, {
@@ -306,6 +312,45 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               </div>
             </div>
             <p className="text-[10px] sm:text-xs text-slate-400">這些資訊會同步到後端，AIbot 代發信件時可自動帶入您的聯絡方式</p>
+          </div>
+
+          {/* GitHub Token */}
+          <div className="space-y-3">
+            <label className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest block flex items-center gap-2">
+              <Github size={10} className="sm:w-3 sm:h-3" />
+              GitHub Token（人才搜尋用）
+            </label>
+            <div className="flex items-center gap-2">
+              <Github size={14} className="text-slate-400 shrink-0" />
+              <div className="flex-1 relative">
+                <input
+                  type={showGithubToken ? 'text' : 'password'}
+                  value={githubToken}
+                  onChange={(e) => setGithubToken(e.target.value)}
+                  className="w-full px-3 py-2 pr-10 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl text-sm text-slate-800 transition-all font-mono"
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowGithubToken(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                >
+                  {showGithubToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+            <p className="text-[10px] sm:text-xs text-slate-400">
+              不填則使用無認證模式（60次/小時）。填入後可提升至 5000次/小時。
+              {' '}
+              <a
+                href="https://github.com/settings/tokens"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-500 hover:underline"
+              >
+                申請 Token →
+              </a>
+            </p>
           </div>
         </div>
 

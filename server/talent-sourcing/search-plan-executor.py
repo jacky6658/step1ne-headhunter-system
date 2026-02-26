@@ -1,362 +1,422 @@
 #!/usr/bin/env python3
 """
-Search Plan Executor - 完整端到端搜尋 + 评分 + 推荐流程
-
-整合：
-1. 产业识别（客户 + JD → 产业）
-2. 爬蟲搜尋（GitHub + LinkedIn）
-3. 候选人评分（6维）
-4. 排序 & 推荐
-5. 导出结果（JSON + HTML 报告）
+Step1ne 人才搜尋執行器 v2
+GitHub API 真實搜尋 + Google 搜尋 LinkedIn 個人頁
+含反爬蟲機制：隨機 UA、隨機延遲、robots.txt 遵守、停用自動化識別
 """
-
 import json
-import subprocess
-from typing import Dict, List, Optional
-from dataclasses import asdict, dataclass
-from enum import Enum
-from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
+import sys
+import time
+import random
+import argparse
+import re
+from urllib.parse import quote, unquote
+from urllib.robotparser import RobotFileParser
 
-# ==================== 导入本地模块 ====================
+try:
+    import requests
+    from bs4 import BeautifulSoup
+except ImportError:
+    print(json.dumps({
+        "error": "missing_dependencies",
+        "message": "請執行：pip3 install requests beautifulsoup4"
+    }), flush=True)
+    sys.exit(1)
 
-# 假设 unified-scraper-v4-enhanced 和 candidate-scoring-system-v2 已在同目录
+# ============================================================
+# 反爬蟲設定
+# ============================================================
+USER_AGENTS = [
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+]
 
-class SearchLayer(Enum):
-    LAYER_1 = "layer_1"
-    LAYER_2 = "layer_2"
-
-@dataclass
-class ExecutionPlan:
-    """执行计划"""
-    timestamp: str
-    total_jobs: int
-    layer_1_count: int
-    layer_2_count: int
-    total_candidates_found: int
-    total_candidates_scored: int
-    top_recommendations: Dict
-
-def execute_full_search_plan(job_file: str = '/tmp/jobs-to-search.json',
-                            output_dir: str = '/tmp/search-execution') -> ExecutionPlan:
-    """完整搜尋 + 评分 + 推荐流程"""
-    
-    print("\n" + "="*100)
-    print("🚀 启动完整搜尋计划执行器")
-    print("="*100 + "\n")
-    
-    # Step 1: 读取职缺列表
-    print("📋 Step 1: 读取职缺列表...")
-    try:
-        with open(job_file, 'r', encoding='utf-8') as f:
-            jobs_data = json.load(f)
-        jobs = jobs_data.get('jobs', [])
-        print(f"✅ 成功读取 {len(jobs)} 个职缺\n")
-    except FileNotFoundError:
-        print(f"❌ 找不到职缺文件：{job_file}")
-        return None
-    
-    # Step 2: 分层职缺
-    print("🎯 Step 2: 分层职缺...")
-    layer_1_jobs = [j for j in jobs if j.get('layer') == 'layer_1']
-    layer_2_jobs = [j for j in jobs if j.get('layer') == 'layer_2']
-    
-    print(f"  • Layer 1（P0，立即执行）：{len(layer_1_jobs)} 个")
-    print(f"  • Layer 2（P1，本周执行）：{len(layer_2_jobs)} 个\n")
-    
-    # Step 3: 执行 Layer 1 搜尋
-    print("🔍 Step 3: 执行 Layer 1 搜尋（产业感知并行爬蟲）...")
-    print("  ⏳ 此操作耗时 2-3 分钟...\n")
-    
-    layer1_results = execute_layer_search(layer_1_jobs, layer=1)
-    total_l1_candidates = sum(len(v) for v in layer1_results.values())
-    print(f"✅ Layer 1 找到 {total_l1_candidates} 位候选人\n")
-    
-    # Step 4: 候选人评分
-    print("📊 Step 4: 执行多维评分...")
-    scored_candidates = score_all_candidates(layer1_results, jobs)
-    print(f"✅ 完成 {len(scored_candidates)} 位候选人的 6 维评分\n")
-    
-    # Step 5: 生成推荐清单
-    print("🎯 Step 5: 生成顶级推荐清单...")
-    recommendations = generate_recommendations(scored_candidates, jobs)
-    
-    # Step 6: 导出报告
-    print("📄 Step 6: 生成报告...")
-    export_reports(recommendations, scored_candidates, output_dir)
-    
-    # 执行计划总结
-    plan = ExecutionPlan(
-        timestamp=datetime.now().isoformat(),
-        total_jobs=len(jobs),
-        layer_1_count=len(layer_1_jobs),
-        layer_2_count=len(layer_2_jobs),
-        total_candidates_found=total_l1_candidates,
-        total_candidates_scored=len(scored_candidates),
-        top_recommendations=recommendations
-    )
-    
-    print_execution_summary(plan)
-    
-    return plan
-
-def execute_layer_search(jobs: List[Dict], layer: int = 1) -> Dict:
-    """执行单个 layer 的搜尋"""
-    
-    results = {}
-    
-    # 模拟搜尋（实际上调用 unified-scraper-v4-enhanced）
-    for job in jobs:
-        job_title = job.get('job_title', 'Unknown')
-        industry = job.get('industry', 'unknown')
-        
-        print(f"  🔎 搜尋：{job_title} ({industry})...", end='', flush=True)
-        
-        # 模拟候选人结果
-        candidates = [
-            {
-                'name': f'Candidate_{i}',
-                'github_url': f'https://github.com/candidate{i}',
-                'skills': job.get('skills', []),
-                'years_experience': job.get('experience_years', 0),
-                'industry_match': 0.8,
-                'overall_score': 80 + i * 2,
-            }
-            for i in range(3, 8)
-        ]
-        
-        results[job_title] = candidates
-        print(f" ✅ ({len(candidates)} 人)")
-    
-    return results
-
-def score_all_candidates(candidates_by_job: Dict, jobs: List[Dict]) -> List[Dict]:
-    """对所有候选人进行评分"""
-    
-    scored = []
-    job_map = {j['job_title']: j for j in jobs}
-    
-    for job_title, candidates in candidates_by_job.items():
-        job = job_map.get(job_title, {})
-        
-        for candidate in candidates:
-            # 模拟评分逻辑（实际调用 candidate-scoring-system-v2）
-            score = {
-                'candidate_name': candidate['name'],
-                'job_title': job_title,
-                'overall_score': candidate['overall_score'],
-                'talent_level': get_talent_level(candidate['overall_score']),
-                'skill_match': 75.0,
-                'experience_fit': 80.0,
-                'location_fit': 100.0,
-                'hiring_signal': 70.0,
-                'company_level': 80.0,
-                'industry_experience': candidate['industry_match'] * 100,
-                'github_url': candidate.get('github_url'),
-            }
-            scored.append(score)
-    
-    return scored
-
-def generate_recommendations(scored: List[Dict], jobs: List[Dict]) -> Dict:
-    """生成顶级推荐"""
-    
-    recommendations = {}
-    job_map = {j['job_title']: j for j in jobs}
-    
-    for job_title, job_data in job_map.items():
-        # 筛选该职缺的候选人
-        candidates_for_job = [c for c in scored if c['job_title'] == job_title]
-        
-        # 按综合评分排序
-        sorted_candidates = sorted(candidates_for_job, 
-                                 key=lambda x: x['overall_score'], 
-                                 reverse=True)
-        
-        # 取 Top 3
-        top_3 = sorted_candidates[:3]
-        
-        recommendations[job_title] = {
-            'customer': job_data.get('customer_name'),
-            'industry': job_data.get('industry'),
-            'total_found': len(candidates_for_job),
-            'top_recommendations': [
-                {
-                    'rank': i + 1,
-                    'name': c['candidate_name'],
-                    'score': c['overall_score'],
-                    'level': c['talent_level'],
-                    'github_url': c.get('github_url'),
-                    'key_strengths': [f"{c['skill_match']:.0f}% 技能匹配", 
-                                     f"{c['experience_fit']:.0f}% 年资符合"]
-                }
-                for i, c in enumerate(top_3)
-            ]
-        }
-    
-    return recommendations
-
-def get_talent_level(score: float) -> str:
-    """评级映射"""
-    if score >= 90:
-        return 'S'
-    elif score >= 85:
-        return 'A+'
-    elif score >= 75:
-        return 'A'
-    elif score >= 60:
-        return 'B'
-    else:
-        return 'C'
-
-def export_reports(recommendations: Dict, scored: List[Dict], output_dir: str):
-    """导出 JSON + HTML 报告"""
-    
-    import os
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # JSON 报告
-    json_report = {
-        'timestamp': datetime.now().isoformat(),
-        'summary': {
-            'total_jobs': len(recommendations),
-            'total_candidates_scored': len(scored),
-            'average_score': sum(c['overall_score'] for c in scored) / len(scored) if scored else 0,
-        },
-        'recommendations': recommendations,
+def get_browser_headers():
+    """隨機 User-Agent，對抗 UA 指紋識別"""
+    return {
+        'User-Agent': random.choice(USER_AGENTS),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Cache-Control': 'max-age=0',
     }
-    
-    json_path = os.path.join(output_dir, 'recommendations.json')
-    with open(json_path, 'w', encoding='utf-8') as f:
-        json.dump(json_report, f, ensure_ascii=False, indent=2)
-    
-    print(f"✅ JSON 报告已保存：{json_path}")
-    
-    # HTML 报告
-    html_content = generate_html_report(recommendations)
-    html_path = os.path.join(output_dir, 'recommendations.html')
-    with open(html_path, 'w', encoding='utf-8') as f:
-        f.write(html_content)
-    
-    print(f"✅ HTML 报告已保存：{html_path}")
 
-def generate_html_report(recommendations: Dict) -> str:
-    """生成可视化 HTML 报告"""
-    
-    html = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>搜尋推荐报告</title>
-        <style>
-            body { font-family: Arial; margin: 20px; background: #f5f5f5; }
-            .header { background: #2c3e50; color: white; padding: 20px; border-radius: 5px; }
-            .job-card { background: white; margin: 20px 0; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            .candidate { background: #ecf0f1; padding: 15px; margin: 10px 0; border-left: 4px solid #3498db; }
-            .score { font-size: 24px; font-weight: bold; color: #27ae60; }
-            .level { display: inline-block; padding: 5px 10px; background: #3498db; color: white; border-radius: 3px; margin-left: 10px; }
-            .top1 { border-left-color: #f39c12; }
-            .top2 { border-left-color: #95a5a6; }
-            .top3 { border-left-color: #cd7f32; }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>🎯 职缺人才搜尋推荐报告</h1>
-            <p>生成时间：""" + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
-        </div>
-    """
-    
-    for job_title, job_data in recommendations.items():
-        html += f"""
-        <div class="job-card">
-            <h2>📌 {job_title}</h2>
-            <p><strong>公司：</strong>{job_data['customer']} | <strong>产业：</strong>{job_data['industry']}</p>
-            <p><strong>找到人才：</strong>{job_data['total_found']} 位</p>
-            <h3>顶级推荐：</h3>
-        """
-        
-        for rec in job_data['top_recommendations']:
-            top_class = f"top{rec['rank']}"
-            html += f"""
-            <div class="candidate {top_class}">
-                <h4>#{rec['rank']} {rec['name']}</h4>
-                <p>
-                    <span class="score">{rec['score']:.0f}</span>
-                    <span class="level">{rec['level']}</span>
-                </p>
-                <p>优势：{' | '.join(rec['key_strengths'])}</p>
-                {f'<p><a href="{rec["github_url"]}" target="_blank">GitHub 档案</a></p>' if rec['github_url'] else ''}
-            </div>
-            """
-        
-        html += "</div>"
-    
-    html += """
-    </body>
-    </html>
-    """
-    
-    return html
+def anti_scraping_delay(min_s=2.0, max_s=5.0):
+    """隨機延遲，對抗速率限制"""
+    delay = random.uniform(min_s, max_s)
+    time.sleep(delay)
 
-def print_execution_summary(plan: ExecutionPlan):
-    """打印执行总结"""
-    
-    print("\n" + "="*100)
-    print("✅ 搜尋计划执行完成")
-    print("="*100 + "\n")
-    
-    print(f"📊 执行统计：")
-    print(f"  • 总职缺数：{plan.total_jobs}")
-    print(f"  • Layer 1（P0）：{plan.layer_1_count} 个职缺")
-    print(f"  • Layer 2（P1）：{plan.layer_2_count} 个职缺")
-    print(f"  • 找到候选人：{plan.total_candidates_found} 位")
-    print(f"  • 已评分：{plan.total_candidates_scored} 位\n")
-    
-    print(f"🎯 顶级推荐（按职缺）：\n")
-    
-    for job_title, recs in plan.top_recommendations.items():
-        print(f"  📌 {job_title}")
-        for rec in recs.get('top_recommendations', [])[:2]:  # 显示 Top 2
-            print(f"    #{rec['rank']} {rec['name']} - {rec['score']:.0f} 分【{rec['level']}】")
-        print()
+def check_robots_txt(base_url):
+    """遵守 robots.txt"""
+    try:
+        rp = RobotFileParser()
+        rp.set_url(f"{base_url}/robots.txt")
+        rp.read()
+        return rp
+    except Exception:
+        return None
 
-# ==================== 主程序 ====================
+def log(msg):
+    print(f"[scraper] {msg}", file=sys.stderr, flush=True)
+
+
+# ============================================================
+# GitHub API 搜尋
+# ============================================================
+GITHUB_API = "https://api.github.com"
+
+GITHUB_TOKEN_GUIDE = (
+    "⚠️ GitHub API 已達每小時上限（60次/小時，無認證模式）\n\n"
+    "請接入 GitHub Personal Access Token 提升至 5000次/小時：\n"
+    "1. 前往 GitHub → Settings → Developer settings\n"
+    "2. Personal access tokens → Tokens (classic)\n"
+    "3. Generate new token（勾選 read:user, user:email）\n"
+    "4. 將 token 填入系統右上角 → 個人設定 → GitHub Token\n"
+    "申請頁面：https://github.com/settings/tokens"
+)
+
+def get_github_headers(token=None):
+    headers = {'Accept': 'application/vnd.github.v3+json'}
+    if token:
+        headers['Authorization'] = f'token {token}'
+    return headers
+
+def check_github_rate_limit(token=None):
+    try:
+        resp = requests.get(
+            f"{GITHUB_API}/rate_limit",
+            headers=get_github_headers(token),
+            timeout=10
+        )
+        rate = resp.json().get('rate', {})
+        return rate.get('remaining', 0), rate.get('limit', 60), rate.get('reset', 0)
+    except Exception:
+        return 0, 60, 0
+
+def search_github_users(skills, location="Taiwan", token=None, pages=2):
+    """GitHub API 搜尋開發者，支援 2-3 頁"""
+    remaining, limit, _ = check_github_rate_limit(token)
+    log(f"GitHub rate limit: {remaining}/{limit} remaining")
+
+    if remaining < 10:
+        return {
+            'success': False,
+            'rate_limit_warning': True,
+            'rate_limit_guide': GITHUB_TOKEN_GUIDE,
+            'data': []
+        }
+
+    headers = get_github_headers(token)
+    all_users = []
+    seen_logins = set()
+
+    # 主查詢：用語言 + 地區
+    primary_langs = [s for s in skills[:2] if s]
+    lang_query = ' '.join(f'language:{s}' for s in primary_langs) if primary_langs else ''
+    search_query = f'{lang_query} location:{location}'.strip()
+
+    for page in range(1, pages + 1):
+        try:
+            anti_scraping_delay(0.5, 1.5)
+            resp = requests.get(
+                f"{GITHUB_API}/search/users",
+                params={'q': search_query, 'per_page': 10, 'page': page, 'sort': 'followers'},
+                headers=headers,
+                timeout=15
+            )
+
+            if resp.status_code == 403:
+                return {
+                    'success': False,
+                    'rate_limit_warning': not bool(token),
+                    'rate_limit_guide': GITHUB_TOKEN_GUIDE if not token else '',
+                    'data': all_users
+                }
+            if resp.status_code != 200:
+                log(f"GitHub search HTTP {resp.status_code} on page {page}")
+                continue
+
+            items = resp.json().get('items', [])
+            if not items:
+                break
+
+            for user in items:
+                login = user.get('login', '')
+                if login in seen_logins:
+                    continue
+                seen_logins.add(login)
+                anti_scraping_delay(0.3, 0.8)
+                detail = fetch_github_user_detail(login, headers)
+                if detail:
+                    all_users.append(detail)
+
+        except Exception as e:
+            log(f"GitHub page {page} error: {e}")
+            continue
+
+    return {'success': True, 'data': all_users}
+
+
+def fetch_github_user_detail(username, headers):
+    """取得 GitHub 用戶詳細資訊 + 語言統計"""
+    try:
+        resp = requests.get(f"{GITHUB_API}/users/{username}", headers=headers, timeout=10)
+        if resp.status_code != 200:
+            return None
+        user = resp.json()
+
+        repos_resp = requests.get(
+            f"{GITHUB_API}/users/{username}/repos",
+            params={'sort': 'updated', 'per_page': 10, 'type': 'owner'},
+            headers=headers,
+            timeout=10
+        )
+        repos = repos_resp.json() if repos_resp.status_code == 200 else []
+
+        languages = []
+        for r in repos:
+            lang = r.get('language')
+            if lang and lang not in languages:
+                languages.append(lang)
+
+        recent_push = repos[0].get('pushed_at', '') if repos else ''
+        top_repos = [r.get('name', '') for r in repos[:5]]
+
+        return {
+            'source': 'github',
+            'name': user.get('name') or username,
+            'github_url': user.get('html_url', f'https://github.com/{username}'),
+            'github_username': username,
+            'linkedin_url': '',
+            'location': user.get('location', '') or '',
+            'bio': user.get('bio', '') or '',
+            'company': (user.get('company', '') or '').lstrip('@').strip(),
+            'email': user.get('email', '') or '',
+            'public_repos': user.get('public_repos', 0),
+            'followers': user.get('followers', 0),
+            'skills': languages,
+            'recent_push': recent_push,
+            'top_repos': top_repos,
+        }
+    except Exception as e:
+        log(f"GitHub detail error ({username}): {e}")
+        return None
+
+
+# ============================================================
+# LinkedIn via Google 搜尋
+# ============================================================
+
+def search_linkedin_via_google(skills, location="台灣", pages=2):
+    """透過 Google 搜尋 LinkedIn 個人頁，支援 2-3 頁"""
+    rp = check_robots_txt("https://www.google.com")
+    session = requests.Session()
+    results = []
+    seen_urls = set()
+
+    skill_query = ' '.join(f'"{s}"' for s in skills[:3])
+    query = f'site:linkedin.com/in/ {skill_query} "{location}"'
+
+    for page in range(pages):
+        start = page * 10
+        search_url = f"https://www.google.com/search?q={quote(query)}&start={start}&num=10&hl=zh-TW"
+
+        # 對抗指紋識別：每頁換 User-Agent
+        session.headers.update(get_browser_headers())
+
+        # 遵守 robots.txt
+        if rp and not rp.can_fetch('*', search_url):
+            log(f"robots.txt 不允許: {search_url}")
+            continue
+
+        # 對抗速率限制：隨機延遲 2-5 秒
+        anti_scraping_delay(2.0, 5.0)
+
+        try:
+            resp = session.get(search_url, timeout=15)
+
+            if resp.status_code == 429:
+                log("Google 速率限制 429，暫停 15 秒")
+                time.sleep(15)
+                continue
+            if resp.status_code != 200:
+                log(f"Google search HTTP {resp.status_code}")
+                continue
+
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            extracted = extract_linkedin_urls_from_soup(soup)
+
+            for item in extracted:
+                url = item.get('linkedin_url', '')
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    results.append(item)
+
+        except Exception as e:
+            log(f"Google search page {page + 1} error: {e}")
+            continue
+
+    return {'success': True, 'data': results}
+
+
+def clean_linkedin_url(href):
+    """清理並標準化 LinkedIn URL"""
+    try:
+        url = unquote(href)
+        url = url.split('?')[0].split('%3F')[0]
+        # 標準化網域
+        url = re.sub(r'^https?://[a-z]{2,3}\.linkedin\.com', 'https://www.linkedin.com', url)
+        if not re.search(r'linkedin\.com/in/[\w\-]+', url):
+            return None
+        if not url.endswith('/'):
+            url += '/'
+        return url
+    except Exception:
+        return None
+
+
+def extract_linkedin_urls_from_soup(soup):
+    """從 Google 搜尋結果解析 LinkedIn URL"""
+    found = []
+    seen = set()
+
+    def add_candidate(url, name='', title='', company=''):
+        if url in seen:
+            return
+        seen.add(url)
+        username = url.rstrip('/').split('/')[-1]
+        found.append({
+            'source': 'linkedin',
+            'name': name or username.replace('-', ' ').title(),
+            'github_url': '',
+            'github_username': '',
+            'linkedin_url': url,
+            'linkedin_username': username,
+            'location': '',
+            'bio': title,
+            'company': company,
+            'email': '',
+            'public_repos': 0,
+            'followers': 0,
+            'skills': [],
+            'recent_push': '',
+            'top_repos': [],
+        })
+
+    # 方法一：從 <a href> 中找
+    for tag in soup.find_all('a', href=True):
+        href = tag.get('href', '')
+        url = None
+        if 'linkedin.com/in/' in href:
+            if href.startswith('/url?q='):
+                url = href.split('/url?q=')[1].split('&')[0]
+            elif href.startswith('http'):
+                url = href
+        if url:
+            url = clean_linkedin_url(url)
+            if url:
+                name, title = _extract_name_from_tag(tag)
+                add_candidate(url, name, title)
+
+    # 方法二：從 <cite> 文字中找
+    for cite in soup.find_all('cite'):
+        text = cite.get_text()
+        m = re.search(r'(?:https?://)?(?:www\.)?linkedin\.com/in/([\w\-]+)', text)
+        if m:
+            username = m.group(1)
+            url = f'https://www.linkedin.com/in/{username}/'
+            add_candidate(url)
+
+    return found
+
+
+def _extract_name_from_tag(tag):
+    """嘗試從搜尋結果片段提取姓名和職稱"""
+    name, title = '', ''
+    try:
+        parent = tag
+        for _ in range(6):
+            if parent is None:
+                break
+            parent = getattr(parent, 'parent', None)
+            if parent is None:
+                break
+            text = parent.get_text(separator=' ', strip=True)
+            if len(text) > 20:
+                m = re.match(r'^([^\-\|·–\n]{3,40}?)[\s]*[-–|·][\s]*(.{3,80}?)[\s]*[\|–\n]', text)
+                if m:
+                    name = m.group(1).strip()
+                    title = m.group(2).strip()
+                break
+    except Exception:
+        pass
+    return name, title
+
+
+# ============================================================
+# Main
+# ============================================================
 
 def main():
-    """示例：执行完整搜尋计划"""
-    
-    # 示例职缺列表
-    example_jobs = {
-        'jobs': [
-            {
-                'job_title': '資安工程師',
-                'customer_name': '遊戲橘子集團',
-                'industry': 'gaming',
-                'experience_years': 2,
-                'skills': ['DevOps', 'Linux', 'Security'],
-                'layer': 'layer_1',
-                'priority': 'P0'
-            },
-            {
-                'job_title': 'AI工程師',
-                'customer_name': 'AIJob內部',
-                'industry': 'internet',
-                'experience_years': 3,
-                'skills': ['Python', 'TensorFlow', 'ML'],
-                'layer': 'layer_2',
-                'priority': 'P1'
-            },
-        ]
+    parser = argparse.ArgumentParser(description='Step1ne 人才搜尋執行器 v2')
+    parser.add_argument('--job-title', required=True)
+    parser.add_argument('--required-skills', default='')
+    parser.add_argument('--industry', default='')
+    parser.add_argument('--location', default='Taiwan')
+    parser.add_argument('--github-token', default='')
+    parser.add_argument('--pages', type=int, default=2)
+    parser.add_argument('--output-format', default='json')
+    args = parser.parse_args()
+
+    skills = [s.strip() for s in args.required_skills.split(',') if s.strip()]
+    token = args.github_token.strip() or None
+    pages = max(1, min(3, args.pages))
+
+    log(f"搜尋: {args.job_title} | 技能: {skills} | 頁數: {pages} | token: {'有' if token else '無（無認證模式）'}")
+
+    output = {
+        'job_title': args.job_title,
+        'industry': args.industry,
+        'rate_limit_warning': None,
+        'github': {'success': False, 'count': 0},
+        'linkedin': {'success': False, 'count': 0},
+        'all_candidates': [],
+        'total_found': 0,
     }
-    
-    # 保存示例文件
-    with open('/tmp/jobs-to-search.json', 'w', encoding='utf-8') as f:
-        json.dump(example_jobs, f, ensure_ascii=False, indent=2)
-    
-    # 执行
-    plan = execute_full_search_plan()
+
+    # 1. GitHub
+    log(f"[1/2] GitHub 搜尋 ({pages} 頁)...")
+    github_result = search_github_users(skills, location=args.location, token=token, pages=pages)
+    if github_result.get('rate_limit_warning'):
+        output['rate_limit_warning'] = github_result.get('rate_limit_guide', '')
+    github_candidates = github_result.get('data', [])
+    output['github']['success'] = github_result.get('success', False)
+    output['github']['count'] = len(github_candidates)
+    log(f"GitHub: {len(github_candidates)} 位")
+
+    # 2. LinkedIn via Google
+    log(f"[2/2] LinkedIn (Google) 搜尋 ({pages} 頁)...")
+    linkedin_result = search_linkedin_via_google(skills, location='台灣', pages=pages)
+    linkedin_candidates = linkedin_result.get('data', [])
+    output['linkedin']['success'] = linkedin_result.get('success', False)
+    output['linkedin']['count'] = len(linkedin_candidates)
+    log(f"LinkedIn: {len(linkedin_candidates)} 位")
+
+    # 3. 合併
+    all_candidates = github_candidates + linkedin_candidates
+    output['all_candidates'] = all_candidates
+    output['total_found'] = len(all_candidates)
+    log(f"完成，共 {len(all_candidates)} 位候選人")
+
+    print(json.dumps(output, ensure_ascii=False), flush=True)
+
 
 if __name__ == '__main__':
     main()

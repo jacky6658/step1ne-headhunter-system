@@ -115,6 +115,7 @@ export interface UserProfile {
   contactEmail?: string;  // 工作 Email
   lineId?: string;        // LINE ID
   telegramHandle?: string; // Telegram 帳號
+  githubToken?: string;   // GitHub Personal Access Token（供 talent sourcing 使用）
 }
 
 export interface Lead {

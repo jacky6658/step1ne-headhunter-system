@@ -56,6 +56,12 @@ pool.query(`
   )
 `).catch(err => console.warn('user_contacts migration:', err.message));
 
+// 確保 github_token 欄位存在
+pool.query(`
+  ALTER TABLE user_contacts
+  ADD COLUMN IF NOT EXISTS github_token VARCHAR(500)
+`).catch(err => console.warn('github_token migration:', err.message));
+
 // 寫入 system_logs 輔助函數
 async function writeLog({ action, actor, candidateId, candidateName, detail }) {
   // 判斷 AIBOT：包含 "aibot" 或以 "bot" 結尾（如 Jackeybot、Phoebebot）
@@ -1511,6 +1517,7 @@ router.get('/users/:displayName/contact', async (req, res) => {
         contactEmail: row.contact_email,
         lineId: row.line_id,
         telegramHandle: row.telegram_handle,
+        githubToken: row.github_token,
       }
     });
   } catch (error) {
@@ -1526,18 +1533,19 @@ router.get('/users/:displayName/contact', async (req, res) => {
 router.put('/users/:displayName/contact', async (req, res) => {
   try {
     const { displayName } = req.params;
-    const { contactPhone, contactEmail, lineId, telegramHandle } = req.body;
+    const { contactPhone, contactEmail, lineId, telegramHandle, githubToken } = req.body;
 
     await pool.query(`
-      INSERT INTO user_contacts (display_name, contact_phone, contact_email, line_id, telegram_handle, updated_at)
-      VALUES ($1, $2, $3, $4, $5, NOW())
+      INSERT INTO user_contacts (display_name, contact_phone, contact_email, line_id, telegram_handle, github_token, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
       ON CONFLICT (display_name) DO UPDATE SET
         contact_phone = EXCLUDED.contact_phone,
         contact_email = EXCLUDED.contact_email,
         line_id = EXCLUDED.line_id,
         telegram_handle = EXCLUDED.telegram_handle,
+        github_token = EXCLUDED.github_token,
         updated_at = NOW()
-    `, [displayName, contactPhone || null, contactEmail || null, lineId || null, telegramHandle || null]);
+    `, [displayName, contactPhone || null, contactEmail || null, lineId || null, telegramHandle || null, githubToken || null]);
 
     res.json({ success: true, message: '聯絡資訊已儲存' });
   } catch (error) {

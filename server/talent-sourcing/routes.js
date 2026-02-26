@@ -1,16 +1,63 @@
 /**
  * talent-sourcing/routes.js - 人才智能爬蟲 API 路由
- * 
+ *
  * 端點：
- * POST   /api/talent-sourcing/search     - 搜尋候選人
- * POST   /api/talent-sourcing/score      - 評分候選人
- * POST   /api/talent-sourcing/migration  - 分析遷移能力
- * GET    /api/talent-sourcing/health     - 健康檢查
+ * POST   /api/talent-sourcing/find-candidates - 完整 6 步驟獵才流程（AIbot 觸發）
+ * POST   /api/talent-sourcing/search          - 搜尋候選人（舊版）
+ * POST   /api/talent-sourcing/score           - 評分候選人
+ * POST   /api/talent-sourcing/migration       - 分析遷移能力
+ * GET    /api/talent-sourcing/health          - 健康檢查
  */
 
 const express = require('express');
 const router = express.Router();
 const talentSourceService = require('../talentSourceService');
+
+/**
+ * POST /api/talent-sourcing/find-candidates
+ * 完整 6 步驟獵才流程（由 AIbot 觸發）
+ *
+ * Body 參數：
+ * {
+ *   "company": "一通數位",
+ *   "jobTitle": "Java Developer",
+ *   "actor": "Jackeybot",
+ *   "github_token": "ghp_xxx",   // 可選，來自用戶設定
+ *   "pages": 2                    // 可選，預設 2，最多 3
+ * }
+ */
+router.post('/find-candidates', async (req, res) => {
+  try {
+    const { company, jobTitle, actor, github_token, pages } = req.body;
+
+    if (!company || !jobTitle) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必要參數: company, jobTitle'
+      });
+    }
+
+    console.log(`🔍 [find-candidates] ${actor || 'system'} 觸發：${company} - ${jobTitle}`);
+
+    const result = await talentSourceService.findAndSaveCandidates({
+      company,
+      jobTitle,
+      actor: actor || 'system',
+      githubToken: github_token || null,
+      pages: pages || 2,
+    });
+
+    console.log(`✅ [find-candidates] 完成：匯入 ${result.imported_count} 位，跳過 ${result.skipped_count} 位`);
+
+    res.json(result);
+  } catch (error) {
+    console.error('❌ [find-candidates] 錯誤:', error);
+    res.status(500).json({
+      success: false,
+      error: '服務器內部錯誤: ' + error.message
+    });
+  }
+});
 
 /**
  * POST /api/talent-sourcing/search
