@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
-import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles, FileText, Edit3, Save, X as XIcon } from 'lucide-react';
+import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles, FileText, Edit3, Save, X as XIcon, Bot, Plus } from 'lucide-react';
 import { apiGet, apiPut } from '../config/api';
 
 interface JobsPageProps {
@@ -30,6 +30,10 @@ interface Job {
   interview_process: string;
   consultant_notes: string;
   job_description: string;
+  company_profile: string;
+  talent_profile: string;
+  search_primary: string;    // 逗號分隔，主關鍵字（AND）
+  search_secondary: string;  // 逗號分隔，次關鍵字（OR）
   lastUpdated: string;
 }
 
@@ -43,6 +47,18 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
   const [editingJD, setEditingJD] = useState(false);
   const [jdDraft, setJdDraft] = useState('');
   const [savingJD, setSavingJD] = useState(false);
+
+  // ── 爬蟲搜尋設定狀態 ──
+  const [editingSearch, setEditingSearch] = useState(false);
+  const [companyProfileDraft, setCompanyProfileDraft] = useState('');
+  const [talentProfileDraft, setTalentProfileDraft] = useState('');
+  const [primaryTags, setPrimaryTags] = useState<string[]>([]);
+  const [secondaryTags, setSecondaryTags] = useState<string[]>([]);
+  const [primaryTagInput, setPrimaryTagInput] = useState('');
+  const [secondaryTagInput, setSecondaryTagInput] = useState('');
+  const [savingSearch, setSavingSearch] = useState(false);
+  const primaryInputRef = useRef<HTMLInputElement>(null);
+  const secondaryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchJobs();
@@ -121,10 +137,58 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     }
   };
 
+  const parseTags = (str: string | undefined) =>
+    str ? str.split(',').map(s => s.trim()).filter(Boolean) : [];
+
   const handleJobClick = (job: Job) => {
     setSelectedJob(job);
     setEditingJD(false);
     setJdDraft(job.job_description || '');
+    setEditingSearch(false);
+    setCompanyProfileDraft(job.company_profile || '');
+    setTalentProfileDraft(job.talent_profile || '');
+    setPrimaryTags(parseTags(job.search_primary));
+    setSecondaryTags(parseTags(job.search_secondary));
+    setPrimaryTagInput('');
+    setSecondaryTagInput('');
+  };
+
+  const addTag = (
+    input: string,
+    tags: string[],
+    setTags: React.Dispatch<React.SetStateAction<string[]>>,
+    setInput: React.Dispatch<React.SetStateAction<string>>,
+  ) => {
+    const val = input.trim().replace(/,+$/, '');
+    if (val && !tags.includes(val)) setTags([...tags, val]);
+    setInput('');
+  };
+
+  const handleSaveSearch = async () => {
+    if (!selectedJob) return;
+    setSavingSearch(true);
+    try {
+      const search_primary   = primaryTags.join(',');
+      const search_secondary = secondaryTags.join(',');
+      await apiPut(`/api/jobs/${selectedJob.id}`, {
+        company_profile: companyProfileDraft,
+        talent_profile:  talentProfileDraft,
+        search_primary,
+        search_secondary,
+      });
+      setSelectedJob(prev => prev ? {
+        ...prev,
+        company_profile: companyProfileDraft,
+        talent_profile:  talentProfileDraft,
+        search_primary,
+        search_secondary,
+      } : null);
+      setEditingSearch(false);
+    } catch {
+      alert('❌ 儲存失敗，請稍後再試');
+    } finally {
+      setSavingSearch(false);
+    }
   };
 
   const handleSaveJD = async () => {
@@ -399,7 +463,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
       {selectedJob && (
         <div 
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => { setSelectedJob(null); setEditingJD(false); }}
+          onClick={() => { setSelectedJob(null); setEditingJD(false); setEditingSearch(false); }}
         >
           <div 
             className="bg-white rounded-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
@@ -412,7 +476,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                   <p className="text-slate-600 mt-1">{selectedJob.client_company}</p>
                 </div>
                 <button
-                  onClick={() => { setSelectedJob(null); setEditingJD(false); }}
+                  onClick={() => { setSelectedJob(null); setEditingJD(false); setEditingSearch(false); }}
                   className="text-slate-400 hover:text-slate-600"
                 >
                   ✕
@@ -571,6 +635,184 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                 ) : (
                   <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center text-slate-400 text-sm">
                     尚未填入工作內容 JD，點擊「新增 JD」貼上職缺說明
+                  </div>
+                )}
+              </div>
+
+              {/* ── 爬蟲搜尋設定 ── */}
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
+                    <Bot size={13} />
+                    爬蟲搜尋設定
+                  </label>
+                  {!editingSearch ? (
+                    <button
+                      onClick={() => setEditingSearch(true)}
+                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
+                    >
+                      <Edit3 size={12} />
+                      {(selectedJob.search_primary || selectedJob.company_profile) ? '編輯' : '設定'}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSaveSearch}
+                        disabled={savingSearch}
+                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        <Save size={11} />
+                        {savingSearch ? '儲存中...' : '儲存'}
+                      </button>
+                      <button
+                        onClick={() => setEditingSearch(false)}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+                      >
+                        <XIcon size={12} />
+                        取消
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {editingSearch ? (
+                  <div className="space-y-3">
+                    {/* 公司畫像 */}
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">公司畫像（讓 AI 了解客戶）</label>
+                      <textarea
+                        value={companyProfileDraft}
+                        onChange={e => setCompanyProfileDraft(e.target.value)}
+                        rows={3}
+                        placeholder="例：台灣獨角獸 SaaS 公司，專攻 B2B 電商解決方案，目前 Series B，工程團隊 80 人..."
+                        className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
+                      />
+                    </div>
+
+                    {/* 人才畫像 */}
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">理想人才畫像（描述期望人選特質）</label>
+                      <textarea
+                        value={talentProfileDraft}
+                        onChange={e => setTalentProfileDraft(e.target.value)}
+                        rows={3}
+                        placeholder="例：有新創或高成長環境背景，主導過大型系統重構，重視工程品質..."
+                        className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
+                      />
+                    </div>
+
+                    {/* 主關鍵字 AND */}
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">
+                        主關鍵字 AND <span className="text-slate-400">（候選人必須同時符合，建議 1-2 個）</span>
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {primaryTags.map((tag, idx) => (
+                          <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">
+                            {tag}
+                            <button onClick={() => setPrimaryTags(primaryTags.filter((_, i) => i !== idx))} className="text-indigo-400 hover:text-indigo-700 leading-none">×</button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          ref={primaryInputRef}
+                          type="text"
+                          value={primaryTagInput}
+                          onChange={e => setPrimaryTagInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ',') {
+                              e.preventDefault();
+                              addTag(primaryTagInput, primaryTags, setPrimaryTags, setPrimaryTagInput);
+                            }
+                          }}
+                          placeholder="輸入後按 Enter 新增，例：Python"
+                          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        />
+                        <button
+                          onClick={() => addTag(primaryTagInput, primaryTags, setPrimaryTags, setPrimaryTagInput)}
+                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 次關鍵字 OR */}
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">
+                        次關鍵字 OR <span className="text-slate-400">（符合任一即可，建議 3-6 個）</span>
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {secondaryTags.map((tag, idx) => (
+                          <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 text-xs rounded-full">
+                            {tag}
+                            <button onClick={() => setSecondaryTags(secondaryTags.filter((_, i) => i !== idx))} className="text-emerald-400 hover:text-emerald-700 leading-none">×</button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          ref={secondaryInputRef}
+                          type="text"
+                          value={secondaryTagInput}
+                          onChange={e => setSecondaryTagInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ',') {
+                              e.preventDefault();
+                              addTag(secondaryTagInput, secondaryTags, setSecondaryTags, setSecondaryTagInput);
+                            }
+                          }}
+                          placeholder="輸入後按 Enter 新增，例：Go"
+                          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        />
+                        <button
+                          onClick={() => addTag(secondaryTagInput, secondaryTags, setSecondaryTags, setSecondaryTagInput)}
+                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (selectedJob.search_primary || selectedJob.company_profile || selectedJob.talent_profile) ? (
+                  <div className="space-y-2 text-sm">
+                    {selectedJob.company_profile && (
+                      <div>
+                        <span className="text-xs text-slate-400">公司畫像</span>
+                        <p className="text-slate-700 mt-0.5 whitespace-pre-line text-xs bg-slate-50 rounded-lg p-2">{selectedJob.company_profile}</p>
+                      </div>
+                    )}
+                    {selectedJob.talent_profile && (
+                      <div>
+                        <span className="text-xs text-slate-400">人才畫像</span>
+                        <p className="text-slate-700 mt-0.5 whitespace-pre-line text-xs bg-slate-50 rounded-lg p-2">{selectedJob.talent_profile}</p>
+                      </div>
+                    )}
+                    {selectedJob.search_primary && (
+                      <div>
+                        <span className="text-xs text-slate-400">主關鍵字 AND</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {parseTags(selectedJob.search_primary).map((t, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedJob.search_secondary && (
+                      <div>
+                        <span className="text-xs text-slate-400">次關鍵字 OR</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {parseTags(selectedJob.search_secondary).map((t, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-xs rounded-full">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4 text-center text-slate-400 text-xs">
+                    尚未設定爬蟲關鍵字，點擊「設定」填入後爬蟲將直接使用
                   </div>
                 )}
               </div>

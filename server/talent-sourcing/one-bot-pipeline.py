@@ -146,26 +146,43 @@ def api_patch(path: str, body: Dict) -> Optional[Dict]:
 
 
 # ─── 爬蟲 ─────────────────────────────────────────────────────────────────────
-def scrape_candidates(job: Dict, pages: int = 2, use_claude_analyze: bool = True) -> List[Dict]:
+def scrape_candidates(job: Dict, pages: int = 2) -> List[Dict]:
     """
-    多角度人才搜尋：
-    1. Claude 分析職缺 → 產生搜尋策略（人才畫像）
-    2. 每個搜尋角度各跑一輪爬蟲（primary AND + secondary OR）
-    3. 結果去重合併回傳
-    適用所有職位類型（工程師/業務/設計師/行銷...）
+    人才搜尋：優先使用職缺預設關鍵字（search_primary / search_secondary）。
+    若未設定，則直接使用 required_skills 作備援搜尋。
+    不呼叫 AI / Claude 分析——所有關鍵字由顧問一次性在職缺設定頁填入。
     """
     job_title = job.get('title', '')
 
-    # Step 1：Claude 分析職缺，取得多角度搜尋策略
-    log(f"分析職缺人才畫像：{job_title}...")
-    strategy = analyze_job_for_search(job, use_claude=use_claude_analyze)
-    role_type = strategy.get('role_type', 'other')
-    angles    = strategy.get('search_angles', [])
-    log(f"  職位類型：{role_type} | 搜尋角度：{len(angles)} 個")
-    for a in angles:
-        log(f"  角度「{a.get('description','')}」：主={a.get('primary',[])} 次={a.get('secondary',[])}")
+    # 讀取手動設定的關鍵字
+    raw_primary   = (job.get('search_primary', '') or '').strip()
+    raw_secondary = (job.get('search_secondary', '') or '').strip()
 
-    # Step 2：逐一執行每個搜尋角度
+    if raw_primary:
+        primary_list   = [s.strip() for s in raw_primary.split(',')   if s.strip()]
+        secondary_list = [s.strip() for s in raw_secondary.split(',') if s.strip()]
+        log(f"使用預設關鍵字搜尋：{job_title}")
+        log(f"  主關鍵字（AND）：{primary_list}")
+        log(f"  次關鍵字（OR）：{secondary_list}")
+        angles = [{
+            'description': '手動設定關鍵字',
+            'primary':     primary_list,
+            'secondary':   secondary_list,
+        }]
+    else:
+        # 備援：直接用 required_skills（建議在職缺設定頁補填搜尋關鍵字以提升精準度）
+        skills         = job.get('required_skills', [])
+        primary_list   = skills[:2]
+        secondary_list = skills[2:6]
+        log(f"使用職缺技能關鍵字搜尋（備援，建議填入爬蟲關鍵字）：{job_title}")
+        log(f"  主關鍵字：{primary_list} | 次關鍵字：{secondary_list}")
+        angles = [{
+            'description': '技能關鍵字（備援）',
+            'primary':     primary_list,
+            'secondary':   secondary_list,
+        }]
+
+    # 逐一執行每個搜尋角度
     all_candidates: List[Dict] = []
     seen_linkedin: set = set()
     seen_github:   set = set()
@@ -411,7 +428,7 @@ def process_job(job: Dict, existing_urls: set, args, consultant: str = '') -> Di
 
     stats = {'job': job_title, 'found': 0, 'skipped': 0, 'imported': 0, 'scored': 0, 'errors': 0}
 
-    # 1. 爬取
+    # 1. 爬取（使用職缺預設關鍵字，或備援至 required_skills）
     raw_candidates = scrape_candidates(job, pages=args.pages)
     stats['found'] = len(raw_candidates)
     log(f"爬取完成，共 {len(raw_candidates)} 位候選人")
@@ -676,6 +693,11 @@ def run_scrape_phase(args):
                 'years_required': _parse_years(raw_job.get('experience_required', '')),
                 'location':       raw_job.get('location', '台灣'),
                 'nice_to_have_skills': [],
+                # 手動設定的爬蟲關鍵字（一次性設定，爬蟲直接使用，不呼叫 AI）
+                'search_primary':   raw_job.get('search_primary', '') or '',
+                'search_secondary': raw_job.get('search_secondary', '') or '',
+                'company_profile':  raw_job.get('company_profile', '') or '',
+                'talent_profile':   raw_job.get('talent_profile', '') or '',
             }
 
             stats = process_job(job, existing_urls, args, consultant=consultant)

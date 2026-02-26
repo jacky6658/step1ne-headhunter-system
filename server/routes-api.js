@@ -86,6 +86,14 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS job_description TEXT
 `).catch(err => console.warn('job_description migration:', err.message));
 
+// 確保爬蟲搜尋設定欄位存在（公司畫像、人才畫像、搜尋關鍵字）
+pool.query(`
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS company_profile TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS talent_profile TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS search_primary TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS search_secondary TEXT;
+`).catch(err => console.warn('search profile migration:', err.message));
+
 // 確保 bot_config 資料表存在（Bot 排程設定）
 pool.query(`
   CREATE TABLE IF NOT EXISTS bot_config (
@@ -1252,6 +1260,10 @@ router.get('/jobs', async (req, res) => {
         interview_process,
         consultant_notes,
         job_description,
+        company_profile,
+        talent_profile,
+        search_primary,
+        search_secondary,
         created_at,
         updated_at
       FROM jobs_pipeline
@@ -1281,6 +1293,10 @@ router.get('/jobs', async (req, res) => {
       interview_process: row.interview_process,
       consultant_notes: row.consultant_notes,
       job_description: row.job_description,
+      company_profile: row.company_profile,
+      talent_profile: row.talent_profile,
+      search_primary: row.search_primary,
+      search_secondary: row.search_secondary,
       lastUpdated: row.updated_at
     }));
 
@@ -1343,7 +1359,10 @@ router.get('/jobs/:id', async (req, res) => {
 router.put('/jobs/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { position_name, job_status, consultant_notes, job_description } = req.body;
+    const {
+      position_name, job_status, consultant_notes, job_description,
+      company_profile, talent_profile, search_primary, search_secondary,
+    } = req.body;
 
     const client = await pool.connect();
 
@@ -1358,15 +1377,22 @@ router.put('/jobs/:id', async (req, res) => {
     const result = await client.query(
       `UPDATE jobs_pipeline
        SET position_name = $1, job_status = $2, consultant_notes = $3,
-           job_description = $4, last_updated = NOW()
-       WHERE id = $5
+           job_description = $4,
+           company_profile = $5, talent_profile = $6,
+           search_primary = $7, search_secondary = $8,
+           last_updated = NOW()
+       WHERE id = $9
        RETURNING *`,
       [
-        position_name !== undefined ? position_name : existing.position_name,
-        job_status !== undefined ? job_status : existing.job_status,
+        position_name    !== undefined ? position_name    : existing.position_name,
+        job_status       !== undefined ? job_status       : existing.job_status,
         consultant_notes !== undefined ? consultant_notes : existing.consultant_notes,
-        job_description !== undefined ? job_description : existing.job_description,
-        id
+        job_description  !== undefined ? job_description  : existing.job_description,
+        company_profile  !== undefined ? company_profile  : existing.company_profile,
+        talent_profile   !== undefined ? talent_profile   : existing.talent_profile,
+        search_primary   !== undefined ? search_primary   : existing.search_primary,
+        search_secondary !== undefined ? search_secondary : existing.search_secondary,
+        id,
       ]
     );
 
