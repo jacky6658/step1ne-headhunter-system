@@ -94,6 +94,17 @@ pool.query(`
   ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS search_secondary TEXT;
 `).catch(err => console.warn('search profile migration:', err.message));
 
+// 確保 104 富文本欄位存在（福利、上班時段、休假制度、遠端、出差、連結）
+pool.query(`
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS welfare_tags TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS welfare_detail TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS work_hours TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS vacation_policy TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS remote_work TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS business_trip TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS job_url TEXT;
+`).catch(err => console.warn('104 fields migration:', err.message));
+
 // 確保 bot_config 資料表存在（Bot 排程設定）
 pool.query(`
   CREATE TABLE IF NOT EXISTS bot_config (
@@ -1264,6 +1275,13 @@ router.get('/jobs', async (req, res) => {
         talent_profile,
         search_primary,
         search_secondary,
+        welfare_tags,
+        welfare_detail,
+        work_hours,
+        vacation_policy,
+        remote_work,
+        business_trip,
+        job_url,
         created_at,
         updated_at
       FROM jobs_pipeline
@@ -1297,6 +1315,13 @@ router.get('/jobs', async (req, res) => {
       talent_profile: row.talent_profile,
       search_primary: row.search_primary,
       search_secondary: row.search_secondary,
+      welfare_tags: row.welfare_tags,
+      welfare_detail: row.welfare_detail,
+      work_hours: row.work_hours,
+      vacation_policy: row.vacation_policy,
+      remote_work: row.remote_work,
+      business_trip: row.business_trip,
+      job_url: row.job_url,
       lastUpdated: row.updated_at
     }));
 
@@ -1362,6 +1387,8 @@ router.put('/jobs/:id', async (req, res) => {
     const {
       position_name, job_status, consultant_notes, job_description,
       company_profile, talent_profile, search_primary, search_secondary,
+      welfare_tags, welfare_detail, work_hours, vacation_policy,
+      remote_work, business_trip, job_url,
     } = req.body;
 
     const client = await pool.connect();
@@ -1380,8 +1407,11 @@ router.put('/jobs/:id', async (req, res) => {
            job_description = $4,
            company_profile = $5, talent_profile = $6,
            search_primary = $7, search_secondary = $8,
+           welfare_tags = $9, welfare_detail = $10,
+           work_hours = $11, vacation_policy = $12,
+           remote_work = $13, business_trip = $14, job_url = $15,
            last_updated = NOW()
-       WHERE id = $9
+       WHERE id = $16
        RETURNING *`,
       [
         position_name    !== undefined ? position_name    : existing.position_name,
@@ -1392,6 +1422,13 @@ router.put('/jobs/:id', async (req, res) => {
         talent_profile   !== undefined ? talent_profile   : existing.talent_profile,
         search_primary   !== undefined ? search_primary   : existing.search_primary,
         search_secondary !== undefined ? search_secondary : existing.search_secondary,
+        welfare_tags     !== undefined ? welfare_tags     : existing.welfare_tags,
+        welfare_detail   !== undefined ? welfare_detail   : existing.welfare_detail,
+        work_hours       !== undefined ? work_hours       : existing.work_hours,
+        vacation_policy  !== undefined ? vacation_policy  : existing.vacation_policy,
+        remote_work      !== undefined ? remote_work      : existing.remote_work,
+        business_trip    !== undefined ? business_trip    : existing.business_trip,
+        job_url          !== undefined ? job_url          : existing.job_url,
         id,
       ]
     );

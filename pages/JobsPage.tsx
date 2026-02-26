@@ -32,8 +32,15 @@ interface Job {
   job_description: string;
   company_profile: string;
   talent_profile: string;
-  search_primary: string;    // 逗號分隔，主關鍵字（AND）
-  search_secondary: string;  // 逗號分隔，次關鍵字（OR）
+  search_primary: string;
+  search_secondary: string;
+  welfare_tags: string;      // 逗號分隔，福利標籤
+  welfare_detail: string;    // 詳細福利說明
+  work_hours: string;        // 上班時段
+  vacation_policy: string;   // 休假制度
+  remote_work: string;       // 遠端工作
+  business_trip: string;     // 出差外派
+  job_url: string;           // 104/1111 原始連結
   lastUpdated: string;
 }
 
@@ -534,6 +541,72 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                 <label className="text-xs font-semibold text-slate-600 uppercase">吸引亮點</label>
                 <p className="text-sm text-slate-900 mt-1">{selectedJob.attractive_points || '-'}</p>
               </div>
+
+              {/* ── 104 富文本欄位 ── */}
+              {(selectedJob.work_hours || selectedJob.vacation_policy || selectedJob.remote_work || selectedJob.business_trip) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {selectedJob.work_hours && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">上班時段</label>
+                      <p className="text-sm text-slate-900 mt-1">{selectedJob.work_hours}</p>
+                    </div>
+                  )}
+                  {selectedJob.vacation_policy && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">休假制度</label>
+                      <p className="text-sm text-slate-900 mt-1">{selectedJob.vacation_policy}</p>
+                    </div>
+                  )}
+                  {selectedJob.remote_work && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">遠端工作</label>
+                      <p className="text-sm text-slate-900 mt-1">{selectedJob.remote_work}</p>
+                    </div>
+                  )}
+                  {selectedJob.business_trip && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">出差外派</label>
+                      <p className="text-sm text-slate-900 mt-1">{selectedJob.business_trip}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedJob.welfare_tags && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">員工福利</label>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {selectedJob.welfare_tags.split(',').map((t, i) => (
+                      <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full border border-emerald-200">
+                        {t.trim()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedJob.welfare_detail && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">福利詳情</label>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto mt-1">
+                    {selectedJob.welfare_detail}
+                  </div>
+                </div>
+              )}
+
+              {selectedJob.job_url && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">原始職缺連結</label>
+                  <a
+                    href={selectedJob.job_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-indigo-600 hover:text-indigo-800 underline mt-1 block truncate"
+                  >
+                    {selectedJob.job_url}
+                  </a>
+                </div>
+              )}
 
               {selectedJob.industry_background && (
                 <div>
