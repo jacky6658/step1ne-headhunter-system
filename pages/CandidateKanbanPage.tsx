@@ -217,7 +217,7 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">唯讀</span>
                           )}
                           <span className="text-xs text-gray-400">
-                            {new Date(candidate.updatedAt).toLocaleDateString('zh-TW')}
+                            {new Date(candidate.updatedAt).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}
                           </span>
                         </div>
                       </div>

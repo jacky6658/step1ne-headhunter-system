@@ -61,7 +61,7 @@ function describeSchedule(cfg: BotConfig): string {
       return `每 ${cfg.schedule_interval_hours} 小時執行一次`;
     case 'once':
       return cfg.schedule_once_at
-        ? `一次性：${new Date(cfg.schedule_once_at).toLocaleString('zh-TW', { hour12: false })}`
+        ? `一次性：${new Date(cfg.schedule_once_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false })}`
         : '一次性（未設定時間）';
     default:
       return '—';
@@ -351,6 +351,9 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
             <h2 className="font-bold text-slate-800">立即執行一次</h2>
           </div>
           <p className="text-sm text-slate-500">不受排程限制，直接觸發 Bot 對已選職缺執行一次完整爬取流程。</p>
+          {config.target_job_ids.length === 0 && (
+            <p className="text-xs text-amber-600 font-medium mt-1">⚠️ 請先在下方「目標職缺」勾選至少一個職缺</p>
+          )}
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <button

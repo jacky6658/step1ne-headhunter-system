@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { UserProfile } from '../types';
 import { API_BASE_URL } from '../constants';
 import { ScrollText, RefreshCw, Bot, User, Filter } from 'lucide-react';
+import { fmtShortDateTime } from '../utils/dateFormat';
 
 interface SystemLogPageProps {
   userProfile: UserProfile;
@@ -199,10 +200,7 @@ export function SystemLogPage({ userProfile }: SystemLogPageProps) {
                   return (
                     <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-3 whitespace-nowrap text-xs text-slate-400 font-mono">
-                        {new Date(log.created_at).toLocaleString('zh-TW', {
-                          month: '2-digit', day: '2-digit',
-                          hour: '2-digit', minute: '2-digit', second: '2-digit'
-                        })}
+                        {fmtShortDateTime(log.created_at)}
                       </td>
                       <td className="px-5 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">

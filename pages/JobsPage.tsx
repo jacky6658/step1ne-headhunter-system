@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
 import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles, FileText, Edit3, Save, X as XIcon, Bot, Plus } from 'lucide-react';
 import { apiGet, apiPut } from '../config/api';
+import { fmtDate } from '../utils/dateFormat';
 
 interface JobsPageProps {
   userProfile: UserProfile;
@@ -378,7 +379,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
               </div>
               <div className="text-xs text-slate-500 mb-3">
                 {job.location && <span>{job.location} · </span>}
-                建立：{job.lastUpdated ? new Date(job.lastUpdated).toLocaleDateString('zh-TW') : '-'}
+                建立：{fmtDate(job.lastUpdated)}
               </div>
               <button
                 onClick={(e) => {

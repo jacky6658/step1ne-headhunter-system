@@ -149,7 +149,7 @@ Step1ne Recruitment`;
     if (!newNoteText.trim()) return;
     setSavingNote(true);
     try {
-      const timestamp = new Date().toLocaleString('zh-TW', { hour12: false });
+      const timestamp = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
       const author = currentUserName || JSON.parse(localStorage.getItem('step1ne-user') || '{}').name || '顧問';
       const newEntry = `[${timestamp}] ${author}：${newNoteText.trim()}`;
       const merged = localNotes ? `${localNotes}\n${newEntry}` : newEntry;
@@ -1182,7 +1182,7 @@ Step1ne Recruitment`;
                     <div className="text-xs text-slate-400">
                       由 <span className="font-medium text-violet-600">{ai.evaluated_by}</span> 評分
                       {ai.evaluated_at && (
-                        <span> · {new Date(ai.evaluated_at).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span> · {new Date(ai.evaluated_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                       )}
                     </div>
                   </div>
