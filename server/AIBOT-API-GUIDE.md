@@ -453,7 +453,72 @@ PUT /api/candidates/:id/pipeline-status
 
 ---
 
-## 三、局部更新候選人資料
+## 三、批量更新多位候選人狀態（AIbot 批量操作）
+
+```
+PATCH /api/candidates/batch-status
+```
+
+一次呼叫更新多位候選人的 Pipeline 狀態，每位都會自動追加進度記錄並寫入 `PIPELINE_CHANGE` 日誌。
+
+### 請求 Body
+
+```json
+{
+  "ids": [123, 124, 125],
+  "status": "已面試",
+  "actor": "Jacky-aibot",
+  "note": "批量完成初篩面試（可選）"
+}
+```
+
+| 欄位 | 必填 | 說明 |
+|------|------|------|
+| `ids` | ✅ | 候選人 ID 陣列，最多 200 筆 |
+| `status` | ✅ | 目標狀態（與單筆相同的 7 種值） |
+| `actor` | ❌ | 操作者名稱，預設 `AIbot` |
+| `note` | ❌ | 附加備註，寫入每筆進度記錄 |
+
+### 成功回應
+
+```json
+{
+  "success": true,
+  "status": "已面試",
+  "succeeded_count": 3,
+  "failed_count": 0,
+  "total": 3,
+  "succeeded": [
+    { "id": 123, "name": "陳宥樺" },
+    { "id": 124, "name": "王小明" },
+    { "id": 125, "name": "林雅婷" }
+  ],
+  "failed": [],
+  "message": "批量更新完成：3 位成功，0 位失敗"
+}
+```
+
+### 使用情境
+
+顧問說：「把這次初篩通過的人（123、124、125）都改成已面試」
+
+AIbot 呼叫：
+```bash
+curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/batch-status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ids": [123, 124, 125],
+    "status": "已面試",
+    "actor": "Jacky-aibot",
+    "note": "初篩通過，安排正式面試"
+  }'
+```
+
+> ⚠️ 注意：`ids` 中不存在的 ID 會列在 `failed` 陣列，不影響其他成功的更新。
+
+---
+
+## 四、局部更新候選人資料
 
 ```
 PATCH /api/candidates/:id
@@ -516,7 +581,7 @@ PATCH /api/candidates/:id
 
 ---
 
-## 四、職缺查詢
+## 五、職缺查詢
 
 ### 取得所有職缺
 
@@ -554,7 +619,7 @@ GET /api/jobs/:id
 
 ---
 
-## 五、查詢操作日誌
+## 六、查詢操作日誌
 
 ```
 GET /api/system-logs
@@ -624,7 +689,7 @@ GET /api/system-logs
 
 ---
 
-## 六、顧問聯絡資訊
+## 七、顧問聯絡資訊
 
 顧問可在系統右上角「個人化設定」填寫聯絡資訊，儲存後同步到後端。
 AIbot 代發信件或通知時，可透過此 API 取得對應顧問的聯絡方式。
@@ -686,7 +751,7 @@ PUT /api/users/:displayName/contact
 
 ---
 
-## 七、AI 履歷分析評分（穩定度 + 綜合評級）
+## 八、AI 履歷分析評分（穩定度 + 綜合評級）
 
 > 獵頭顧問只需將候選人履歷交給 AIbot，AIbot 自行分析後呼叫 PATCH 端點將結果寫回系統。
 > 顧問無需手動計算或輸入任何分數。
@@ -821,7 +886,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
 
 ---
 
-## 八、健康檢查
+## 九、健康檢查
 
 ```
 GET /api/health
@@ -840,7 +905,7 @@ GET /api/health
 
 ---
 
-## 九、主動獵才：自動搜尋並匯入候選人
+## 十、主動獵才：自動搜尋並匯入候選人
 
 > **觸發時機**：顧問說「幫我找 XX 公司的 YY 職位候選人」時，AIbot 執行此流程。
 >

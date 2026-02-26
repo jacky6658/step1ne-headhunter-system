@@ -563,6 +563,105 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
 });
 
 /**
+ * PATCH /api/candidates/batch-status
+ * 批量更新多位候選人的 Pipeline 狀態（AIbot 批量操作專用）
+ *
+ * Body：
+ * {
+ *   "ids": [123, 124, 125],          // 候選人 ID 陣列
+ *   "status": "已面試",               // 目標狀態
+ *   "actor": "Jacky-aibot",           // 操作者（可選，預設 AIbot）
+ *   "note": "批量完成初篩面試"         // 備註（可選，附加到進度記錄）
+ * }
+ */
+router.patch('/candidates/batch-status', async (req, res) => {
+  try {
+    const { ids, status, actor, note } = req.body;
+
+    const validStatuses = ['未開始', '已聯繫', '已面試', 'Offer', '已上職', '婉拒', '其他'];
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: '缺少 ids 陣列' });
+    }
+    if (ids.length > 200) {
+      return res.status(400).json({ success: false, error: '單次最多 200 筆' });
+    }
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `無效狀態，必須為：${validStatuses.join('、')}`
+      });
+    }
+
+    const operator = actor || 'AIbot';
+    const today = new Date().toISOString().split('T')[0];
+    const succeeded = [];
+    const failed = [];
+
+    for (const id of ids) {
+      const client = await pool.connect();
+      try {
+        const current = await client.query(
+          'SELECT id, name, status, progress_tracking FROM candidates_pipeline WHERE id = $1',
+          [id]
+        );
+
+        if (current.rows.length === 0) {
+          failed.push({ id, reason: '找不到此候選人' });
+          client.release();
+          continue;
+        }
+
+        const candidate = current.rows[0];
+        const currentProgress = candidate.progress_tracking || [];
+        const newEvent = {
+          date: today,
+          event: status,
+          by: operator,
+          ...(note ? { note } : {})
+        };
+        const updatedProgress = [...currentProgress, newEvent];
+
+        await client.query(
+          `UPDATE candidates_pipeline
+           SET status = $1, progress_tracking = $2, updated_at = NOW()
+           WHERE id = $3`,
+          [status, JSON.stringify(updatedProgress), id]
+        );
+
+        writeLog({
+          action: 'PIPELINE_CHANGE',
+          actor: operator,
+          candidateId: parseInt(id),
+          candidateName: candidate.name,
+          detail: { from: candidate.status, to: status, batch: true }
+        });
+
+        succeeded.push({ id: candidate.id, name: candidate.name });
+      } catch (err) {
+        failed.push({ id, reason: err.message });
+      } finally {
+        client.release();
+      }
+    }
+
+    res.json({
+      success: true,
+      status,
+      succeeded_count: succeeded.length,
+      failed_count: failed.length,
+      total: ids.length,
+      succeeded,
+      failed,
+      message: `批量更新完成：${succeeded.length} 位成功，${failed.length} 位失敗`
+    });
+  } catch (error) {
+    console.error('❌ PATCH /candidates/batch-status error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/candidates
  * 智慧匯入單一候選人（單一入口 → SQL → Sheets）
  * - 已存在：只補充空欄位
