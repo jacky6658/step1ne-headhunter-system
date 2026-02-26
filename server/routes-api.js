@@ -2655,4 +2655,67 @@ router.get('/bot-logs', async (req, res) => {
   }
 });
 
+// POST /api/migrate/fix-ai-match-result — 把所有字串格式的 ai_match_result 轉成結構化 JSON
+router.post('/migrate/fix-ai-match-result', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    // 找出 ai_match_result 是 JSON string 而非 object 的候選人
+    const rows = await client.query(`
+      SELECT id, ai_match_result, stability_score, talent_level, consultant as actor
+      FROM candidates_pipeline
+      WHERE ai_match_result IS NOT NULL
+        AND jsonb_typeof(ai_match_result) = 'string'
+    `);
+
+    let fixed = 0;
+    for (const row of rows.rows) {
+      const text = row.ai_match_result;
+      if (typeof text !== 'string' || !text.trim()) continue;
+
+      const scoreMatch = text.match(/AI評分\s*(\d+)\s*分/);
+      const jobMatch = text.match(/配對職位[：:]\s*(.+?)(?:（|\(|$)/);
+      const score = scoreMatch ? parseInt(scoreMatch[1]) : (row.stability_score || 0);
+      const recommendation = score >= 85 ? '強力推薦' : score >= 70 ? '推薦' : score >= 55 ? '觀望' : '不推薦';
+
+      const strengthsMatch = text.match(/優勢[：:]?\s*\n([\s\S]+?)(?=⚠️|待確認|💡|顧問建議|$)/);
+      const strengths = strengthsMatch
+        ? strengthsMatch[1].split('\n').map(l => l.replace(/^[-–•*]\s*/, '').trim()).filter(Boolean)
+        : [];
+
+      const pendingMatch = text.match(/待確認[：:]?\s*\n([\s\S]+?)(?=💡|顧問建議|$)/);
+      const pending = pendingMatch
+        ? pendingMatch[1].split('\n').map(l => l.replace(/^[-–•*]\s*/, '').trim()).filter(Boolean)
+        : [];
+
+      const conclusionMatch = text.match(/顧問建議[：:]\s*([\s\S]+?)(?:\n---|\s*$)/);
+      const conclusion = conclusionMatch ? conclusionMatch[1].trim() : '';
+
+      const structured = {
+        score,
+        recommendation,
+        job_title: jobMatch ? jobMatch[1].trim() : undefined,
+        matched_skills: [],
+        missing_skills: pending.slice(0, 3),
+        strengths,
+        probing_questions: pending,
+        conclusion,
+        evaluated_at: new Date().toISOString(),
+        evaluated_by: row.actor || 'AIbot',
+      };
+
+      await client.query(
+        `UPDATE candidates_pipeline SET ai_match_result = $1 WHERE id = $2`,
+        [JSON.stringify(structured), row.id]
+      );
+      fixed++;
+    }
+
+    client.release();
+    res.json({ success: true, fixed, total: rows.rows.length });
+  } catch (err) {
+    client.release();
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
