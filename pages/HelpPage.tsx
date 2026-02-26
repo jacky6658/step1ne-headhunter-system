@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Users, Briefcase, Target, FileText, LayoutGrid, Link as LinkIcon, Download, CheckCircle, XCircle, AlertCircle, Sparkles, Database, Award, Bot, Copy, CheckCheck } from 'lucide-react';
+import { BookOpen, Users, Briefcase, Target, FileText, LayoutGrid, Link as LinkIcon, Download, CheckCircle, XCircle, AlertCircle, Sparkles, Database, Award, Bot, Copy, CheckCheck, Zap } from 'lucide-react';
 
 interface HelpPageProps {
   userProfile?: any;
@@ -15,13 +15,32 @@ https://backendstep1ne.zeabur.app/api/resume-guide
 
 讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`;
 
+const SCORING_BOT_PROMPT = `請先閱讀以下兩份系統文件：
+
+1. 系統操作指南：
+https://backendstep1ne.zeabur.app/api/guide
+
+2. 評分執行指南：
+https://backendstep1ne.zeabur.app/api/scoring-guide
+
+讀完後，立即按照評分執行指南完成今日評分流程（不需等待進一步指示）。
+操作者身份請使用：{你的名字}-scoring-bot`;
+
 const HelpPage: React.FC<HelpPageProps> = () => {
   const [copied, setCopied] = useState(false);
+  const [copiedScoring, setCopiedScoring] = useState(false);
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(AIBOT_STARTUP_PROMPT).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
+    });
+  };
+
+  const handleCopyScoringPrompt = () => {
+    navigator.clipboard.writeText(SCORING_BOT_PROMPT).then(() => {
+      setCopiedScoring(true);
+      setTimeout(() => setCopiedScoring(false), 2500);
     });
   };
 
@@ -64,6 +83,11 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <Bot className="text-indigo-600 mb-2" size={24} />
             <h3 className="font-black text-slate-900 mb-1">AIbot 啟動指南</h3>
             <p className="text-sm text-slate-600">複製指令讓 AIbot 學習系統</p>
+          </a>
+          <a href="#ScoringBot" className="p-4 bg-amber-50 rounded-xl hover:bg-amber-100 transition-colors">
+            <Zap className="text-amber-600 mb-2" size={24} />
+            <h3 className="font-black text-slate-900 mb-1">評分 Bot 啟動指令</h3>
+            <p className="text-sm text-slate-600">openclaw 定時評分任務指令</p>
           </a>
         </div>
       </div>
@@ -600,6 +624,92 @@ const HelpPage: React.FC<HelpPageProps> = () => {
               </code>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* 評分 Bot 啟動指令 */}
+      <div id="ScoringBot" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+          <Zap className="text-amber-500" size={24} />
+          評分 Bot 啟動指令（openclaw 定時任務）
+        </h2>
+        <div className="space-y-4 text-slate-700">
+
+          <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+            <p className="text-sm font-semibold text-amber-800 mb-1">🤖 適用對象</p>
+            <p className="text-sm text-amber-700">
+              給 <strong>openclaw</strong> 或其他本地 AI Agent 設定定時評分任務使用。
+              與一般 AIbot 不同，評分 Bot 被觸發後會<strong>自動執行完整評分流程，不需人工下指令</strong>。
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🔄 評分 Bot 執行流程</h3>
+            <ol className="list-decimal list-inside space-y-2 ml-4 text-sm">
+              <li>讀取系統操作指南 + 評分執行指南（學習 API 結構與評分流程）</li>
+              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/candidates?status=未開始</code> 確認今日新增人數</li>
+              <li>若有候選人 → 在本機執行 <code className="bg-gray-100 px-1">python3 one-bot-pipeline.py --mode score</code></li>
+              <li>Playwright 開啟每位候選人的 GitHub / LinkedIn 真實頁面讀取資料</li>
+              <li>6 維確定性評分 → ≥ 80 分進 AI推薦欄，&lt; 80 分進備選人才欄</li>
+              <li>結果記錄到系統日誌，任務完成</li>
+            </ol>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-3 flex items-center gap-2">
+              <Copy size={16} className="text-amber-500" />
+              評分 Bot 啟動指令
+              <span className="text-xs font-normal text-slate-500 ml-1">（複製後貼給 openclaw）</span>
+            </h3>
+            <div className="relative">
+              <pre className="bg-slate-900 text-amber-300 text-sm rounded-xl p-4 whitespace-pre-wrap leading-relaxed font-mono overflow-x-auto">
+{SCORING_BOT_PROMPT}
+              </pre>
+              <button
+                onClick={handleCopyScoringPrompt}
+                className={`absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  copiedScoring
+                    ? 'bg-green-500 text-white'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                {copiedScoring ? <CheckCheck size={14} /> : <Copy size={14} />}
+                {copiedScoring ? '已複製！' : '複製指令'}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">⚙️ 定時任務設定建議</h3>
+            <div className="bg-slate-800 rounded-xl p-4 text-sm font-mono">
+              <p className="text-slate-400 text-xs mb-2"># 每天凌晨 2 點自動執行評分（候選人通常在白天匯入）</p>
+              <p className="text-green-400">0 2 * * * openclaw run --prompt scoring-bot.txt</p>
+              <p className="text-slate-500 text-xs mt-3"># 或依你的 openclaw 排程語法調整</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">系統操作指南 URL</p>
+              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-indigo-700 break-all">
+                https://backendstep1ne.zeabur.app/api/guide
+              </code>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">評分執行指南 URL</p>
+              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-amber-700 break-all">
+                https://backendstep1ne.zeabur.app/api/scoring-guide
+              </code>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <p className="text-sm text-slate-700">
+              ⏱️ <strong>執行時間預估</strong>：10 位候選人約需 <strong>5–8 分鐘</strong>（每位候選人間隔 10–20 秒反爬蟲停頓）。
+              若不需 Playwright 讀頁面可加 <code className="bg-white px-1 rounded">--no-profile-read</code> 縮短至約 1 分鐘。
+            </p>
+          </div>
+
         </div>
       </div>
 

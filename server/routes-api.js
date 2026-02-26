@@ -2143,6 +2143,26 @@ router.post('/migrate/extract-links', async (req, res) => {
   }
 });
 
+// GET /api/scoring-guide — 回傳評分 Bot 執行指南（供 openclaw / AI Agent 定時評分使用）
+router.get('/scoring-guide', (req, res) => {
+  try {
+    const guidePath = path.join(__dirname, 'SCORING-GUIDE.md');
+    if (!fs.existsSync(guidePath)) {
+      return res.status(404).json({ success: false, error: 'Scoring guide not found' });
+    }
+    const content = fs.readFileSync(guidePath, 'utf-8');
+    const accept = req.headers['accept'] || '';
+    if (accept.includes('application/json')) {
+      res.json({ success: true, content });
+    } else {
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.send(content);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/resume-guide — 回傳履歷分析教學指南（供 AIbot 學習使用）
 router.get('/resume-guide', (req, res) => {
   try {
