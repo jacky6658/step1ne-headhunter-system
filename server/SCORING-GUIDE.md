@@ -143,10 +143,39 @@ Content-Type: application/json
 {
   "stability_score": 85,
   "talent_level": "A+",
-  "notes": "【AI評分 85分 / A+】2026-02-26\n\n📌 配對職位：...",
   "status": "AI推薦",
-  "actor": "{顧問名稱}-scoring-bot"
+  "actor": "{顧問名稱}-scoring-bot",
+  "ai_match_result": {
+    "score": 85,
+    "recommendation": "強力推薦",
+    "job_title": "Java Developer (後端工程師)",
+    "matched_skills": ["Java", "Spring Boot", "Docker", "Redis"],
+    "missing_skills": ["年資待確認"],
+    "strengths": [
+      "人才畫像核心要求全覆蓋：Java + Spring Boot + Microservices",
+      "JD 職責直接對口：微服務架構、Redis 快取、Docker 容器化",
+      "公司為 Fintech 中型團隊，技術深度偏重，符合後端工程師背景",
+      "LinkedIn 個人頁存在，可直接主動接觸"
+    ],
+    "probing_questions": [
+      "工作年資與目前職位為何？",
+      "目前是否在職、是否 Open to Work？",
+      "期望薪資範圍與最快到職時間？",
+      "是否有 Fintech / 金融系統開發經驗？"
+    ],
+    "conclusion": "技能與 JD 高度吻合，建議優先透過 LinkedIn InMail 接觸，切入點可提「穩定成長的 Fintech 後端機會，技術棧完全對口」。",
+    "evaluated_at": "2026-02-26T23:00:00.000Z",
+    "evaluated_by": "{顧問名稱}-scoring-bot"
+  }
 }
+```
+
+**`recommendation` 對照：**
+```
+score 85-100 → "強力推薦" → status: "AI推薦"
+score 70-84  → "推薦"     → status: "AI推薦"
+score 55-69  → "觀望"     → status: "備選人才"
+score < 55   → "不推薦"   → status: "備選人才"
 ```
 
 **不要等全部評完才批次寫入——評完一個立刻 PATCH 一個。**
