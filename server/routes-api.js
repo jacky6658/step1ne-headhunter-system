@@ -238,7 +238,23 @@ async function syncSQLToSheets(candidateRows) {
 router.get('/candidates', async (req, res) => {
   try {
     const client = await pool.connect();
-    
+
+    // 支援查詢參數篩選
+    const { status, limit, created_today } = req.query;
+    const conditions = [];
+    const params = [];
+
+    if (status) {
+      params.push(status);
+      conditions.push(`status = $${params.length}`);
+    }
+    if (created_today === 'true') {
+      conditions.push(`DATE(created_at AT TIME ZONE 'Asia/Taipei') = DATE(NOW() AT TIME ZONE 'Asia/Taipei')`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limitVal = Math.min(Math.max(1, parseInt(limit) || 1000), 2000);
+
     const result = await client.query(`
       SELECT
         id,
@@ -270,9 +286,10 @@ router.get('/candidates', async (req, res) => {
         created_at,
         updated_at
       FROM candidates_pipeline
+      ${whereClause}
       ORDER BY id ASC
-      LIMIT 1000
-    `);
+      LIMIT ${limitVal}
+    `, params);
 
     const candidates = result.rows.map(row => ({
       // 基本必需欄位（Candidate interface）
@@ -2513,8 +2530,17 @@ router.post('/bot/run-now', async (req, res) => {
       });
     }
 
-    // 背景執行腳本（不阻塞 API）
+    // 背景執行腳本（不阻塞 API），stdout/stderr 寫入 bot-latest.log
     const jobIdsArg = target_job_ids.join(',');
+    const logFilePath = path.join(__dirname, 'bot-latest.log');
+    // 寫入啟動標頭
+    fs.writeFileSync(logFilePath,
+      `=== Bot 啟動時間：${new Date().toISOString()} ===\n` +
+      `腳本：${scriptPath}\n` +
+      `參數：--job-ids ${jobIdsArg} --pages ${crawlPages} --sample-per-page ${crawlSamplePer}\n` +
+      `=======================================================\n`
+    );
+    const logFd = fs.openSync(logFilePath, 'a');
     const child = require('child_process').spawn(
       'python3', [
         scriptPath,
@@ -2522,7 +2548,7 @@ router.post('/bot/run-now', async (req, res) => {
         '--pages',            String(crawlPages),
         '--sample-per-page',  String(crawlSamplePer),
       ],
-      { detached: true, stdio: 'ignore' }
+      { detached: true, stdio: ['ignore', logFd, logFd] }
     );
     child.unref();
 
@@ -2534,6 +2560,23 @@ router.post('/bot/run-now', async (req, res) => {
       pages: crawlPages,
       sample_per_page: crawlSamplePer,
     });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/** GET /api/bot/run-log - 取得最近一次 Bot 執行的 Python stdout/stderr 輸出 */
+router.get('/bot/run-log', (req, res) => {
+  try {
+    const logFilePath = path.join(__dirname, 'bot-latest.log');
+    if (!fs.existsSync(logFilePath)) {
+      return res.json({ success: true, log: '（尚無執行記錄，請先按「立即執行」啟動 Bot）' });
+    }
+    const log = fs.readFileSync(logFilePath, 'utf8');
+    // 只回傳最後 200 行，避免回應過大
+    const lines = log.split('\n');
+    const tail = lines.slice(-200).join('\n');
+    res.json({ success: true, log: tail, total_lines: lines.length });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

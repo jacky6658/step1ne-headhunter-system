@@ -229,11 +229,15 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
       });
       const json = await res.json();
       if (json.success) {
-        const msg = `Bot 已啟動（背景執行）— ${config.pages} 頁 × 每頁抽 ${config.sample_per_page} 筆`;
-        setRunMsg(msg);
-        setToast(msg);
-        setTimeout(() => setToast(null), 6000);
-        setTimeout(() => fetchAll(), 3000);
+        if (json.script_found === false) {
+          setRunMsg('⚠️ 已記錄請求，但 Python 腳本尚未部署。請確認 one-bot-pipeline.py 已上傳至 Zeabur。');
+        } else {
+          const msg = `Bot 已啟動（背景執行）— ${config.pages} 頁 × 每頁抽 ${config.sample_per_page} 筆`;
+          setRunMsg(msg);
+          setToast(msg);
+          setTimeout(() => setToast(null), 6000);
+          setTimeout(() => fetchAll(), 3000);
+        }
       } else {
         setRunMsg('啟動失敗：' + json.error);
       }

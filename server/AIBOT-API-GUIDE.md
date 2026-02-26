@@ -270,6 +270,26 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
 GET /api/candidates
 ```
 
+**支援查詢參數（Query Parameters）：**
+
+| 參數 | 類型 | 說明 | 範例 |
+|------|------|------|------|
+| `status` | 字串 | 篩選特定狀態的候選人 | `?status=未開始` |
+| `limit` | 整數 | 最多回傳筆數（預設 1000，最大 2000） | `?limit=500` |
+| `created_today` | `true` | 只回傳今日（台北時間）建立的候選人 | `?created_today=true` |
+
+**status 可用值**：`未開始` / `已聯繫` / `已面試` / `Offer` / `已上職` / `婉拒`
+
+**常用範例：**
+
+```bash
+# 取得所有尚未處理的候選人（最多 500 筆）
+GET /api/candidates?status=未開始&limit=500
+
+# 取得今日台北時間建立且尚未處理的候選人
+GET /api/candidates?status=未開始&created_today=true
+```
+
 **回應範例：**
 
 ```json
@@ -284,20 +304,51 @@ GET /api/candidates
       "location": "台北",
       "years": 5,
       "skills": "React, TypeScript, Node.js",
-      "status": "已聯繫",
+      "status": "未開始",
       "consultant": "Phoebe",
       "notes": "應徵：前端工程師 (某科技公司)",
-      "progressTracking": [
-        {
-          "date": "2026-02-20",
-          "event": "已聯繫",
-          "by": "Phoebe"
-        }
-      ],
-      "updatedAt": "2026-02-20T10:30:00.000Z"
+      "createdAt": "2026-02-26T02:30:00.000Z",
+      "updatedAt": "2026-02-26T02:30:00.000Z",
+      "progressTracking": []
     }
   ]
 }
+```
+
+> **⚠️ 重要欄位說明**：
+> - `createdAt`：候選人建立時間（ISO 8601 UTC 格式），用於判斷是否為「今日新增」
+> - `status`：候選人目前狀態，`未開始` 表示尚未進行任何聯繫動作
+
+---
+
+### 如何取得「顧問人選追蹤表」中的「今日新增」候選人
+
+> 顧問人選追蹤表（Pipeline）的「今日新增」欄位，是指 **今天建立且狀態為「未開始」** 的候選人。
+> 這些候選人通常是爬蟲 Bot 當天自動新增的，需要進行評分。
+
+**推薦做法：直接使用 `created_today=true` 參數**
+
+```bash
+# 最簡單：一次拿到今日新增且未開始評分的候選人
+GET /api/candidates?status=未開始&created_today=true
+```
+
+**備用做法：手動比對日期（若上方參數有問題時使用）**
+
+```python
+import requests
+from datetime import datetime
+
+resp = requests.get('https://backendstep1ne.zeabur.app/api/candidates?status=未開始&limit=500')
+all_cands = resp.json()['data']
+
+today = datetime.now().strftime('%Y-%m-%d')  # 台北時間今天日期
+
+today_new = [
+    c for c in all_cands
+    if (c.get('createdAt') or '')[:10] == today
+]
+print(f"今日新增待評分：{len(today_new)} 位")
 ```
 
 ---
