@@ -44,22 +44,22 @@ GET https://backendstep1ne.zeabur.app/api/candidates?created_today=true
 
 ---
 
-## 第二步：查詢對應職缺的三份畫像
+## 第二步：從職缺管理 API 取得人才畫像、公司畫像、JD
+
+> **重要**：人才畫像（`talent_profile`）、公司畫像（`company_profile`）、職缺描述（`job_description`）**全部都在職缺 API 裡**，你必須去那裡取得，不是從候選人資料找，也不是憑空推斷。
 
 ```
 GET https://backendstep1ne.zeabur.app/api/jobs
 ```
 
-從回傳清單中找 `position_name` 與候選人目標職缺相符的那筆。
-
-**你需要完整讀取以下四個欄位：**
+從回傳清單中找 `position_name` 與候選人目標職缺名稱相符的那筆職缺，然後**完整讀取該筆職缺的以下四個欄位**：
 
 | 欄位 | 名稱 | 說明 |
 |------|------|------|
-| `talent_profile` | 人才畫像 | 理想人選特質、硬性條件（年齡/證件/語言等）|
-| `job_description` | 職缺描述（JD） | 實際工作職責與要求 |
-| `company_profile` | 公司畫像 | 公司文化、產業背景、團隊特性 |
-| `consultant_notes` | 顧問備註 | 特殊篩選條件（優先閱讀，有硬性門檻）|
+| `talent_profile` | **人才畫像** | 顧問在職缺管理頁填寫的理想人選特質、硬性條件（年齡/證件/語言等）|
+| `job_description` | **職缺描述（JD）** | 實際工作職責與要求 |
+| `company_profile` | **公司畫像** | 顧問填寫的公司文化、產業背景、團隊特性 |
+| `consultant_notes` | **顧問備註** | 特殊篩選條件（優先閱讀，有硬性門檻）|
 
 找不到對應職缺 → 僅以技能廣度與可觸達性評分，評級最高 B，結語中說明「職缺資訊未能匹配」。
 
