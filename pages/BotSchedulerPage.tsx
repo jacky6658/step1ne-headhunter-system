@@ -126,6 +126,9 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
   const [jobSearch, setJobSearch] = useState('');
   const [filterCompany, setFilterCompany] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [runLog, setRunLog] = useState<string | null>(null);
+  const [runLogLoading, setRunLogLoading] = useState(false);
+  const [showRunLog, setShowRunLog] = useState(false);
 
   // ─── 載入資料 ───
   const safeJson = async (res: Response, fallback: any = { success: false, data: [] }) => {
@@ -246,6 +249,21 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
     } finally {
       setRunning(false);
       setTimeout(() => setRunMsg(null), 5000);
+    }
+  };
+
+  // ─── 查看執行日誌 ───
+  const fetchRunLog = async () => {
+    setRunLogLoading(true);
+    setShowRunLog(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/bot/run-log`);
+      const json = await res.json();
+      setRunLog(json.log || '（無日誌內容）');
+    } catch (e: any) {
+      setRunLog('讀取失敗：' + e.message);
+    } finally {
+      setRunLogLoading(false);
     }
   };
 
@@ -385,32 +403,82 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
       </div>
 
       {/* ── 立即執行 ── */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <Zap size={18} className="text-amber-500" />
-            <h2 className="font-bold text-slate-800">立即執行一次</h2>
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <Zap size={18} className="text-amber-500" />
+              <h2 className="font-bold text-slate-800">立即執行一次</h2>
+            </div>
+            <p className="text-sm text-slate-500">不受排程限制，直接觸發 Bot 對已選職缺執行一次完整爬取流程。</p>
+            {config.target_job_ids.length === 0 && (
+              <p className="text-xs text-amber-600 font-medium mt-1">⚠️ 請先在下方「目標職缺」勾選至少一個職缺</p>
+            )}
           </div>
-          <p className="text-sm text-slate-500">不受排程限制，直接觸發 Bot 對已選職缺執行一次完整爬取流程。</p>
-          {config.target_job_ids.length === 0 && (
-            <p className="text-xs text-amber-600 font-medium mt-1">⚠️ 請先在下方「目標職缺」勾選至少一個職缺</p>
-          )}
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchRunLog}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs bg-slate-100 text-slate-600 rounded-lg font-medium hover:bg-slate-200 transition-all"
+              >
+                <Activity size={13} />
+                執行日誌
+              </button>
+              <button
+                onClick={handleRunNow}
+                disabled={running || config.target_job_ids.length === 0}
+                className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 disabled:opacity-50 transition-all"
+              >
+                {running ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
+                {running ? '執行中...' : '立即執行'}
+              </button>
+            </div>
+            {runMsg && (
+              <span className={`text-xs font-medium ${runMsg.includes('失敗') || runMsg.includes('請先') || runMsg.includes('⚠️') ? 'text-amber-600' : 'text-green-600'}`}>
+                {runMsg}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <button
-            onClick={handleRunNow}
-            disabled={running || config.target_job_ids.length === 0}
-            className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 disabled:opacity-50 transition-all"
-          >
-            {running ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
-            {running ? '執行中...' : '立即執行'}
-          </button>
-          {runMsg && (
-            <span className={`text-xs font-medium ${runMsg.includes('失敗') || runMsg.includes('請先') ? 'text-red-600' : 'text-green-600'}`}>
-              {runMsg}
-            </span>
-          )}
-        </div>
+
+        {/* 執行日誌展開區 */}
+        {showRunLog && (
+          <div className="border-t border-slate-100">
+            <div className="flex items-center justify-between px-5 py-2.5 bg-slate-50">
+              <div className="flex items-center gap-2">
+                <Activity size={14} className="text-slate-500" />
+                <span className="text-xs font-semibold text-slate-600">最近一次執行日誌（Python 輸出）</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchRunLog}
+                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  <RefreshCw size={11} />
+                  重新整理
+                </button>
+                <button
+                  onClick={() => setShowRunLog(false)}
+                  className="text-slate-400 hover:text-slate-600 ml-1"
+                >
+                  <XIcon size={14} />
+                </button>
+              </div>
+            </div>
+            <div className="px-5 py-3">
+              {runLogLoading ? (
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <RefreshCw size={12} className="animate-spin" />
+                  讀取中...
+                </div>
+              ) : (
+                <pre className="text-[11px] leading-5 font-mono text-slate-700 whitespace-pre-wrap bg-slate-950 text-green-400 rounded-lg p-4 max-h-80 overflow-y-auto">
+                  {runLog || '（尚無日誌）'}
+                </pre>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── 爬蟲參數設定 ── */}
