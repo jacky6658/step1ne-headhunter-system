@@ -306,7 +306,7 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, pre
     return (
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+          <h1 className="text-xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
             <Sparkles className="text-indigo-600" size={32} />
             AI 配對推薦
           </h1>

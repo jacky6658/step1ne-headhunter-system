@@ -382,10 +382,10 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
           onClick={() => setSelectedJob(null)}
         >
           <div 
-            className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6 border-b border-slate-200 sticky top-0 bg-white">
+            <div className="p-3 sm:p-6 border-b border-slate-200 sticky top-0 bg-white">
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900">{selectedJob.position_name}</h2>
@@ -400,7 +400,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
               </div>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-3 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-600 uppercase">部門</label>
@@ -450,6 +450,55 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                 <label className="text-xs font-semibold text-slate-600 uppercase">吸引亮點</label>
                 <p className="text-sm text-slate-900 mt-1">{selectedJob.attractive_points || '-'}</p>
               </div>
+
+              {selectedJob.industry_background && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">產業背景</label>
+                  <p className="text-sm text-slate-900 mt-1">{selectedJob.industry_background}</p>
+                </div>
+              )}
+
+              {selectedJob.team_size && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">團隊規模</label>
+                  <p className="text-sm text-slate-900 mt-1">{selectedJob.team_size}</p>
+                </div>
+              )}
+
+              {selectedJob.key_challenges && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">主要挑戰</label>
+                  <p className="text-sm text-slate-900 mt-1">{selectedJob.key_challenges}</p>
+                </div>
+              )}
+
+              {selectedJob.special_conditions && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">特殊條件</label>
+                  <p className="text-sm text-slate-900 mt-1">{selectedJob.special_conditions}</p>
+                </div>
+              )}
+
+              {selectedJob.recruitment_difficulty && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">招募難度</label>
+                  <p className="text-sm text-slate-900 mt-1">{selectedJob.recruitment_difficulty}</p>
+                </div>
+              )}
+
+              {selectedJob.interview_process && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">面試流程</label>
+                  <p className="text-sm text-slate-900 mt-1 whitespace-pre-line">{selectedJob.interview_process}</p>
+                </div>
+              )}
+
+              {selectedJob.consultant_notes && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">顧問備注</label>
+                  <p className="text-sm text-slate-900 mt-1 whitespace-pre-line">{selectedJob.consultant_notes}</p>
+                </div>
+              )}
 
               <div className="pt-4 border-t border-slate-200">
                 <button

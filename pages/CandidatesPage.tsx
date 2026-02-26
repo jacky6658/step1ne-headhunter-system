@@ -378,9 +378,9 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Users className="w-8 h-8 text-blue-600" />
               候選人總表
             </h1>

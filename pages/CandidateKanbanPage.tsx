@@ -108,9 +108,9 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
     <div className="p-6 h-screen flex flex-col">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Users className="w-8 h-8 text-blue-600" />
               候選人流程看板
             </h1>
@@ -118,10 +118,10 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
               所有顧問的候選人總覽 · 共 {candidates.length} 位候選人
             </p>
           </div>
-          
+
           <button
             onClick={loadCandidates}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 self-start sm:self-auto"
           >
             <RefreshCw className="w-4 h-4" />
             重新整理
