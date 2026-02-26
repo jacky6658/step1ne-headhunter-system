@@ -3,7 +3,7 @@ import { Candidate, CandidateStatus, ProgressEvent, UserProfile } from '../types
 import { getCandidates, clearCache } from '../services/candidateService';
 import { CandidateModal } from '../components/CandidateModal';
 import { apiPut } from '../config/api';
-import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download } from 'lucide-react';
+import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X } from 'lucide-react';
 
 interface PipelinePageProps {
   userProfile: UserProfile;
@@ -167,6 +167,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
 
   const [consultantFilter, setConsultantFilter] = useState<string>('all');
   const [jobFilter, setJobFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const loadCandidates = async () => {
     setLoading(true);
@@ -227,15 +228,23 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   }, [candidatesWithStage]);
 
   const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return candidatesWithStage.filter(item => {
       const consultant = item.candidate.consultant || '未指派';
       const consultantMatched = consultantFilter === 'all' || consultant === consultantFilter;
       const jobMatched = jobFilter === 'all' || item.targetJob === jobFilter;
       // REVIEWER 只顯示自己的候選人，ADMIN 顯示全部
       const roleMatched = userProfile.role === 'ADMIN' || consultant === userProfile.displayName;
-      return consultantMatched && jobMatched && roleMatched;
+      const searchMatched = !q || [
+        item.candidate.name,
+        item.candidate.position,
+        item.candidate.consultant,
+        item.targetJob,
+        item.latestProgress?.note,
+      ].some(val => (val || '').toLowerCase().includes(q));
+      return consultantMatched && jobMatched && roleMatched && searchMatched;
     });
-  }, [candidatesWithStage, consultantFilter, jobFilter, userProfile]);
+  }, [candidatesWithStage, consultantFilter, jobFilter, searchQuery, userProfile]);
 
   const grouped = useMemo(() => {
     const result: Record<PipelineStageKey, PipelineItem[]> = {
@@ -411,6 +420,27 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="sm:col-span-2 lg:col-span-2">
+            <label className="text-xs text-slate-500">搜尋人選</label>
+            <div className="relative mt-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="輸入姓名、職位、顧問或職缺關鍵字..."
+                className="w-full rounded-lg border border-slate-200 pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
           <div>
             <label className="text-xs text-slate-500">顧問篩選</label>
             <select
@@ -491,7 +521,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
 
                 <div className="p-3 space-y-3 overflow-y-auto">
                   {items.length === 0 ? (
-                    <div className="text-center text-sm text-slate-400 py-8">暫無候選人</div>
+                    <div className="text-center text-sm text-slate-400 py-8">
+                      {searchQuery.trim() ? `找不到「${searchQuery}」` : '暫無候選人'}
+                    </div>
                   ) : (
                     items.map((item) => (
                       <button
