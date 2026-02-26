@@ -137,6 +137,11 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
     setLoading(true);
     try {
       const me = userProfile.displayName;
+      // 防止 displayName 未設定時讀到 cfg__undefined（兩個用戶共用同一 key）
+      if (!me || me === 'undefined') {
+        setLoading(false);
+        return;
+      }
       // /api/users 只在生產環境才有（本機 mock 無此路由）
       const isProd = import.meta.env.PROD;
       const fetchPromises: Promise<Response>[] = [

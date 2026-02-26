@@ -127,8 +127,8 @@ const App: React.FC = () => {
       />;
       // 顧問人選追蹤表
       case 'pipeline': return <PipelinePage userProfile={profile} />;
-      // Bot 排程設定
-      case 'bot-scheduler': return <BotSchedulerPage userProfile={profile} />;
+      // Bot 排程設定（key=uid 確保換用戶時強制重新掛載，避免 state 跨用戶污染）
+      case 'bot-scheduler': return <BotSchedulerPage key={profile.uid} userProfile={profile} />;
       // 操作日誌
       case 'system-log': return <SystemLogPage userProfile={profile} />;
       case 'members': 
