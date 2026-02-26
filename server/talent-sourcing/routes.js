@@ -23,12 +23,13 @@ const talentSourceService = require('../talentSourceService');
  *   "jobTitle": "Java Developer",
  *   "actor": "Jackeybot",
  *   "github_token": "ghp_xxx",   // 可選，來自用戶設定
+ *   "brave_api_key": "BSA-xxx",  // 可選，Brave Search API（第三層備援）
  *   "pages": 2                    // 可選，預設 2，最多 3
  * }
  */
 router.post('/find-candidates', async (req, res) => {
   try {
-    const { company, jobTitle, actor, github_token, linkedin_token, pages } = req.body;
+    const { company, jobTitle, actor, github_token, brave_api_key, pages } = req.body;
 
     if (!company || !jobTitle) {
       return res.status(400).json({
@@ -37,14 +38,14 @@ router.post('/find-candidates', async (req, res) => {
       });
     }
 
-    console.log(`🔍 [find-candidates] ${actor || 'system'} 觸發：${company} - ${jobTitle}（LinkedIn: ${linkedin_token ? 'Voyager 模式' : 'Google/Bing 模式'}）`);
+    console.log(`🔍 [find-candidates] ${actor || 'system'} 觸發：${company} - ${jobTitle}`);
 
     const result = await talentSourceService.findAndSaveCandidates({
       company,
       jobTitle,
       actor: actor || 'system',
       githubToken: github_token || null,
-      linkedinToken: linkedin_token || null,
+      braveApiKey: brave_api_key || null,
       pages: pages || 2,
     });
 

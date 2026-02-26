@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Step1ne 人才搜尋執行器 v3
-GitHub API（並行抓取 + 多地區查詢）+ LinkedIn Voyager API（li_at）+ Google/Bing 備援
+GitHub API（並行抓取 + 多地區查詢）+ LinkedIn Google/Bing 搜尋備援
 """
 import json
 import sys
@@ -262,156 +262,7 @@ def fetch_github_user_detail(username, headers):
 
 
 # ============================================================
-# 方案一：LinkedIn Voyager API（li_at cookie 直連，最豐富）
-# ============================================================
-
-# 台灣 geoUrn（LinkedIn 內部地區代碼）
-LINKEDIN_GEO_TAIWAN = "104187078"
-
-def search_linkedin_voyager(skills, li_at, location_urn=LINKEDIN_GEO_TAIWAN, pages=2):
-    """
-    直接打 LinkedIn 內部 Voyager API，不走 Google/Bing。
-    需要從瀏覽器 Cookie 取得 li_at 值（約 200 字元的 token）。
-    回傳包含姓名、職稱、公司、地區的完整 LinkedIn 候選人資料。
-    """
-    session = requests.Session()
-
-    # 設定 li_at cookie
-    session.cookies.set('li_at', li_at, domain='.linkedin.com')
-    session.headers.update({
-        'User-Agent': (
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        ),
-        'Accept': 'application/vnd.linkedin.normalized+json+2.1',
-        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-        'x-restli-protocol-version': '2.0.0',
-        'x-li-track': (
-            '{"clientVersion":"1.13.1665","mpVersion":"1.13.1665",'
-            '"osName":"web","timezoneOffset":8,"timezone":"Asia/Taipei",'
-            '"deviceFormFactor":"DESKTOP"}'
-        ),
-        'Referer': 'https://www.linkedin.com/search/results/people/',
-    })
-
-    # ── 取得 JSESSIONID（同時作為 csrf-token）──
-    try:
-        session.get('https://www.linkedin.com', timeout=10, allow_redirects=True)
-        jsessionid = session.cookies.get('JSESSIONID', '').strip('"')
-        if not jsessionid:
-            log("LinkedIn Voyager: 無法取得 JSESSIONID，li_at 可能已過期")
-            return {'success': False, 'data': [], 'error': 'li_at 已過期，請重新取得'}
-        session.headers['csrf-token'] = jsessionid
-    except Exception as e:
-        log(f"LinkedIn Voyager: session 初始化失敗: {e}")
-        return {'success': False, 'data': [], 'error': str(e)}
-
-    results = []
-    seen_urls = set()
-    keywords = ' '.join(skills[:3])
-
-    for page in range(pages):
-        start = page * 10
-        anti_scraping_delay(1.5, 3.0)
-
-        try:
-            # 搜尋查詢格式（LinkedIn Dash Clusters API）
-            query = (
-                f'(flagshipSearchIntent:SEARCH_SRP,'
-                f'queryParameters:('
-                f'geoUrn:List({location_urn}),'
-                f'resultType:List(PEOPLE),'
-                f'keywords:List({quote(keywords)})'
-                f'))'
-            )
-
-            resp = session.get(
-                'https://www.linkedin.com/voyager/api/search/dash/clusters',
-                params={
-                    'decorationId': 'com.linkedin.voyager.dash.deco.search.SearchClusterCollection-165',
-                    'origin': 'FACETED_SEARCH',
-                    'q': 'all',
-                    'query': query,
-                    'count': 10,
-                    'start': start,
-                },
-                timeout=15,
-            )
-
-            if resp.status_code == 401:
-                log("LinkedIn Voyager: 401 未授權，li_at 已過期")
-                return {'success': False, 'data': results, 'error': 'li_at 已過期，請重新取得'}
-
-            if resp.status_code == 429:
-                log("LinkedIn Voyager: 429 速率限制，暫停 30 秒")
-                time.sleep(30)
-                continue
-
-            if resp.status_code != 200:
-                log(f"LinkedIn Voyager: HTTP {resp.status_code}")
-                continue
-
-            data = resp.json()
-            clusters = data.get('elements', [])
-
-            for cluster in clusters:
-                if cluster.get('type') != 'SEARCH_HITS':
-                    continue
-                for hit in cluster.get('elements', []):
-                    entity = hit.get('entityResult', {})
-                    nav_url = entity.get('navigationUrl', '')
-                    if not nav_url or 'linkedin.com/in/' not in nav_url:
-                        continue
-
-                    url = clean_linkedin_url(nav_url)
-                    if not url or url in seen_urls:
-                        continue
-                    seen_urls.add(url)
-
-                    username = url.rstrip('/').split('/')[-1]
-                    name = (entity.get('title', {}).get('text', '')
-                            or username.replace('-', ' ').title())
-                    job_title = entity.get('primarySubtitle', {}).get('text', '')
-                    location_text = entity.get('secondarySubtitle', {}).get('text', '')
-
-                    # 嘗試從 insights 取公司名
-                    company = ''
-                    for insight in entity.get('insightsResolutionResults', []):
-                        comp = (insight.get('jobPostingInsight', {})
-                                       .get('company', {})
-                                       .get('name', ''))
-                        if comp:
-                            company = comp
-                            break
-
-                    results.append({
-                        'source': 'linkedin_voyager',
-                        'name': name,
-                        'github_url': '',
-                        'github_username': '',
-                        'linkedin_url': url,
-                        'linkedin_username': username,
-                        'location': location_text,
-                        'bio': job_title,
-                        'company': company,
-                        'email': '',
-                        'public_repos': 0,
-                        'followers': 0,
-                        'skills': [],
-                        'recent_push': '',
-                        'top_repos': [],
-                    })
-
-        except Exception as e:
-            log(f"LinkedIn Voyager page {page + 1} error: {e}")
-            continue
-
-    log(f"LinkedIn Voyager: {len(results)} 筆")
-    return {'success': True, 'data': results, 'source': 'voyager'}
-
-
-# ============================================================
-# LinkedIn via Google / Bing 搜尋（備援，不需帳號）
+# LinkedIn via Google / Bing 搜尋（不需帳號）
 # ============================================================
 
 def search_linkedin_via_google(skills, location="台灣", pages=2):
@@ -586,31 +437,118 @@ def _extract_linkedin_from_bing(soup):
     return found
 
 
-def search_linkedin_with_fallback(skills, location_zh="台灣", location_en="Taiwan", pages=2):
-    """LinkedIn 搜尋：優先 Google，被封鎖時自動切換 Bing"""
+def search_linkedin_via_brave(skills, brave_api_key, location="Taiwan", pages=2):
+    """透過 Brave Search API 搜尋 LinkedIn 個人頁（官方 API，不怕 CAPTCHA）"""
+    results = []
+    seen_urls = set()
+
+    skill_query = ' '.join(f'"{s}"' for s in skills[:3])
+    query = f'site:linkedin.com/in/ {skill_query} "{location}"'
+
+    BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search"
+    headers = {
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": brave_api_key,
+    }
+
+    for page in range(pages):
+        offset = page * 10
+        params = {"q": query, "count": 10, "offset": offset}
+        try:
+            anti_scraping_delay(0.5, 1.5)
+            resp = requests.get(BRAVE_ENDPOINT, headers=headers, params=params, timeout=15)
+            if resp.status_code == 401:
+                log("Brave API: 金鑰無效（401 Unauthorized）")
+                break
+            if resp.status_code == 429:
+                log("Brave API: 速率限制（429 Too Many Requests）")
+                break
+            if resp.status_code != 200:
+                log(f"Brave API: HTTP {resp.status_code}")
+                continue
+
+            web_results = resp.json().get("web", {}).get("results", [])
+            for r in web_results:
+                url = r.get("url", "")
+                if "linkedin.com/in/" not in url:
+                    continue
+                clean_url = clean_linkedin_url(url)
+                if not clean_url or clean_url in seen_urls:
+                    continue
+                seen_urls.add(clean_url)
+
+                # 解析姓名職稱（格式：「Name - Title | LinkedIn」）
+                title_text = re.sub(r'\s*\|\s*LinkedIn.*$', '', r.get("title", ""), flags=re.IGNORECASE)
+                name, job_title = "", ""
+                m = re.match(r'^(.+?)\s*[-–]\s*(.+)$', title_text)
+                if m:
+                    name = m.group(1).strip()
+                    job_title = m.group(2).strip()
+                else:
+                    name = title_text.strip()
+
+                # 從摘要嘗試提取公司
+                company = ""
+                description = r.get("description", "")
+                mc = re.search(r'(?:at|@|·)\s+([\w\s,\.]+?)(?:\s*·|\s*\||$)', description)
+                if mc:
+                    company = mc.group(1).strip()
+
+                username = clean_url.rstrip('/').split('/')[-1]
+                results.append({
+                    'source': 'linkedin',
+                    'name': name or username.replace('-', ' ').title(),
+                    'github_url': '', 'github_username': '',
+                    'linkedin_url': clean_url,
+                    'linkedin_username': username,
+                    'location': '', 'bio': job_title, 'company': company,
+                    'email': '', 'public_repos': 0, 'followers': 0,
+                    'skills': [], 'recent_push': '', 'top_repos': [],
+                })
+        except Exception as e:
+            log(f"Brave API page {page + 1} error: {e}")
+            continue
+
+    log(f"Brave LinkedIn: {len(results)} 筆")
+    return {'success': True, 'data': results}
+
+
+def search_linkedin_with_fallback(skills, location_zh="台灣", location_en="Taiwan", pages=2, brave_key=None):
+    """LinkedIn 搜尋三層備援：Google → Bing → Brave API"""
     log("LinkedIn: 嘗試 Google...")
     google_result = search_linkedin_via_google(skills, location=location_zh, pages=pages)
     google_data = google_result.get('data', [])
 
-    # 如果 Google 回傳 CAPTCHA 或結果 < 3 筆，切換到 Bing
-    if google_result.get('captcha') or len(google_data) < 3:
-        reason = "CAPTCHA 封鎖" if google_result.get('captcha') else f"結果不足（{len(google_data)} 筆）"
-        log(f"LinkedIn: Google {reason}，切換 Bing 備援...")
-        bing_result = search_linkedin_via_bing(skills, location=location_en, pages=pages)
-        bing_data = bing_result.get('data', [])
+    all_data = list(google_data)
+    seen = {item['linkedin_url'] for item in all_data}
+    source_used = ['google']
 
-        # 合併去重
-        seen = {item['linkedin_url'] for item in google_data}
+    # 如果 Google CAPTCHA 或結果 < 3 筆，加入 Bing
+    if google_result.get('captcha') or len(all_data) < 3:
+        reason = "CAPTCHA 封鎖" if google_result.get('captcha') else f"結果不足（{len(all_data)} 筆）"
+        log(f"LinkedIn: Google {reason}，切換 Bing 備援...")
+        bing_data = search_linkedin_via_bing(skills, location=location_en, pages=pages).get('data', [])
         for item in bing_data:
             if item['linkedin_url'] not in seen:
                 seen.add(item['linkedin_url'])
-                google_data.append(item)
+                all_data.append(item)
+        source_used.append('bing')
 
-        log(f"LinkedIn 最終（Google+Bing 合併）：{len(google_data)} 筆")
-        return {'success': True, 'data': google_data, 'source': 'google+bing'}
+    # 有 Brave key 時：結果 < 5 筆就呼叫補充，或 Google 成功也補 1 頁
+    if brave_key:
+        brave_pages = pages if len(all_data) < 5 else 1
+        log(f"LinkedIn: Brave API 補充（{brave_pages} 頁）...")
+        brave_data = search_linkedin_via_brave(skills, brave_key, location=location_en, pages=brave_pages).get('data', [])
+        for item in brave_data:
+            if item['linkedin_url'] not in seen:
+                seen.add(item['linkedin_url'])
+                all_data.append(item)
+        source_used.append('brave')
 
-    log(f"LinkedIn: Google 搜尋成功，{len(google_data)} 筆")
-    return {'success': True, 'data': google_data, 'source': 'google'}
+    source_str = '+'.join(source_used)
+    log(f"LinkedIn 最終（{source_str}）：{len(all_data)} 筆")
+    return {'success': True, 'data': all_data, 'source': source_str}
 
 
 def clean_linkedin_url(href):
@@ -718,22 +656,17 @@ def main():
     parser.add_argument('--industry', default='')
     parser.add_argument('--location', default='Taiwan')
     parser.add_argument('--github-token', default='')
-    parser.add_argument('--linkedin-token', default='',
-                        help='LinkedIn li_at cookie，設定後直接走 Voyager API')
+    parser.add_argument('--brave-key', default='')
     parser.add_argument('--pages', type=int, default=2)
     parser.add_argument('--output-format', default='json')
     args = parser.parse_args()
 
     skills = [s.strip() for s in args.required_skills.split(',') if s.strip()]
     token = args.github_token.strip() or None
-    li_at = args.linkedin_token.strip() or None
+    brave_key = args.brave_key.strip() or None
     pages = max(1, min(3, args.pages))
 
-    log(
-        f"搜尋: {args.job_title} | 技能: {skills} | 頁數: {pages} | "
-        f"GitHub token: {'有' if token else '無'} | "
-        f"LinkedIn li_at: {'有（Voyager 模式）' if li_at else '無（Google/Bing 模式）'}"
-    )
+    log(f"搜尋: {args.job_title} | 技能: {skills} | 頁數: {pages} | GitHub: {'有' if token else '無'} | Brave: {'有' if brave_key else '無'}")
 
     output = {
         'job_title': args.job_title,
@@ -755,25 +688,12 @@ def main():
     output['github']['count'] = len(github_candidates)
     log(f"GitHub: {len(github_candidates)} 位")
 
-    # ── 2. LinkedIn：Voyager API 優先，備援 Google/Bing ────────
-    if li_at:
-        log(f"[2/2] LinkedIn Voyager API 搜尋 ({pages} 頁)...")
-        linkedin_result = search_linkedin_voyager(skills, li_at, pages=pages)
-
-        if not linkedin_result.get('success'):
-            err = linkedin_result.get('error', '未知錯誤')
-            log(f"Voyager 失敗（{err}），切換 Google/Bing 備援...")
-            output['linkedin']['voyager_error'] = err
-            linkedin_result = search_linkedin_with_fallback(
-                skills, location_zh='台灣', location_en=args.location, pages=pages
-            )
-        linkedin_source = linkedin_result.get('source', 'voyager')
-    else:
-        log(f"[2/2] LinkedIn 搜尋（Google 優先，Bing 備援，{pages} 頁)...")
-        linkedin_result = search_linkedin_with_fallback(
-            skills, location_zh='台灣', location_en=args.location, pages=pages
-        )
-        linkedin_source = linkedin_result.get('source', 'google')
+    # ── 2. LinkedIn：Google 優先，Bing 備援 ─────────────────────
+    log(f"[2/2] LinkedIn 搜尋（Google→Bing→Brave 三層備援，{pages} 頁)...")
+    linkedin_result = search_linkedin_with_fallback(
+        skills, location_zh='台灣', location_en=args.location, pages=pages, brave_key=brave_key
+    )
+    linkedin_source = linkedin_result.get('source', 'google')
 
     linkedin_candidates = linkedin_result.get('data', [])
     output['linkedin']['success'] = linkedin_result.get('success', False)

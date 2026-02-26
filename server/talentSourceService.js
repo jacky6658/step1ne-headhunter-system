@@ -359,9 +359,9 @@ class TalentSourceService {
 
   /**
    * findAndSaveCandidates - 完整六步流程
-   * @param {Object} params - { company, jobTitle, jobId, actor, githubToken, linkedinToken, pages }
+   * @param {Object} params - { company, jobTitle, jobId, actor, githubToken, pages }
    */
-  async findAndSaveCandidates({ company, jobTitle, jobId, actor, githubToken, linkedinToken, pages = 2 }) {
+  async findAndSaveCandidates({ company, jobTitle, jobId, actor, githubToken, braveApiKey, pages = 2 }) {
     const db = await pool.connect();
 
     try {
@@ -422,7 +422,7 @@ class TalentSourceService {
       const skills = talentProfile.required_skills;
       const skillsArg = skills.join(',');
       const tokenArg = githubToken ? `--github-token "${githubToken}"` : '';
-      const liAtArg = linkedinToken ? `--linkedin-token "${linkedinToken}"` : '';
+      const braveArg = braveApiKey ? `--brave-key "${braveApiKey}"` : '';
       const pagesArg = Math.min(3, Math.max(1, pages));
 
       // Escape shell args
@@ -435,8 +435,7 @@ class TalentSourceService {
         --industry "${companyProfile.industry}" \
         --location "Taiwan" \
         --pages ${pagesArg} \
-        ${tokenArg} \
-        ${liAtArg}`;
+        ${tokenArg} ${braveArg}`;
 
       console.log(`[Step2] 執行搜尋... pages=${pagesArg}, skills=${skillsArg}`);
       const startTime = Date.now();

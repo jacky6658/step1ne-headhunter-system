@@ -62,11 +62,17 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS github_token VARCHAR(500)
 `).catch(err => console.warn('github_token migration:', err.message));
 
-// 確保 linkedin_token 欄位存在（li_at cookie，供 Voyager API 使用）
+// 確保 linkedin_token 欄位存在（保留欄位，未使用）
 pool.query(`
   ALTER TABLE user_contacts
   ADD COLUMN IF NOT EXISTS linkedin_token TEXT
 `).catch(err => console.warn('linkedin_token migration:', err.message));
+
+// 確保 brave_api_key 欄位存在（Brave Search API）
+pool.query(`
+  ALTER TABLE user_contacts
+  ADD COLUMN IF NOT EXISTS brave_api_key VARCHAR(500)
+`).catch(err => console.warn('brave_api_key migration:', err.message));
 
 // 寫入 system_logs 輔助函數
 async function writeLog({ action, actor, candidateId, candidateName, detail }) {
@@ -1525,6 +1531,7 @@ router.get('/users/:displayName/contact', async (req, res) => {
         telegramHandle: row.telegram_handle,
         githubToken: row.github_token,
         linkedinToken: row.linkedin_token,
+        braveApiKey: row.brave_api_key,
       }
     });
   } catch (error) {
@@ -1540,11 +1547,11 @@ router.get('/users/:displayName/contact', async (req, res) => {
 router.put('/users/:displayName/contact', async (req, res) => {
   try {
     const { displayName } = req.params;
-    const { contactPhone, contactEmail, lineId, telegramHandle, githubToken, linkedinToken } = req.body;
+    const { contactPhone, contactEmail, lineId, telegramHandle, githubToken, linkedinToken, braveApiKey } = req.body;
 
     await pool.query(`
-      INSERT INTO user_contacts (display_name, contact_phone, contact_email, line_id, telegram_handle, github_token, linkedin_token, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      INSERT INTO user_contacts (display_name, contact_phone, contact_email, line_id, telegram_handle, github_token, linkedin_token, brave_api_key, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
       ON CONFLICT (display_name) DO UPDATE SET
         contact_phone = EXCLUDED.contact_phone,
         contact_email = EXCLUDED.contact_email,
@@ -1552,8 +1559,9 @@ router.put('/users/:displayName/contact', async (req, res) => {
         telegram_handle = EXCLUDED.telegram_handle,
         github_token = EXCLUDED.github_token,
         linkedin_token = EXCLUDED.linkedin_token,
+        brave_api_key = EXCLUDED.brave_api_key,
         updated_at = NOW()
-    `, [displayName, contactPhone || null, contactEmail || null, lineId || null, telegramHandle || null, githubToken || null, linkedinToken || null]);
+    `, [displayName, contactPhone || null, contactEmail || null, lineId || null, telegramHandle || null, githubToken || null, linkedinToken || null, braveApiKey || null]);
 
     res.json({ success: true, message: '聯絡資訊已儲存' });
   } catch (error) {
