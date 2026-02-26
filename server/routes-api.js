@@ -2267,12 +2267,15 @@ router.get('/bot-config', async (req, res) => {
       success: true,
       data: {
         enabled: config.enabled ?? false,
-        schedule_hours: config.schedule_hours ?? 12,
+        schedule_type: config.schedule_type ?? 'daily',
+        schedule_time: config.schedule_time ?? '09:00',
+        schedule_days: config.schedule_days ?? [1],
+        schedule_interval_hours: config.schedule_interval_hours ?? 12,
+        schedule_once_at: config.schedule_once_at ?? '',
         target_job_ids: config.target_job_ids ?? [],
         last_run_at: config.last_run_at ?? null,
         last_run_status: config.last_run_status ?? null,
         last_run_summary: config.last_run_summary ?? null,
-        ...config
       }
     });
   } catch (error) {
@@ -2283,10 +2286,25 @@ router.get('/bot-config', async (req, res) => {
 /** POST /api/bot-config - 儲存 Bot 設定 */
 router.post('/bot-config', async (req, res) => {
   try {
-    const { enabled, schedule_hours, target_job_ids } = req.body;
+    const {
+      enabled,
+      schedule_type,
+      schedule_time,
+      schedule_days,
+      schedule_interval_hours,
+      schedule_once_at,
+      target_job_ids,
+    } = req.body;
     const db = await pool.connect();
-    // 使用 UPSERT 逐一存入各 key
-    const entries = { enabled, schedule_hours, target_job_ids };
+    const entries = {
+      enabled,
+      schedule_type,
+      schedule_time,
+      schedule_days,
+      schedule_interval_hours,
+      schedule_once_at,
+      target_job_ids,
+    };
     for (const [key, val] of Object.entries(entries)) {
       if (val !== undefined) {
         await db.query(
@@ -2299,6 +2317,61 @@ router.post('/bot-config', async (req, res) => {
     }
     db.release();
     res.json({ success: true, message: 'Bot 設定已儲存' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/** POST /api/bot/run-now - 立即觸發 Bot 執行一次 */
+router.post('/bot/run-now', async (req, res) => {
+  try {
+    const { target_job_ids } = req.body;
+    if (!target_job_ids || target_job_ids.length === 0) {
+      return res.status(400).json({ success: false, error: '請指定至少一個目標職缺' });
+    }
+
+    // 先記錄 log
+    await writeLog({
+      action: 'BOT_RUN_NOW',
+      actor: 'scheduler-ui',
+      candidateId: null,
+      candidateName: null,
+      detail: { target_job_ids, triggered_by: 'manual' },
+    });
+
+    // 嘗試找到 Python 腳本路徑
+    const path = require('path');
+    const fs = require('fs');
+    const possibleScripts = [
+      path.join(__dirname, 'one-bot-pipeline.py'),
+      path.join(__dirname, 'talent-sourcing', 'one-bot-pipeline.py'),
+      path.join(__dirname, 'talent-sourcing', 'search-plan-executor.py'),
+    ];
+    const scriptPath = possibleScripts.find(p => fs.existsSync(p));
+
+    if (!scriptPath) {
+      // 腳本尚未建立時，仍回傳 success 並提示
+      return res.json({
+        success: true,
+        message: '已記錄執行請求。注意：one-bot-pipeline.py 尚未部署，請先在 Zeabur 上傳腳本後再使用此功能。',
+        script_found: false,
+      });
+    }
+
+    // 背景執行腳本（不阻塞 API）
+    const jobIdsArg = target_job_ids.join(',');
+    const child = require('child_process').spawn(
+      'python3', [scriptPath, '--job-ids', jobIdsArg],
+      { detached: true, stdio: 'ignore' }
+    );
+    child.unref();
+
+    res.json({
+      success: true,
+      message: `Bot 已啟動（PID: ${child.pid}），背景執行中`,
+      script_found: true,
+      pid: child.pid,
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
