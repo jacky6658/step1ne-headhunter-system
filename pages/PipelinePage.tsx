@@ -9,7 +9,7 @@ interface PipelinePageProps {
   userProfile: UserProfile;
 }
 
-type PipelineStageKey = 'not_started' | 'contacted' | 'interviewed' | 'offer' | 'onboarded' | 'rejected' | 'other';
+type PipelineStageKey = 'today_new' | 'not_started' | 'contacted' | 'interviewed' | 'offer' | 'onboarded' | 'rejected' | 'other';
 
 interface PipelineItem {
   candidate: Candidate;
@@ -19,7 +19,16 @@ interface PipelineItem {
   targetJob: string;
 }
 
-const PIPELINE_STAGES: Array<{ key: PipelineStageKey; title: string; color: string; bg: string }> = [
+/** 判斷是否為台灣時區今天新增 */
+function isTodayTaiwan(createdAt?: string): boolean {
+  if (!createdAt) return false;
+  const fmt = (d: Date) =>
+    new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  return fmt(new Date(createdAt)) === fmt(new Date());
+}
+
+const PIPELINE_STAGES: Array<{ key: PipelineStageKey; title: string; color: string; bg: string; locked?: boolean }> = [
+  { key: 'today_new', title: '今日新增', color: 'text-teal-700', bg: 'bg-teal-100', locked: true },
   { key: 'not_started', title: '未開始', color: 'text-slate-700', bg: 'bg-slate-100' },
   { key: 'contacted', title: '已聯繫', color: 'text-blue-700', bg: 'bg-blue-100' },
   { key: 'interviewed', title: '已面試', color: 'text-indigo-700', bg: 'bg-indigo-100' },
@@ -63,6 +72,8 @@ function mapStatusToStage(status: CandidateStatus): PipelineStageKey {
 
 function stageToStatus(stage: PipelineStageKey): CandidateStatus {
   switch (stage) {
+    case 'today_new':
+      return CandidateStatus.NOT_STARTED;
     case 'contacted':
       return CandidateStatus.CONTACTED;
     case 'interviewed':
@@ -82,6 +93,8 @@ function stageToStatus(stage: PipelineStageKey): CandidateStatus {
 
 function stageToEvent(stage: PipelineStageKey): string {
   switch (stage) {
+    case 'today_new':
+      return '未開始';
     case 'not_started':
       return '未開始';
     case 'contacted':
@@ -210,7 +223,12 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const candidatesWithStage = useMemo<PipelineItem[]>(() => {
     return candidates.map(candidate => {
       const latestProgress = getLatestProgress(candidate.progressTracking);
-      const stage = latestProgress ? mapEventToStage(latestProgress.event) : mapStatusToStage(candidate.status);
+      const baseStage = latestProgress ? mapEventToStage(latestProgress.event) : mapStatusToStage(candidate.status);
+      // 今日新增：created_at 是台灣時區今天 且 尚未有任何進度更新（仍在未開始階段）
+      const stage: PipelineStageKey =
+        (baseStage === 'not_started' && isTodayTaiwan(candidate.createdAt))
+          ? 'today_new'
+          : baseStage;
       const idleDays = latestProgress?.date ? getIdleDays(latestProgress.date, now) : getIdleDays(candidate.updatedAt, now);
       const targetJob = parseTargetJob(candidate.notes);
       return { candidate, stage, latestProgress, idleDays, targetJob };
@@ -292,6 +310,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
 
   const handleDropToStage = async (stage: PipelineStageKey) => {
     if (!draggingCandidateId) return;
+    if (stage === 'today_new') return; // 今日新增欄位為自動，不可手動拖入
 
     const targetCandidate = candidates.find(c => c.id === draggingCandidateId);
     if (!targetCandidate) return;
@@ -502,12 +521,16 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
               <div
                 key={stage.key}
                 className="w-72 sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col max-h-[70vh]"
-                onDragOver={handleDragOver}
-                onDrop={() => handleDropToStage(stage.key)}
+                onDragOver={stage.locked ? undefined : handleDragOver}
+                onDrop={stage.locked ? undefined : () => handleDropToStage(stage.key)}
               >
                 <div className={`px-4 py-3 border-b border-slate-100 rounded-t-2xl ${stage.bg}`}>
                   <div className="flex items-center justify-between">
-                    <h3 className={`font-black ${stage.color}`}>{stage.title}</h3>
+                    <h3 className={`font-black flex items-center gap-1.5 ${stage.color}`}>
+                      {stage.key === 'today_new' && <span>✨</span>}
+                      {stage.title}
+                      {stage.locked && <span className="text-[9px] font-normal opacity-60">（自動）</span>}
+                    </h3>
                     <div className="flex items-center gap-1">
                       {overdueInStage > 0 && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
