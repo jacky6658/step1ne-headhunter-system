@@ -145,10 +145,12 @@ function getIdleDays(dateString?: string, now: Date = new Date()): number {
 
 function parseTargetJob(notes?: string): string {
   if (!notes) return '未指定';
-  const match = notes.match(/應徵：(.+?)\s*\((.+?)\)/);
-  if (match) {
-    return `${match[1]} (${match[2]})`;
-  }
+  // Bot 自動匯入格式：目標職缺：Java Developer (後端工程師)
+  const botMatch = notes.match(/目標職缺：(.+?)(?:\s*\||\s*$)/);
+  if (botMatch) return botMatch[1].trim();
+  // 舊格式：應徵：職位名稱 (公司)
+  const legacyMatch = notes.match(/應徵：(.+?)\s*\((.+?)\)/);
+  if (legacyMatch) return `${legacyMatch[1]} (${legacyMatch[2]})`;
   return '未指定';
 }
 
