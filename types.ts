@@ -239,6 +239,7 @@ export interface ProfitRecord {
 // 候選人狀態
 export enum CandidateStatus {
   NOT_STARTED = '未開始',
+  AI_RECOMMENDED = 'AI推薦',
   CONTACTED = '已聯繫',
   INTERVIEWED = '已面試',
   OFFER = 'Offer',

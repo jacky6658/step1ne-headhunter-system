@@ -9,7 +9,7 @@ interface PipelinePageProps {
   userProfile: UserProfile;
 }
 
-type PipelineStageKey = 'today_new' | 'not_started' | 'contacted' | 'interviewed' | 'offer' | 'onboarded' | 'rejected' | 'other';
+type PipelineStageKey = 'today_new' | 'ai_recommended' | 'contacted' | 'interviewed' | 'offer' | 'onboarded' | 'rejected' | 'other' | 'not_started';
 
 interface PipelineItem {
   candidate: Candidate;
@@ -28,20 +28,22 @@ function isTodayTaiwan(createdAt?: string): boolean {
 }
 
 const PIPELINE_STAGES: Array<{ key: PipelineStageKey; title: string; color: string; bg: string; locked?: boolean }> = [
-  { key: 'today_new', title: '今日新增', color: 'text-teal-700', bg: 'bg-teal-100', locked: true },
-  { key: 'not_started', title: '未開始', color: 'text-slate-700', bg: 'bg-slate-100' },
-  { key: 'contacted', title: '已聯繫', color: 'text-blue-700', bg: 'bg-blue-100' },
-  { key: 'interviewed', title: '已面試', color: 'text-indigo-700', bg: 'bg-indigo-100' },
-  { key: 'offer', title: 'Offer', color: 'text-amber-700', bg: 'bg-amber-100' },
-  { key: 'onboarded', title: '已上職', color: 'text-green-700', bg: 'bg-green-100' },
-  { key: 'rejected', title: '婉拒', color: 'text-rose-700', bg: 'bg-rose-100' },
-  { key: 'other', title: '其他', color: 'text-purple-700', bg: 'bg-purple-100' },
+  { key: 'today_new',       title: '今日新增', color: 'text-teal-700',   bg: 'bg-teal-100',   locked: true },
+  { key: 'ai_recommended',  title: 'AI推薦',   color: 'text-violet-700', bg: 'bg-violet-100' },
+  { key: 'contacted',       title: '已聯繫',   color: 'text-blue-700',   bg: 'bg-blue-100' },
+  { key: 'interviewed',     title: '已面試',   color: 'text-indigo-700', bg: 'bg-indigo-100' },
+  { key: 'offer',           title: 'Offer',    color: 'text-amber-700',  bg: 'bg-amber-100' },
+  { key: 'onboarded',       title: '已上職',   color: 'text-green-700',  bg: 'bg-green-100' },
+  { key: 'rejected',        title: '婉拒',     color: 'text-rose-700',   bg: 'bg-rose-100' },
+  { key: 'other',           title: '其他',     color: 'text-purple-700', bg: 'bg-purple-100' },
+  { key: 'not_started',     title: '未開始',   color: 'text-slate-700',  bg: 'bg-slate-100' },
 ];
 
 function mapEventToStage(event?: string): PipelineStageKey {
   const e = (event || '').trim();
   if (!e) return 'not_started';
 
+  if (e.includes('AI推薦')) return 'ai_recommended';
   if (e.includes('未開始')) return 'not_started';
   if (e.includes('已聯繫')) return 'contacted';
   if (e.includes('已面試') || e.includes('面試')) return 'interviewed';
@@ -53,6 +55,8 @@ function mapEventToStage(event?: string): PipelineStageKey {
 
 function mapStatusToStage(status: CandidateStatus): PipelineStageKey {
   switch (status) {
+    case CandidateStatus.AI_RECOMMENDED:
+      return 'ai_recommended';
     case CandidateStatus.CONTACTED:
       return 'contacted';
     case CandidateStatus.INTERVIEWED:
@@ -74,6 +78,8 @@ function stageToStatus(stage: PipelineStageKey): CandidateStatus {
   switch (stage) {
     case 'today_new':
       return CandidateStatus.NOT_STARTED;
+    case 'ai_recommended':
+      return CandidateStatus.AI_RECOMMENDED;
     case 'contacted':
       return CandidateStatus.CONTACTED;
     case 'interviewed':
@@ -95,6 +101,8 @@ function stageToEvent(stage: PipelineStageKey): string {
   switch (stage) {
     case 'today_new':
       return '未開始';
+    case 'ai_recommended':
+      return 'AI推薦';
     case 'not_started':
       return '未開始';
     case 'contacted':
@@ -225,6 +233,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       const latestProgress = getLatestProgress(candidate.progressTracking);
       const baseStage = latestProgress ? mapEventToStage(latestProgress.event) : mapStatusToStage(candidate.status);
       // 今日新增：created_at 是台灣時區今天 且 尚未有任何進度更新（仍在未開始階段）
+      // ai_recommended 不受 today_new 邏輯影響
       const stage: PipelineStageKey =
         (baseStage === 'not_started' && isTodayTaiwan(candidate.createdAt))
           ? 'today_new'
@@ -267,13 +276,14 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const grouped = useMemo(() => {
     const result: Record<PipelineStageKey, PipelineItem[]> = {
       today_new: [],
-      not_started: [],
+      ai_recommended: [],
       contacted: [],
       interviewed: [],
       offer: [],
       onboarded: [],
       rejected: [],
       other: [],
+      not_started: [],
     };
 
     filteredItems.forEach(item => {
@@ -529,6 +539,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                   <div className="flex items-center justify-between">
                     <h3 className={`font-black flex items-center gap-1.5 ${stage.color}`}>
                       {stage.key === 'today_new' && <span>✨</span>}
+                      {stage.key === 'ai_recommended' && <span>🤖</span>}
                       {stage.title}
                       {stage.locked && <span className="text-[9px] font-normal opacity-60">（自動）</span>}
                     </h3>

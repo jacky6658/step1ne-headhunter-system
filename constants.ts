@@ -84,6 +84,13 @@ export const CANDIDATE_STATUS_CONFIG = {
     textColor: 'text-slate-700',
     borderColor: 'border-slate-300'
   },
+  [CandidateStatus.AI_RECOMMENDED]: {
+    label: 'AI推薦',
+    color: 'violet',
+    bgColor: 'bg-violet-100',
+    textColor: 'text-violet-700',
+    borderColor: 'border-violet-300'
+  },
   [CandidateStatus.CONTACTED]: {
     label: '已聯繫',
     color: 'blue',
@@ -130,13 +137,14 @@ export const CANDIDATE_STATUS_CONFIG = {
 
 // Kanban 看板欄位順序
 export const KANBAN_COLUMNS = [
-  CandidateStatus.NOT_STARTED,
+  CandidateStatus.AI_RECOMMENDED,
   CandidateStatus.CONTACTED,
   CandidateStatus.INTERVIEWED,
   CandidateStatus.OFFER,
   CandidateStatus.ONBOARDED,
   CandidateStatus.REJECTED,
-  CandidateStatus.OTHER
+  CandidateStatus.OTHER,
+  CandidateStatus.NOT_STARTED,
 ];
 
 // 候選人來源配置
