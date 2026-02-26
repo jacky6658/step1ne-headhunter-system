@@ -33,7 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     { id: 'pipeline', label: '📈 顧問人選追蹤表', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     
     // Bot 排程
-    { id: 'bot-scheduler', label: '🤖 Bot 排程設定', icon: Bot, roles: [Role.ADMIN], disabled: false },
+    { id: 'bot-scheduler', label: '🤖 Bot 排程設定', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 工具
     { id: 'system-log', label: '📋 操作日誌', icon: ScrollText, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'help', label: '📖 使用說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
