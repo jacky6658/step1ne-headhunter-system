@@ -17,6 +17,30 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const { Pool } = require('pg');
+const { execSync } = require('child_process');
+
+// ── Python 依賴自動安裝（Zeabur 容器啟動時）────────────────────
+(function ensurePythonDeps() {
+  try {
+    execSync('python3 -c "import requests; import bs4"', { stdio: 'ignore' });
+    console.log('✅ Python 依賴已就緒');
+  } catch {
+    console.log('⏳ 安裝 Python 依賴（requests, beautifulsoup4, lxml）...');
+    const cmds = [
+      'pip3 install requests beautifulsoup4 lxml --break-system-packages -q',
+      'pip3 install requests beautifulsoup4 lxml -q',
+      'pip install requests beautifulsoup4 lxml -q',
+    ];
+    for (const cmd of cmds) {
+      try {
+        execSync(cmd, { stdio: 'inherit', timeout: 60000 });
+        console.log('✅ Python 依賴安裝成功');
+        return;
+      } catch { /* 嘗試下一個 */ }
+    }
+    console.warn('⚠️ Python 依賴安裝失敗，LinkedIn 搜尋功能可能無法使用');
+  }
+})();
 
 // 環境變數相容：支援 DATABASE_URL 或 POSTGRES_URI（Zeabur 自動生成）
 if (!process.env.DATABASE_URL && process.env.POSTGRES_URI) {
