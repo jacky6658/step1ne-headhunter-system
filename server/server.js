@@ -40,6 +40,8 @@ const PORT = process.env.PORT || 3001;
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:5173',
   'https://step1ne.zeabur.app',
   'https://step1ne.com'
 ];
@@ -47,7 +49,8 @@ const allowedOrigins = [
 app.use(cors({
   origin: function(origin, callback) {
     // 允許沒有 origin 的請求（如 curl, mobile apps）
-    if (!origin || allowedOrigins.includes(origin)) {
+    // 允許所有 localhost 開發 port
+    if (!origin || allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin)) {
       callback(null, true);
     } else {
       console.warn(`CORS 拒絕: ${origin}`);

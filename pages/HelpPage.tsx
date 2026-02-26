@@ -44,7 +44,7 @@ const HelpPage: React.FC<HelpPageProps> = () => {
           <AlertCircle className="text-indigo-600" size={24} />
           快速導覽
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <a href="#候選人總表" className="p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
             <Users className="text-indigo-600 mb-2" size={24} />
             <h3 className="font-black text-slate-900 mb-1">候選人總表</h3>

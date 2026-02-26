@@ -119,7 +119,7 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
             </p>
           </div>
           
-          <button 
+          <button
             onClick={loadCandidates}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
           >
@@ -139,7 +139,7 @@ export function CandidateKanbanPage({ userProfile }: CandidateKanbanPageProps) {
             return (
               <div 
                 key={status}
-                className="flex-shrink-0 w-80 flex flex-col"
+                className="flex-shrink-0 w-72 sm:w-80 flex flex-col"
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(status)}
               >

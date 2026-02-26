@@ -18,6 +18,7 @@ import { AIMatchingPage } from './pages/AIMatchingPage';
 import { JobsPage } from './pages/JobsPage';
 import { PipelinePage } from './pages/PipelinePage';
 import { SystemLogPage } from './pages/SystemLogPage';
+import { BDClientsPage } from './pages/BDClientsPage';
 import { Menu, X as XIcon } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -108,6 +109,11 @@ const App: React.FC = () => {
       case 'ai-matching': return <AIMatchingPage 
         userProfile={profile} 
         preSelectedJobId={selectedJobId}
+      />;
+      // BD 客戶開發
+      case 'bd-clients': return <BDClientsPage
+        userProfile={profile}
+        onNavigateToJobs={() => setActiveTab('jobs')}
       />;
       // 顧問人選追蹤表
       case 'pipeline': return <PipelinePage userProfile={profile} />;

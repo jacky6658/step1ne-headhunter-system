@@ -149,9 +149,9 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+            <h1 className="text-xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Briefcase className="text-indigo-600" size={32} />
               職缺管理
             </h1>
@@ -188,7 +188,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
       </div>
 
       {/* 統計卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -267,7 +267,44 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <>
+        {/* 手機版卡片列表 */}
+        <div className="block md:hidden space-y-3">
+          {filteredJobs.map((job) => (
+            <div
+              key={job.id}
+              className="bg-white rounded-xl border border-slate-200 p-4 cursor-pointer active:bg-slate-50"
+              onClick={() => handleJobClick(job)}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <div className="font-semibold text-slate-900">{job.position_name}</div>
+                  <div className="text-sm text-slate-600">{job.client_company}</div>
+                </div>
+                <span className={`px-2 py-1 text-xs font-semibold rounded border ${getStatusColor(job.job_status)}`}>
+                  {job.job_status}
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 mb-3">
+                {job.location && <span>{job.location} · </span>}
+                建立：{job.lastUpdated ? new Date(job.lastUpdated).toLocaleDateString('zh-TW') : '-'}
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStartMatching(job.id.toString());
+                }}
+                className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
+              >
+                <Sparkles size={14} />
+                AI 配對
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* 桌機版表格列表 */}
+        <div className="hidden md:block bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
@@ -334,6 +371,8 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
             </table>
           </div>
         </div>
+        {/* 桌機版列表結束 */}
+        </>
       )}
 
       {/* 職缺詳情 Modal */}
@@ -362,7 +401,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-600 uppercase">部門</label>
                   <p className="text-sm text-slate-900">{selectedJob.department || '-'}</p>

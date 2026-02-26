@@ -1,4 +1,58 @@
 
+// ==================== BD 客戶開發 ====================
+
+export type BDStatus = '開發中' | '接洽中' | '提案中' | '合約階段' | '合作中' | '暫停' | '流失';
+
+export interface Client {
+  id: string;
+  company_name: string;
+  industry?: string;
+  company_size?: string;
+  website?: string;
+  bd_status: BDStatus;
+  bd_source?: string;
+  contact_name?: string;
+  contact_title?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  contact_linkedin?: string;
+  consultant?: string;
+  contract_type?: string;
+  fee_percentage?: number;
+  contract_start?: string;
+  contract_end?: string;
+  notes?: string;
+  url_104?: string;
+  url_1111?: string;
+  job_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BDContact {
+  id: string;
+  client_id: string;
+  contact_date: string;
+  contact_type?: string;  // 電話/Email/拜訪/視訊/LINE
+  summary?: string;
+  next_action?: string;
+  next_action_date?: string;
+  by_user?: string;
+  created_at: string;
+}
+
+export const BD_STATUS_CONFIG: Record<BDStatus, { label: string; color: string; bg: string; icon: string }> = {
+  '開發中':  { label: '開發中',  color: 'text-slate-700',  bg: 'bg-slate-100',  icon: '🔍' },
+  '接洽中':  { label: '接洽中',  color: 'text-blue-700',   bg: 'bg-blue-100',   icon: '📞' },
+  '提案中':  { label: '提案中',  color: 'text-indigo-700', bg: 'bg-indigo-100', icon: '📋' },
+  '合約階段': { label: '合約階段', color: 'text-amber-700',  bg: 'bg-amber-100',  icon: '📄' },
+  '合作中':  { label: '合作中',  color: 'text-green-700',  bg: 'bg-green-100',  icon: '✅' },
+  '暫停':    { label: '暫停',    color: 'text-orange-700', bg: 'bg-orange-100', icon: '⏸️' },
+  '流失':    { label: '流失',    color: 'text-red-700',    bg: 'bg-red-100',    icon: '❌' },
+};
+
+// ==================== 原有型別 ====================
+
 export enum Role {
   ADMIN = 'ADMIN',
   REVIEWER = 'REVIEWER'

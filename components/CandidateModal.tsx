@@ -297,11 +297,11 @@ Step1ne Recruitment`;
       }}
     >
       <div 
-        className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[95vh] sm:h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 sm:p-6">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
@@ -341,7 +341,7 @@ Step1ne Recruitment`;
         
         {/* Tabs */}
         <div className="border-b border-gray-200 bg-gray-50">
-          <div className="flex">
+          <div className="flex overflow-x-auto whitespace-nowrap">
             <button
               onClick={() => setActiveTab('info')}
               className={`px-6 py-3 text-sm font-medium transition-all ${
@@ -385,7 +385,7 @@ Step1ne Recruitment`;
         </div>
         
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6">
           {activeTab === 'info' && (
             <div className="space-y-6">
               {/* 負責顧問 */}
@@ -432,7 +432,7 @@ Step1ne Recruitment`;
               </div>
 
               {/* Contact Info - 智能分離電話 + Email */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* 電話號碼 */}
                 <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                   <Phone className="w-5 h-5 text-gray-400" />
@@ -619,7 +619,7 @@ Step1ne Recruitment`;
               </div>
               
               {/* 穩定度 & 綜合評級 並排 */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* 穩定度 */}
                 <div className={`p-4 rounded-lg border-2 ${stability.bg}`}>
                   <div className="flex items-center gap-1 mb-2">
@@ -813,7 +813,7 @@ Step1ne Recruitment`;
                   onClick={() => setShowResume(false)}
                 >
                   <div
-                    className="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col"
+                    className="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[95vh] sm:h-[90vh] flex flex-col"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Resume Modal Header */}

@@ -519,7 +519,7 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, pre
         </div>
 
         {/* 操作按鈕 */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-3">
           <button
             onClick={() => setStep('job-selection')}
             className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 transition-all"
@@ -579,7 +579,7 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, pre
         </div>
 
         {/* 摘要統計 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <div className="text-sm text-slate-600 mb-1">總候選人數</div>
             <div className="text-3xl font-bold text-slate-900">
@@ -739,7 +739,7 @@ export const AIMatchingPage: React.FC<AIMatchingPageProps> = ({ userProfile, pre
         </div>
 
         {/* 操作按鈕 */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-3">
           <button
             onClick={() => {
               setStep('job-selection');

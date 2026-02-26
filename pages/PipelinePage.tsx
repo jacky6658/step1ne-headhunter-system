@@ -391,7 +391,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleExportCsv}
               className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition"
@@ -471,7 +471,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
             return (
               <div
                 key={stage.key}
-                className="w-80 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col max-h-[70vh]"
+                className="w-72 sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col max-h-[70vh]"
                 onDragOver={handleDragOver}
                 onDrop={() => handleDropToStage(stage.key)}
               >

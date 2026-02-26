@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Role, UserProfile } from '../types';
-import { LayoutGrid, ClipboardList, CheckSquare, History, Users, Download, Database, LogOut, X, BarChart3, BookOpen, ScrollText } from 'lucide-react';
+import { LayoutGrid, ClipboardList, CheckSquare, History, Users, Download, Database, LogOut, X, BarChart3, BookOpen, ScrollText, Target } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -29,7 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     { id: 'ai-matching', label: '🤖 AI 配對推薦', icon: CheckSquare, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     
     // 未來功能
-    { id: 'bd-clients', label: '🎯 BD 客戶開發', icon: Users, roles: [Role.ADMIN, Role.REVIEWER], disabled: true, badge: '即將推出' },
+    { id: 'bd-clients', label: '🎯 BD 客戶開發', icon: Target, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'pipeline', label: '📈 顧問人選追蹤表', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     
     // 工具
