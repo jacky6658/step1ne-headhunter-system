@@ -29,15 +29,6 @@ export function filterCandidatesByPermission(
  * 從 API 或 Mock 資料取得候選人（支援權限過濾）
  */
 export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
-  // Debug log
-  if (userProfile) {
-    console.log('📊 getCandidates - userProfile:', {
-      displayName: userProfile.displayName,
-      role: userProfile.role,
-      roleType: typeof userProfile.role
-    });
-  }
-  
   // 檢查快取（只有在未提供 userProfile 時才使用快取）
   if (!userProfile) {
     const cached = localStorage.getItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE);
@@ -46,7 +37,6 @@ export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
     if (cached && lastSync) {
       const cacheAge = Date.now() - parseInt(lastSync);
       if (cacheAge < CACHE_EXPIRY) {
-        console.log('使用快取資料');
         return JSON.parse(cached);
       }
     }
@@ -67,18 +57,13 @@ export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
           consultant: userProfile.displayName
         });
         url += `?${params.toString()}`;
-        console.log('📡 API URL (REVIEWER):', url);
-      } else {
-        console.log('📡 API URL (ADMIN or no filter):', url);
       }
       
       const response = await fetch(url);
       if (response.ok) {
         const result = await response.json();
         const candidates = result.data || [];
-        
-        console.log(`✅ 從 API 載入 ${candidates.length} 位候選人${userProfile ? ` (${userProfile.displayName}, ${userProfile.role})` : ''}`);
-        
+
         // 更新快取（只有在未提供 userProfile 時）
         if (!userProfile) {
           localStorage.setItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE, JSON.stringify(candidates));

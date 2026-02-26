@@ -123,6 +123,11 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
   const [filterStatus, setFilterStatus] = useState('');
 
   // ─── 載入資料 ───
+  const safeJson = async (res: Response, fallback: any = { success: false, data: [] }) => {
+    if (!res.ok) return fallback;
+    try { return await res.json(); } catch { return fallback; }
+  };
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -133,13 +138,12 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
         fetch(`${API_BASE_URL}/api/bot-logs`),
         fetch(`${API_BASE_URL}/api/users`),
       ]);
-      const cfgJson   = await cfgRes.json();
-      const jobsJson  = await jobsRes.json();
-      const logsJson  = await logsRes.json();
-      const usersJson = await usersRes.json();
+      const cfgJson   = await safeJson(cfgRes,   { success: false, data: {} });
+      const jobsJson  = await safeJson(jobsRes,  { success: false, data: [] });
+      const logsJson  = await safeJson(logsRes,  { success: false, data: [] });
+      const usersJson = await safeJson(usersRes, { success: false, data: [] });
 
       if (cfgJson.success) {
-        // 自動把 consultant 設為當前登入顧問（覆蓋 DB 預設值）
         setConfig(prev => ({ ...DEFAULT_CONFIG, ...cfgJson.data, consultant: me }));
       }
       if (jobsJson.success) {
@@ -152,8 +156,8 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
       }
       if (logsJson.success) setLogs(logsJson.data || []);
       if (usersJson.success) setConsultants(usersJson.data || []);
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // 靜默失敗，本機開發環境部分 API 不存在屬正常
     } finally {
       setLoading(false);
     }
@@ -426,7 +430,9 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
           </div>
           <div className="flex items-center gap-3">
             {jobsExpanded && (
-              <button
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={e => {
                   e.stopPropagation();
                   setConfig(prev => ({
@@ -436,10 +442,21 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
                       : activeJobs.slice(0, MAX_JOBS).map(j => j.id),
                   }));
                 }}
-                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation();
+                    setConfig(prev => ({
+                      ...prev,
+                      target_job_ids: prev.target_job_ids.length > 0
+                        ? []
+                        : activeJobs.slice(0, MAX_JOBS).map(j => j.id),
+                    }));
+                  }
+                }}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer select-none"
               >
                 {config.target_job_ids.length > 0 ? '清除全部' : `全選前 ${Math.min(activeJobs.length, MAX_JOBS)} 個`}
-              </button>
+              </span>
             )}
             {jobsExpanded ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
           </div>

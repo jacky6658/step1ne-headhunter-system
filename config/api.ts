@@ -86,9 +86,3 @@ export async function apiPatch<T>(endpoint: string, data?: any): Promise<T> {
   return response.json();
 }
 
-// 除錯資訊
-console.log('🌐 API 配置:', {
-  environment: isDevelopment ? '開發環境' : '生產環境',
-  baseUrl: API_BASE_URL,
-  hostname: window.location.hostname,
-});

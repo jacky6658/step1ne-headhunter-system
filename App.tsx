@@ -41,12 +41,14 @@ const App: React.FC = () => {
         const p = await getUserProfile(u.uid);
         if (p) {
           setProfile(p);
-          // 登入時自動登記顧問名稱，確保 Bot 排程設定顧問清單完整
-          fetch(`${API_BASE_URL}/api/users/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ displayName: p.displayName }),
-          }).catch(() => {/* 靜默失敗，不影響登入流程 */});
+          // 登入時自動登記顧問名稱（僅生產環境，本機 mock 無此路由）
+          if (import.meta.env.PROD) {
+            fetch(`${API_BASE_URL}/api/users/register`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ displayName: p.displayName }),
+            }).catch(() => {/* 靜默失敗，不影響登入流程 */});
+          }
           // 同步更新 localStorage（用於降級方案）
           localStorage.setItem('caseflow_profile', JSON.stringify(p));
         } else {
