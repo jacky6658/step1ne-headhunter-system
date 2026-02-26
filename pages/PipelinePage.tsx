@@ -266,6 +266,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
 
   const grouped = useMemo(() => {
     const result: Record<PipelineStageKey, PipelineItem[]> = {
+      today_new: [],
       not_started: [],
       contacted: [],
       interviewed: [],
