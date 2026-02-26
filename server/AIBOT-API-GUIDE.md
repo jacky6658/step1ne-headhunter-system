@@ -61,6 +61,12 @@ curl https://backendstep1ne.zeabur.app/api/health
 • 查詢所有招募中職缺
 • 查詢單一職缺詳情
 
+🔍 主動獵才（自動搜尋 + 匯入）
+• 顧問說：「幫我找 XX 公司的 YY 職位候選人」
+• 自動搜尋 GitHub + LinkedIn（2-3頁）
+• 自動評分（S/A+/A/B/C）並寫入系統
+• 回傳優先推薦名單（建議優先聯繫順序）
+
 📜 操作日誌
 • 查詢系統所有操作紀錄
 • 篩選 AIBOT / 人工操作記錄
@@ -218,8 +224,9 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
 6. [顧問聯絡資訊](#六顧問聯絡資訊)
 7. [AI 履歷分析評分（穩定度 + 綜合評級）](#七ai-履歷分析評分穩定度--綜合評級)
 8. [健康檢查](#八健康檢查)
-9. [狀態值對照表](#狀態值對照表)
-10. [操作範例情境](#操作範例情境)
+9. [🆕 主動獵才：自動搜尋並匯入候選人](#九主動獵才自動搜尋並匯入候選人)
+10. [狀態值對照表](#狀態值對照表)
+11. [操作範例情境](#操作範例情境)
 
 ---
 
@@ -833,6 +840,155 @@ GET /api/health
 
 ---
 
+## 九、主動獵才：自動搜尋並匯入候選人
+
+> **觸發時機**：顧問說「幫我找 XX 公司的 YY 職位候選人」時，AIbot 執行此流程。
+>
+> 系統自動完成 6 步驟：
+> 1. 從 DB 讀取公司 + 職缺資料，分析人才畫像
+> 2. GitHub API 搜尋（2-3頁） + Google → LinkedIn 搜尋（2-3頁）
+> 3. 去重（比對現有 candidates_pipeline）
+> 4. 自動評分（S/A+/A/B/C）
+> 5. 寫入 candidates_pipeline（含 AI 評估報告至 notes 欄位）
+> 6. 生成優先推薦名單回傳給 AIbot
+
+---
+
+### 觸發情境識別
+
+| 顧問說... | 代表... |
+|-----------|---------|
+| 「幫我找一通數位的 Java Developer 候選人」 | company=一通數位, jobTitle=Java Developer |
+| 「幫我搜尋遊戲橘子的後端工程師」 | company=遊戲橘子, jobTitle=後端工程師 |
+| 「去找看看 AWS 職缺的人選」 | **先回問**：請問是哪家客戶公司的職缺？ |
+
+> ⚠️ **如果顧問沒說公司名，先回問確認，不要猜測。**
+
+---
+
+### 呼叫前準備：取得顧問的 GitHub Token
+
+```bash
+# 先取得顧問聯絡資訊（含 GitHub Token）
+curl https://backendstep1ne.zeabur.app/api/users/{顧問名稱}/contact
+```
+
+回應中的 `data.githubToken` 即為 GitHub PAT。
+- 有填 Token → 使用認證模式（5000次/小時）
+- 無填 Token → 使用無認證模式（60次/小時，仍可搜尋）
+
+---
+
+### 端點
+
+```
+POST /api/talent-sourcing/find-candidates
+```
+
+**Request Body：**
+
+```json
+{
+  "company": "一通數位",
+  "jobTitle": "Java Developer",
+  "actor": "Jacky-aibot",
+  "github_token": "ghp_xxxxxxxxxxxx",
+  "pages": 2
+}
+```
+
+| 欄位 | 必填 | 說明 |
+|------|------|------|
+| `company` | ✅ | 客戶公司名稱（模糊匹配） |
+| `jobTitle` | ✅ | 職位名稱（模糊匹配） |
+| `actor` | 建議填 | AIbot 身份，格式：`{顧問名稱}-aibot` |
+| `github_token` | 選填 | 從 GET /api/users/:name/contact 取得；不填也能搜尋 |
+| `pages` | 選填 | 搜尋頁數，預設 2，最多 3 |
+
+---
+
+### 成功回應
+
+```json
+{
+  "success": true,
+  "company": "一通數位",
+  "job_title": "Java Developer",
+  "imported_count": 8,
+  "skipped_count": 2,
+  "github_count": 6,
+  "linkedin_count": 4,
+  "execution_time": "28.3s",
+  "full_summary": "✅ 已匯入 8 位候選人到系統\n（略過 2 位重複人選）\n\n🎯 建議優先聯繫...",
+  "priority_summary": "🎯 建議優先聯繫（依評級 + 符合度排序）：\n\n🥇 第1位：...",
+  "rate_limit_warning": null,
+  "candidates": [...]
+}
+```
+
+**AIbot 收到後，直接將 `full_summary` 欄位文字回傳給顧問。**
+
+---
+
+### GitHub Rate Limit 警告
+
+當 `rate_limit_warning` 不為 null 時，AIbot 在報告結果後補充說明：
+
+```
+⚠️ GitHub API 已達每小時上限（無認證模式 60次/小時）
+
+如需搜尋更多開發者，請請顧問前往系統右上角 → 個人化設定 → 填入 GitHub Token，即可提升至 5000次/小時。
+申請頁面：https://github.com/settings/tokens
+```
+
+---
+
+### 職缺不存在時
+
+```json
+{
+  "success": false,
+  "error": "找不到職缺：一通數位 / Java Developer，請確認職缺已匯入系統。"
+}
+```
+
+AIbot 回覆：
+「找不到『一通數位』的『Java Developer』職缺，請確認此職缺已在系統建立，或提供正確的公司名稱與職位名稱。」
+
+---
+
+### 評分規則（供解釋給顧問時使用）
+
+| 評級 | 分數 | 聯繫建議 |
+|------|------|----------|
+| 🏆 S | 90+ | ⚡ 建議今天聯繫 |
+| ⭐ A+ | 85-89 | ⚡ 建議今天聯繫 |
+| ✅ A | 75-84 | 📅 建議本週內聯繫 |
+| 📋 B | 60-74 | 📌 存入備查 |
+| 📝 C | 0-59 | 📌 存入備查 |
+
+---
+
+### 顧問聯絡資訊新增欄位：githubToken
+
+`GET /api/users/:displayName/contact` 回應新增 `githubToken` 欄位：
+
+```json
+{
+  "success": true,
+  "data": {
+    "displayName": "Jacky",
+    "contactPhone": "0912-345-678",
+    "contactEmail": "jacky@step1ne.com",
+    "lineId": "jacky_hr",
+    "telegramHandle": "@jacky",
+    "githubToken": "ghp_xxxxxxxxxxxxxxxxxxxx"
+  }
+}
+```
+
+---
+
 ## 狀態值對照表
 
 | Pipeline 階段 | `status` 欄位值 | SLA 天數上限 |
@@ -1023,6 +1179,58 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates/bulk \
     "actor": "Phoebe-aibot"
   }'
 ```
+
+---
+
+### 情境十：顧問要求主動獵才 — 完整流程
+
+```
+顧問說：「幫我找一通數位的 Java Developer 候選人」
+```
+
+**AIbot 執行步驟：**
+
+```bash
+# 步驟 1：取得顧問的 GitHub Token（若有設定可提升速率）
+curl https://backendstep1ne.zeabur.app/api/users/Jacky/contact
+# → 取得 data.githubToken
+
+# 步驟 2：觸發獵才流程
+curl -X POST https://backendstep1ne.zeabur.app/api/talent-sourcing/find-candidates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "company": "一通數位",
+    "jobTitle": "Java Developer",
+    "actor": "Jacky-aibot",
+    "github_token": "ghp_xxxxxxxxxxxx",
+    "pages": 2
+  }'
+```
+
+**AIbot 收到回應後，回傳 `full_summary` 給顧問（直接貼文字）：**
+
+```
+✅ 已匯入 8 位候選人到系統
+（略過 2 位重複人選）
+
+🎯 建議優先聯繫（依評級 + 符合度排序）：
+
+🥇 第1位：John Chen（⭐A+, 88分）
+   GitHub @john-chen，42 repos
+   技能：Java、Spring Boot、Docker
+   ⚡ 建議今天聯繫
+
+🥈 第2位：Amy Lin（✅A, 78分）
+   LinkedIn amy-lin-tw
+   技能：Java、Kubernetes
+   📅 建議本週內聯繫
+
+⚠️ 其餘 6 位（B級：4、C級：2）已存入系統備查
+
+📋 前往系統查看完整名單 → 候選人總表
+```
+
+> ⚠️ 搜尋可能需要 30-60 秒，執行中請告知顧問「正在搜尋中，請稍候...」
 
 ---
 
