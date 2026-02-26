@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "backend": "node server/server.js",
     "init-db": "node server/init-db.js",
-    "import-data": "node server/import-full-data.js"
+    "import-data": "node server/import-full-data.js",
+    "postinstall": "pip3 install -r server/talent-sourcing/requirements.txt --break-system-packages --quiet 2>/dev/null || pip install -r server/talent-sourcing/requirements.txt --quiet 2>/dev/null || true"
   },
   "dependencies": {
     "@google/genai": "^1.36.0",
