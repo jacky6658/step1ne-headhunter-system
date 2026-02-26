@@ -931,16 +931,22 @@ GET /api/health
 
 ---
 
-### 呼叫前準備：取得顧問的 GitHub Token
+### 呼叫前準備：取得顧問的 API Keys
 
 ```bash
-# 先取得顧問聯絡資訊（含 GitHub Token）
+# 先取得顧問聯絡資訊（含 GitHub Token 與 Brave API Key）
 curl https://backendstep1ne.zeabur.app/api/users/{顧問名稱}/contact
 ```
 
-回應中的 `data.githubToken` 即為 GitHub PAT。
-- 有填 Token → 使用認證模式（5000次/小時）
-- 無填 Token → 使用無認證模式（60次/小時，仍可搜尋）
+回應中：
+- `data.githubToken` → GitHub Personal Access Token
+  - 有填 → 認證模式（5000次/小時）
+  - 無填 → 無認證模式（60次/小時，仍可搜尋）
+- `data.braveApiKey` → Brave Search API Key（LinkedIn 搜尋第三層備援）
+  - 有填 → LinkedIn 搜尋失敗時自動改用 Brave 精確查詢
+  - 無填 → 只使用 Google / Bing 搜尋 LinkedIn（免費但成功率較低）
+
+> 💡 顧問可至系統右上角 → **個人化設定** 填入兩個 Key，提升搜尋效果。
 
 ---
 
@@ -958,6 +964,7 @@ POST /api/talent-sourcing/find-candidates
   "jobTitle": "Java Developer",
   "actor": "Jacky-aibot",
   "github_token": "ghp_xxxxxxxxxxxx",
+  "brave_api_key": "BSA_xxxxxxxxxxxxxxxxxx",
   "pages": 2
 }
 ```
@@ -967,7 +974,8 @@ POST /api/talent-sourcing/find-candidates
 | `company` | ✅ | 客戶公司名稱（模糊匹配） |
 | `jobTitle` | ✅ | 職位名稱（模糊匹配） |
 | `actor` | 建議填 | AIbot 身份，格式：`{顧問名稱}-aibot` |
-| `github_token` | 選填 | 從 GET /api/users/:name/contact 取得；不填也能搜尋 |
+| `github_token` | 選填 | GitHub PAT，從 GET /api/users/:name/contact 取得；不填也能搜尋 |
+| `brave_api_key` | 選填 | Brave Search API Key，從 GET /api/users/:name/contact 取得；提升 LinkedIn 搜尋成功率 |
 | `pages` | 選填 | 搜尋頁數，預設 2，最多 3 |
 
 ---
@@ -1034,9 +1042,9 @@ AIbot 回覆：
 
 ---
 
-### 顧問聯絡資訊新增欄位：githubToken
+### 顧問聯絡資訊欄位：githubToken + braveApiKey
 
-`GET /api/users/:displayName/contact` 回應新增 `githubToken` 欄位：
+`GET /api/users/:displayName/contact` 回應格式：
 
 ```json
 {
@@ -1047,10 +1055,18 @@ AIbot 回覆：
     "contactEmail": "jacky@step1ne.com",
     "lineId": "jacky_hr",
     "telegramHandle": "@jacky",
-    "githubToken": "ghp_xxxxxxxxxxxxxxxxxxxx"
+    "githubToken": "ghp_xxxxxxxxxxxxxxxxxxxx",
+    "braveApiKey": "BSA_xxxxxxxxxxxxxxxxxx"
   }
 }
 ```
+
+| 欄位 | 用途 | 顧問設定位置 |
+|------|------|-------------|
+| `githubToken` | GitHub 爬蟲認證，提升速率至 5000次/小時 | 個人化設定 → GitHub Token |
+| `braveApiKey` | LinkedIn 搜尋第三層備援，提升搜尋成功率 | 個人化設定 → Brave Search API Key |
+
+> 若顧問未設定，兩個欄位值為 `null`，系統仍可正常運作（GitHub 用無認證模式、LinkedIn 只用 Google/Bing）。
 
 ---
 
@@ -1256,11 +1272,12 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates/bulk \
 **AIbot 執行步驟：**
 
 ```bash
-# 步驟 1：取得顧問的 GitHub Token（若有設定可提升速率）
+# 步驟 1：取得顧問的 API Keys（GitHub Token + Brave API Key）
 curl https://backendstep1ne.zeabur.app/api/users/Jacky/contact
-# → 取得 data.githubToken
+# → 取得 data.githubToken（GitHub PAT）
+# → 取得 data.braveApiKey（Brave Search API Key，若顧問有設定）
 
-# 步驟 2：觸發獵才流程
+# 步驟 2：觸發獵才流程（帶入兩個 Key，提升搜尋效果）
 curl -X POST https://backendstep1ne.zeabur.app/api/talent-sourcing/find-candidates \
   -H "Content-Type: application/json" \
   -d '{
@@ -1268,6 +1285,7 @@ curl -X POST https://backendstep1ne.zeabur.app/api/talent-sourcing/find-candidat
     "jobTitle": "Java Developer",
     "actor": "Jacky-aibot",
     "github_token": "ghp_xxxxxxxxxxxx",
+    "brave_api_key": "BSA_xxxxxxxxxxxxxxxxxx",
     "pages": 2
   }'
 ```
