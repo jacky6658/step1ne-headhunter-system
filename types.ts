@@ -245,7 +245,7 @@ export enum CandidateStatus {
   OFFER = 'Offer',
   ONBOARDED = '已上職',
   REJECTED = '婉拒',
-  OTHER = '其他'
+  OTHER = '備選人才'
 }
 
 // 候選人來源

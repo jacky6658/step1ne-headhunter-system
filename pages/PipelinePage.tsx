@@ -35,7 +35,7 @@ const PIPELINE_STAGES: Array<{ key: PipelineStageKey; title: string; color: stri
   { key: 'offer',           title: 'Offer',    color: 'text-amber-700',  bg: 'bg-amber-100' },
   { key: 'onboarded',       title: '已上職',   color: 'text-green-700',  bg: 'bg-green-100' },
   { key: 'rejected',        title: '婉拒',     color: 'text-rose-700',   bg: 'bg-rose-100' },
-  { key: 'other',           title: '其他',     color: 'text-purple-700', bg: 'bg-purple-100' },
+  { key: 'other',           title: '備選人才', color: 'text-purple-700', bg: 'bg-purple-100' },
   { key: 'not_started',     title: '未開始',   color: 'text-slate-700',  bg: 'bg-slate-100' },
 ];
 
@@ -116,7 +116,7 @@ function stageToEvent(stage: PipelineStageKey): string {
     case 'rejected':
       return '婉拒';
     case 'other':
-      return '其他';
+      return '備選人才';
     default:
       return '未開始';
   }

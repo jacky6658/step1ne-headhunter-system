@@ -1,20 +1,31 @@
 #!/usr/bin/env python3
 """
-one-bot-pipeline.py — Step1ne 獵頭 AI Bot 閉環管線 v1
+one-bot-pipeline.py — Step1ne 獵頭 AI Bot 閉環管線 v2
 
-流程：
-  讀取 Bot 設定（目標職缺）
-    → 爬取 LinkedIn / GitHub 候選人（search-plan-executor.py）
-    → 去重（跳過已存在 DB 的 linkedin_url）
-    → 匯入新候選人（POST /api/candidates）
-    → 6 維確定性評分（candidate-scoring-system-v2.py）
-    → AI 結語生成（claude -p，使用本機 Claude Code）
-    → 寫入 ai_match_result + 狀態設為「AI推薦」（PATCH /api/candidates/:id）
-    → 記錄 system_logs
+兩段式流程：
+  【scrape 模式（預設）】
+    讀取 Bot 設定（目標職缺）
+      → 爬取 LinkedIn / GitHub 候選人（search-plan-executor.py）
+      → 去重（跳過已存在 DB 的 linkedin_url）
+      → 匯入新候選人（POST /api/candidates），狀態 = 「未開始」（出現在今日新增）
+
+  【score 模式（本機 AI 評分）】
+    從 API 查詢今日「未開始」狀態候選人
+      → 6 維確定性評分（candidate-scoring-system-v2.py）
+      → AI 結語生成（claude -p，使用本機 Claude Code）
+      → 評分 ≥ 80 → 狀態改為「AI推薦」
+      → 評分  < 80 → 狀態改為「備選人才」
+      → 寫入 ai_match_result（PATCH /api/candidates/:id）
+
+  【full 模式】
+    依序執行 scrape → score
 
 用法：
-  python3 one-bot-pipeline.py                        # 從 DB 讀設定
-  python3 one-bot-pipeline.py --job-ids 3,7,12       # 指定職缺
+  python3 one-bot-pipeline.py                        # 預設：full 模式
+  python3 one-bot-pipeline.py --mode scrape          # 只爬取匯入
+  python3 one-bot-pipeline.py --mode score           # 只評分今日新增
+  python3 one-bot-pipeline.py --mode full            # 爬取 + 評分
+  python3 one-bot-pipeline.py --job-ids 3,7,12       # 指定職缺（scrape/full 模式）
   python3 one-bot-pipeline.py --dry-run              # 試跑，不寫入 DB
   python3 one-bot-pipeline.py --no-claude            # 跳過 AI 結語（純模板）
 
@@ -180,7 +191,7 @@ def import_candidate(raw: Dict, job: Dict, dry_run: bool = False) -> Optional[in
         'linkedin_url': li_url,
         'github_url':  gh_url,
         'source':      source,
-        'status':      'AI推薦',
+        'status':      '未開始',   # 匯入時先進「今日新增」，等本機 AI 評分後再路由
         'consultant':  BOT_ACTOR,
         'notes':       f"Bot 自動匯入 | 目標職缺：{job.get('title','')} | {datetime.now().strftime('%Y-%m-%d')}",
         'by':          BOT_ACTOR,
@@ -354,74 +365,158 @@ def process_job(job: Dict, existing_urls: set, args) -> Dict:
         if args.dry_run:
             continue
 
-        # 4. 評分
-        try:
-            scoring = score_candidate(raw, job)
-            score_val = round(scoring.get('overall_score', 0))
-            log(f"  評分：{score_val}/100（{scoring.get('talent_level','?')}）")
-        except Exception as e:
-            log(f"  評分失敗：{e}", 'WARN')
-            stats['errors'] += 1
-            continue
-
-        # 5. AI 結語
-        conclusion = None
-        if not args.no_claude:
-            candidate_for_claude = {
-                'name':               name,
-                'position':           raw.get('title', ''),
-                'years_experience':   estimate_years(raw.get('title', '')),
-                'location':           '台灣',
-                'skills':             job.get('required_skills', []),
-                'company_background': [raw.get('company', '')] if raw.get('company') else [],
-                'education':          '',
-                'linkedin_url':       li_url or None,
-                'github_url':         raw.get('github_url', ''),
-            }
-            job_for_claude = {
-                'title':           job.get('title', ''),
-                'company':         job.get('company', ''),
-                'required_skills': job.get('required_skills', []),
-                'years_required':  job.get('years_required', 3),
-            }
-            conclusion = generate_conclusion(candidate_for_claude, job_for_claude, scoring)
-            if conclusion:
-                log(f"  結語已生成（{len(conclusion)} 字）")
-
-        # 6. 組裝 ai_match_result 並寫入 DB
-        ai_result = build_ai_match_result(scoring, job, conclusion, not args.no_claude)
-        patch_resp = api_patch(f'/api/candidates/{cid}', {
-            'ai_match_result': ai_result,
-            'status':          'AI推薦',
-            'actor':           BOT_ACTOR,
-            'by':              BOT_ACTOR,
-        })
-        if patch_resp and patch_resp.get('success'):
-            log(f"  寫入完成：{name} → AI推薦 ✓", 'OK')
-            stats['scored'] += 1
-        else:
-            log(f"  寫入失敗：{patch_resp}", 'WARN')
-            stats['errors'] += 1
-
-        # 7. 反爬蟲延遲（每位候選人之間 1-3 秒）
+        # 4. 反爬蟲延遲（每位候選人之間 1-3 秒）
         if i < len(raw_candidates):
             time.sleep(random.uniform(1.0, 3.0))
 
     return stats
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Step1ne AI Bot 閉環管線 v1')
-    parser.add_argument('--job-ids',   default='', help='指定職缺 ID（逗號分隔），不指定則從 DB 讀取')
-    parser.add_argument('--pages',     type=int, default=2, help='每次搜尋頁數（1-3）')
-    parser.add_argument('--dry-run',   action='store_true', help='試跑，不寫入 DB')
-    parser.add_argument('--no-claude', action='store_true', help='跳過 AI 結語，使用模板')
-    args = parser.parse_args()
-    args.pages = max(1, min(3, args.pages))
+# ─── 評分階段：處理今日「未開始」候選人 ──────────────────────────────────────────
+SCORE_THRESHOLD = 80   # ≥ 80 → AI推薦，< 80 → 備選人才
 
-    log(f"Step1ne AI Bot Pipeline v1 啟動", 'HEAD')
-    log(f"API: {API_BASE} | Actor: {BOT_ACTOR} | Dry-run: {args.dry_run} | Claude: {not args.no_claude}", 'HEAD')
 
+def fetch_today_new_candidates() -> List[Dict]:
+    """從 API 取得今天建立且狀態為「未開始」的候選人"""
+    today = datetime.now().strftime('%Y-%m-%d')
+    # 先取全部未開始候選人，前端過濾今日建立
+    resp = api_get('/api/candidates?status=未開始&limit=500')
+    if not resp or not resp.get('success'):
+        log("無法取得候選人列表", 'ERR')
+        return []
+
+    all_cands = resp.get('data', [])
+    today_new = []
+    for c in all_cands:
+        created = (c.get('createdAt') or c.get('created_at') or '')[:10]
+        if created == today:
+            today_new.append(c)
+
+    log(f"今日新增（未開始）候選人：{len(today_new)} 位")
+    return today_new
+
+
+def score_and_route_candidate(c: Dict, args) -> str:
+    """
+    對單一候選人評分並路由狀態。
+    回傳最終狀態字串：'AI推薦' 或 '備選人才'
+    """
+    cid  = c.get('id')
+    name = c.get('name', f'#{cid}')
+    log(f"  評分：{name}（#{cid}）")
+
+    # 從 notes 嘗試解析目標職缺資訊（Bot 匯入時記錄在 notes）
+    notes  = c.get('notes', '')
+    skills_raw = c.get('skills', '')
+    skills = [s.strip() for s in skills_raw.split(',') if s.strip()] if isinstance(skills_raw, str) else (skills_raw or [])
+
+    # 建立虛擬 job（從 notes 解析職缺名稱）
+    import re as _re
+    job_title_match = _re.search(r'目標職缺：([^|]+)', notes)
+    job_title = job_title_match.group(1).strip() if job_title_match else '目標職缺'
+    job = {
+        'title':           job_title,
+        'company':         '',
+        'required_skills': skills[:8],
+        'years_required':  3,
+        'location':        c.get('location', '台灣'),
+    }
+
+    # 組裝 ScoringCandidate
+    raw_for_score = {
+        'name':        name,
+        'title':       c.get('position', ''),
+        'company':     '',
+        'linkedin_url': c.get('linkedinUrl') or c.get('linkedin_url', ''),
+        'github_url':  c.get('githubUrl')   or c.get('github_url', ''),
+    }
+
+    try:
+        scoring   = score_candidate(raw_for_score, job)
+        score_val = round(scoring.get('overall_score', 0))
+        level     = scoring.get('talent_level', '?')
+        log(f"    分數：{score_val}/100（{level}）")
+    except Exception as e:
+        log(f"    評分例外：{e}", 'WARN')
+        return '備選人才'   # 評分失敗 → 備選
+
+    # 決定狀態
+    new_status = 'AI推薦' if score_val >= SCORE_THRESHOLD else '備選人才'
+
+    if args.dry_run:
+        log(f"    [DRY-RUN] {name} → {new_status}", 'OK')
+        return new_status
+
+    # AI 結語
+    conclusion = None
+    if not args.no_claude:
+        candidate_for_claude = {
+            'name':               name,
+            'position':           c.get('position', ''),
+            'years_experience':   estimate_years(c.get('position', '')),
+            'location':           c.get('location', '台灣'),
+            'skills':             skills,
+            'company_background': [],
+            'education':          c.get('education', ''),
+        }
+        conclusion = generate_conclusion(candidate_for_claude, job, scoring)
+        if conclusion:
+            log(f"    結語已生成（{len(conclusion)} 字）")
+
+    # 寫入 DB
+    ai_result = build_ai_match_result(scoring, job, conclusion, not args.no_claude)
+    patch_resp = api_patch(f'/api/candidates/{cid}', {
+        'ai_match_result': ai_result,
+        'status':          new_status,
+        'actor':           BOT_ACTOR,
+        'by':              BOT_ACTOR,
+    })
+    if patch_resp and patch_resp.get('success'):
+        log(f"    寫入完成：{name} → {new_status} ✓", 'OK')
+    else:
+        log(f"    寫入失敗：{patch_resp}", 'WARN')
+
+    return new_status
+
+
+def run_score_phase(args):
+    """評分階段：讀取今日新增，評分後路由狀態"""
+    log(f"{'='*50}", 'HEAD')
+    log("評分階段：處理今日「未開始」候選人", 'HEAD')
+    log(f"{'='*50}", 'HEAD')
+    log(f"閾值：≥{SCORE_THRESHOLD} 分 → AI推薦，<{SCORE_THRESHOLD} 分 → 備選人才")
+
+    candidates = fetch_today_new_candidates()
+    if not candidates:
+        log("今日無新增候選人，評分結束", 'WARN')
+        return
+
+    ai_count    = 0
+    backup_count = 0
+    error_count  = 0
+
+    for i, c in enumerate(candidates, 1):
+        log(f"[{i}/{len(candidates)}]")
+        try:
+            status = score_and_route_candidate(c, args)
+            if status == 'AI推薦':
+                ai_count += 1
+            else:
+                backup_count += 1
+        except Exception as e:
+            log(f"  例外：{e}", 'ERR')
+            error_count += 1
+
+        # 每位之間稍微停頓（避免 Claude CLI 過熱）
+        if i < len(candidates):
+            time.sleep(random.uniform(0.5, 1.5))
+
+    log(f"{'='*50}", 'HEAD')
+    log(f"評分完成：AI推薦 {ai_count}，備選人才 {backup_count}，錯誤 {error_count}", 'OK')
+
+
+def run_scrape_phase(args):
+    """爬取匯入階段：抓取候選人並以「未開始」狀態存入 DB"""
     # 取得目標職缺 ID
     if args.job_ids:
         job_ids = [int(x.strip()) for x in args.job_ids.split(',') if x.strip().isdigit()]
@@ -472,16 +567,43 @@ def main():
             log(f"下個職缺前等待 {delay:.0f} 秒...")
             time.sleep(delay)
 
-    # 總結報告
+    # 爬取摘要
     log(f"{'='*50}", 'HEAD')
-    log("執行完畢 — 摘要：", 'HEAD')
+    log("爬取完畢 — 摘要：", 'HEAD')
     total_imported = sum(s['imported'] for s in all_stats)
-    total_scored   = sum(s['scored']   for s in all_stats)
     total_skipped  = sum(s['skipped']  for s in all_stats)
     total_errors   = sum(s['errors']   for s in all_stats)
     for s in all_stats:
-        log(f"  {s['job']}: 找到 {s['found']} | 匯入 {s['imported']} | 評分 {s['scored']} | 跳過 {s['skipped']} | 錯誤 {s['errors']}")
-    log(f"合計：匯入 {total_imported}，評分 {total_scored}，跳過 {total_skipped}，錯誤 {total_errors}", 'OK')
+        log(f"  {s['job']}: 找到 {s['found']} | 匯入 {s['imported']} | 跳過 {s['skipped']} | 錯誤 {s['errors']}")
+    log(f"合計：匯入 {total_imported}（狀態=未開始），跳過 {total_skipped}，錯誤 {total_errors}", 'OK')
+    log("提示：請在本機執行 --mode score 讓 AI 評分路由", 'INFO')
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Step1ne AI Bot 閉環管線 v2')
+    parser.add_argument('--mode',      default='full',
+                        choices=['full', 'scrape', 'score'],
+                        help='full=爬取+評分（預設），scrape=只爬取匯入，score=只評分今日新增')
+    parser.add_argument('--job-ids',   default='', help='指定職缺 ID（逗號分隔），scrape/full 模式使用')
+    parser.add_argument('--pages',     type=int, default=2, help='每次搜尋頁數（1-3）')
+    parser.add_argument('--dry-run',   action='store_true', help='試跑，不寫入 DB')
+    parser.add_argument('--no-claude', action='store_true', help='跳過 AI 結語，使用模板')
+    args = parser.parse_args()
+    args.pages = max(1, min(3, args.pages))
+
+    log(f"Step1ne AI Bot Pipeline v2 啟動", 'HEAD')
+    log(f"模式：{args.mode} | API: {API_BASE} | Actor: {BOT_ACTOR} | Dry-run: {args.dry_run} | Claude: {not args.no_claude}", 'HEAD')
+
+    if args.mode in ('scrape', 'full'):
+        run_scrape_phase(args)
+
+    if args.mode in ('score', 'full'):
+        # score 模式在 full 時自動接在 scrape 後執行
+        if args.mode == 'full':
+            log("爬取完成，等待 5 秒後開始評分...", 'INFO')
+            if not args.dry_run:
+                time.sleep(5)
+        run_score_phase(args)
 
 
 # ─── 工具函數 ─────────────────────────────────────────────────────────────────

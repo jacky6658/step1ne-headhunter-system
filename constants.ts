@@ -127,7 +127,7 @@ export const CANDIDATE_STATUS_CONFIG = {
     borderColor: 'border-rose-300'
   },
   [CandidateStatus.OTHER]: {
-    label: '其他',
+    label: '備選人才',
     color: 'purple',
     bgColor: 'bg-purple-100',
     textColor: 'text-purple-700',
