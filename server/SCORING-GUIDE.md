@@ -44,7 +44,11 @@ GET https://backendstep1ne.zeabur.app/api/candidates?created_today=true
 
 #### 2-1. 取得對應職缺資訊
 
-從候選人的 `notes` 欄位找到「應徵：{職位名稱}」，查詢對應職缺：
+從候選人的 `notes` 欄位找到「目標職缺：{職位名稱}」，查詢對應職缺：
+
+> **注意**：Bot 自動匯入的 notes 格式為：
+> `Bot 自動匯入 | 目標職缺：Java Developer (後端工程師) | 負責顧問：AIBot-pipeline | 2026-02-26`
+> 請從「目標職缺：」後面擷取職位名稱。
 
 ```
 GET https://backendstep1ne.zeabur.app/api/jobs
