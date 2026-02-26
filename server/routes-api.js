@@ -403,6 +403,85 @@ router.put('/candidates/:id', async (req, res) => {
 });
 
 /**
+ * 從 AIbot 寫入的評分備註文字，自動解析並構建 ai_match_result 結構
+ * 支援格式：【xxx評分】86/100 分 ... 6維度評分: ...
+ */
+function parseNotesToAiMatchResult(notesText, actor) {
+  if (!notesText || typeof notesText !== 'string') return null;
+  // 只處理含「評分」+ 分數的備註
+  if (!/評分.*\d+\/100|\d+\/100.*評分/.test(notesText)) return null;
+
+  try {
+    // 提取整體分數
+    const scoreMatch = notesText.match(/(\d+)\/100/);
+    if (!scoreMatch) return null;
+    const score = parseInt(scoreMatch[1]);
+
+    // 推薦等級
+    const recommendation =
+      score >= 85 ? '強力推薦' :
+      score >= 70 ? '推薦' :
+      score >= 55 ? '觀望' : '不推薦';
+
+    // 對應職缺（從備註內的「職位:」或「職缺:」取得）
+    const jobTitleMatch = notesText.match(/職位[：:]\s*(.+)/);
+    const job_title = jobTitleMatch ? jobTitleMatch[1].trim() : undefined;
+
+    // 技能列表
+    const skillsMatch = notesText.match(/技能[：:]\s*(.+)/);
+    const skillsRaw = skillsMatch ? skillsMatch[1].split(/[,，、]/).map(s => s.trim()).filter(Boolean) : [];
+
+    // 6 維度分數 → 推算 matched/missing
+    const dimScores = {};
+    const dimRegex = /([^:：\n]{2,8})\s*\(\d+%\)[：:]\s*(\d+)\/(\d+)/g;
+    let m;
+    while ((m = dimRegex.exec(notesText)) !== null) {
+      const ratio = parseInt(m[2]) / parseInt(m[3]);
+      dimScores[m[1].trim()] = ratio;
+    }
+
+    // 技能匹配維度分數
+    const skillMatchRatio = dimScores['技能匹配'] || dimScores['技能'] || 0;
+    const matched_skills = skillMatchRatio >= 0.6 ? skillsRaw : skillsRaw.slice(0, Math.ceil(skillsRaw.length * skillMatchRatio));
+    const missing_skills = skillMatchRatio < 1.0 && skillsRaw.length > matched_skills.length
+      ? skillsRaw.slice(matched_skills.length)
+      : [];
+
+    // 構建優勢
+    const strengths = Object.entries(dimScores)
+      .filter(([, ratio]) => ratio >= 0.8)
+      .map(([dim, ratio]) => `${dim}符合度高（${Math.round(ratio * 100)}%）`);
+    if (strengths.length === 0 && score >= 70) strengths.push('整體評分良好，具備基本條件');
+
+    // 建議顧問詢問問題（依弱項動態生成）
+    const probing_questions = [];
+    if ((dimScores['技能匹配'] || 1) < 0.8) probing_questions.push('目前使用的主要技術棧為何？是否有學習相關技能的計劃？');
+    if ((dimScores['職場信號'] || dimScores['招聘意願'] || 1) < 0.9) probing_questions.push('目前求職狀態如何？是否已在面試其他機會？');
+    probing_questions.push('期望薪資範圍與到職時間？');
+    probing_questions.push('離開現職的主要考量為何？');
+
+    // 從備註取得 LinkedIn
+    const liMatch = notesText.match(/LinkedIn[：:\s]+(https?:\/\/\S+)/i);
+
+    return {
+      score,
+      recommendation,
+      job_title,
+      matched_skills,
+      missing_skills,
+      strengths,
+      probing_questions,
+      conclusion: notesText.replace(/LinkedIn[：:\s]+https?:\/\/\S+/gi, '').trim(),
+      evaluated_at: new Date().toISOString(),
+      evaluated_by: actor || 'AIbot',
+      _linkedin_url: liMatch ? liMatch[1] : null,  // 內部用，供 PATCH 一起更新
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * PATCH /api/candidates/:id
  * 局部更新候選人（支援欄位：status, progressTracking, recruiter, notes, talent_level, name）
  * 適用於前端操作及 AIbot 呼叫
@@ -415,6 +494,8 @@ router.patch('/candidates/:id', async (req, res) => {
     // 支援 notes 與 remarks 兩種欄位名稱（AIbot 相容性）
     const notes = req.body.notes !== undefined ? req.body.notes : req.body.remarks;
     const email = req.body.email;
+    const actor = req.body.actor || req.body.by || '';
+    const isAIBot = /aibot|bot$/i.test(actor);
 
     const client = await pool.connect();
 
@@ -462,9 +543,23 @@ router.patch('/candidates/:id', async (req, res) => {
       setClauses.push(`email = $${idx++}`);
       values.push(email);
     }
-    if (ai_match_result !== undefined) {
+    // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析
+    let resolvedAiMatch = ai_match_result;
+    if (resolvedAiMatch === undefined && isAIBot && notes) {
+      const parsed = parseNotesToAiMatchResult(notes, actor);
+      if (parsed) {
+        resolvedAiMatch = parsed;
+        // 若備註裡有 LinkedIn URL 且 linkedin_url 未被顯式設定，一起更新
+        if (parsed._linkedin_url && linkedin_url === undefined) {
+          setClauses.push(`linkedin_url = $${idx++}`);
+          values.push(parsed._linkedin_url);
+        }
+        delete parsed._linkedin_url;
+      }
+    }
+    if (resolvedAiMatch !== undefined) {
       setClauses.push(`ai_match_result = $${idx++}`);
-      values.push(JSON.stringify(ai_match_result));
+      values.push(JSON.stringify(resolvedAiMatch));
     }
 
     if (setClauses.length === 0) {
