@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Step1ne 人才搜尋執行器 v2
-GitHub API 真實搜尋 + Google 搜尋 LinkedIn 個人頁
-含反爬蟲機制：隨機 UA、隨機延遲、robots.txt 遵守、停用自動化識別
+GitHub API 真實搜尋 + Google/Bing 搜尋 LinkedIn 個人頁
+含反爬蟲機制：隨機 UA、隨機延遲、Bing 備援（Google 被封鎖時自動切換）
 """
 import json
 import sys
@@ -11,7 +11,6 @@ import random
 import argparse
 import re
 from urllib.parse import quote, unquote
-from urllib.robotparser import RobotFileParser
 
 try:
     import requests
@@ -53,15 +52,21 @@ def anti_scraping_delay(min_s=2.0, max_s=5.0):
     delay = random.uniform(min_s, max_s)
     time.sleep(delay)
 
-def check_robots_txt(base_url):
-    """遵守 robots.txt"""
-    try:
-        rp = RobotFileParser()
-        rp.set_url(f"{base_url}/robots.txt")
-        rp.read()
-        return rp
-    except Exception:
-        return None
+def is_captcha_page(html_text):
+    """偵測 Google CAPTCHA / 封鎖頁面"""
+    indicators = [
+        'g-recaptcha',
+        'recaptcha',
+        'unusual traffic',
+        'detected unusual',
+        'Just a moment',
+        'Cloudflare',
+        'cf-browser-verification',
+        '/sorry/index',
+        'sitekey',
+    ]
+    lower = html_text.lower()
+    return any(ind.lower() in lower for ind in indicators)
 
 def log(msg):
     print(f"[scraper] {msg}", file=sys.stderr, flush=True)
@@ -216,11 +221,10 @@ def fetch_github_user_detail(username, headers):
 
 def search_linkedin_via_google(skills, location="台灣", pages=2):
     """透過 Google 搜尋 LinkedIn 個人頁，支援 2-3 頁"""
-    # Google robots.txt 對所有 agent 封鎖 /search，
-    # 我們已用瀏覽器 UA + 隨機延遲做為反爬蟲措施，不額外做 robots 檢查
     session = requests.Session()
     results = []
     seen_urls = set()
+    captcha_detected = False
 
     skill_query = ' '.join(f'"{s}"' for s in skills[:3])
     query = f'site:linkedin.com/in/ {skill_query} "{location}"'
@@ -229,10 +233,7 @@ def search_linkedin_via_google(skills, location="台灣", pages=2):
         start = page * 10
         search_url = f"https://www.google.com/search?q={quote(query)}&start={start}&num=10&hl=zh-TW"
 
-        # 對抗指紋識別：每頁換 User-Agent
         session.headers.update(get_browser_headers())
-
-        # 對抗速率限制：隨機延遲 2-5 秒
         anti_scraping_delay(2.0, 5.0)
 
         try:
@@ -245,6 +246,11 @@ def search_linkedin_via_google(skills, location="台灣", pages=2):
             if resp.status_code != 200:
                 log(f"Google search HTTP {resp.status_code}")
                 continue
+
+            if is_captcha_page(resp.text):
+                log("Google 偵測到 CAPTCHA / 封鎖頁面，停止 Google 搜尋")
+                captcha_detected = True
+                break
 
             soup = BeautifulSoup(resp.text, 'html.parser')
             extracted = extract_linkedin_urls_from_soup(soup)
@@ -259,7 +265,157 @@ def search_linkedin_via_google(skills, location="台灣", pages=2):
             log(f"Google search page {page + 1} error: {e}")
             continue
 
+    return {'success': True, 'data': results, 'captcha': captcha_detected}
+
+
+def search_linkedin_via_bing(skills, location="Taiwan", pages=2):
+    """透過 Bing 搜尋 LinkedIn 個人頁（備援，Google 被封鎖時啟用）
+    Bing 直接提供真實 href，不需處理 /url?q= 重定向。
+    """
+    session = requests.Session()
+    results = []
+    seen_urls = set()
+
+    skill_query = ' '.join(f'"{s}"' for s in skills[:3])
+    # Bing 同時支援英文與中文地區關鍵字
+    location_en = location if location in ('Taiwan', 'Singapore', 'Hong Kong') else 'Taiwan'
+    query = f'site:linkedin.com/in/ {skill_query} "{location_en}"'
+
+    for page in range(pages):
+        first = page * 10 + 1  # Bing: first=1 代表第 1 筆
+        search_url = f"https://www.bing.com/search?q={quote(query)}&first={first}&count=10"
+
+        session.headers.update(get_browser_headers())
+        anti_scraping_delay(2.0, 4.0)
+
+        try:
+            resp = session.get(search_url, timeout=15)
+
+            if resp.status_code != 200:
+                log(f"Bing search HTTP {resp.status_code}")
+                continue
+
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            extracted = _extract_linkedin_from_bing(soup)
+
+            for item in extracted:
+                url = item.get('linkedin_url', '')
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    results.append(item)
+
+        except Exception as e:
+            log(f"Bing search page {page + 1} error: {e}")
+            continue
+
+    log(f"Bing LinkedIn: {len(results)} 筆")
     return {'success': True, 'data': results}
+
+
+def _extract_linkedin_from_bing(soup):
+    """解析 Bing 搜尋結果中的 LinkedIn 個人頁 URL
+    Bing 結構：<li class="b_algo"><h2><a href="https://linkedin.com/in/...">Name - Title</a></h2>
+    """
+    found = []
+    seen = set()
+
+    def add_candidate(url, name='', title='', company=''):
+        if url in seen:
+            return
+        seen.add(url)
+        username = url.rstrip('/').split('/')[-1]
+        found.append({
+            'source': 'linkedin',
+            'name': name or username.replace('-', ' ').title(),
+            'github_url': '',
+            'github_username': '',
+            'linkedin_url': url,
+            'linkedin_username': username,
+            'location': '',
+            'bio': title,
+            'company': company,
+            'email': '',
+            'public_repos': 0,
+            'followers': 0,
+            'skills': [],
+            'recent_push': '',
+            'top_repos': [],
+        })
+
+    # Bing 每個搜尋結果在 <li class="b_algo">
+    for result in soup.find_all('li', class_='b_algo'):
+        h2 = result.find('h2')
+        if not h2:
+            continue
+        a = h2.find('a', href=True)
+        if not a:
+            continue
+        href = a.get('href', '')
+        if 'linkedin.com/in/' not in href:
+            continue
+        url = clean_linkedin_url(href)
+        if not url:
+            continue
+
+        # 解析姓名與職稱（格式：「Name - Title | LinkedIn」或「Name | LinkedIn」）
+        title_text = a.get_text(strip=True)
+        name, job_title = '', ''
+        # 移除 " | LinkedIn" 後綴
+        title_text = re.sub(r'\s*\|\s*LinkedIn.*$', '', title_text, flags=re.IGNORECASE)
+        m = re.match(r'^(.+?)\s*[-–]\s*(.+)$', title_text)
+        if m:
+            name = m.group(1).strip()
+            job_title = m.group(2).strip()
+        else:
+            name = title_text.strip()
+
+        # 嘗試從摘要取公司
+        caption = result.find('div', class_='b_caption') or result.find('p')
+        company = ''
+        if caption:
+            cap_text = caption.get_text(separator=' ', strip=True)
+            mc = re.search(r'(?:at|@)\s+([\w\s,\.]+?)(?:\s*·|\s*\||$)', cap_text)
+            if mc:
+                company = mc.group(1).strip()
+
+        add_candidate(url, name, job_title, company)
+
+    # 備用：直接掃所有 <a> 標籤（有時 Bing 結構不同）
+    for tag in soup.find_all('a', href=True):
+        href = tag.get('href', '')
+        if 'linkedin.com/in/' in href and href.startswith('http'):
+            url = clean_linkedin_url(href)
+            if url:
+                add_candidate(url)
+
+    return found
+
+
+def search_linkedin_with_fallback(skills, location_zh="台灣", location_en="Taiwan", pages=2):
+    """LinkedIn 搜尋：優先 Google，被封鎖時自動切換 Bing"""
+    log("LinkedIn: 嘗試 Google...")
+    google_result = search_linkedin_via_google(skills, location=location_zh, pages=pages)
+    google_data = google_result.get('data', [])
+
+    # 如果 Google 回傳 CAPTCHA 或結果 < 3 筆，切換到 Bing
+    if google_result.get('captcha') or len(google_data) < 3:
+        reason = "CAPTCHA 封鎖" if google_result.get('captcha') else f"結果不足（{len(google_data)} 筆）"
+        log(f"LinkedIn: Google {reason}，切換 Bing 備援...")
+        bing_result = search_linkedin_via_bing(skills, location=location_en, pages=pages)
+        bing_data = bing_result.get('data', [])
+
+        # 合併去重
+        seen = {item['linkedin_url'] for item in google_data}
+        for item in bing_data:
+            if item['linkedin_url'] not in seen:
+                seen.add(item['linkedin_url'])
+                google_data.append(item)
+
+        log(f"LinkedIn 最終（Google+Bing 合併）：{len(google_data)} 筆")
+        return {'success': True, 'data': google_data, 'source': 'google+bing'}
+
+    log(f"LinkedIn: Google 搜尋成功，{len(google_data)} 筆")
+    return {'success': True, 'data': google_data, 'source': 'google'}
 
 
 def clean_linkedin_url(href):
@@ -397,13 +553,17 @@ def main():
     output['github']['count'] = len(github_candidates)
     log(f"GitHub: {len(github_candidates)} 位")
 
-    # 2. LinkedIn via Google
-    log(f"[2/2] LinkedIn (Google) 搜尋 ({pages} 頁)...")
-    linkedin_result = search_linkedin_via_google(skills, location='台灣', pages=pages)
+    # 2. LinkedIn via Google（自動備援 Bing）
+    log(f"[2/2] LinkedIn 搜尋 ({pages} 頁)，Google 優先，Bing 備援...")
+    linkedin_result = search_linkedin_with_fallback(
+        skills, location_zh='台灣', location_en=args.location, pages=pages
+    )
     linkedin_candidates = linkedin_result.get('data', [])
+    linkedin_source = linkedin_result.get('source', 'google')
     output['linkedin']['success'] = linkedin_result.get('success', False)
     output['linkedin']['count'] = len(linkedin_candidates)
-    log(f"LinkedIn: {len(linkedin_candidates)} 位")
+    output['linkedin']['source'] = linkedin_source
+    log(f"LinkedIn: {len(linkedin_candidates)} 位（來源: {linkedin_source}）")
 
     # 3. 合併
     all_candidates = github_candidates + linkedin_candidates
