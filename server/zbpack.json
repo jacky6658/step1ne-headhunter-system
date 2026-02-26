@@ -1,0 +1,4 @@
+{
+  "install_command": "npm install && pip3 install playwright && python3 -m playwright install chromium",
+  "start_command": "node server.js"
+}

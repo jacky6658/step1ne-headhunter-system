@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Step1ne 人才搜尋執行器 v4
-純 Python 標準函式庫（零外部依賴）
-GitHub API + LinkedIn Google/Bing/Brave 三層備援
+Step1ne 人才搜尋執行器 v5
+LinkedIn 搜尋：Playwright 真實瀏覽器（主）→ Google/Bing/Brave urllib（備援）
+GitHub 搜尋：GitHub API（不變）
 """
 import json
 import sys
@@ -17,6 +17,13 @@ from urllib.parse import quote, unquote, urlencode
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Playwright 選用匯入（Zeabur 部署後可用；本機未安裝時自動降級）
+try:
+    from playwright.sync_api import sync_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
 
 def log(msg):
     print(f"[scraper] {msg}", file=sys.stderr, flush=True)
@@ -447,6 +454,89 @@ def extract_linkedin_urls_from_html(html_text):
 
 
 # ============================================================
+# LinkedIn via Playwright（真實 Chrome 瀏覽器，主要方法）
+# ============================================================
+def search_linkedin_via_playwright(skills, location="台灣", pages=2):
+    """
+    用 Playwright 啟動真實 Chromium，在 Google 搜尋 site:linkedin.com/in/ 關鍵字。
+    比 urllib 更不容易被 CAPTCHA 擋。
+    需要：pip install playwright && playwright install chromium
+    """
+    if not PLAYWRIGHT_AVAILABLE:
+        log("Playwright 未安裝，跳過（將使用 urllib 備援）")
+        return {'success': False, 'data': [], 'reason': 'playwright_not_installed'}
+
+    query = build_linkedin_query(skills, location)
+    log(f"Playwright Google query: {query}")
+
+    results = []
+    seen_urls = set()
+
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--disable-blink-features=AutomationControlled',
+                ],
+            )
+            ctx = browser.new_context(
+                user_agent=random.choice(USER_AGENTS),
+                locale='zh-TW',
+                viewport={'width': 1280, 'height': 800},
+                extra_http_headers={
+                    'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+                },
+            )
+            # 隱藏 webdriver 特徵
+            ctx.add_init_script(
+                "Object.defineProperty(navigator,'webdriver',{get:()=>undefined})"
+            )
+            page = ctx.new_page()
+
+            try:
+                for pg in range(pages):
+                    start = pg * 10
+                    url = (
+                        f"https://www.google.com/search"
+                        f"?q={quote(query)}&start={start}&num=10&hl=zh-TW"
+                    )
+                    page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                    time.sleep(random.uniform(2.5, 5.0))
+
+                    html = page.content()
+
+                    if is_captcha_page(html):
+                        log("Playwright: Google CAPTCHA 偵測到，停止搜尋")
+                        break
+
+                    for item in extract_linkedin_urls_from_html(html):
+                        li_url = item['linkedin_url']
+                        if li_url not in seen_urls:
+                            seen_urls.add(li_url)
+                            results.append(item)
+
+                    log(f"Playwright page {pg+1}: 累計 {len(results)} 筆 LinkedIn")
+
+                    if pg < pages - 1:
+                        time.sleep(random.uniform(3.0, 6.0))
+
+            finally:
+                browser.close()
+
+    except Exception as e:
+        log(f"Playwright 執行失敗：{e}（將使用 urllib 備援）")
+        return {'success': False, 'data': results, 'reason': str(e)}
+
+    log(f"Playwright LinkedIn: {len(results)} 筆")
+    return {'success': True, 'data': results}
+
+
+# ============================================================
 # LinkedIn via Google / Bing / Brave
 # ============================================================
 def search_linkedin_via_google(skills, location="台灣", pages=2):
@@ -560,22 +650,54 @@ def search_linkedin_via_brave(skills, brave_api_key, location="Taiwan", pages=2)
 
 
 def search_linkedin_with_fallback(skills, location_zh="台灣", location_en="Taiwan", pages=2, brave_key=None):
-    """三層備援：Google → Bing → Brave API"""
-    log("LinkedIn: 嘗試 Google...")
-    google_result = search_linkedin_via_google(skills, location=location_zh, pages=pages)
-    all_data = list(google_result.get('data', []))
-    seen = {item['linkedin_url'] for item in all_data}
-    source_used = ['google']
+    """
+    四層備援：
+      1. Playwright 真實 Chrome（主要，最不易被擋）
+      2. Google urllib（Playwright 失敗時）
+      3. Bing urllib（Google 被 CAPTCHA 擋時）
+      4. Brave Search API（有 API Key 時額外補充）
+    """
+    all_data: list = []
+    seen: set = set()
+    source_used: list = []
 
-    if google_result.get('captcha') or len(all_data) < 3:
-        reason = "CAPTCHA" if google_result.get('captcha') else f"結果不足（{len(all_data)} 筆）"
-        log(f"LinkedIn: Google {reason}，切換 Bing...")
-        for item in search_linkedin_via_bing(skills, location=location_en, pages=pages).get('data', []):
+    # ── 1. Playwright（真實瀏覽器，優先） ──────────────────────
+    if PLAYWRIGHT_AVAILABLE:
+        log("LinkedIn: 嘗試 Playwright（真實 Chrome）...")
+        pw_result = search_linkedin_via_playwright(skills, location=location_zh, pages=pages)
+        for item in pw_result.get('data', []):
             if item['linkedin_url'] not in seen:
                 seen.add(item['linkedin_url'])
                 all_data.append(item)
-        source_used.append('bing')
+        if pw_result.get('success'):
+            source_used.append('playwright')
+            log(f"LinkedIn Playwright: {len(all_data)} 筆")
+        else:
+            log(f"Playwright 失敗（{pw_result.get('reason','')}），切換 urllib 備援...")
+    else:
+        log("LinkedIn: Playwright 未安裝，直接使用 Google urllib...")
 
+    # ── 2. Google urllib（Playwright 沒有或結果不足） ──────────
+    if not PLAYWRIGHT_AVAILABLE or len(all_data) < 3:
+        log("LinkedIn: 嘗試 Google urllib...")
+        google_result = search_linkedin_via_google(skills, location=location_zh, pages=pages)
+        for item in google_result.get('data', []):
+            if item['linkedin_url'] not in seen:
+                seen.add(item['linkedin_url'])
+                all_data.append(item)
+        source_used.append('google')
+
+        # ── 3. Bing urllib（Google 被 CAPTCHA 或結果不足） ──────
+        if google_result.get('captcha') or len(all_data) < 3:
+            reason = "CAPTCHA" if google_result.get('captcha') else f"結果不足（{len(all_data)} 筆）"
+            log(f"LinkedIn: Google {reason}，切換 Bing...")
+            for item in search_linkedin_via_bing(skills, location=location_en, pages=pages).get('data', []):
+                if item['linkedin_url'] not in seen:
+                    seen.add(item['linkedin_url'])
+                    all_data.append(item)
+            source_used.append('bing')
+
+    # ── 4. Brave API（有 Key 時額外補充） ─────────────────────
     if brave_key:
         brave_pages = pages if len(all_data) < 5 else 1
         log(f"LinkedIn: Brave API 補充（{brave_pages} 頁）...")
