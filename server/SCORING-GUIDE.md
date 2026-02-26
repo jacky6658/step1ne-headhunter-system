@@ -136,46 +136,63 @@ GET https://backendstep1ne.zeabur.app/api/jobs
 
 ### 評完一個立刻寫回系統
 
+> ⚠️ **`ai_match_result` 必須是 JSON 物件，絕對不是字串。** 下面是唯一正確的格式。
+
+**`ai_match_result` 欄位說明（欄位名稱不可更改）：**
+
+| 欄位名稱 | 型別 | 說明 |
+|---|---|---|
+| `score` | 數字 | 綜合分數 0-100 |
+| `recommendation` | 字串 | 只能是以下四個值之一（見下方對照表）|
+| `job_title` | 字串 | 職缺名稱，從 `position_name` 取得 |
+| `matched_skills` | 字串陣列 | 候選人具備、符合 JD 要求的技能 |
+| `missing_skills` | 字串陣列 | 缺少或待確認的技能/條件 |
+| `strengths` | 字串陣列 | 優勢亮點，每條一個字串 |
+| `probing_questions` | 字串陣列 | 顧問聯繫時建議詢問的問題 |
+| `conclusion` | 字串 | 顧問建議一句話，說明切入點 |
+| `evaluated_at` | 字串 | ISO 8601 時間戳，例如 `"2026-02-26T23:00:00.000Z"` |
+| `evaluated_by` | 字串 | 操作者身份，例如 `"Jacky-scoring-bot"` |
+
+**`recommendation` 四個固定值：**
 ```
-PATCH https://backendstep1ne.zeabur.app/api/candidates/{id}
+score 85-100 → "強力推薦" → status 填 "AI推薦"
+score 70-84  → "推薦"     → status 填 "AI推薦"
+score 55-69  → "觀望"     → status 填 "備選人才"
+score < 55   → "不推薦"   → status 填 "備選人才"
+```
+
+**完整 PATCH 範例：**
+
+```json
+PATCH https://backendstep1ne.zeabur.app/api/candidates/548
 Content-Type: application/json
 
 {
   "stability_score": 85,
   "talent_level": "A+",
   "status": "AI推薦",
-  "actor": "{顧問名稱}-scoring-bot",
+  "actor": "Jacky-scoring-bot",
   "ai_match_result": {
     "score": 85,
     "recommendation": "強力推薦",
     "job_title": "Java Developer (後端工程師)",
     "matched_skills": ["Java", "Spring Boot", "Docker", "Redis"],
-    "missing_skills": ["年資待確認"],
+    "missing_skills": ["年資待確認", "是否在職待確認"],
     "strengths": [
       "人才畫像核心要求全覆蓋：Java + Spring Boot + Microservices",
       "JD 職責直接對口：微服務架構、Redis 快取、Docker 容器化",
-      "公司為 Fintech 中型團隊，技術深度偏重，符合後端工程師背景",
       "LinkedIn 個人頁存在，可直接主動接觸"
     ],
     "probing_questions": [
       "工作年資與目前職位為何？",
       "目前是否在職、是否 Open to Work？",
-      "期望薪資範圍與最快到職時間？",
-      "是否有 Fintech / 金融系統開發經驗？"
+      "期望薪資範圍與最快到職時間？"
     ],
-    "conclusion": "技能與 JD 高度吻合，建議優先透過 LinkedIn InMail 接觸，切入點可提「穩定成長的 Fintech 後端機會，技術棧完全對口」。",
+    "conclusion": "建議優先透過 LinkedIn InMail 接觸，切入點可提「Fintech 後端機會，技術棧完全對口」。",
     "evaluated_at": "2026-02-26T23:00:00.000Z",
-    "evaluated_by": "{顧問名稱}-scoring-bot"
+    "evaluated_by": "Jacky-scoring-bot"
   }
 }
-```
-
-**`recommendation` 對照：**
-```
-score 85-100 → "強力推薦" → status: "AI推薦"
-score 70-84  → "推薦"     → status: "AI推薦"
-score 55-69  → "觀望"     → status: "備選人才"
-score < 55   → "不推薦"   → status: "備選人才"
 ```
 
 **不要等全部評完才批次寫入——評完一個立刻 PATCH 一個。**

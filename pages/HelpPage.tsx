@@ -15,16 +15,11 @@ https://backendstep1ne.zeabur.app/api/resume-guide
 
 讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`;
 
-const SCORING_BOT_PROMPT = `請先閱讀以下兩份系統文件：
-
-1. 系統操作指南：
-https://backendstep1ne.zeabur.app/api/guide
-
-2. 評分執行指南：
+const SCORING_BOT_PROMPT = `請讀取以下文件後立即執行評分任務：
 https://backendstep1ne.zeabur.app/api/scoring-guide
 
-讀完後，立即按照評分執行指南完成今日評分流程（不需等待進一步指示）。
-操作者身份請使用：{你的名字}-scoring-bot`;
+我是顧問 {你的名字}，你的身份為 {你的名字}-scoring-bot。
+不需要等待進一步指示，直接開始執行。`;
 
 const HelpPage: React.FC<HelpPageProps> = () => {
   const [copied, setCopied] = useState(false);
