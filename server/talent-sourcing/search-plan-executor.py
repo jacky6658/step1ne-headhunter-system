@@ -355,29 +355,46 @@ def build_linkedin_query(skills: list, location: str) -> str:
     query = f'site:linkedin.com/in/ ' + ' '.join(parts) + f' "{location}"'
     return query
 
+# GitHub 真實語言列表（GitHub API 僅接受合法語言名稱）
+_GITHUB_LANGUAGES = {
+    'python', 'java', 'javascript', 'typescript', 'go', 'golang', 'rust', 'c', 'c++',
+    'c#', 'ruby', 'php', 'swift', 'kotlin', 'scala', 'r', 'dart', 'elixir', 'haskell',
+    'perl', 'lua', 'shell', 'bash', 'powershell', 'html', 'css', 'vue', 'react',
+    'solidity', 'assembly', 'matlab', 'julia', 'groovy', 'clojure', 'erlang',
+}
+
+def _is_github_language(skill: str) -> bool:
+    return skill.lower().strip() in _GITHUB_LANGUAGES
+
 def build_github_queries(skills: list, location: str) -> list:
     """
-    GitHub：主語言 AND，次語言 OR（多查詢策略）
-    GitHub Search 不支援 OR，改為：
-      - 查詢 1：主語言1 + 主語言2（AND）
-      - 查詢 2：主語言1 + 次語言輪替（覆蓋更多人）
+    GitHub：只用合法的 language: 過濾，其餘技能用關鍵字搜尋。
+    GitHub Search API 不接受 language:Spring Boot 之類的框架名稱。
     """
-    primary   = [s for s in skills[:2] if s]
-    secondary = [s for s in skills[2:5] if s]
-
     location_variants = [location, 'Taipei'] if location.lower() == 'taiwan' else [location]
     queries = []
 
-    # 主查詢：前 2 個主語言 AND
-    if primary:
-        lang_part = ' '.join(f'language:{s}' for s in primary)
-        for loc in location_variants:
-            queries.append(f'{lang_part} location:{loc}')
+    # 只取合法語言名稱作為 language: 過濾
+    lang_skills = [s for s in skills if _is_github_language(s)]
+    # 非語言的關鍵字（框架、工具等）直接用全文搜尋
+    kw_skills = [s for s in skills[:3] if not _is_github_language(s)]
 
-    # 次查詢：主語言1 + 每個次語言
-    if primary and secondary:
-        for sec in secondary:
-            q = f'language:{primary[0]} language:{sec} location:{location}'
+    for loc in location_variants:
+        if lang_skills:
+            # 主語言查詢
+            q = f'language:{lang_skills[0]} location:{loc}'
+            if q not in queries:
+                queries.append(q)
+            # 加關鍵字的補充查詢
+            if kw_skills:
+                kw = ' '.join(f'"{k}"' for k in kw_skills[:2])
+                q2 = f'{kw} language:{lang_skills[0]} location:{loc}'
+                if q2 not in queries:
+                    queries.append(q2)
+        elif kw_skills:
+            # 沒有語言過濾時，直接關鍵字搜尋
+            kw = ' '.join(f'"{k}"' for k in kw_skills[:2])
+            q = f'{kw} location:{loc}'
             if q not in queries:
                 queries.append(q)
 
