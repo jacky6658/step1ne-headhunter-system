@@ -258,8 +258,13 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
     setShowRunLog(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/bot/run-log`);
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || !contentType.includes('application/json')) {
+        setRunLog(`⚠️ 端點回傳 ${res.status}（非 JSON）。\n\n可能原因：\n1. 本地開發環境 → 請在 server/ 目錄下重啟 node server.js\n2. 或前往 Zeabur 生產環境測試`);
+        return;
+      }
       const json = await res.json();
-      setRunLog(json.log || '（無日誌內容）');
+      setRunLog(json.log || '（尚無執行記錄，請先按「立即執行」啟動 Bot）');
     } catch (e: any) {
       setRunLog('讀取失敗：' + e.message);
     } finally {
