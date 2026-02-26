@@ -92,13 +92,17 @@ def _load_module(filename: str, module_name: str):
 _scoring  = _load_module('candidate-scoring-system-v2.py',    'scoring')
 _claude   = _load_module('claude-conclusion-generator.py',     'claude_gen')
 _analyzer = _load_module('job-profile-analyzer.py',            'job_analyzer')
+_preader  = _load_module('profile-reader.py',                  'profile_reader')
 
-CandidateScoringEngine = _scoring.CandidateScoringEngine
-ScoringCandidate       = _scoring.Candidate
-JobRequirement         = _scoring.JobRequirement
-IndustryType           = _scoring.IndustryType
-generate_conclusion    = _claude.generate_conclusion
-analyze_job_for_search = _analyzer.analyze_job_for_search
+CandidateScoringEngine  = _scoring.CandidateScoringEngine
+ScoringCandidate        = _scoring.Candidate
+JobRequirement          = _scoring.JobRequirement
+IndustryType            = _scoring.IndustryType
+generate_conclusion     = _claude.generate_conclusion
+analyze_job_for_search  = _analyzer.analyze_job_for_search
+ProfileReader           = _preader.ProfileReader
+enrich_candidate        = _preader.enrich_candidate_for_scoring
+_between_candidates_delay = _preader._between_candidates_delay
 
 
 # ─── 日誌 ─────────────────────────────────────────────────────────────────────
@@ -493,21 +497,21 @@ def fetch_today_new_candidates() -> List[Dict]:
     return today_new
 
 
-def score_and_route_candidate(c: Dict, args) -> str:
+def score_and_route_candidate(c: Dict, args, profile_reader=None) -> str:
     """
     對單一候選人評分並路由狀態。
+    profile_reader: ProfileReader 實例（有則讀取真實頁面，無則退回舊邏輯）
     回傳最終狀態字串：'AI推薦' 或 '備選人才'
     """
     cid  = c.get('id')
     name = c.get('name', f'#{cid}')
     log(f"  評分：{name}（#{cid}）")
 
-    # 從 notes 嘗試解析目標職缺資訊（Bot 匯入時記錄在 notes）
-    notes  = c.get('notes', '')
+    # 從 notes 解析目標職缺
+    notes      = c.get('notes', '')
     skills_raw = c.get('skills', '')
-    skills = [s.strip() for s in skills_raw.split(',') if s.strip()] if isinstance(skills_raw, str) else (skills_raw or [])
+    skills     = [s.strip() for s in skills_raw.split(',') if s.strip()] if isinstance(skills_raw, str) else (skills_raw or [])
 
-    # 建立虛擬 job（從 notes 解析職缺名稱）
     import re as _re
     job_title_match = _re.search(r'目標職缺：([^|]+)', notes)
     job_title = job_title_match.group(1).strip() if job_title_match else '目標職缺'
@@ -519,14 +523,41 @@ def score_and_route_candidate(c: Dict, args) -> str:
         'location':        c.get('location', '台灣'),
     }
 
-    # 組裝 ScoringCandidate
+    github_url  = c.get('githubUrl')  or c.get('github_url',  '')
+    linkedin_url= c.get('linkedinUrl')or c.get('linkedin_url','')
+
+    # ── 【新】真實頁面讀取（有 ProfileReader 時）────────────────────────────
     raw_for_score = {
-        'name':        name,
-        'title':       c.get('position', ''),
-        'company':     '',
-        'linkedin_url': c.get('linkedinUrl') or c.get('linkedin_url', ''),
-        'github_url':  c.get('githubUrl')   or c.get('github_url', ''),
+        'name':         name,
+        'title':        c.get('position', ''),
+        'company':      '',
+        'skills':       skills_raw,
+        'notes':        notes,
+        'linkedin_url': linkedin_url,
+        'github_url':   github_url,
     }
+
+    if profile_reader is not None:
+        github_data  = {}
+        linkedin_data= {}
+
+        if github_url:
+            log(f"    → 讀取 GitHub 個人頁...")
+            github_data = profile_reader.read_github_profile(github_url)
+
+        if linkedin_url:
+            log(f"    → 讀取 LinkedIn 個人頁...")
+            linkedin_data = profile_reader.read_linkedin_profile(linkedin_url)
+
+        # 用真實頁面資料覆寫 raw_for_score
+        raw_for_score = enrich_candidate(raw_for_score, github_data, linkedin_data)
+
+        # 更新 job.required_skills（可能從真實頁面補充了更多技能）
+        enriched_skills = [s.strip() for s in (raw_for_score.get('skills','') or '').split(',') if s.strip()]
+        if enriched_skills:
+            job['required_skills'] = enriched_skills[:8]
+
+        log(f"    ✓ 讀取完成｜技能：{enriched_skills[:5]}｜notes：{raw_for_score.get('notes','')[:60]}")
 
     try:
         scoring   = score_candidate(raw_for_score, job)
@@ -535,7 +566,7 @@ def score_and_route_candidate(c: Dict, args) -> str:
         log(f"    分數：{score_val}/100（{level}）")
     except Exception as e:
         log(f"    評分例外：{e}", 'WARN')
-        return '備選人才'   # 評分失敗 → 備選
+        return '備選人才'
 
     # 決定狀態
     new_status = 'AI推薦' if score_val >= SCORE_THRESHOLD else '備選人才'
@@ -577,7 +608,10 @@ def score_and_route_candidate(c: Dict, args) -> str:
 
 
 def run_score_phase(args):
-    """評分階段：讀取今日新增，評分後路由狀態"""
+    """
+    評分階段：讀取今日新增，開啟真實瀏覽器讀候選人頁面後評分路由。
+    ProfileReader 以 with context 管理，全批次共用一個瀏覽器實例。
+    """
     log(f"{'='*50}", 'HEAD')
     log("評分階段：處理今日「未開始」候選人", 'HEAD')
     log(f"{'='*50}", 'HEAD')
@@ -588,28 +622,48 @@ def run_score_phase(args):
         log("今日無新增候選人，評分結束", 'WARN')
         return
 
-    ai_count    = 0
+    use_reader = not args.dry_run and not getattr(args, 'no_profile_read', False)
+    if use_reader:
+        from profile_reader import PLAYWRIGHT_AVAILABLE as _PA
+        if _PA:
+            log("ProfileReader：Playwright 已安裝，將讀取真實頁面進行評分", 'OK')
+        else:
+            log("ProfileReader：Playwright 未安裝，退回輕量評分", 'WARN')
+            use_reader = False
+
+    ai_count     = 0
     backup_count = 0
     error_count  = 0
 
-    for i, c in enumerate(candidates, 1):
-        log(f"[{i}/{len(candidates)}]")
-        try:
-            status = score_and_route_candidate(c, args)
-            if status == 'AI推薦':
-                ai_count += 1
-            else:
-                backup_count += 1
-        except Exception as e:
-            log(f"  例外：{e}", 'ERR')
-            error_count += 1
+    with (ProfileReader() if use_reader else _NullContext()) as reader:
+        pr = reader if use_reader else None
+        for i, c in enumerate(candidates, 1):
+            log(f"[{i}/{len(candidates)}]")
+            try:
+                status = score_and_route_candidate(c, args, profile_reader=pr)
+                if status == 'AI推薦':
+                    ai_count += 1
+                else:
+                    backup_count += 1
+            except Exception as e:
+                log(f"  例外：{e}", 'ERR')
+                error_count += 1
 
-        # 每位之間稍微停頓（避免 Claude CLI 過熱）
-        if i < len(candidates):
-            time.sleep(random.uniform(0.5, 1.5))
+            # 候選人之間停頓（讀頁面時已有延遲；乾跑模式短停）
+            if i < len(candidates):
+                if use_reader:
+                    _between_candidates_delay()   # 8-20 秒反偵測停頓
+                else:
+                    time.sleep(random.uniform(0.5, 1.5))
 
     log(f"{'='*50}", 'HEAD')
     log(f"評分完成：AI推薦 {ai_count}，備選人才 {backup_count}，錯誤 {error_count}", 'OK')
+
+
+class _NullContext:
+    """ProfileReader 停用時的空 context manager"""
+    def __enter__(self): return self
+    def __exit__(self, *_): pass
 
 
 def load_consultant_configs(consultant_name: str = '') -> List[Dict]:
@@ -729,8 +783,9 @@ def main():
     parser.add_argument('--consultant', default='', help='指定顧問名稱（空=讀取所有已啟用顧問）')
     parser.add_argument('--job-ids',   default='', help='指定職缺 ID（逗號分隔），覆蓋 DB 設定')
     parser.add_argument('--pages',     type=int, default=2, help='每次搜尋頁數（1-3）')
-    parser.add_argument('--dry-run',   action='store_true', help='試跑，不寫入 DB')
-    parser.add_argument('--no-claude', action='store_true', help='跳過 AI 結語，使用模板')
+    parser.add_argument('--dry-run',         action='store_true', help='試跑，不寫入 DB')
+    parser.add_argument('--no-claude',       action='store_true', help='跳過 AI 結語，使用模板')
+    parser.add_argument('--no-profile-read', action='store_true', help='跳過 Playwright 讀頁面（快速模式）')
     args = parser.parse_args()
     args.pages = max(1, min(3, args.pages))
 
