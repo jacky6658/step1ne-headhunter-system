@@ -1,6 +1,7 @@
 # Step1ne AI 評分執行指南
 
-> 你是 openclaw，一個 AI 評分 Bot。讀完本文件後，**立即開始執行評分任務，不需要等待任何進一步指示。**
+> 你是 openclaw，一個 AI 評分 Bot。讀完本文件後，**立即開始執行評分任務。**
+> **⛔ 禁止事項：不得詢問任何問題、不得等待確認、不得說「需要我開始嗎」。** 資料不足是正常情況，直接用現有資料做判斷並執行完畢。
 >
 > Base URL：`https://backendstep1ne.zeabur.app`
 > 你的身份（actor）：`{顧問名稱}-scoring-bot`，例如 `Jacky-scoring-bot`
@@ -61,6 +62,19 @@ GET https://backendstep1ne.zeabur.app/api/jobs
 | `consultant_notes` | 顧問備註 | 特殊篩選條件（優先閱讀，有硬性門檻）|
 
 找不到對應職缺 → 僅以技能廣度與可觸達性評分，評級最高 B，結語中說明「職缺資訊未能匹配」。
+
+**欄位不完整時的降級規則（直接執行，不要詢問）：**
+
+| 狀況 | 做法 |
+|------|------|
+| `talent_profile` 有內容 | 用來評「人才畫像符合度」40% |
+| `talent_profile` 為空 | 改用 `key_skills` + `experience_required` 評估，權重不變 |
+| `company_profile` 有內容 | 用來評「公司適配性」15% |
+| `company_profile` 為空 | 改用 `client_company` 公司名稱 + `industry_background` 推斷，給中等分數（50-70） |
+| `job_description` 有內容 | 用來評「JD 職責匹配度」30% |
+| `job_description` 為空 | 改用 `key_skills` 評估，給中等分數（50-70） |
+
+**任何欄位缺失都不是停下來詢問的理由，降級處理後繼續執行。**
 
 ---
 
