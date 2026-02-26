@@ -116,6 +116,7 @@ export interface UserProfile {
   lineId?: string;        // LINE ID
   telegramHandle?: string; // Telegram 帳號
   githubToken?: string;   // GitHub Personal Access Token（供 talent sourcing 使用）
+  linkedinToken?: string; // LinkedIn li_at cookie（供 Voyager API 使用）
 }
 
 export interface Lead {

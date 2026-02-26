@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-Step1ne 人才搜尋執行器 v2
-GitHub API 真實搜尋 + Google/Bing 搜尋 LinkedIn 個人頁
-含反爬蟲機制：隨機 UA、隨機延遲、Bing 備援（Google 被封鎖時自動切換）
+Step1ne 人才搜尋執行器 v3
+GitHub API（並行抓取 + 多地區查詢）+ LinkedIn Voyager API（li_at）+ Google/Bing 備援
 """
 import json
 import sys
@@ -11,6 +10,7 @@ import random
 import argparse
 import re
 from urllib.parse import quote, unquote
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
     import requests
@@ -105,8 +105,33 @@ def check_github_rate_limit(token=None):
     except Exception:
         return 0, 60, 0
 
+def _github_search_page(query, page, headers):
+    """單頁 GitHub 搜尋，回傳 login 列表"""
+    try:
+        anti_scraping_delay(0.3, 0.8)
+        resp = requests.get(
+            f"{GITHUB_API}/search/users",
+            params={'q': query, 'per_page': 10, 'page': page, 'sort': 'followers'},
+            headers=headers,
+            timeout=15
+        )
+        if resp.status_code == 403:
+            return None, True   # (logins, rate_limited)
+        if resp.status_code != 200:
+            log(f"GitHub search HTTP {resp.status_code} on page {page}")
+            return [], False
+        return resp.json().get('items', []), False
+    except Exception as e:
+        log(f"GitHub search page {page} error: {e}")
+        return [], False
+
+
 def search_github_users(skills, location="Taiwan", token=None, pages=2):
-    """GitHub API 搜尋開發者，支援 2-3 頁"""
+    """
+    GitHub API 搜尋開發者
+    方案二：ThreadPoolExecutor 並行抓取 user detail（加速 3-5x）
+    方案三：多地區查詢（Taiwan + Taipei）增加覆蓋率
+    """
     remaining, limit, _ = check_github_rate_limit(token)
     log(f"GitHub rate limit: {remaining}/{limit} remaining")
 
@@ -119,52 +144,51 @@ def search_github_users(skills, location="Taiwan", token=None, pages=2):
         }
 
     headers = get_github_headers(token)
-    all_users = []
     seen_logins = set()
+    all_logins = []
 
-    # 主查詢：用語言 + 地區
+    # ── 方案三：多查詢策略 ──
     primary_langs = [s for s in skills[:2] if s]
     lang_query = ' '.join(f'language:{s}' for s in primary_langs) if primary_langs else ''
-    search_query = f'{lang_query} location:{location}'.strip()
 
-    for page in range(1, pages + 1):
-        try:
-            anti_scraping_delay(0.5, 1.5)
-            resp = requests.get(
-                f"{GITHUB_API}/search/users",
-                params={'q': search_query, 'per_page': 10, 'page': page, 'sort': 'followers'},
-                headers=headers,
-                timeout=15
-            )
+    # 查詢組合：主地區 + 次地區（Taipei 往往能補到不同人）
+    location_variants = [location]
+    if location.lower() == 'taiwan':
+        location_variants.append('Taipei')
 
-            if resp.status_code == 403:
+    queries = [f'{lang_query} location:{loc}'.strip() for loc in location_variants]
+
+    for query in queries:
+        for page in range(1, pages + 1):
+            items, rate_limited = _github_search_page(query, page, headers)
+            if rate_limited:
                 return {
                     'success': False,
                     'rate_limit_warning': not bool(token),
                     'rate_limit_guide': GITHUB_TOKEN_GUIDE if not token else '',
-                    'data': all_users
+                    'data': []
                 }
-            if resp.status_code != 200:
-                log(f"GitHub search HTTP {resp.status_code} on page {page}")
-                continue
-
-            items = resp.json().get('items', [])
             if not items:
                 break
-
             for user in items:
                 login = user.get('login', '')
-                if login in seen_logins:
-                    continue
-                seen_logins.add(login)
-                anti_scraping_delay(0.3, 0.8)
-                detail = fetch_github_user_detail(login, headers)
-                if detail:
-                    all_users.append(detail)
+                if login and login not in seen_logins:
+                    seen_logins.add(login)
+                    all_logins.append(login)
 
-        except Exception as e:
-            log(f"GitHub page {page} error: {e}")
-            continue
+    log(f"GitHub: 收集到 {len(all_logins)} 個帳號，開始並行抓取詳細資料...")
+
+    # ── 方案二：並行抓取 user detail ──
+    all_users = []
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        future_map = {
+            executor.submit(fetch_github_user_detail, login, headers): login
+            for login in all_logins
+        }
+        for future in as_completed(future_map):
+            detail = future.result()
+            if detail:
+                all_users.append(detail)
 
     return {'success': True, 'data': all_users}
 
@@ -216,7 +240,156 @@ def fetch_github_user_detail(username, headers):
 
 
 # ============================================================
-# LinkedIn via Google 搜尋
+# 方案一：LinkedIn Voyager API（li_at cookie 直連，最豐富）
+# ============================================================
+
+# 台灣 geoUrn（LinkedIn 內部地區代碼）
+LINKEDIN_GEO_TAIWAN = "104187078"
+
+def search_linkedin_voyager(skills, li_at, location_urn=LINKEDIN_GEO_TAIWAN, pages=2):
+    """
+    直接打 LinkedIn 內部 Voyager API，不走 Google/Bing。
+    需要從瀏覽器 Cookie 取得 li_at 值（約 200 字元的 token）。
+    回傳包含姓名、職稱、公司、地區的完整 LinkedIn 候選人資料。
+    """
+    session = requests.Session()
+
+    # 設定 li_at cookie
+    session.cookies.set('li_at', li_at, domain='.linkedin.com')
+    session.headers.update({
+        'User-Agent': (
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        ),
+        'Accept': 'application/vnd.linkedin.normalized+json+2.1',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        'x-restli-protocol-version': '2.0.0',
+        'x-li-track': (
+            '{"clientVersion":"1.13.1665","mpVersion":"1.13.1665",'
+            '"osName":"web","timezoneOffset":8,"timezone":"Asia/Taipei",'
+            '"deviceFormFactor":"DESKTOP"}'
+        ),
+        'Referer': 'https://www.linkedin.com/search/results/people/',
+    })
+
+    # ── 取得 JSESSIONID（同時作為 csrf-token）──
+    try:
+        session.get('https://www.linkedin.com', timeout=10, allow_redirects=True)
+        jsessionid = session.cookies.get('JSESSIONID', '').strip('"')
+        if not jsessionid:
+            log("LinkedIn Voyager: 無法取得 JSESSIONID，li_at 可能已過期")
+            return {'success': False, 'data': [], 'error': 'li_at 已過期，請重新取得'}
+        session.headers['csrf-token'] = jsessionid
+    except Exception as e:
+        log(f"LinkedIn Voyager: session 初始化失敗: {e}")
+        return {'success': False, 'data': [], 'error': str(e)}
+
+    results = []
+    seen_urls = set()
+    keywords = ' '.join(skills[:3])
+
+    for page in range(pages):
+        start = page * 10
+        anti_scraping_delay(1.5, 3.0)
+
+        try:
+            # 搜尋查詢格式（LinkedIn Dash Clusters API）
+            query = (
+                f'(flagshipSearchIntent:SEARCH_SRP,'
+                f'queryParameters:('
+                f'geoUrn:List({location_urn}),'
+                f'resultType:List(PEOPLE),'
+                f'keywords:List({quote(keywords)})'
+                f'))'
+            )
+
+            resp = session.get(
+                'https://www.linkedin.com/voyager/api/search/dash/clusters',
+                params={
+                    'decorationId': 'com.linkedin.voyager.dash.deco.search.SearchClusterCollection-165',
+                    'origin': 'FACETED_SEARCH',
+                    'q': 'all',
+                    'query': query,
+                    'count': 10,
+                    'start': start,
+                },
+                timeout=15,
+            )
+
+            if resp.status_code == 401:
+                log("LinkedIn Voyager: 401 未授權，li_at 已過期")
+                return {'success': False, 'data': results, 'error': 'li_at 已過期，請重新取得'}
+
+            if resp.status_code == 429:
+                log("LinkedIn Voyager: 429 速率限制，暫停 30 秒")
+                time.sleep(30)
+                continue
+
+            if resp.status_code != 200:
+                log(f"LinkedIn Voyager: HTTP {resp.status_code}")
+                continue
+
+            data = resp.json()
+            clusters = data.get('elements', [])
+
+            for cluster in clusters:
+                if cluster.get('type') != 'SEARCH_HITS':
+                    continue
+                for hit in cluster.get('elements', []):
+                    entity = hit.get('entityResult', {})
+                    nav_url = entity.get('navigationUrl', '')
+                    if not nav_url or 'linkedin.com/in/' not in nav_url:
+                        continue
+
+                    url = clean_linkedin_url(nav_url)
+                    if not url or url in seen_urls:
+                        continue
+                    seen_urls.add(url)
+
+                    username = url.rstrip('/').split('/')[-1]
+                    name = (entity.get('title', {}).get('text', '')
+                            or username.replace('-', ' ').title())
+                    job_title = entity.get('primarySubtitle', {}).get('text', '')
+                    location_text = entity.get('secondarySubtitle', {}).get('text', '')
+
+                    # 嘗試從 insights 取公司名
+                    company = ''
+                    for insight in entity.get('insightsResolutionResults', []):
+                        comp = (insight.get('jobPostingInsight', {})
+                                       .get('company', {})
+                                       .get('name', ''))
+                        if comp:
+                            company = comp
+                            break
+
+                    results.append({
+                        'source': 'linkedin_voyager',
+                        'name': name,
+                        'github_url': '',
+                        'github_username': '',
+                        'linkedin_url': url,
+                        'linkedin_username': username,
+                        'location': location_text,
+                        'bio': job_title,
+                        'company': company,
+                        'email': '',
+                        'public_repos': 0,
+                        'followers': 0,
+                        'skills': [],
+                        'recent_push': '',
+                        'top_repos': [],
+                    })
+
+        except Exception as e:
+            log(f"LinkedIn Voyager page {page + 1} error: {e}")
+            continue
+
+    log(f"LinkedIn Voyager: {len(results)} 筆")
+    return {'success': True, 'data': results, 'source': 'voyager'}
+
+
+# ============================================================
+# LinkedIn via Google / Bing 搜尋（備援，不需帳號）
 # ============================================================
 
 def search_linkedin_via_google(skills, location="台灣", pages=2):
@@ -517,21 +690,28 @@ def _extract_name_from_tag(tag):
 # ============================================================
 
 def main():
-    parser = argparse.ArgumentParser(description='Step1ne 人才搜尋執行器 v2')
+    parser = argparse.ArgumentParser(description='Step1ne 人才搜尋執行器 v3')
     parser.add_argument('--job-title', required=True)
     parser.add_argument('--required-skills', default='')
     parser.add_argument('--industry', default='')
     parser.add_argument('--location', default='Taiwan')
     parser.add_argument('--github-token', default='')
+    parser.add_argument('--linkedin-token', default='',
+                        help='LinkedIn li_at cookie，設定後直接走 Voyager API')
     parser.add_argument('--pages', type=int, default=2)
     parser.add_argument('--output-format', default='json')
     args = parser.parse_args()
 
     skills = [s.strip() for s in args.required_skills.split(',') if s.strip()]
     token = args.github_token.strip() or None
+    li_at = args.linkedin_token.strip() or None
     pages = max(1, min(3, args.pages))
 
-    log(f"搜尋: {args.job_title} | 技能: {skills} | 頁數: {pages} | token: {'有' if token else '無（無認證模式）'}")
+    log(
+        f"搜尋: {args.job_title} | 技能: {skills} | 頁數: {pages} | "
+        f"GitHub token: {'有' if token else '無'} | "
+        f"LinkedIn li_at: {'有（Voyager 模式）' if li_at else '無（Google/Bing 模式）'}"
+    )
 
     output = {
         'job_title': args.job_title,
@@ -543,8 +723,8 @@ def main():
         'total_found': 0,
     }
 
-    # 1. GitHub
-    log(f"[1/2] GitHub 搜尋 ({pages} 頁)...")
+    # ── 1. GitHub（並行 + 多地區）──────────────────────────────
+    log(f"[1/2] GitHub 搜尋 ({pages} 頁，並行抓取 + 多地區)...")
     github_result = search_github_users(skills, location=args.location, token=token, pages=pages)
     if github_result.get('rate_limit_warning'):
         output['rate_limit_warning'] = github_result.get('rate_limit_guide', '')
@@ -553,19 +733,33 @@ def main():
     output['github']['count'] = len(github_candidates)
     log(f"GitHub: {len(github_candidates)} 位")
 
-    # 2. LinkedIn via Google（自動備援 Bing）
-    log(f"[2/2] LinkedIn 搜尋 ({pages} 頁)，Google 優先，Bing 備援...")
-    linkedin_result = search_linkedin_with_fallback(
-        skills, location_zh='台灣', location_en=args.location, pages=pages
-    )
+    # ── 2. LinkedIn：Voyager API 優先，備援 Google/Bing ────────
+    if li_at:
+        log(f"[2/2] LinkedIn Voyager API 搜尋 ({pages} 頁)...")
+        linkedin_result = search_linkedin_voyager(skills, li_at, pages=pages)
+
+        if not linkedin_result.get('success'):
+            err = linkedin_result.get('error', '未知錯誤')
+            log(f"Voyager 失敗（{err}），切換 Google/Bing 備援...")
+            output['linkedin']['voyager_error'] = err
+            linkedin_result = search_linkedin_with_fallback(
+                skills, location_zh='台灣', location_en=args.location, pages=pages
+            )
+        linkedin_source = linkedin_result.get('source', 'voyager')
+    else:
+        log(f"[2/2] LinkedIn 搜尋（Google 優先，Bing 備援，{pages} 頁)...")
+        linkedin_result = search_linkedin_with_fallback(
+            skills, location_zh='台灣', location_en=args.location, pages=pages
+        )
+        linkedin_source = linkedin_result.get('source', 'google')
+
     linkedin_candidates = linkedin_result.get('data', [])
-    linkedin_source = linkedin_result.get('source', 'google')
     output['linkedin']['success'] = linkedin_result.get('success', False)
     output['linkedin']['count'] = len(linkedin_candidates)
     output['linkedin']['source'] = linkedin_source
     log(f"LinkedIn: {len(linkedin_candidates)} 位（來源: {linkedin_source}）")
 
-    # 3. 合併
+    # ── 3. 合併輸出 ────────────────────────────────────────────
     all_candidates = github_candidates + linkedin_candidates
     output['all_candidates'] = all_candidates
     output['total_found'] = len(all_candidates)

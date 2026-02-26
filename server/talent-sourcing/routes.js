@@ -28,7 +28,7 @@ const talentSourceService = require('../talentSourceService');
  */
 router.post('/find-candidates', async (req, res) => {
   try {
-    const { company, jobTitle, actor, github_token, pages } = req.body;
+    const { company, jobTitle, actor, github_token, linkedin_token, pages } = req.body;
 
     if (!company || !jobTitle) {
       return res.status(400).json({
@@ -37,13 +37,14 @@ router.post('/find-candidates', async (req, res) => {
       });
     }
 
-    console.log(`🔍 [find-candidates] ${actor || 'system'} 觸發：${company} - ${jobTitle}`);
+    console.log(`🔍 [find-candidates] ${actor || 'system'} 觸發：${company} - ${jobTitle}（LinkedIn: ${linkedin_token ? 'Voyager 模式' : 'Google/Bing 模式'}）`);
 
     const result = await talentSourceService.findAndSaveCandidates({
       company,
       jobTitle,
       actor: actor || 'system',
       githubToken: github_token || null,
+      linkedinToken: linkedin_token || null,
       pages: pages || 2,
     });
 

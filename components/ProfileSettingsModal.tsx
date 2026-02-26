@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { updateUserProfile } from '../services/userService';
 import { apiPut, apiGet } from '../config/api';
-import { X, Upload, User, MessageSquare, Save, Loader2, Phone, Mail, Hash, Eye, EyeOff, Github } from 'lucide-react';
+import { X, Upload, User, MessageSquare, Save, Loader2, Phone, Mail, Hash, Eye, EyeOff, Github, ChevronDown, ChevronUp, Link2 } from 'lucide-react';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -26,6 +26,9 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const [telegramHandle, setTelegramHandle] = useState(userProfile.telegramHandle || '');
   const [githubToken, setGithubToken] = useState(userProfile.githubToken || '');
   const [showGithubToken, setShowGithubToken] = useState(false);
+  const [linkedinToken, setLinkedinToken] = useState(userProfile.linkedinToken || '');
+  const [showLinkedinToken, setShowLinkedinToken] = useState(false);
+  const [showLinkedinGuide, setShowLinkedinGuide] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,6 +44,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       setLineId(userProfile.lineId || '');
       setTelegramHandle(userProfile.telegramHandle || '');
       setGithubToken(userProfile.githubToken || '');
+      setLinkedinToken(userProfile.linkedinToken || '');
       // 從後端載入最新聯絡資訊
       apiGet<any>(`/api/users/${encodeURIComponent(userProfile.displayName)}/contact`)
         .then(res => {
@@ -50,6 +54,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
             if (res.data.lineId) setLineId(res.data.lineId);
             if (res.data.telegramHandle) setTelegramHandle(res.data.telegramHandle);
             if (res.data.githubToken) setGithubToken(res.data.githubToken);
+            if (res.data.linkedinToken) setLinkedinToken(res.data.linkedinToken);
           }
         })
         .catch(() => {/* 後端不可用時靜默降級 */});
@@ -129,6 +134,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         lineId: lineId.trim(),
         telegramHandle: telegramHandle.trim(),
         githubToken: githubToken.trim(),
+        linkedinToken: linkedinToken.trim(),
       }).catch(() => {/* 後端不可用時靜默降級 */});
 
       const updated = await updateUserProfile(userProfile.uid, {
@@ -350,6 +356,131 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               >
                 申請 Token →
               </a>
+            </p>
+          </div>
+
+          {/* LinkedIn li_at Token */}
+          <div className="space-y-3">
+            <label className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest block flex items-center gap-2">
+              <Link2 size={10} className="sm:w-3 sm:h-3" />
+              LinkedIn Token（Voyager API 人才搜尋）
+            </label>
+
+            {/* 狀態標籤 */}
+            <div className="flex items-center gap-2">
+              <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                linkedinToken
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {linkedinToken ? '✅ Voyager 模式（直連 LinkedIn）' : '⚠️ 未設定（使用 Google/Bing 備援）'}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Link2 size={14} className="text-blue-500 shrink-0" />
+              <div className="flex-1 relative">
+                <input
+                  type={showLinkedinToken ? 'text' : 'password'}
+                  value={linkedinToken}
+                  onChange={(e) => setLinkedinToken(e.target.value)}
+                  className="w-full px-3 py-2 pr-10 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-xl text-sm text-slate-800 transition-all font-mono"
+                  placeholder="AQEDATf5D_xxxxxxxxxxxxxxxxxxxx（約 200 字元）"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLinkedinToken(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                >
+                  {showLinkedinToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+
+            {/* 教學折疊面板 */}
+            <button
+              type="button"
+              onClick={() => setShowLinkedinGuide(v => !v)}
+              className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              {showLinkedinGuide ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              如何取得 LinkedIn li_at？（點擊展開教學）
+            </button>
+
+            {showLinkedinGuide && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3 text-xs text-slate-700">
+                <p className="font-black text-blue-800 text-sm">📋 取得 LinkedIn li_at 步驟教學</p>
+
+                <div className="space-y-2.5">
+                  <div className="flex gap-2.5">
+                    <span className="shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-[10px]">1</span>
+                    <div>
+                      <p className="font-bold text-slate-800">準備一個 LinkedIn 小號</p>
+                      <p className="text-slate-500 mt-0.5">建議使用專門的小號，避免主帳號被限制。免費帳號即可，不需要 Premium。</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5">
+                    <span className="shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-[10px]">2</span>
+                    <div>
+                      <p className="font-bold text-slate-800">用瀏覽器登入 LinkedIn</p>
+                      <p className="text-slate-500 mt-0.5">前往 <span className="font-mono bg-white px-1 rounded">linkedin.com</span> 並登入小號帳號。</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5">
+                    <span className="shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-[10px]">3</span>
+                    <div>
+                      <p className="font-bold text-slate-800">開啟開發者工具</p>
+                      <p className="text-slate-500 mt-0.5">按 <span className="font-mono bg-white px-1 rounded border border-slate-200">F12</span> 或 <span className="font-mono bg-white px-1 rounded border border-slate-200">Cmd+Option+I</span>（Mac）開啟開發者工具</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5">
+                    <span className="shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-[10px]">4</span>
+                    <div>
+                      <p className="font-bold text-slate-800">找到 Cookies</p>
+                      <p className="text-slate-500 mt-0.5">
+                        點選 <span className="font-mono bg-white px-1 rounded border border-slate-200">Application</span> 分頁
+                        → 左側選單找 <span className="font-mono bg-white px-1 rounded border border-slate-200">Cookies</span>
+                        → 展開後點選 <span className="font-mono bg-white px-1 rounded border border-slate-200">https://www.linkedin.com</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5">
+                    <span className="shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-[10px]">5</span>
+                    <div>
+                      <p className="font-bold text-slate-800">複製 li_at 的值</p>
+                      <p className="text-slate-500 mt-0.5">
+                        在列表中找到 Name 欄位為 <span className="font-mono bg-white px-1 rounded border border-blue-300 text-blue-700 font-bold">li_at</span> 的那行
+                        → 點擊該行 → 複製下方 <span className="font-mono bg-white px-1 rounded border border-slate-200">Value</span> 欄位的內容（約 200 字元，以 AQE 開頭）
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5">
+                    <span className="shrink-0 w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center font-black text-[10px]">6</span>
+                    <div>
+                      <p className="font-bold text-slate-800">貼上到上方欄位並儲存</p>
+                      <p className="text-slate-500 mt-0.5">將複製的值貼到上方輸入框，點擊「儲存變更」即可。</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2">
+                  <p className="font-bold text-amber-800 text-[11px]">⚠️ 注意事項</p>
+                  <ul className="text-amber-700 text-[10px] mt-1 space-y-1 list-disc list-inside">
+                    <li>li_at 約 1 年有效，登出後即失效需重新取得</li>
+                    <li>每個帳號每天搜尋建議不超過 100 筆，避免觸發審查</li>
+                    <li>建議使用小號，主帳號請勿設定此 Token</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            <p className="text-[10px] sm:text-xs text-slate-400">
+              設定後 AIbot 搜尋人選時直接呼叫 LinkedIn API，資料更豐富（含職稱、公司、地區）。未設定則改用 Google/Bing 備援。
             </p>
           </div>
         </div>
