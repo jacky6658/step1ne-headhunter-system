@@ -1,0 +1,4 @@
+{
+  "build_command": "npm install && (pip3 install requests beautifulsoup4 lxml --break-system-packages 2>/dev/null || pip3 install requests beautifulsoup4 lxml 2>/dev/null || pip install requests beautifulsoup4 lxml 2>/dev/null || true)",
+  "start_command": "node server/server.js"
+}
