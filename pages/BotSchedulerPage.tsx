@@ -113,6 +113,7 @@ export const BotSchedulerPage: React.FC<Props> = () => {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState<string | null>(null);
+  const [jobsExpanded, setJobsExpanded] = useState(false);
   const [logsExpanded, setLogsExpanded] = useState(false);
   const [jobSearch, setJobSearch] = useState('');
   const [filterCompany, setFilterCompany] = useState('');
@@ -353,7 +354,10 @@ export const BotSchedulerPage: React.FC<Props> = () => {
 
       {/* ── 目標職缺 ── */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <button
+          onClick={() => setJobsExpanded(v => !v)}
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+        >
           <div className="flex items-center gap-2">
             <Briefcase size={18} className="text-indigo-600" />
             <h2 className="font-bold text-slate-800">目標職缺</h2>
@@ -364,19 +368,34 @@ export const BotSchedulerPage: React.FC<Props> = () => {
             }`}>
               已選 {config.target_job_ids.length} / {MAX_JOBS}
             </span>
+            {config.target_job_ids.length > 0 && !jobsExpanded && (
+              <span className="text-xs text-slate-400 hidden sm:inline">
+                （點擊展開修改）
+              </span>
+            )}
           </div>
-          <button
-            onClick={() => setConfig(prev => ({
-              ...prev,
-              target_job_ids: prev.target_job_ids.length > 0
-                ? []
-                : activeJobs.slice(0, MAX_JOBS).map(j => j.id),
-            }))}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-          >
-            {config.target_job_ids.length > 0 ? '清除全部' : `全選前 ${Math.min(activeJobs.length, MAX_JOBS)} 個`}
-          </button>
-        </div>
+          <div className="flex items-center gap-3">
+            {jobsExpanded && (
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  setConfig(prev => ({
+                    ...prev,
+                    target_job_ids: prev.target_job_ids.length > 0
+                      ? []
+                      : activeJobs.slice(0, MAX_JOBS).map(j => j.id),
+                  }));
+                }}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                {config.target_job_ids.length > 0 ? '清除全部' : `全選前 ${Math.min(activeJobs.length, MAX_JOBS)} 個`}
+              </button>
+            )}
+            {jobsExpanded ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+          </div>
+        </button>
+
+        {jobsExpanded && (<>
         {/* 篩選列 */}
         <div className="px-4 pt-3 pb-2 space-y-2">
           {/* 第一列：公司 + 狀態 下拉 */}
@@ -461,6 +480,7 @@ export const BotSchedulerPage: React.FC<Props> = () => {
             </>
           )}
         </div>
+        </>)}
       </div>
 
       {/* ── 排程設定 ── */}
