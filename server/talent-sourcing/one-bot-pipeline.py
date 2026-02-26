@@ -115,7 +115,10 @@ def log(msg: str, level: str = 'INFO'):
 # ─── API 工具 ─────────────────────────────────────────────────────────────────
 def api_get(path: str) -> Optional[Dict]:
     try:
-        req = Request(f"{API_BASE}{path}", headers={'Accept': 'application/json'})
+        from urllib.parse import quote
+        # URL encode 含中文字元的路徑（safe 保留 URL 結構字元）
+        encoded_path = quote(path, safe='/:?=&')
+        req = Request(f"{API_BASE}{encoded_path}", headers={'Accept': 'application/json'})
         with urlopen(req, timeout=15) as r:
             return json.loads(r.read().decode())
     except Exception as e:

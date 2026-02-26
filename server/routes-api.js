@@ -2550,7 +2550,12 @@ router.post('/bot/run-now', async (req, res) => {
         '--pages',            String(crawlPages),
         '--sample-per-page',  String(crawlSamplePer),
       ],
-      { detached: true, stdio: ['ignore', logFd, logFd] }
+      {
+        detached: true,
+        stdio: ['ignore', logFd, logFd],
+        // 告訴 Python 腳本正確的 API 位址（同一容器內部）
+        env: { ...process.env, API_BASE_URL: `http://localhost:${process.env.PORT || 3001}` },
+      }
     );
     child.unref();
 
