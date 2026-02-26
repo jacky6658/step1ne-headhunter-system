@@ -311,6 +311,7 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
           target_job_ids: config.target_job_ids,
           pages: config.pages,
           sample_per_page: config.sample_per_page,
+          consultant: userProfile.displayName,
         }),
       });
       const json = await res.json();

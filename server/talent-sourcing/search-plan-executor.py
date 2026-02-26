@@ -371,7 +371,7 @@ def build_github_queries(skills: list, location: str) -> list:
     GitHub：只用合法的 language: 過濾，其餘技能用關鍵字搜尋。
     GitHub Search API 不接受 language:Spring Boot 之類的框架名稱。
     """
-    location_variants = [location, 'Taipei'] if location.lower() == 'taiwan' else [location]
+    location_variants = [location]  # 不限縣市，只用傳入的地區（Taiwan 表示全台）
     queries = []
 
     # 只取合法語言名稱作為 language: 過濾

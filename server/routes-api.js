@@ -2494,21 +2494,22 @@ router.post('/bot-config', async (req, res) => {
 /** POST /api/bot/run-now - 立即觸發 Bot 執行一次 */
 router.post('/bot/run-now', async (req, res) => {
   try {
-    const { target_job_ids, pages, sample_per_page } = req.body;
+    const { target_job_ids, pages, sample_per_page, consultant } = req.body;
     if (!target_job_ids || target_job_ids.length === 0) {
       return res.status(400).json({ success: false, error: '請指定至少一個目標職缺' });
     }
 
     const crawlPages      = Math.max(1, Math.min(10, parseInt(pages)      || 10));
     const crawlSamplePer  = Math.max(1, Math.min(10, parseInt(sample_per_page) || 5));
+    const consultantName  = (consultant || '').trim();
 
     // 先記錄 log
     await writeLog({
       action: 'BOT_RUN_NOW',
-      actor: 'scheduler-ui',
+      actor: consultantName || 'scheduler-ui',
       candidateId: null,
       candidateName: null,
-      detail: { target_job_ids, pages: crawlPages, sample_per_page: crawlSamplePer, triggered_by: 'manual' },
+      detail: { target_job_ids, pages: crawlPages, sample_per_page: crawlSamplePer, consultant: consultantName, triggered_by: 'manual' },
     });
 
     // 嘗試找到 Python 腳本路徑
@@ -2543,13 +2544,15 @@ router.post('/bot/run-now', async (req, res) => {
       `=======================================================\n`
     );
     const logFd = fs.openSync(logFilePath, 'a');
-    const child = require('child_process').spawn(
-      'python3', [
-        scriptPath,
-        '--job-ids',          jobIdsArg,
-        '--pages',            String(crawlPages),
-        '--sample-per-page',  String(crawlSamplePer),
-      ],
+    const pythonArgs = [
+      scriptPath,
+      '--job-ids',          jobIdsArg,
+      '--pages',            String(crawlPages),
+      '--sample-per-page',  String(crawlSamplePer),
+    ];
+    if (consultantName) pythonArgs.push('--consultant', consultantName);
+
+    const child = require('child_process').spawn('python3', pythonArgs,
       {
         detached: true,
         stdio: ['ignore', logFd, logFd],
