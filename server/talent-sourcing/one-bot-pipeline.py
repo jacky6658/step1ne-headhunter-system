@@ -29,8 +29,16 @@ one-bot-pipeline.py — Step1ne 獵頭 AI Bot 閉環管線 v2
   python3 one-bot-pipeline.py --dry-run              # 試跑，不寫入 DB
   python3 one-bot-pipeline.py --no-claude            # 跳過 AI 結語（純模板）
 
+Step1ne 正式後端位址：
+  https://backendstep1ne.zeabur.app
+
+本機執行範例（建議先 dry-run 確認）：
+  API_BASE_URL=https://backendstep1ne.zeabur.app python3 one-bot-pipeline.py --mode score --dry-run
+  API_BASE_URL=https://backendstep1ne.zeabur.app python3 one-bot-pipeline.py --mode score
+  API_BASE_URL=https://backendstep1ne.zeabur.app python3 one-bot-pipeline.py --mode scrape --job-ids 3,7
+
 環境變數（可選）：
-  API_BASE_URL   後端 API 位址（預設 http://localhost:3001）
+  API_BASE_URL   後端 API 位址（預設 http://localhost:3001，正式用上方網址）
   BOT_ACTOR      Bot 名稱（預設 AIBot-pipeline）
   BRAVE_KEY      Brave Search API Key（LinkedIn 搜尋備援）
   GITHUB_TOKEN   GitHub Personal Access Token（GitHub 搜尋用）
