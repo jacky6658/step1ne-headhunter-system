@@ -664,7 +664,7 @@ def run_score_phase(args):
 
     use_reader = not args.dry_run and not getattr(args, 'no_profile_read', False)
     if use_reader:
-        from profile_reader import PLAYWRIGHT_AVAILABLE as _PA
+        _PA = _preader.PLAYWRIGHT_AVAILABLE  # 用已載入的模組，避免 hyphen 檔名無法 import
         if _PA:
             log("ProfileReader：Playwright 已安裝，將讀取真實頁面進行評分", 'OK')
         else:
