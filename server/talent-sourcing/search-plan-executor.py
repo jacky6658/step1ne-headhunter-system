@@ -597,6 +597,10 @@ def main():
     parser = argparse.ArgumentParser(description='Step1ne 人才搜尋執行器 v4（零依賴）')
     parser.add_argument('--job-title', required=True)
     parser.add_argument('--required-skills', default='')
+    parser.add_argument('--primary-skills',   default='',
+                        help='主關鍵字（AND），逗號分隔。有值時忽略 required-skills 前兩個')
+    parser.add_argument('--secondary-skills',  default='',
+                        help='次關鍵字（OR），逗號分隔')
     parser.add_argument('--industry', default='')
     parser.add_argument('--location', default='Taiwan')
     parser.add_argument('--github-token', default='')
@@ -605,7 +609,15 @@ def main():
     parser.add_argument('--output-format', default='json')
     args = parser.parse_args()
 
-    skills = [s.strip() for s in args.required_skills.split(',') if s.strip()]
+    # 若有明確指定 primary/secondary，用那個；否則從 required-skills 自動分割
+    if args.primary_skills:
+        primary_skills   = [s.strip() for s in args.primary_skills.split(',')   if s.strip()]
+        secondary_skills = [s.strip() for s in args.secondary_skills.split(',') if s.strip()]
+        skills = primary_skills + secondary_skills
+    else:
+        skills = [s.strip() for s in args.required_skills.split(',') if s.strip()]
+        primary_skills   = skills[:2]
+        secondary_skills = skills[2:]
     token = args.github_token.strip() or None
     brave_key = args.brave_key.strip() or None
     pages = max(1, min(3, args.pages))

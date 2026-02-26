@@ -91,12 +91,14 @@ def _load_module(filename: str, module_name: str):
 
 _scoring  = _load_module('candidate-scoring-system-v2.py',    'scoring')
 _claude   = _load_module('claude-conclusion-generator.py',     'claude_gen')
+_analyzer = _load_module('job-profile-analyzer.py',            'job_analyzer')
 
 CandidateScoringEngine = _scoring.CandidateScoringEngine
 ScoringCandidate       = _scoring.Candidate
 JobRequirement         = _scoring.JobRequirement
 IndustryType           = _scoring.IndustryType
 generate_conclusion    = _claude.generate_conclusion
+analyze_job_for_search = _analyzer.analyze_job_for_search
 
 
 # ─── 日誌 ─────────────────────────────────────────────────────────────────────
@@ -144,34 +146,88 @@ def api_patch(path: str, body: Dict) -> Optional[Dict]:
 
 
 # ─── 爬蟲 ─────────────────────────────────────────────────────────────────────
-def scrape_candidates(job: Dict, pages: int = 2) -> List[Dict]:
-    """呼叫 search-plan-executor.py 取得原始候選人清單"""
-    skills_str = ','.join(job.get('required_skills', [])[:5])
-    cmd = [
-        sys.executable, SCRAPER,
-        '--job-title', job.get('title', ''),
-        '--required-skills', skills_str,
-        '--location', 'Taiwan',
-        '--pages', str(pages),
-    ]
-    if GITHUB_TOKEN:
-        cmd += ['--github-token', GITHUB_TOKEN]
-    if BRAVE_KEY:
-        cmd += ['--brave-key', BRAVE_KEY]
+def scrape_candidates(job: Dict, pages: int = 2, use_claude_analyze: bool = True) -> List[Dict]:
+    """
+    多角度人才搜尋：
+    1. Claude 分析職缺 → 產生搜尋策略（人才畫像）
+    2. 每個搜尋角度各跑一輪爬蟲（primary AND + secondary OR）
+    3. 結果去重合併回傳
+    適用所有職位類型（工程師/業務/設計師/行銷...）
+    """
+    job_title = job.get('title', '')
 
-    log(f"爬取：{job.get('title')} | 技能：{skills_str} | {pages} 頁")
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        if result.returncode != 0:
-            log(f"爬蟲退出碼 {result.returncode}", 'WARN')
-        data = json.loads(result.stdout)
-        return data.get('all_candidates', [])
-    except subprocess.TimeoutExpired:
-        log("爬蟲超時（300s）", 'ERR')
-        return []
-    except Exception as e:
-        log(f"爬蟲例外：{e}", 'ERR')
-        return []
+    # Step 1：Claude 分析職缺，取得多角度搜尋策略
+    log(f"分析職缺人才畫像：{job_title}...")
+    strategy = analyze_job_for_search(job, use_claude=use_claude_analyze)
+    role_type = strategy.get('role_type', 'other')
+    angles    = strategy.get('search_angles', [])
+    log(f"  職位類型：{role_type} | 搜尋角度：{len(angles)} 個")
+    for a in angles:
+        log(f"  角度「{a.get('description','')}」：主={a.get('primary',[])} 次={a.get('secondary',[])}")
+
+    # Step 2：逐一執行每個搜尋角度
+    all_candidates: List[Dict] = []
+    seen_linkedin: set = set()
+    seen_github:   set = set()
+
+    for angle_idx, angle in enumerate(angles, 1):
+        primary   = angle.get('primary',   [])
+        secondary = angle.get('secondary', [])
+        desc      = angle.get('description', f'角度{angle_idx}')
+
+        log(f"[角度 {angle_idx}/{len(angles)}] {desc}")
+
+        primary_str   = ','.join(primary)
+        secondary_str = ','.join(secondary)
+
+        cmd = [
+            sys.executable, SCRAPER,
+            '--job-title',       job_title,
+            '--primary-skills',  primary_str,
+            '--secondary-skills', secondary_str,
+            '--location',        'Taiwan',
+            '--pages',           str(pages),
+        ]
+        if GITHUB_TOKEN:
+            cmd += ['--github-token', GITHUB_TOKEN]
+        if BRAVE_KEY:
+            cmd += ['--brave-key', BRAVE_KEY]
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if result.returncode != 0:
+                log(f"  爬蟲退出碼 {result.returncode}", 'WARN')
+            data = json.loads(result.stdout) if result.stdout.strip() else {}
+            batch = data.get('all_candidates', [])
+        except subprocess.TimeoutExpired:
+            log(f"  角度{angle_idx} 爬蟲超時", 'ERR')
+            batch = []
+        except Exception as e:
+            log(f"  角度{angle_idx} 例外：{e}", 'ERR')
+            batch = []
+
+        # 去重（LinkedIn URL / GitHub username）
+        new_count = 0
+        for c in batch:
+            li  = (c.get('linkedin_url', '') or '').strip().rstrip('/')
+            gh  = (c.get('github_username', '') or '').lower()
+            dup = (li and li in seen_linkedin) or (gh and gh in seen_github)
+            if not dup:
+                if li: seen_linkedin.add(li)
+                if gh: seen_github.add(gh)
+                all_candidates.append(c)
+                new_count += 1
+
+        log(f"  本角度：{len(batch)} 位，新增不重複：{new_count} 位")
+
+        # 角度之間加延遲（防止連續打搜尋引擎）
+        if angle_idx < len(angles):
+            delay = random.uniform(8, 15)
+            log(f"  等待 {delay:.0f} 秒後執行下一個角度...")
+            time.sleep(delay)
+
+    log(f"多角度搜尋完成，共 {len(all_candidates)} 位不重複候選人")
+    return all_candidates
 
 
 # ─── 去重 ─────────────────────────────────────────────────────────────────────
