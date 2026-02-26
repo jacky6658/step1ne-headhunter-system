@@ -1869,6 +1869,27 @@ router.get('/users', async (req, res) => {
 });
 
 /**
+ * POST /api/users/register — 顧問登入時自動呼叫，確保顧問名單完整
+ * body: { displayName }
+ */
+router.post('/users/register', async (req, res) => {
+  try {
+    const { displayName } = req.body;
+    if (!displayName) return res.status(400).json({ success: false, error: 'displayName 必填' });
+    // upsert：有就更新 updated_at，沒有就新增（不覆蓋其他欄位）
+    await pool.query(
+      `INSERT INTO user_contacts (display_name, updated_at)
+       VALUES ($1, NOW())
+       ON CONFLICT (display_name) DO UPDATE SET updated_at = NOW()`,
+      [displayName]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/users/:displayName/contact
  * 取得顧問聯絡資訊（供 AIbot 使用）
  */
@@ -2275,75 +2296,98 @@ router.post('/clients/:id/contacts', async (req, res) => {
   }
 });
 // ==================== Bot 排程設定 ====================
+// 每位顧問各自獨立一份設定，key 格式：cfg__顧問名
+// 例：cfg__Jacky, cfg__Phoebe — 互不干擾
 
-/** GET /api/bot-config - 取得 Bot 設定 */
+const BOT_CONFIG_DEFAULTS = {
+  enabled: false,
+  schedule_type: 'daily',
+  schedule_time: '09:00',
+  schedule_days: [1],
+  schedule_interval_hours: 12,
+  schedule_once_at: '',
+  target_job_ids: [],
+  consultant: '',
+  last_run_at: null,
+  last_run_status: null,
+  last_run_summary: null,
+};
+
+/**
+ * GET /api/bot-config?consultant=Jacky
+ * 取得指定顧問的 Bot 設定（各自獨立，互不干擾）
+ */
 router.get('/bot-config', async (req, res) => {
   try {
-    const db = await pool.connect();
-    const result = await db.query(`SELECT key, value FROM bot_config`);
-    db.release();
-    const config = {};
-    for (const row of result.rows) {
-      config[row.key] = row.value;
+    const consultant = (req.query.consultant || '').trim();
+    if (!consultant) {
+      return res.status(400).json({ success: false, error: '請提供 consultant 查詢參數' });
     }
-    // 回傳合併後的設定物件，帶預設值
+    const key = `cfg__${consultant}`;
+    const result = await pool.query(`SELECT value FROM bot_config WHERE key = $1`, [key]);
+    const saved = result.rows[0]?.value || {};
     res.json({
       success: true,
-      data: {
-        enabled: config.enabled ?? false,
-        schedule_type: config.schedule_type ?? 'daily',
-        schedule_time: config.schedule_time ?? '09:00',
-        schedule_days: config.schedule_days ?? [1],
-        schedule_interval_hours: config.schedule_interval_hours ?? 12,
-        schedule_once_at: config.schedule_once_at ?? '',
-        target_job_ids: config.target_job_ids ?? [],
-        consultant: config.consultant ?? '',      // 負責顧問 displayName
-        last_run_at: config.last_run_at ?? null,
-        last_run_status: config.last_run_status ?? null,
-        last_run_summary: config.last_run_summary ?? null,
-      }
+      data: { ...BOT_CONFIG_DEFAULTS, ...saved, consultant },
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-/** POST /api/bot-config - 儲存 Bot 設定 */
+/**
+ * GET /api/bot-configs — 取得所有顧問的設定（雲端排程器使用）
+ */
+router.get('/bot-configs', async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT key, value FROM bot_config WHERE key LIKE 'cfg__%'`);
+    const configs = result.rows.map(row => ({
+      consultant: row.key.replace(/^cfg__/, ''),
+      ...BOT_CONFIG_DEFAULTS,
+      ...row.value,
+    }));
+    res.json({ success: true, data: configs });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/bot-config — 儲存指定顧問的 Bot 設定
+ * body: { consultant, enabled, schedule_type, schedule_time, ... }
+ */
 router.post('/bot-config', async (req, res) => {
   try {
     const {
-      enabled,
-      schedule_type,
-      schedule_time,
-      schedule_days,
-      schedule_interval_hours,
-      schedule_once_at,
-      target_job_ids,
       consultant,
+      enabled, schedule_type, schedule_time, schedule_days,
+      schedule_interval_hours, schedule_once_at, target_job_ids,
     } = req.body;
-    const db = await pool.connect();
-    const entries = {
-      enabled,
-      schedule_type,
-      schedule_time,
-      schedule_days,
-      schedule_interval_hours,
-      schedule_once_at,
-      target_job_ids,
-      consultant,
-    };
-    for (const [key, val] of Object.entries(entries)) {
-      if (val !== undefined) {
-        await db.query(
-          `INSERT INTO bot_config (key, value, updated_at)
-           VALUES ($1, $2::jsonb, NOW())
-           ON CONFLICT (key) DO UPDATE SET value = $2::jsonb, updated_at = NOW()`,
-          [key, JSON.stringify(val)]
-        );
-      }
+    if (!consultant) {
+      return res.status(400).json({ success: false, error: '請提供 consultant 欄位' });
     }
-    db.release();
-    res.json({ success: true, message: 'Bot 設定已儲存' });
+    const key = `cfg__${consultant}`;
+    // 先讀舊設定（保留 last_run_* 等欄位）
+    const existing = await pool.query(`SELECT value FROM bot_config WHERE key = $1`, [key]);
+    const old = existing.rows[0]?.value || {};
+    const newConfig = {
+      ...old,
+      consultant,
+      ...(enabled             !== undefined && { enabled }),
+      ...(schedule_type       !== undefined && { schedule_type }),
+      ...(schedule_time       !== undefined && { schedule_time }),
+      ...(schedule_days       !== undefined && { schedule_days }),
+      ...(schedule_interval_hours !== undefined && { schedule_interval_hours }),
+      ...(schedule_once_at    !== undefined && { schedule_once_at }),
+      ...(target_job_ids      !== undefined && { target_job_ids }),
+    };
+    await pool.query(
+      `INSERT INTO bot_config (key, value, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $2::jsonb, updated_at = NOW()`,
+      [key, JSON.stringify(newConfig)]
+    );
+    res.json({ success: true, message: `${consultant} 的 Bot 設定已儲存` });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

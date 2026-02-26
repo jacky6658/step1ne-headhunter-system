@@ -539,66 +539,97 @@ def run_score_phase(args):
     log(f"評分完成：AI推薦 {ai_count}，備選人才 {backup_count}，錯誤 {error_count}", 'OK')
 
 
+def load_consultant_configs(consultant_name: str = '') -> List[Dict]:
+    """
+    讀取顧問 Bot 設定。
+    - consultant_name 指定 → 只讀該顧問設定（/api/bot-config?consultant=xxx）
+    - consultant_name 空   → 讀所有啟用中的顧問設定（/api/bot-configs）
+    回傳 list of config dict。
+    """
+    if consultant_name:
+        resp = api_get(f'/api/bot-config?consultant={consultant_name}')
+        if resp and resp.get('success'):
+            return [resp['data']]
+        log(f"無法讀取 {consultant_name} 的設定", 'ERR')
+        return []
+    else:
+        resp = api_get('/api/bot-configs')
+        if resp and resp.get('success'):
+            enabled = [c for c in resp['data'] if c.get('enabled')]
+            log(f"共 {len(enabled)} 位顧問啟用 Bot 排程")
+            return enabled
+        log("無法讀取所有顧問設定", 'ERR')
+        return []
+
+
 def run_scrape_phase(args):
     """爬取匯入階段：抓取候選人並以「未開始」狀態存入 DB"""
-    # 取得 Bot 設定（職缺 ID + 負責顧問）
-    consultant = BOT_CONSULTANT  # 環境變數優先
+    # 優先順序：--consultant CLI 參數 > BOT_CONSULTANT 環境變數 > 讀取所有啟用顧問
+    cli_consultant = getattr(args, 'consultant', '') or BOT_CONSULTANT
 
-    if args.job_ids:
-        job_ids = [int(x.strip()) for x in args.job_ids.split(',') if x.strip().isdigit()]
-    else:
-        cfg_resp = api_get('/api/bot-config')
-        if cfg_resp and cfg_resp.get('success'):
-            job_ids = cfg_resp['data'].get('target_job_ids', [])
-            if not consultant:
-                consultant = cfg_resp['data'].get('consultant', '')  # 從 DB 設定讀取
+    configs = load_consultant_configs(cli_consultant)
+    if not configs:
+        if args.job_ids:
+            # fallback：命令列直接指定職缺，使用 BOT_ACTOR 作顧問
+            configs = [{'consultant': BOT_ACTOR, 'target_job_ids':
+                        [int(x.strip()) for x in args.job_ids.split(',') if x.strip().isdigit()]}]
         else:
-            log("無法讀取 Bot 設定，請用 --job-ids 指定職缺", 'ERR')
-            sys.exit(1)
+            log("無啟用的 Bot 設定，請在系統 Bot 排程設定頁面啟用", 'WARN')
+            sys.exit(0)
 
-    if consultant:
-        log(f"負責顧問：{consultant}")
-    else:
-        log("未設定負責顧問，將使用預設值 AIBot-pipeline", 'WARN')
-
-    if not job_ids:
-        log("目標職缺清單為空，請在 Bot 排程設定頁面選擇職缺", 'WARN')
-        sys.exit(0)
-
-    log(f"目標職缺 ID：{job_ids}")
-
-    # 取得 DB 現有 LinkedIn URLs（去重用）
+    # 取得現有 LinkedIn URLs（去重用，所有顧問共用）
     log("載入現有候選人 LinkedIn URLs...")
     existing_urls = get_existing_linkedin_urls()
     log(f"DB 中已有 {len(existing_urls)} 個 LinkedIn URL")
 
-    # 逐一處理每個職缺
+    # 依序執行每位顧問的設定（顧問間加延遲，避免同時爬蟲被偵測）
     all_stats = []
-    for job_id in job_ids:
-        job_resp = api_get(f'/api/jobs/{job_id}')
-        if not job_resp or not job_resp.get('success'):
-            log(f"職缺 #{job_id} 讀取失敗，跳過", 'ERR')
+    for cfg_idx, cfg in enumerate(configs):
+        consultant = cfg.get('consultant', BOT_ACTOR)
+        job_ids    = args.job_ids and [int(x.strip()) for x in args.job_ids.split(',') if x.strip().isdigit()] \
+                     or cfg.get('target_job_ids', [])
+
+        if not job_ids:
+            log(f"[{consultant}] 目標職缺清單為空，跳過", 'WARN')
             continue
 
-        raw_job = job_resp.get('data', {})
-        job = {
-            'id':             raw_job.get('id'),
-            'title':          raw_job.get('position_name') or raw_job.get('title', ''),
-            'company':        raw_job.get('client_company') or raw_job.get('company', ''),
-            'required_skills': _parse_skills(raw_job.get('key_skills', '')),
-            'years_required': _parse_years(raw_job.get('experience_required', '')),
-            'location':       raw_job.get('location', '台灣'),
-            'nice_to_have_skills': [],
-        }
+        log(f"{'='*50}", 'HEAD')
+        log(f"顧問：{consultant} | 目標職缺 ID：{job_ids}", 'HEAD')
+        log(f"{'='*50}", 'HEAD')
 
-        stats = process_job(job, existing_urls, args, consultant=consultant)
-        all_stats.append(stats)
+        # 顧問之間加延遲（避免多顧問同時爬蟲）
+        if cfg_idx > 0:
+            delay = random.uniform(60, 120)
+            log(f"下一位顧問前等待 {delay:.0f} 秒（防止爬蟲頻率過高）...")
+            if not args.dry_run:
+                time.sleep(delay)
 
-        # 職缺之間加較長延遲（反爬蟲）
-        if job_id != job_ids[-1]:
-            delay = random.uniform(30, 60)
-            log(f"下個職缺前等待 {delay:.0f} 秒...")
-            time.sleep(delay)
+        # 逐一處理此顧問的每個職缺
+        for job_id in job_ids:
+            job_resp = api_get(f'/api/jobs/{job_id}')
+            if not job_resp or not job_resp.get('success'):
+                log(f"職缺 #{job_id} 讀取失敗，跳過", 'ERR')
+                continue
+
+            raw_job = job_resp.get('data', {})
+            job = {
+                'id':             raw_job.get('id'),
+                'title':          raw_job.get('position_name') or raw_job.get('title', ''),
+                'company':        raw_job.get('client_company') or raw_job.get('company', ''),
+                'required_skills': _parse_skills(raw_job.get('key_skills', '')),
+                'years_required': _parse_years(raw_job.get('experience_required', '')),
+                'location':       raw_job.get('location', '台灣'),
+                'nice_to_have_skills': [],
+            }
+
+            stats = process_job(job, existing_urls, args, consultant=consultant)
+            all_stats.append(stats)
+
+            # 職缺之間加較長延遲（反爬蟲）
+            if job_id != job_ids[-1]:
+                delay = random.uniform(30, 60)
+                log(f"下個職缺前等待 {delay:.0f} 秒...")
+                time.sleep(delay)
 
     # 爬取摘要
     log(f"{'='*50}", 'HEAD')
@@ -614,10 +645,11 @@ def run_scrape_phase(args):
 
 def main():
     parser = argparse.ArgumentParser(description='Step1ne AI Bot 閉環管線 v2')
-    parser.add_argument('--mode',      default='full',
+    parser.add_argument('--mode',       default='full',
                         choices=['full', 'scrape', 'score'],
                         help='full=爬取+評分（預設），scrape=只爬取匯入，score=只評分今日新增')
-    parser.add_argument('--job-ids',   default='', help='指定職缺 ID（逗號分隔），scrape/full 模式使用')
+    parser.add_argument('--consultant', default='', help='指定顧問名稱（空=讀取所有已啟用顧問）')
+    parser.add_argument('--job-ids',   default='', help='指定職缺 ID（逗號分隔），覆蓋 DB 設定')
     parser.add_argument('--pages',     type=int, default=2, help='每次搜尋頁數（1-3）')
     parser.add_argument('--dry-run',   action='store_true', help='試跑，不寫入 DB')
     parser.add_argument('--no-claude', action='store_true', help='跳過 AI 結語，使用模板')

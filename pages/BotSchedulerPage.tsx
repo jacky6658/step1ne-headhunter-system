@@ -106,7 +106,7 @@ const DEFAULT_CONFIG: BotConfig = {
 
 // ──────────────── 主元件 ────────────────
 
-export const BotSchedulerPage: React.FC<Props> = () => {
+export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
   const [config, setConfig] = useState<BotConfig>(DEFAULT_CONFIG);
   const [jobs, setJobs] = useState<JobOption[]>([]);
   const [logs, setLogs] = useState<BotLog[]>([]);
@@ -126,8 +126,9 @@ export const BotSchedulerPage: React.FC<Props> = () => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
+      const me = userProfile.displayName;
       const [cfgRes, jobsRes, logsRes, usersRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/bot-config`),
+        fetch(`${API_BASE_URL}/api/bot-config?consultant=${encodeURIComponent(me)}`),
         fetch(`${API_BASE_URL}/api/jobs`),
         fetch(`${API_BASE_URL}/api/bot-logs`),
         fetch(`${API_BASE_URL}/api/users`),
@@ -138,7 +139,8 @@ export const BotSchedulerPage: React.FC<Props> = () => {
       const usersJson = await usersRes.json();
 
       if (cfgJson.success) {
-        setConfig(prev => ({ ...DEFAULT_CONFIG, ...cfgJson.data }));
+        // 自動把 consultant 設為當前登入顧問（覆蓋 DB 預設值）
+        setConfig(prev => ({ ...DEFAULT_CONFIG, ...cfgJson.data, consultant: me }));
       }
       if (jobsJson.success) {
         setJobs((jobsJson.data || []).map((j: any) => ({
@@ -155,7 +157,7 @@ export const BotSchedulerPage: React.FC<Props> = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userProfile.displayName]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -364,45 +366,40 @@ export const BotSchedulerPage: React.FC<Props> = () => {
         <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
           <User size={18} className="text-indigo-600" />
           <h2 className="font-bold text-slate-800">負責顧問</h2>
-          <span className="text-xs text-slate-400">爬取到的候選人將指派給此顧問</span>
         </div>
-        <div className="p-6">
-          {consultants.length === 0 ? (
-            <p className="text-sm text-slate-400">尚無顧問資料（請確認帳號已設定聯絡資訊）</p>
-          ) : (
+        <div className="p-5 flex items-center gap-4">
+          {/* 顯示目前登入的顧問（設定與自己帳號綁定，無法更改） */}
+          <div className="flex items-center gap-3 px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+            <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+              {userProfile.displayName?.charAt(0)?.toUpperCase() || '?'}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-indigo-800">{userProfile.displayName}</p>
+              <p className="text-xs text-indigo-500">當前登入帳號</p>
+            </div>
+            <CheckCircle2 size={16} className="text-indigo-600 ml-1" />
+          </div>
+          <div className="text-sm text-slate-500">
+            <p>此頁設定只屬於你自己的帳號。</p>
+            <p className="text-xs text-slate-400 mt-0.5">爬取到的候選人將自動指派給你。</p>
+          </div>
+        </div>
+
+        {/* 其他顧問的 Bot 狀態（只讀，給團隊透明度） */}
+        {consultants.filter(n => n !== userProfile.displayName).length > 0 && (
+          <div className="px-5 pb-4">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">其他顧問 Bot 狀態</p>
             <div className="flex flex-wrap gap-2">
-              {consultants.map(name => (
-                <button
-                  key={name}
-                  onClick={() => setConfig(prev => ({ ...prev, consultant: prev.consultant === name ? '' : name }))}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
-                    config.consultant === name
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
-                  }`}
-                >
-                  <User size={14} />
+              {consultants.filter(n => n !== userProfile.displayName).map(name => (
+                <span key={name} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+                  <User size={12} />
                   {name}
-                  {config.consultant === name && (
-                    <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded">已選</span>
-                  )}
-                </button>
+                </span>
               ))}
             </div>
-          )}
-          {config.consultant && (
-            <p className="mt-3 text-xs text-indigo-600 flex items-center gap-1">
-              <CheckCircle2 size={13} />
-              爬取到的候選人將指派給：<strong>{config.consultant}</strong>
-            </p>
-          )}
-          {!config.consultant && consultants.length > 0 && (
-            <p className="mt-3 text-xs text-amber-600 flex items-center gap-1">
-              <AlertCircle size={13} />
-              請選擇負責顧問，否則將使用預設值「AIBot-pipeline」
-            </p>
-          )}
-        </div>
+            <p className="text-xs text-slate-400 mt-2">各顧問設定相互獨立，不會互相干擾。</p>
+          </div>
+        )}
       </div>
 
       {/* ── 目標職缺 ── */}
