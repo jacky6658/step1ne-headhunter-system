@@ -590,6 +590,9 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
           <table className="min-w-full divide-y divide-gray-200" style={{ minWidth: '900px' }}>
           <thead className="bg-gray-50 sticky top-0 z-50">
             <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '60px' }}>
+                編號
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '180px' }}>
                 <div className="flex items-center">
                   姓名
@@ -657,11 +660,14 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
               };
               
               return (
-                <tr 
+                <tr
                   key={candidate.id}
                   className="hover:bg-gray-50 cursor-pointer transition-colors"
                   onClick={() => setSelectedCandidate(candidate)}
                 >
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className="text-xs font-mono text-gray-400">#{candidate.id}</span>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div>

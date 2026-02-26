@@ -309,7 +309,10 @@ Step1ne Recruitment`;
                   <User className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold">{candidate.name}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold">{candidate.name}</h2>
+                    <span className="text-xs font-mono bg-white/20 text-white/80 px-2 py-0.5 rounded">#{candidate.id}</span>
+                  </div>
                   <p className="text-blue-100 text-sm">候選人背景：{candidate.position}</p>
                 </div>
               </div>
