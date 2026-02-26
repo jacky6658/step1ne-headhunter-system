@@ -187,10 +187,8 @@ def search_github_users(skills, location="Taiwan", token=None, pages=2):
     seen_logins = set()
     all_logins = []
 
-    primary_langs = [s for s in skills[:2] if s]
-    lang_query = ' '.join(f'language:{s}' for s in primary_langs) if primary_langs else ''
-    location_variants = [location, 'Taipei'] if location.lower() == 'taiwan' else [location]
-    queries = [f'{lang_query} location:{loc}'.strip() for loc in location_variants]
+    queries = build_github_queries(skills, location)
+    log(f"GitHub queries: {queries}")
 
     for query in queries:
         for page in range(1, pages + 1):
@@ -216,6 +214,160 @@ def search_github_users(skills, location="Taiwan", token=None, pages=2):
             if detail:
                 all_users.append(detail)
     return {'success': True, 'data': all_users}
+
+
+# ============================================================
+# 技能同義詞 & 生態系展開（Option A：主技能 AND，次技能 OR）
+# ============================================================
+
+# 技能 → 常見別名 / 縮寫（搜尋時自動展開）
+SKILL_SYNONYMS: dict = {
+    # JavaScript 生態
+    'javascript':   ['JavaScript', 'JS'],
+    'typescript':   ['TypeScript', 'TS'],
+    'react':        ['React', 'React.js', 'ReactJS'],
+    'vue':          ['Vue', 'Vue.js', 'VueJS'],
+    'angular':      ['Angular', 'AngularJS'],
+    'next':         ['Next.js', 'NextJS'],
+    'nuxt':         ['Nuxt.js', 'NuxtJS'],
+    'node':         ['Node.js', 'NodeJS', 'Node'],
+    # Python 生態
+    'python':       ['Python'],
+    'django':       ['Django'],
+    'fastapi':      ['FastAPI'],
+    'flask':        ['Flask'],
+    # Go / Golang
+    'go':           ['Go', 'Golang'],
+    'golang':       ['Go', 'Golang'],
+    # JVM
+    'java':         ['Java'],
+    'kotlin':       ['Kotlin'],
+    'scala':        ['Scala'],
+    'spring':       ['Spring', 'Spring Boot'],
+    # .NET
+    'csharp':       ['C#', '.NET'],
+    'dotnet':       ['.NET', 'C#'],
+    # 行動開發
+    'swift':        ['Swift', 'iOS'],
+    'ios':          ['iOS', 'Swift'],
+    'android':      ['Android', 'Kotlin'],
+    # 資料 / ML
+    'ml':           ['Machine Learning', 'ML'],
+    'machinelearning': ['Machine Learning', 'ML'],
+    'deeplearning': ['Deep Learning', 'DL'],
+    'pytorch':      ['PyTorch'],
+    'tensorflow':   ['TensorFlow', 'TF'],
+    'llm':          ['LLM', 'Large Language Model'],
+    'rag':          ['RAG', 'Retrieval Augmented Generation'],
+    # 雲端 & DevOps
+    'aws':          ['AWS', 'Amazon Web Services'],
+    'gcp':          ['GCP', 'Google Cloud'],
+    'azure':        ['Azure', 'Microsoft Azure'],
+    'kubernetes':   ['Kubernetes', 'K8s'],
+    'k8s':          ['Kubernetes', 'K8s'],
+    'docker':       ['Docker', 'Container'],
+    'devops':       ['DevOps', 'SRE'],
+    'sre':          ['SRE', 'DevOps'],
+    'ci':           ['CI/CD', 'GitHub Actions', 'Jenkins'],
+    'cicd':         ['CI/CD', 'GitHub Actions'],
+    # 資料庫
+    'postgres':     ['PostgreSQL', 'Postgres'],
+    'postgresql':   ['PostgreSQL', 'Postgres'],
+    'mysql':        ['MySQL'],
+    'mongodb':      ['MongoDB', 'Mongo'],
+    'redis':        ['Redis'],
+    'elasticsearch':['Elasticsearch', 'ES', 'OpenSearch'],
+    # 區塊鏈
+    'solidity':     ['Solidity'],
+    'web3':         ['Web3', 'Blockchain'],
+    # 資安
+    'security':     ['Security', '資安', 'Cybersecurity'],
+    # 其他
+    'rust':         ['Rust'],
+    'cpp':          ['C++'],
+    'c++':          ['C++'],
+    'linux':        ['Linux'],
+    'git':          ['Git', 'GitHub'],
+}
+
+def _normalize_key(skill: str) -> str:
+    return skill.lower().replace('.', '').replace(' ', '').replace('-', '').replace('_', '')
+
+def expand_skill_synonyms(skill: str) -> list:
+    """回傳該技能 + 所有已知別名（去重）"""
+    key = _normalize_key(skill)
+    synonyms = SKILL_SYNONYMS.get(key)
+    if synonyms:
+        # 確保原始輸入也在清單中
+        result = list(dict.fromkeys([skill] + synonyms))
+        return result
+    return [skill]
+
+def build_linkedin_query(skills: list, location: str) -> str:
+    """
+    方案 A：主技能 AND + 次技能 OR + 同義詞展開
+      - 主技能（前 2 個）：AND — 候選人必須同時具備
+      - 次技能（第 3-6 個）：OR 群組 — 有其一即符合
+      - 每個技能自動展開同義詞（React → "React" OR "React.js"）
+
+    範例輸出：
+      site:linkedin.com/in/ "Python" ("Go" OR "Golang")
+        ("Kubernetes" OR "K8s" OR "Docker") "台灣"
+    """
+    primary   = skills[:2]
+    secondary = skills[2:7]
+
+    parts = []
+
+    # 主技能：各自展開同義詞，多個別名用 OR 括號，單一直接引號
+    for skill in primary:
+        synonyms = expand_skill_synonyms(skill)
+        if len(synonyms) > 1:
+            parts.append('(' + ' OR '.join(f'"{s}"' for s in synonyms) + ')')
+        else:
+            parts.append(f'"{skill}"')
+
+    # 次技能：所有技能的同義詞合併成一個大 OR 群組
+    secondary_terms = []
+    for skill in secondary:
+        for s in expand_skill_synonyms(skill):
+            term = f'"{s}"'
+            if term not in secondary_terms:
+                secondary_terms.append(term)
+
+    if secondary_terms:
+        parts.append('(' + ' OR '.join(secondary_terms) + ')')
+
+    query = f'site:linkedin.com/in/ ' + ' '.join(parts) + f' "{location}"'
+    return query
+
+def build_github_queries(skills: list, location: str) -> list:
+    """
+    GitHub：主語言 AND，次語言 OR（多查詢策略）
+    GitHub Search 不支援 OR，改為：
+      - 查詢 1：主語言1 + 主語言2（AND）
+      - 查詢 2：主語言1 + 次語言輪替（覆蓋更多人）
+    """
+    primary   = [s for s in skills[:2] if s]
+    secondary = [s for s in skills[2:5] if s]
+
+    location_variants = [location, 'Taipei'] if location.lower() == 'taiwan' else [location]
+    queries = []
+
+    # 主查詢：前 2 個主語言 AND
+    if primary:
+        lang_part = ' '.join(f'language:{s}' for s in primary)
+        for loc in location_variants:
+            queries.append(f'{lang_part} location:{loc}')
+
+    # 次查詢：主語言1 + 每個次語言
+    if primary and secondary:
+        for sec in secondary:
+            q = f'language:{primary[0]} language:{sec} location:{location}'
+            if q not in queries:
+                queries.append(q)
+
+    return queries or [f'location:{location}']
 
 
 # ============================================================
@@ -302,8 +454,8 @@ def search_linkedin_via_google(skills, location="台灣", pages=2):
     seen_urls = set()
     captcha_detected = False
 
-    skill_query = ' '.join(f'"{s}"' for s in skills[:3])
-    query = f'site:linkedin.com/in/ {skill_query} "{location}"'
+    query = build_linkedin_query(skills, location)
+    log(f"Google query: {query}")
 
     for page in range(pages):
         start = page * 10
@@ -337,9 +489,9 @@ def search_linkedin_via_bing(skills, location="Taiwan", pages=2):
     results = []
     seen_urls = set()
 
-    skill_query = ' '.join(f'"{s}"' for s in skills[:3])
     location_en = location if location in ('Taiwan', 'Singapore', 'Hong Kong') else 'Taiwan'
-    query = f'site:linkedin.com/in/ {skill_query} "{location_en}"'
+    query = build_linkedin_query(skills, location_en)
+    log(f"Bing query: {query}")
 
     for page in range(pages):
         first = page * 10 + 1
@@ -366,8 +518,8 @@ def search_linkedin_via_brave(skills, brave_api_key, location="Taiwan", pages=2)
     results = []
     seen_urls = set()
 
-    skill_query = ' '.join(f'"{s}"' for s in skills[:3])
-    query = f'site:linkedin.com/in/ {skill_query} "{location}"'
+    query = build_linkedin_query(skills, location)
+    log(f"Brave query: {query}")
     endpoint = "https://api.search.brave.com/res/v1/web/search"
     brave_headers = {
         'Accept': 'application/json',
