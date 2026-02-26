@@ -1631,4 +1631,10 @@ router.get('/resume-guide', (req, res) => {
   }
 });
 
+// ==================== 人才智能爬蟲 API (NEW - 2026-02-26) ====================
+// 整合 step1ne-headhunter-skill 的爬蟲系統
+
+const talentSourcingRoutes = require('./talent-sourcing/routes');
+router.use('/talent-sourcing', talentSourcingRoutes);
+
 module.exports = router;
