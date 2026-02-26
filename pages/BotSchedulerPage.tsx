@@ -132,16 +132,20 @@ export const BotSchedulerPage: React.FC<Props> = ({ userProfile }) => {
     setLoading(true);
     try {
       const me = userProfile.displayName;
-      const [cfgRes, jobsRes, logsRes, usersRes] = await Promise.all([
+      // /api/users 只在生產環境才有（本機 mock 無此路由）
+      const isProd = import.meta.env.PROD;
+      const fetchPromises: Promise<Response>[] = [
         fetch(`${API_BASE_URL}/api/bot-config?consultant=${encodeURIComponent(me)}`),
         fetch(`${API_BASE_URL}/api/jobs`),
         fetch(`${API_BASE_URL}/api/bot-logs`),
-        fetch(`${API_BASE_URL}/api/users`),
-      ]);
+        ...(isProd ? [fetch(`${API_BASE_URL}/api/users`)] : []),
+      ];
+      const results = await Promise.all(fetchPromises);
+      const [cfgRes, jobsRes, logsRes, usersRes] = [results[0], results[1], results[2], results[3]];
       const cfgJson   = await safeJson(cfgRes,   { success: false, data: {} });
       const jobsJson  = await safeJson(jobsRes,  { success: false, data: [] });
       const logsJson  = await safeJson(logsRes,  { success: false, data: [] });
-      const usersJson = await safeJson(usersRes, { success: false, data: [] });
+      const usersJson = usersRes ? await safeJson(usersRes, { success: false, data: [] }) : { success: false, data: [] };
 
       if (cfgJson.success) {
         setConfig(prev => ({ ...DEFAULT_CONFIG, ...cfgJson.data, consultant: me }));
