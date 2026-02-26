@@ -86,6 +86,15 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS job_description TEXT
 `).catch(err => console.warn('job_description migration:', err.message));
 
+// 確保 bot_config 資料表存在（Bot 排程設定）
+pool.query(`
+  CREATE TABLE IF NOT EXISTS bot_config (
+    key VARCHAR(100) PRIMARY KEY,
+    value JSONB,
+    updated_at TIMESTAMP DEFAULT NOW()
+  )
+`).catch(err => console.warn('bot_config migration:', err.message));
+
 // 寫入 system_logs 輔助函數
 async function writeLog({ action, actor, candidateId, candidateName, detail }) {
   // 判斷 AIBOT：包含 "aibot" 或以 "bot" 結尾（如 Jackeybot、Phoebebot）
@@ -2241,4 +2250,76 @@ router.post('/clients/:id/contacts', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+// ==================== Bot 排程設定 ====================
+
+/** GET /api/bot-config - 取得 Bot 設定 */
+router.get('/bot-config', async (req, res) => {
+  try {
+    const db = await pool.connect();
+    const result = await db.query(`SELECT key, value FROM bot_config`);
+    db.release();
+    const config = {};
+    for (const row of result.rows) {
+      config[row.key] = row.value;
+    }
+    // 回傳合併後的設定物件，帶預設值
+    res.json({
+      success: true,
+      data: {
+        enabled: config.enabled ?? false,
+        schedule_hours: config.schedule_hours ?? 12,
+        target_job_ids: config.target_job_ids ?? [],
+        last_run_at: config.last_run_at ?? null,
+        last_run_status: config.last_run_status ?? null,
+        last_run_summary: config.last_run_summary ?? null,
+        ...config
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/** POST /api/bot-config - 儲存 Bot 設定 */
+router.post('/bot-config', async (req, res) => {
+  try {
+    const { enabled, schedule_hours, target_job_ids } = req.body;
+    const db = await pool.connect();
+    // 使用 UPSERT 逐一存入各 key
+    const entries = { enabled, schedule_hours, target_job_ids };
+    for (const [key, val] of Object.entries(entries)) {
+      if (val !== undefined) {
+        await db.query(
+          `INSERT INTO bot_config (key, value, updated_at)
+           VALUES ($1, $2::jsonb, NOW())
+           ON CONFLICT (key) DO UPDATE SET value = $2::jsonb, updated_at = NOW()`,
+          [key, JSON.stringify(val)]
+        );
+      }
+    }
+    db.release();
+    res.json({ success: true, message: 'Bot 設定已儲存' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/** GET /api/bot-logs - 取得 Bot 執行紀錄（最近 50 筆） */
+router.get('/bot-logs', async (req, res) => {
+  try {
+    const db = await pool.connect();
+    const result = await db.query(`
+      SELECT id, action, actor, candidate_name, detail, created_at
+      FROM system_logs
+      WHERE actor_type = 'AIBOT'
+      ORDER BY created_at DESC
+      LIMIT 50
+    `);
+    db.release();
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

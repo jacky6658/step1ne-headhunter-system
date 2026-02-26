@@ -19,6 +19,7 @@ import { JobsPage } from './pages/JobsPage';
 import { PipelinePage } from './pages/PipelinePage';
 import { SystemLogPage } from './pages/SystemLogPage';
 import { BDClientsPage } from './pages/BDClientsPage';
+import { BotSchedulerPage } from './pages/BotSchedulerPage';
 import { Menu, X as XIcon } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -117,6 +118,8 @@ const App: React.FC = () => {
       />;
       // 顧問人選追蹤表
       case 'pipeline': return <PipelinePage userProfile={profile} />;
+      // Bot 排程設定
+      case 'bot-scheduler': return <BotSchedulerPage userProfile={profile} />;
       // 操作日誌
       case 'system-log': return <SystemLogPage userProfile={profile} />;
       case 'members': 
@@ -199,7 +202,8 @@ const App: React.FC = () => {
                activeTab === 'bd-clients' ? 'BD 客戶開發' :
                activeTab === 'pipeline' ? '顧問人選追蹤表' :
                activeTab === 'ai-matching' ? 'AI 配對推薦' :
-               activeTab === 'system-log' ? '操作日誌' : 'Step1ne 獵頭系統'}
+               activeTab === 'system-log' ? '操作日誌' :
+               activeTab === 'bot-scheduler' ? 'Bot 排程設定' : 'Step1ne 獵頭系統'}
             </h1>
                 <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mt-0.5 hidden sm:block">Collaborative Workspace</p>
           </div>
