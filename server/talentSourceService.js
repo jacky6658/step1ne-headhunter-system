@@ -1,13 +1,13 @@
 /**
  * talentSourceService.js - 人才智能爬蟲服務層
- * 與 /Users/user/clawd/hr-tools/ 的爬蟲系統互動
+ * 調用內建的爬蟲系統（位於 ./talent-sourcing/）
  * 
  * 功能：
  * 1. 調用 Python 爬蟲搜尋候選人
  * 2. 調用評分系統評分
  * 3. 調用遷移分析器分析跨產業能力
  * 
- * 注意：Python 腳本位置固定，需要環境變數設定
+ * 注意：爬蟲腳本與本服務層在同一目錄，部署友善
  */
 
 const { exec } = require('child_process');
@@ -17,11 +17,11 @@ const path = require('path');
 
 const execPromise = util.promisify(exec);
 
-// 爬蟲腳本位置
-const TOOLS_DIR = '/Users/user/clawd/hr-tools';
-const SCRAPER_SCRIPT = path.join(TOOLS_DIR, 'search-plan-executor.py');
-const SCORER_SCRIPT = path.join(TOOLS_DIR, 'candidate-scoring-system-v2.py');
-const MIGRATION_SCRIPT = path.join(TOOLS_DIR, 'industry-migration-analyzer.py');
+// 爬蟲腳本位置（相對於本文件）
+const TALENT_SOURCING_DIR = path.join(__dirname, 'talent-sourcing');
+const SCRAPER_SCRIPT = path.join(TALENT_SOURCING_DIR, 'search-plan-executor.py');
+const SCORER_SCRIPT = path.join(TALENT_SOURCING_DIR, 'candidate-scoring-system-v2.py');
+const MIGRATION_SCRIPT = path.join(TALENT_SOURCING_DIR, 'industry-migration-analyzer.py');
 
 /**
  * 驗證 Python 爬蟲腳本是否存在
@@ -58,7 +58,7 @@ class TalentSourceService {
     if (!this.isReady) {
       return {
         success: false,
-        error: '爬蟲腳本未就緒，請檢查 /Users/user/clawd/hr-tools/',
+        error: `爬蟲腳本未就緒，請檢查 ${TALENT_SOURCING_DIR}`,
         data: []
       };
     }
@@ -69,7 +69,7 @@ class TalentSourceService {
         : requiredSkills;
 
       // 構建命令行
-      const cmd = `cd ${TOOLS_DIR} && python3 search-plan-executor.py \
+      const cmd = `cd ${TALENT_SOURCING_DIR} && python3 search-plan-executor.py \
         --job-title "${jobTitle}" \
         --industry "${industry}" \
         --required-skills "${skillsStr}" \
@@ -150,7 +150,7 @@ class TalentSourceService {
       const tempFile = `/tmp/scoring-input-${Date.now()}.json`;
       fs.writeFileSync(tempFile, JSON.stringify(inputData));
 
-      const cmd = `cd ${TOOLS_DIR} && python3 candidate-scoring-system-v2.py \
+      const cmd = `cd ${TALENT_SOURCING_DIR} && python3 candidate-scoring-system-v2.py \
         --input-file ${tempFile} \
         --output-format json`;
 
@@ -233,7 +233,7 @@ class TalentSourceService {
       const tempFile = `/tmp/migration-input-${Date.now()}.json`;
       fs.writeFileSync(tempFile, JSON.stringify(inputData));
 
-      const cmd = `cd ${TOOLS_DIR} && python3 industry-migration-analyzer.py \
+      const cmd = `cd ${TALENT_SOURCING_DIR} && python3 industry-migration-analyzer.py \
         --input-file ${tempFile} \
         --target-industry "${targetIndustry}" \
         --output-format json`;
@@ -282,7 +282,7 @@ class TalentSourceService {
   async healthCheck() {
     return {
       scriptsReady: this.isReady,
-      toolsDir: TOOLS_DIR,
+      toolsDir: TALENT_SOURCING_DIR,
       scriptsAvailable: {
         scraper: fs.existsSync(SCRAPER_SCRIPT),
         scorer: fs.existsSync(SCORER_SCRIPT),
