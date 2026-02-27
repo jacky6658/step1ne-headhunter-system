@@ -324,20 +324,27 @@ router.get('/candidates', async (req, res) => {
       educationJson: row.education_details || [],
       discProfile: row.personality_type || '',
       progressTracking: row.progress_tracking || [],
-      aiMatchResult: row.ai_match_result ? {
-        score: row.ai_match_result.score || 0,
-        grade: row.ai_match_result.grade,
-        recommendation: row.ai_match_result.grade === 'A+' ? '強力推薦' : row.ai_match_result.grade === 'A' ? '推薦' : row.ai_match_result.grade === 'B' ? '觀望' : '不推薦',
-        job_title: row.ai_match_result.position,
-        company: row.ai_match_result.company,
-        matched_skills: row.ai_match_result.strengths || [],
-        missing_skills: row.ai_match_result.to_confirm || [],
-        strengths: row.ai_match_result.strengths || [],
-        suggestion: row.ai_match_result.suggestion || '',
-        evaluated_by: 'AIBot',
-        evaluated_at: row.ai_match_result.date,
-        github_url: row.ai_match_result.github_url
-      } : null,
+      aiMatchResult: row.ai_match_result ? (() => {
+        // 支援新舊格式，直接傳遞完整的 ai_match_result 物件
+        const am = row.ai_match_result;
+        return {
+          score: am.score || 0,
+          grade: am.grade || 'B',
+          recommendation: am.recommendation || (am.grade === 'A+' ? '強力推薦' : am.grade === 'A' ? '推薦' : am.grade === 'B' ? '觀望' : '不推薦'),
+          job_title: am.job_title || am.position || '',
+          company: am.company || '',
+          matched_skills: am.matched_skills || am.strengths || [],
+          missing_skills: am.missing_skills || am.to_confirm || [],
+          strengths: am.strengths || [],
+          probing_questions: am.probing_questions || [],
+          salary_fit: am.salary_fit || '',
+          conclusion: am.conclusion || '',
+          suggestion: am.suggestion || '',
+          evaluated_by: am.evaluated_by || 'AIBot',
+          evaluated_at: am.evaluated_at || am.date || new Date().toISOString(),
+          github_url: am.github_url || ''
+        };
+      })() : null,
       
       // 向後相容：保留 DB 字段名
       contact_link: row.contact_link || '',
@@ -352,8 +359,7 @@ router.get('/candidates', async (req, res) => {
       education_details: row.education_details || [],
       personality_type: row.personality_type || '',
       recruiter: row.recruiter || 'Jacky',
-      talent_level: row.talent_level || '',
-      aiMatchResult: row.ai_match_result || null,
+      talent_level: row.talent_level || ''
     }));
 
     client.release();
@@ -417,20 +423,27 @@ router.get('/candidates/:id', async (req, res) => {
       linkedinUrl: row.linkedin_url || '',
       githubUrl: row.github_url || '',
       resumeLink: row.contact_link || '',
-      aiMatchResult: row.ai_match_result ? {
-        score: row.ai_match_result.score || 0,
-        grade: row.ai_match_result.grade,
-        recommendation: row.ai_match_result.grade === 'A+' ? '強力推薦' : row.ai_match_result.grade === 'A' ? '推薦' : row.ai_match_result.grade === 'B' ? '觀望' : '不推薦',
-        job_title: row.ai_match_result.position,
-        company: row.ai_match_result.company,
-        matched_skills: row.ai_match_result.strengths || [],
-        missing_skills: row.ai_match_result.to_confirm || [],
-        strengths: row.ai_match_result.strengths || [],
-        suggestion: row.ai_match_result.suggestion || '',
-        evaluated_by: 'AIBot',
-        evaluated_at: row.ai_match_result.date,
-        github_url: row.ai_match_result.github_url
-      } : null,
+      aiMatchResult: row.ai_match_result ? (() => {
+        // 支援新舊格式，直接傳遞完整的 ai_match_result 物件
+        const am = row.ai_match_result;
+        return {
+          score: am.score || 0,
+          grade: am.grade || 'B',
+          recommendation: am.recommendation || (am.grade === 'A+' ? '強力推薦' : am.grade === 'A' ? '推薦' : am.grade === 'B' ? '觀望' : '不推薦'),
+          job_title: am.job_title || am.position || '',
+          company: am.company || '',
+          matched_skills: am.matched_skills || am.strengths || [],
+          missing_skills: am.missing_skills || am.to_confirm || [],
+          strengths: am.strengths || [],
+          probing_questions: am.probing_questions || [],
+          salary_fit: am.salary_fit || '',
+          conclusion: am.conclusion || '',
+          suggestion: am.suggestion || '',
+          evaluated_by: am.evaluated_by || 'AIBot',
+          evaluated_at: am.evaluated_at || am.date || new Date().toISOString(),
+          github_url: am.github_url || ''
+        };
+      })() : null,
       createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
       updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString(),
     };
@@ -455,18 +468,23 @@ router.get('/candidates/:id', async (req, res) => {
 router.put('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes, consultant, name, progressTracking } = req.body;
+    const { status, notes, consultant, name, progressTracking, aiMatchResult } = req.body;
 
     const client = await pool.connect();
+
+    // 支援 aiMatchResult 或 ai_match_result
+    const matchResult = aiMatchResult || req.body.ai_match_result || null;
 
     const result = await client.query(
       `UPDATE candidates_pipeline
        SET status = $1, notes = $2, recruiter = $3,
-           progress_tracking = $4, updated_at = NOW()
-       WHERE id = $5
+           progress_tracking = $4, ai_match_result = $5, updated_at = NOW()
+       WHERE id = $6
        RETURNING *`,
       [status || '', notes || '', consultant || '',
-       JSON.stringify(progressTracking || []), id]
+       JSON.stringify(progressTracking || []), 
+       matchResult ? JSON.stringify(matchResult) : null,
+       id]
     );
 
     client.release();
@@ -485,7 +503,7 @@ router.put('/candidates/:id', async (req, res) => {
       actor,
       candidateId: parseInt(id),
       candidateName: result.rows[0].name,
-      detail: { status, notes: notes?.substring(0, 100) }
+      detail: { status, notes: notes?.substring(0, 100), aiMatchResult: matchResult ? '已更新' : undefined }
     });
 
     res.json({
