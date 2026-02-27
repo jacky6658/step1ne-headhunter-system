@@ -1109,7 +1109,8 @@ Step1ne Recruitment`;
           )}
 
           {activeTab === 'ai_match' && (() => {
-            const ai = candidate.aiMatchResult as AiMatchResult | null | undefined;
+            // 支援兩種欄位名稱（camelCase 和 snake_case）以相容不同 API 版本
+            const ai = (candidate.aiMatchResult || (candidate as any).ai_match_result) as AiMatchResult | null | undefined;
 
             const recConfig: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
               '強力推薦': { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: <ThumbsUp className="w-4 h-4" /> },
