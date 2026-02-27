@@ -62,7 +62,11 @@ export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
       const response = await fetch(url);
       if (response.ok) {
         const result = await response.json();
-        const candidates = result.data || [];
+        const candidates = (result.data || []).map((c: any) => ({
+          ...c,
+          // 字段名映射：ai_match_result (snake_case) → aiMatchResult (camelCase)
+          aiMatchResult: c.ai_match_result || c.aiMatchResult || null
+        }));
 
         // 更新快取（只有在未提供 userProfile 時）
         if (!userProfile) {
