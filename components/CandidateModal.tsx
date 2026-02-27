@@ -1258,24 +1258,31 @@ Step1ne Recruitment`;
                   </div>
                 )}
 
-                {/* 建議 */}
-                {ai.suggestion && (
+                {/* 面谈重点 */}
+                {ai.probing_questions?.length > 0 && (
                   <div className="space-y-2">
                     <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500" /> 建議
+                      <MessageSquare className="w-3.5 h-3.5 text-blue-500" /> 面谈重点
                     </h4>
-                    <p className="text-sm text-slate-700 leading-relaxed p-3 bg-amber-50 border border-amber-100 rounded-lg">{ai.suggestion}</p>
+                    <div className="space-y-2">
+                      {ai.probing_questions.map((q, i) => (
+                        <div key={i} className="flex items-start gap-2 p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
+                          <span className="shrink-0 font-bold text-blue-400 min-w-6">Q{i + 1}</span>
+                          <span>{q}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 {/* 待確認 */}
-                {ai.to_confirm?.length > 0 && (
+                {ai.missing_skills?.length > 0 && (
                   <div className="space-y-2">
                     <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <AlertCircle className="w-3.5 h-3.5 text-rose-500" /> 待確認
                     </h4>
                     <ul className="space-y-1.5">
-                      {ai.to_confirm.map((item, i) => (
+                      {ai.missing_skills.map((item, i) => (
                         <li key={i} className="text-sm text-slate-700 flex items-start gap-2 p-2 bg-rose-50 border border-rose-100 rounded">
                           <span className="text-rose-400 mt-0.5">▪</span>
                           <span>{item}</span>
