@@ -1133,7 +1133,25 @@ Step1ne Recruitment`;
 
           {activeTab === 'ai_match' && (() => {
             // 使用 enrichedCandidate 以獲得最新的 AI 匹配結果
-            const ai = (enrichedCandidate.aiMatchResult || (enrichedCandidate as any).ai_match_result) as AiMatchResult | null | undefined;
+            let rawAi = (enrichedCandidate.aiMatchResult || (enrichedCandidate as any).ai_match_result);
+            
+            // 轉換後端數據格式為前端期望的格式
+            const ai = rawAi ? {
+              score: rawAi.score || 0,
+              grade: rawAi.grade,
+              recommendation: rawAi.grade === 'A+' ? '強力推薦' : rawAi.grade === 'A' ? '推薦' : rawAi.grade === 'B' ? '觀望' : '不推薦',
+              job_title: rawAi.position,
+              job_id: '',
+              company: rawAi.company,
+              strengths: rawAi.strengths || [],
+              to_confirm: rawAi.to_confirm || [],
+              suggestion: rawAi.suggestion || '',
+              matched_skills: rawAi.strengths || [],
+              missing_skills: rawAi.to_confirm || [],
+              evaluated_by: 'AIBot',
+              evaluated_at: rawAi.date,
+              github_url: rawAi.github_url
+            } as any : null;
 
             const recConfig: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
               '強力推薦': { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: <ThumbsUp className="w-4 h-4" /> },
