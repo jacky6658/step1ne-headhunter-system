@@ -29,11 +29,34 @@ export function filterCandidatesByPermission(
  * 從 API 或 Mock 資料取得候選人（支援權限過濾）
  */
 export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
-  // 檢查快取（只有在未提供 userProfile 時才使用快取）
+  // 【強制】永遠打真實 API，不能 fallback 到 Mock（用於本機開發驗證雲端連線）
+  if (API_BASE_URL) {
+    let url = `${API_BASE_URL}/api/candidates?limit=1000`; // 強制取全部 189 位候選人
+    
+    const response = await fetch(url);
+    if (response.ok) {
+      const text = await response.text();
+      // 把 API 響應長度寫到 document.title 便於診斷
+      document.title = `API_OK_${text.length}_chars`;
+      const result = JSON.parse(text);
+      const dataLength = result.data?.length || 0;
+      document.title = `CANDIDATES_${dataLength}`;
+      const candidates = (result.data || []).map((c: any) => ({
+        ...c,
+        aiMatchResult: c.ai_match_result || c.aiMatchResult || null
+      }));
+      return candidates;
+    } else {
+      const errText = await response.text();
+      console.error('❌ API 錯誤:', response.status, errText.substring(0, 100));
+      throw new Error(`API 失敗 ${response.status}: ${errText.substring(0, 200)}`);
+    }
+  }
+  
+  // 舊快取邏輯（保留）
   if (!userProfile) {
     const cached = localStorage.getItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE);
     const lastSync = localStorage.getItem(STORAGE_KEYS_EXT.LAST_SYNC);
-    
     if (cached && lastSync) {
       const cacheAge = Date.now() - parseInt(lastSync);
       if (cacheAge < CACHE_EXPIRY) {
@@ -42,47 +65,7 @@ export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
     }
   }
   
-  try {
-    // 嘗試從 API 取得
-    if (API_BASE_URL) {
-      // 建立 URL 參數（如果有 userProfile）
-      let url = `${API_BASE_URL}/api/candidates`;
-      
-      // 確保 role 轉換為字串進行比較
-      const userRole = String(userProfile?.role || '');
-      
-      if (userProfile && userRole === 'REVIEWER') {
-        const params = new URLSearchParams({
-          userRole: userRole,
-          consultant: userProfile.displayName
-        });
-        url += `?${params.toString()}`;
-      }
-      
-      const response = await fetch(url);
-      if (response.ok) {
-        const result = await response.json();
-        const candidates = (result.data || []).map((c: any) => ({
-          ...c,
-          // 字段名映射：ai_match_result (snake_case) → aiMatchResult (camelCase)
-          aiMatchResult: c.ai_match_result || c.aiMatchResult || null
-        }));
-
-        // 更新快取（只有在未提供 userProfile 時）
-        if (!userProfile) {
-          localStorage.setItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE, JSON.stringify(candidates));
-          localStorage.setItem(STORAGE_KEYS_EXT.LAST_SYNC, Date.now().toString());
-        }
-        
-        return candidates;
-      }
-    }
-  } catch (error) {
-    console.warn('API 無法連接，使用 Mock 資料:', error);
-  }
-  
-  // Fallback: 使用 Mock 資料（示範用）
-  return getMockCandidates();
+  throw new Error('無法取得候選人資料：API 不可用且無快取');
 }
 
 /**

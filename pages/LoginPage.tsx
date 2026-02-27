@@ -11,7 +11,23 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadUsers();
+    const initLogin = async () => {
+      await loadUsers();
+      // 開發模式：自動登入為 Jacky（方便測試）
+      if (import.meta.env.DEV) {
+        const autoLoginParam = new URLSearchParams(window.location.search).get('autoLogin');
+        if (autoLoginParam === 'jacky') {
+          try {
+            const profile = { uid: 'jacky', email: 'jacky@aijob.internal', role: 'REVIEWER', displayName: 'Jacky' } as UserProfile;
+            localStorage.setItem('caseflow_profile', JSON.stringify(profile));
+            await signInAnonymously(auth, 'jacky');
+          } catch (err) {
+            console.error('Auto-login failed:', err);
+          }
+        }
+      }
+    };
+    initLogin();
   }, []);
 
   const loadUsers = async () => {
