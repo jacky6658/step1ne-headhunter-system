@@ -37,6 +37,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [githubInput, setGithubInput] = useState((candidate as any).githubUrl || '');
   const [savingLinkedin, setSavingLinkedin] = useState(false);
   const [savingGithub, setSavingGithub] = useState(false);
+  const [enrichedCandidate, setEnrichedCandidate] = useState(candidate);
   
   // 禁止背景滾動
   React.useEffect(() => {
@@ -45,6 +46,28 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
       document.body.style.overflow = 'unset';
     };
   }, []);
+  
+  // 重新 fetch 候選人資料以獲得最新的 aiMatchResult
+  React.useEffect(() => {
+    const fetchLatest = async () => {
+      try {
+        const response = await fetch(`https://backendstep1ne.zeabur.app/api/candidates/${candidate.id}`);
+        if (response.ok) {
+          const result = await response.json();
+          const data = result.data || {};
+          // 合併後端資料到 candidate，確保 aiMatchResult 存在
+          setEnrichedCandidate({
+            ...candidate,
+            aiMatchResult: data.ai_match_result || data.aiMatchResult || candidate.aiMatchResult || null
+          });
+        }
+      } catch (error) {
+        console.error('Fetch candidate detail failed:', error);
+        setEnrichedCandidate(candidate);
+      }
+    };
+    fetchLatest();
+  }, [candidate.id, candidate]);
   
   // 新增進度記錄
   const handleAddProgress = async (eventType: string) => {
@@ -1109,8 +1132,8 @@ Step1ne Recruitment`;
           )}
 
           {activeTab === 'ai_match' && (() => {
-            // 支援兩種欄位名稱（camelCase 和 snake_case）以相容不同 API 版本
-            const ai = (candidate.aiMatchResult || (candidate as any).ai_match_result) as AiMatchResult | null | undefined;
+            // 使用 enrichedCandidate 以獲得最新的 AI 匹配結果
+            const ai = (enrichedCandidate.aiMatchResult || (enrichedCandidate as any).ai_match_result) as AiMatchResult | null | undefined;
 
             const recConfig: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
               '強力推薦': { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: <ThumbsUp className="w-4 h-4" /> },
