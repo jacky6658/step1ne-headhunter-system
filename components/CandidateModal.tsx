@@ -1258,6 +1258,33 @@ Step1ne Recruitment`;
                   </div>
                 )}
 
+                {/* 建議 */}
+                {ai.suggestion && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" /> 建議
+                    </h4>
+                    <p className="text-sm text-slate-700 leading-relaxed p-3 bg-amber-50 border border-amber-100 rounded-lg">{ai.suggestion}</p>
+                  </div>
+                )}
+
+                {/* 待確認 */}
+                {ai.to_confirm?.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-500" /> 待確認
+                    </h4>
+                    <ul className="space-y-1.5">
+                      {ai.to_confirm.map((item, i) => (
+                        <li key={i} className="text-sm text-slate-700 flex items-start gap-2 p-2 bg-rose-50 border border-rose-100 rounded">
+                          <span className="text-rose-400 mt-0.5">▪</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {/* 薪資符合度 */}
                 {ai.salary_fit && (
                   <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700 flex items-start gap-2">
