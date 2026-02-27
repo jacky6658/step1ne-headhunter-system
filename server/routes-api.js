@@ -284,7 +284,8 @@ router.get('/candidates', async (req, res) => {
         talent_level,
         progress_tracking,
         created_at,
-        updated_at
+        updated_at,
+        ai_match_result
       FROM candidates_pipeline
       ${whereClause}
       ORDER BY id ASC
@@ -323,6 +324,7 @@ router.get('/candidates', async (req, res) => {
       educationJson: row.education_details || [],
       discProfile: row.personality_type || '',
       progressTracking: row.progress_tracking || [],
+      aiMatchResult: row.ai_match_result || null,
       
       // 向後相容：保留 DB 字段名
       contact_link: row.contact_link || '',
