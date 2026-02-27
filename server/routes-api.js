@@ -475,16 +475,31 @@ router.put('/candidates/:id', async (req, res) => {
     // 支援 aiMatchResult 或 ai_match_result
     const matchResult = aiMatchResult || req.body.ai_match_result || null;
 
+    // 如果沒有傳遞 status，保留原本值；否則使用傳遞的值
+    const hasStatus = status !== undefined && status !== null;
+    const statusValue = hasStatus ? status : undefined;
+
     const result = await client.query(
-      `UPDATE candidates_pipeline
-       SET status = $1, notes = $2, recruiter = $3,
-           progress_tracking = $4, ai_match_result = $5, updated_at = NOW()
-       WHERE id = $6
-       RETURNING *`,
-      [status || '', notes || '', consultant || '',
-       JSON.stringify(progressTracking || []), 
-       matchResult ? JSON.stringify(matchResult) : null,
-       id]
+      hasStatus
+        ? `UPDATE candidates_pipeline
+           SET status = $1, notes = $2, recruiter = $3,
+               progress_tracking = $4, ai_match_result = $5, updated_at = NOW()
+           WHERE id = $6
+           RETURNING *`
+        : `UPDATE candidates_pipeline
+           SET notes = $1, recruiter = $2,
+               progress_tracking = $3, ai_match_result = $4, updated_at = NOW()
+           WHERE id = $5
+           RETURNING *`,
+      hasStatus
+        ? [status, notes || '', consultant || '',
+           JSON.stringify(progressTracking || []), 
+           matchResult ? JSON.stringify(matchResult) : null,
+           id]
+        : [notes || '', consultant || '',
+           JSON.stringify(progressTracking || []), 
+           matchResult ? JSON.stringify(matchResult) : null,
+           id]
     );
 
     client.release();
