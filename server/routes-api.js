@@ -324,7 +324,20 @@ router.get('/candidates', async (req, res) => {
       educationJson: row.education_details || [],
       discProfile: row.personality_type || '',
       progressTracking: row.progress_tracking || [],
-      aiMatchResult: row.ai_match_result || null,
+      aiMatchResult: row.ai_match_result ? {
+        score: row.ai_match_result.score || 0,
+        grade: row.ai_match_result.grade,
+        recommendation: row.ai_match_result.grade === 'A+' ? '強力推薦' : row.ai_match_result.grade === 'A' ? '推薦' : row.ai_match_result.grade === 'B' ? '觀望' : '不推薦',
+        job_title: row.ai_match_result.position,
+        company: row.ai_match_result.company,
+        matched_skills: row.ai_match_result.strengths || [],
+        missing_skills: row.ai_match_result.to_confirm || [],
+        strengths: row.ai_match_result.strengths || [],
+        suggestion: row.ai_match_result.suggestion || '',
+        evaluated_by: 'AIBot',
+        evaluated_at: row.ai_match_result.date,
+        github_url: row.ai_match_result.github_url
+      } : null,
       
       // 向後相容：保留 DB 字段名
       contact_link: row.contact_link || '',
@@ -382,9 +395,49 @@ router.get('/candidates/:id', async (req, res) => {
       });
     }
 
+    const row = result.rows[0];
+    const candidate = {
+      id: row.id.toString(),
+      name: row.name || '',
+      email: row.email || '',
+      phone: row.phone || '',
+      location: row.location || '',
+      position: row.current_position || '',
+      years: parseInt(row.years_experience) || 0,
+      jobChanges: parseInt(row.job_changes) || 0,
+      avgTenure: parseInt(row.avg_tenure_months) || 0,
+      lastGap: parseInt(row.recent_gap_months) || 0,
+      skills: row.skills || '',
+      education: row.education || '',
+      source: row.source || '',
+      status: row.status || '',
+      consultant: row.recruiter || '',
+      notes: row.notes || '',
+      stabilityScore: parseInt(row.stability_score) || 0,
+      linkedinUrl: row.linkedin_url || '',
+      githubUrl: row.github_url || '',
+      resumeLink: row.contact_link || '',
+      aiMatchResult: row.ai_match_result ? {
+        score: row.ai_match_result.score || 0,
+        grade: row.ai_match_result.grade,
+        recommendation: row.ai_match_result.grade === 'A+' ? '強力推薦' : row.ai_match_result.grade === 'A' ? '推薦' : row.ai_match_result.grade === 'B' ? '觀望' : '不推薦',
+        job_title: row.ai_match_result.position,
+        company: row.ai_match_result.company,
+        matched_skills: row.ai_match_result.strengths || [],
+        missing_skills: row.ai_match_result.to_confirm || [],
+        strengths: row.ai_match_result.strengths || [],
+        suggestion: row.ai_match_result.suggestion || '',
+        evaluated_by: 'AIBot',
+        evaluated_at: row.ai_match_result.date,
+        github_url: row.ai_match_result.github_url
+      } : null,
+      createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString(),
+    };
+
     res.json({
       success: true,
-      data: result.rows[0]
+      data: candidate
     });
   } catch (error) {
     console.error('❌ GET /candidates/:id error:', error.message);
