@@ -31,6 +31,14 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [newNoteText, setNewNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [localNotes, setLocalNotes] = useState(candidate.notes || '');
+  // 目標職缺
+  const [editingTargetJob, setEditingTargetJob] = useState(false);
+  const [targetJobInput, setTargetJobInput] = useState(() => {
+    const notes = candidate.notes || '';
+    const m = notes.match(/目標職缺：(.+?)(?:\s*\||\s*$)/);
+    return m ? m[1].trim() : '';
+  });
+  const [savingTargetJob, setSavingTargetJob] = useState(false);
   const [editingLinkedin, setEditingLinkedin] = useState(false);
   const [editingGithub, setEditingGithub] = useState(false);
   const [linkedinInput, setLinkedinInput] = useState((candidate as any).linkedinUrl || '');
@@ -164,6 +172,35 @@ Step1ne Recruitment`;
       setEditingRecruiter(false);
     } catch (err) {
       alert('❌ 指派失敗，請稍後再試');
+    }
+  };
+
+  // 儲存目標職缺（更新 notes 中的目標職缺欄位）
+  const handleSaveTargetJob = async () => {
+    setSavingTargetJob(true);
+    try {
+      const currentNotes = localNotes;
+      const newValue = targetJobInput.trim();
+      let newNotes: string;
+      if (/目標職缺：/.test(currentNotes)) {
+        // 替換現有值
+        newNotes = currentNotes.replace(/目標職缺：.+?(?=\s*\||$)/, `目標職缺：${newValue}`);
+      } else {
+        // 在 notes 前加入
+        newNotes = newValue
+          ? (currentNotes ? `目標職缺：${newValue} | ${currentNotes}` : `目標職缺：${newValue}`)
+          : currentNotes;
+      }
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        notes: newNotes,
+        actor: currentUserName || 'system',
+      });
+      setLocalNotes(newNotes);
+      setEditingTargetJob(false);
+    } catch (err) {
+      alert('❌ 儲存目標職缺失敗，請稍後再試');
+    } finally {
+      setSavingTargetJob(false);
     }
   };
 
@@ -477,6 +514,41 @@ Step1ne Recruitment`;
                         更改
                       </button>
                     </>
+                  )}
+                </div>
+              </div>
+
+              {/* 目標職缺 */}
+              <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100">
+                <div className="flex items-center gap-2">
+                  <Target className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs text-amber-600 font-medium">目標職缺</span>
+                  {editingTargetJob ? (
+                    <input
+                      value={targetJobInput}
+                      onChange={e => setTargetJobInput(e.target.value)}
+                      className="ml-2 border border-amber-300 rounded px-2 py-0.5 text-sm w-48 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      placeholder="填入目標職缺名稱"
+                      autoFocus
+                    />
+                  ) : (
+                    <span className="ml-2 text-sm font-semibold text-amber-900">
+                      {targetJobInput || '未指定'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {editingTargetJob ? (
+                    <>
+                      <button onClick={handleSaveTargetJob} disabled={savingTargetJob} className="text-xs px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-60">
+                        {savingTargetJob ? '儲存中...' : '儲存'}
+                      </button>
+                      <button onClick={() => setEditingTargetJob(false)} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
+                    </>
+                  ) : (
+                    <button onClick={() => setEditingTargetJob(true)} className="text-xs px-2 py-1 border border-amber-200 rounded text-amber-600 hover:bg-amber-100">
+                      {targetJobInput ? '更改' : '指定'}
+                    </button>
                   )}
                 </div>
               </div>
