@@ -1116,8 +1116,9 @@ router.post('/candidates', async (req, res) => {
           email = COALESCE(NULLIF(email, ''), $19),
           linkedin_url = COALESCE(NULLIF(linkedin_url, ''), $20),
           github_url = COALESCE(NULLIF(github_url, ''), $21),
+          ai_match_result = CASE WHEN $22::jsonb IS NOT NULL THEN $22::jsonb ELSE ai_match_result END,
           updated_at = NOW()
-        WHERE id = $22
+        WHERE id = $23
         RETURNING id, name, contact_link, current_position, status`,
         [
           c.phone || '', c.contact_link || '', c.location || '',
@@ -1130,6 +1131,7 @@ router.post('/candidates', async (req, res) => {
           c.education_details ? JSON.stringify(c.education_details) : null,
           c.leaving_reason || '', c.talent_level || '',
           c.email || '', c.linkedin_url || '', c.github_url || '',
+          (c.ai_match_result && typeof c.ai_match_result === 'object') ? JSON.stringify(c.ai_match_result) : null,
           existing.rows[0].id
         ]
       );
@@ -1143,8 +1145,8 @@ router.post('/candidates', async (req, res) => {
           skills, education, source, status, recruiter, notes,
           stability_score, personality_type, job_changes, avg_tenure_months,
           recent_gap_months, work_history, education_details, leaving_reason,
-          talent_level, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW(),NOW())
+          talent_level, ai_match_result, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,NOW(),NOW())
          RETURNING id, name, contact_link, current_position, status`,
         [
           c.name.trim(), c.phone || '', c.email || '',
@@ -1157,7 +1159,8 @@ router.post('/candidates', async (req, res) => {
           String(c.recent_gap_months || '0'),
           c.work_history ? JSON.stringify(c.work_history) : null,
           c.education_details ? JSON.stringify(c.education_details) : null,
-          c.leaving_reason || '', c.talent_level || ''
+          c.leaving_reason || '', c.talent_level || '',
+          (c.ai_match_result && typeof c.ai_match_result === 'object') ? JSON.stringify(c.ai_match_result) : null
         ]
       );
     }
