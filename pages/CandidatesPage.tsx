@@ -23,6 +23,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [consultantFilter, setConsultantFilter] = useState<string>('all');
+  const [todayOnly, setTodayOnly] = useState<boolean>(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({ name: '', position: '', email: '', phone: '', location: '', years: '', skills: '', notes: '' });
@@ -40,7 +41,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
   // 套用篩選
   useEffect(() => {
     applyFilters();
-  }, [candidates, searchQuery, statusFilter, sourceFilter, consultantFilter]);
+  }, [candidates, searchQuery, statusFilter, sourceFilter, consultantFilter, todayOnly]);
   
   // 自動重新整理（每 30 秒）- 雙向同步模式
   useEffect(() => {
@@ -116,6 +117,15 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
     // 顧問篩選
     if (consultantFilter !== 'all') {
       filtered = filtered.filter(c => c.consultant === consultantFilter);
+    }
+
+    // 今日新增篩選（台北時間 YYYY-MM-DD）
+    if (todayOnly) {
+      const todayTW = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' }); // YYYY-MM-DD
+      filtered = filtered.filter(c => {
+        const dateStr = (c as any).auto_sourced_at || c.createdAt || '';
+        return dateStr.slice(0, 10) === todayTW;
+      });
     }
     
     setFilteredCandidates(filtered);
@@ -484,6 +494,41 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             <option value="Phoebe">Phoebe</option>
           </select>
         </div>
+
+        {/* 快捷篩選按鈕 */}
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+          <button
+            onClick={() => setTodayOnly(!todayOnly)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              todayOnly
+                ? 'bg-green-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            今日新增
+            {todayOnly && (
+              <span className="ml-1 bg-white bg-opacity-30 rounded-full px-1.5 text-xs">
+                {filteredCandidates.length}
+              </span>
+            )}
+          </button>
+          {(searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || todayOnly || todayOnly) && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setStatusFilter('all');
+                setSourceFilter('all');
+                setConsultantFilter('all');
+                setTodayOnly(false);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            >
+              <X className="w-3.5 h-3.5" />
+              清除篩選
+            </button>
+          )}
+        </div>
       </div>
       
       {/* 手機版卡片列表 */}
@@ -493,8 +538,8 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             <Users className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">沒有候選人</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all'
-                ? '請調整篩選條件'
+              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || todayOnly
+                ? (todayOnly && filteredCandidates.length === 0 ? '今日尚無自動匯入的候選人' : '請調整篩選條件')
                 : '開始新增候選人吧！'}
             </p>
           </div>
@@ -855,8 +900,8 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             <Users className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">沒有候選人</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all'
-                ? '請調整篩選條件'
+              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || todayOnly
+                ? (todayOnly && filteredCandidates.length === 0 ? '今日尚無自動匯入的候選人' : '請調整篩選條件')
                 : '開始新增候選人吧！'}
             </p>
           </div>
