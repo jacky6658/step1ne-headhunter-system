@@ -16,7 +16,8 @@ interface PipelineItem {
   stage: PipelineStageKey;
   latestProgress?: ProgressEvent;
   idleDays: number;
-  targetJob: string;
+  targetJob: string;        // 第一個目標職缺（顯示用）
+  allTargetJobs: string[];  // 所有目標職缺（篩選用）
 }
 
 /** 判斷是否為台灣時區今天新增 */
@@ -146,12 +147,20 @@ function getIdleDays(dateString?: string, now: Date = new Date()): number {
 function parseTargetJob(notes?: string): string {
   if (!notes) return '未指定';
   // Bot 自動匯入格式：目標職缺：Java Developer (後端工程師)
-  const botMatch = notes.match(/目標職缺：(.+?)(?:\s*\||\s*$)/);
+  const botMatch = notes.match(/目標職缺：(.+?)(?:\s*\||\s*$)/m);
   if (botMatch) return botMatch[1].trim();
   // 舊格式：應徵：職位名稱 (公司)
   const legacyMatch = notes.match(/應徵：(.+?)\s*\((.+?)\)/);
   if (legacyMatch) return `${legacyMatch[1]} (${legacyMatch[2]})`;
   return '未指定';
+}
+
+// 解析所有目標職缺（同一候選人可能因多個 Job 上傳而有多筆記錄）
+function parseAllTargetJobs(notes?: string): string[] {
+  if (!notes) return ['未指定'];
+  const matches = [...notes.matchAll(/目標職缺：(.+?)(?:\s*\||\s*$)/gm)];
+  if (matches.length === 0) return ['未指定'];
+  return [...new Set(matches.map(m => m[1].trim()))];
 }
 
 function getIdleBadgeClass(idleDays: number): string {
@@ -242,7 +251,8 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
           : baseStage;
       const idleDays = latestProgress?.date ? getIdleDays(latestProgress.date, now) : getIdleDays(candidate.updatedAt, now);
       const targetJob = parseTargetJob(candidate.notes);
-      return { candidate, stage, latestProgress, idleDays, targetJob };
+      const allTargetJobs = parseAllTargetJobs(candidate.notes);
+      return { candidate, stage, latestProgress, idleDays, targetJob, allTargetJobs };
     });
   }, [candidates, now]);
 
@@ -252,8 +262,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   }, [candidatesWithStage]);
 
   const jobOptions = useMemo(() => {
-    const list = [...new Set(candidatesWithStage.map(item => item.targetJob))];
-    return list.sort();
+    // 收集所有候選人的「所有目標職缺」，讓篩選器完整顯示所有職位
+    const allJobs = candidatesWithStage.flatMap(item => item.allTargetJobs);
+    return [...new Set(allJobs)].sort();
   }, [candidatesWithStage]);
 
   const filteredItems = useMemo(() => {
@@ -261,14 +272,14 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     return candidatesWithStage.filter(item => {
       const consultant = item.candidate.consultant || '未指派';
       const consultantMatched = consultantFilter === 'all' || consultant === consultantFilter;
-      const jobMatched = jobFilter === 'all' || item.targetJob === jobFilter;
+      const jobMatched = jobFilter === 'all' || item.allTargetJobs.includes(jobFilter);
       // REVIEWER 只顯示自己的候選人，ADMIN 顯示全部
       const roleMatched = userProfile.role === 'ADMIN' || consultant === userProfile.displayName;
       const searchMatched = !q || [
         item.candidate.name,
         item.candidate.position,
         item.candidate.consultant,
-        item.targetJob,
+        ...item.allTargetJobs,
         item.latestProgress?.note,
       ].some(val => (val || '').toLowerCase().includes(q));
       return consultantMatched && jobMatched && roleMatched && searchMatched;
