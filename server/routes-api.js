@@ -1658,11 +1658,16 @@ router.patch('/jobs/:id/status', async (req, res) => {
 
 /**
  * POST /api/jobs
- * 新增職缺
+ * 新增職缺（支援所有欄位）
  */
 router.post('/jobs', async (req, res) => {
   try {
-    const { position_name, client_company, department, job_status = '招募中' } = req.body;
+    const {
+      company_name, position_name, client_company, department,
+      salary_min, salary_max, location, experience_required, education_required,
+      job_description, required_skills, headcount,
+      status = '招募中', source = '104', job_status = '招募中'
+    } = req.body;
 
     if (!position_name) {
       return res.status(400).json({
@@ -1673,12 +1678,57 @@ router.post('/jobs', async (req, res) => {
 
     const client = await pool.connect();
 
+    // 檢查 jobs_pipeline 表的欄位（如果有擴充）
+    const fields = [
+      'position_name', 'client_company', 'company_name', 'department',
+      'salary_min', 'salary_max', 'location',
+      'experience_required', 'education_required',
+      'job_description', 'required_skills', 'headcount',
+      'job_status', 'source', 'created_at', 'last_updated'
+    ];
+
+    // 先檢查表的實際欄位（動態適應）
+    const tableInfo = await client.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name='jobs_pipeline'
+    `);
+    const availableFields = tableInfo.rows.map(r => r.column_name);
+
+    // 只使用表中實際存在的欄位
+    const fieldsToUse = fields.filter(f => availableFields.includes(f) || f === 'created_at' || f === 'last_updated');
+    const valuesToUse = fieldsToUse.map(f => {
+      switch(f) {
+        case 'position_name': return position_name;
+        case 'client_company': return client_company || company_name || '';
+        case 'company_name': return company_name || client_company || '';
+        case 'department': return department || '';
+        case 'salary_min': return salary_min || null;
+        case 'salary_max': return salary_max || null;
+        case 'location': return location || '';
+        case 'experience_required': return experience_required || '';
+        case 'education_required': return education_required || '';
+        case 'job_description': return job_description || '';
+        case 'required_skills': return required_skills || '';
+        case 'headcount': return headcount || '';
+        case 'job_status': return status || job_status || '招募中';
+        case 'source': return source;
+        case 'created_at': return 'NOW()';
+        case 'last_updated': return 'NOW()';
+        default: return null;
+      }
+    });
+
+    // 構建動態 SQL
+    const sqlFields = fieldsToUse.filter(f => f !== 'created_at' && f !== 'last_updated');
+    const sqlValues = sqlFields.map((_, i) => `$${i + 1}`).concat(['NOW()', 'NOW()']);
+    const sqlFieldsStr = [...sqlFields, 'created_at', 'last_updated'].join(', ');
+    const sqlValuesStr = sqlValues.join(', ');
+
     const result = await client.query(
-      `INSERT INTO jobs_pipeline
-       (position_name, client_company, department, job_status, created_at, last_updated)
-       VALUES ($1, $2, $3, $4, NOW(), NOW())
+      `INSERT INTO jobs_pipeline (${sqlFieldsStr})
+       VALUES (${sqlValuesStr})
        RETURNING *`,
-      [position_name, client_company || '', department || '', job_status]
+      valuesToUse.slice(0, sqlFields.length)
     );
 
     client.release();
