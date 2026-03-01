@@ -130,39 +130,44 @@ app.use((err, req, res, next) => {
 // ==================== 啟動服務器 ====================
 
 async function startServer() {
+  let dbConnected = false;
+
+  // 1. 測試 PostgreSQL 連線（失敗不中止，降級模式繼續啟動）
   try {
-    // 1. 測試 PostgreSQL 連線
     console.log('🔍 Testing PostgreSQL connection...');
-    const client = await pool.connect();
+    const client = await Promise.race([
+      pool.connect(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout (10s)')), 10000))
+    ]);
     const result = await client.query('SELECT NOW()');
     client.release();
+    dbConnected = true;
     console.log(`✅ PostgreSQL connected at ${result.rows[0].now}`);
+  } catch (error) {
+    console.warn(`⚠️ PostgreSQL unavailable: ${error.message}`);
+    console.warn('⚠️ Starting in DEGRADED MODE (DB-dependent endpoints will return 503)');
+  }
 
-    // 2. 啟動 Express 服務器
-    const server = app.listen(PORT, () => {
-      console.log(`
+  // 2. 啟動 Express 服務器（不論 DB 是否正常）
+  const server = app.listen(PORT, () => {
+    console.log(`
 ╔═══════════════════════════════════════╗
 ║  🚀 Step1ne Backend Started            ║
 ║  📍 http://localhost:${PORT}              ║
-║  🗄️  PostgreSQL: Connected            ║
-║  📊 Mode: SQL + Google Sheets Sync    ║
+║  🗄️  PostgreSQL: ${dbConnected ? 'Connected  ' : 'UNAVAILABLE'}        ║
+║  📊 Mode: ${dbConnected ? 'SQL + Google Sheets' : 'DEGRADED (no DB)  '}   ║
 ╚═══════════════════════════════════════╝
-      `);
-    });
+    `);
+  });
 
-    // 3. 優雅關閉
-    process.on('SIGTERM', async () => {
-      console.log('🛑 SIGTERM received, shutting down...');
-      server.close(() => {
-        console.log('✅ Server closed');
-        process.exit(0);
-      });
+  // 3. 優雅關閉
+  process.on('SIGTERM', async () => {
+    console.log('🛑 SIGTERM received, shutting down...');
+    server.close(() => {
+      console.log('✅ Server closed');
+      process.exit(0);
     });
-
-  } catch (error) {
-    console.error('❌ Failed to start server:', error.message);
-    process.exit(1);
-  }
+  });
 }
 
 startServer();
