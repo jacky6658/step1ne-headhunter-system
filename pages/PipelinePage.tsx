@@ -303,6 +303,17 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     return result;
   }, [filteredItems]);
 
+  // 各欄位未篩選的總數（用於顯示「篩選中 x / 總計 y」）
+  const totalByStage = useMemo(() => {
+    const result: Record<string, number> = {};
+    candidatesWithStage.forEach(item => {
+      result[item.stage] = (result[item.stage] || 0) + 1;
+    });
+    return result;
+  }, [candidatesWithStage]);
+
+  const isFiltering = searchQuery.trim() !== '' || jobFilter !== 'all' || consultantFilter !== 'all';
+
   const totalWithTracking = filteredItems.filter(item => (item.candidate.progressTracking || []).length > 0).length;
   const staleCount = filteredItems.filter(item => item.idleDays >= 7).length;
   const slaOverdueCount = filteredItems.filter(item => isSlaOverdue(item.stage, item.idleDays)).length;
@@ -586,6 +597,15 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
           <span className="ml-auto text-xs text-slate-400 whitespace-nowrap">
             顯示 {filteredItems.length} 位
           </span>
+
+          {/* 匯出 CSV */}
+          <button
+            onClick={handleExportCsv}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition whitespace-nowrap"
+          >
+            <Download className="w-3.5 h-3.5" />
+            匯出 CSV
+          </button>
         </div>
       </div>
 
@@ -615,7 +635,14 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                           SLA {overdueInStage}
                         </span>
                       )}
-                      <span className="text-xs px-2 py-1 rounded-lg bg-white/70 text-slate-700 font-semibold">{items.length}</span>
+                      {isFiltering && totalByStage[stage.key] && items.length !== totalByStage[stage.key] ? (
+                        <span className="text-xs px-2 py-1 rounded-lg bg-indigo-600 text-white font-semibold">
+                          {items.length}
+                          <span className="opacity-60 font-normal">/{totalByStage[stage.key]}</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-1 rounded-lg bg-white/70 text-slate-700 font-semibold">{items.length}</span>
+                      )}
                     </div>
                   </div>
                 </div>
