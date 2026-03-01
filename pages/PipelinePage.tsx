@@ -525,6 +525,70 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         </div>
       </div>
 
+      {/* 快速篩選列（欄位上方，隨時可見）*/}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 搜尋 */}
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="快速搜尋姓名..."
+              className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+          </div>
+
+          {/* 職缺快捷 Pill */}
+          <button
+            onClick={() => setJobFilter('all')}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              jobFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            全部職缺
+          </button>
+          {jobOptions.filter(j => j && j !== '未指定').slice(0, 8).map(job => {
+            const shortJob = job.length > 10 ? job.slice(0, 10) + '…' : job;
+            return (
+              <button
+                key={job}
+                onClick={() => setJobFilter(job === jobFilter ? 'all' : job)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  jobFilter === job ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title={job}
+              >
+                {shortJob}
+              </button>
+            );
+          })}
+
+          {/* 顧問快捷 */}
+          {consultantFilter !== 'all' && (
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-green-100 text-green-700 font-medium">
+              👤 {consultantFilter}
+              <button onClick={() => setConsultantFilter('all')} className="ml-1 hover:text-green-900">✕</button>
+            </span>
+          )}
+
+          {/* 清除全部 */}
+          {(searchQuery || jobFilter !== 'all' || consultantFilter !== 'all') && (
+            <button
+              onClick={() => { setSearchQuery(''); setJobFilter('all'); setConsultantFilter('all'); }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-gray-500 hover:bg-gray-100 transition-colors"
+            >
+              <X className="w-3 h-3" /> 清除
+            </button>
+          )}
+
+          <span className="ml-auto text-xs text-slate-400 whitespace-nowrap">
+            顯示 {filteredItems.length} 位
+          </span>
+        </div>
+      </div>
+
       <div className="overflow-x-auto pb-2">
         <div className="flex gap-4 min-w-max">
           {PIPELINE_STAGES.map(stage => {
