@@ -719,6 +719,15 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
             </span>
           )}
 
+          {/* LinkedIn 篩選標籤 */}
+          {linkedinFilter !== 'all' && (
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-blue-100 text-blue-700 font-medium">
+              <Linkedin className="w-3 h-3" />
+              {linkedinFilter === 'has' ? '有LinkedIn' : '無LinkedIn'}
+              <button onClick={() => setLinkedinFilter('all')} className="ml-1 hover:text-blue-900">✕</button>
+            </span>
+          )}
+
           {/* 資料完整度篩選標籤 */}
           {dataCompletenessFilter !== 'all' && (
             <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
@@ -735,9 +744,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
           )}
 
           {/* 清除全部 */}
-          {(searchQuery || jobFilter !== 'all' || consultantFilter !== 'all' || dataCompletenessFilter !== 'all') && (
+          {(searchQuery || jobFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all' || dataCompletenessFilter !== 'all') && (
             <button
-              onClick={() => { setSearchQuery(''); setJobFilter('all'); setConsultantFilter('all'); setDataCompletenessFilter('all'); }}
+              onClick={() => { setSearchQuery(''); setJobFilter('all'); setConsultantFilter('all'); setLinkedinFilter('all'); setDataCompletenessFilter('all'); }}
               className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-gray-500 hover:bg-gray-100 transition-colors"
             >
               <X className="w-3 h-3" /> 清除
@@ -796,9 +805,45 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                     </div>
                   </div>
                   
-                  {/* 資料完整度快速篩選（仅 AI 推荐栏位显示）*/}
-                  {stage.key === 'ai_recommended' && completenessStats.total > 0 && (
+                  {/* LinkedIn + 資料完整度快速篩選（仅 AI 推荐栏位显示）*/}
+                  {stage.key === 'ai_recommended' && linkedinStats.total > 0 && (
                     <div className="mt-2 space-y-1">
+                      {/* LinkedIn 篩選 */}
+                      <div className="flex gap-1 flex-wrap">
+                        <button
+                          onClick={() => setLinkedinFilter('all')}
+                          className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
+                            linkedinFilter === 'all'
+                              ? 'bg-violet-600 text-white shadow-sm'
+                              : 'bg-white/70 text-violet-700 hover:bg-white border border-violet-200'
+                          }`}
+                        >
+                          全部 {linkedinStats.total}
+                        </button>
+                        <button
+                          onClick={() => setLinkedinFilter('has')}
+                          className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors flex items-center gap-1 ${
+                            linkedinFilter === 'has'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'bg-white/70 text-blue-700 hover:bg-white border border-blue-200'
+                          }`}
+                        >
+                          <Linkedin className="w-2.5 h-2.5" />
+                          有LinkedIn {linkedinStats.has}
+                        </button>
+                        <button
+                          onClick={() => setLinkedinFilter('no')}
+                          className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
+                            linkedinFilter === 'no'
+                              ? 'bg-gray-600 text-white shadow-sm'
+                              : 'bg-white/70 text-gray-700 hover:bg-white border border-gray-200'
+                          }`}
+                        >
+                          無LinkedIn {linkedinStats.no}
+                        </button>
+                      </div>
+                      
+                      {/* 資料完整度篩選 */}
                       <div className="flex gap-1 flex-wrap">
                         <button
                           onClick={() => setDataCompletenessFilter('all')}
