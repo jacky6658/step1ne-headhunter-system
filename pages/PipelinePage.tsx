@@ -3,7 +3,7 @@ import { Candidate, CandidateStatus, ProgressEvent, UserProfile } from '../types
 import { getCandidates, clearCache } from '../services/candidateService';
 import { CandidateModal } from '../components/CandidateModal';
 import { apiPut } from '../config/api';
-import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X } from 'lucide-react';
+import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2 } from 'lucide-react';
 
 interface PipelinePageProps {
   userProfile: UserProfile;
@@ -396,6 +396,31 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }
   };
 
+  const handleDeleteCandidate = async (candidateId: string, candidateName: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // 防止觸發卡片點擊事件
+    
+    if (!window.confirm(`確定要刪除候選人「${candidateName}」嗎？\n\n此操作將永久刪除資料庫中的所有相關記錄，無法復原！`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://backendstep1ne.zeabur.app/api/candidates/${candidateId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error(`刪除失敗: ${response.status}`);
+      }
+
+      // 從本地狀態中移除
+      setCandidates(prev => prev.filter(c => c.id !== candidateId));
+      setToastMessage(`✅ 已刪除候選人「${candidateName}」`);
+    } catch (error) {
+      console.error('❌ 刪除候選人失敗:', error);
+      alert('❌ 刪除失敗，請稍後再試');
+    }
+  };
+
   const handleExportCsv = () => {
     const headers = ['候選人ID', '姓名', '顧問', '職缺', '階段', '最新進度日期', '最新事件', '停留天數'];
     const rows = filteredItems.map(item => [
@@ -665,21 +690,30 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                     </div>
                   ) : (
                     items.map((item) => (
-                      <button
+                      <div
                         key={item.candidate.id}
                         draggable
                         onDragStart={() => handleDragStart(item.candidate.id)}
+                        className={`w-full text-left rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-sm transition p-3 cursor-pointer relative group ${draggingCandidateId === item.candidate.id ? 'opacity-50' : ''}`}
                         onClick={() => setSelectedCandidate(item.candidate)}
-                        className={`w-full text-left rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-sm transition p-3 ${draggingCandidateId === item.candidate.id ? 'opacity-50' : ''}`}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div>
+                          <div className="flex-1">
                             <p className="font-bold text-slate-900">{item.candidate.name}</p>
                             <p className="text-xs text-slate-500 mt-0.5">{item.candidate.position || '未填寫職位'}</p>
                           </div>
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-500">
-                            #{item.candidate.id}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-500">
+                              #{item.candidate.id}
+                            </span>
+                            <button
+                              onClick={(e) => handleDeleteCandidate(item.candidate.id, item.candidate.name, e)}
+                              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-all"
+                              title="刪除候選人"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         <div className="mt-2 text-xs text-slate-600 space-y-1">
@@ -712,7 +746,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                             <p className="text-slate-500 line-clamp-2">📝 {item.latestProgress.note}</p>
                           )}
                         </div>
-                      </button>
+                      </div>
                     ))
                   )}
                 </div>
