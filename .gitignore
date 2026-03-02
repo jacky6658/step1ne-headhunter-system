@@ -31,3 +31,8 @@ scripts/execute-sql.sh
 *.njsproj
 *.sln
 *.sw?
+
+# Auto-generated
+__pycache__/
+*.pyc
+.claude/worktrees/

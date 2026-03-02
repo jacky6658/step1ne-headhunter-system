@@ -2220,7 +2220,7 @@ const path = require('path');
 
 router.get('/guide', (req, res) => {
   try {
-    const guidePath = path.join(__dirname, 'AIBOT-API-GUIDE.md');
+    const guidePath = path.join(__dirname, 'guides/AIBOT-API-GUIDE.md');
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Guide file not found' });
     }
@@ -2340,7 +2340,7 @@ router.post('/migrate/extract-links', async (req, res) => {
 // GET /api/scoring-guide — 回傳評分 Bot 執行指南（供 openclaw / AI Agent 定時評分使用）
 router.get('/scoring-guide', (req, res) => {
   try {
-    const guidePath = path.join(__dirname, 'SCORING-GUIDE.md');
+    const guidePath = path.join(__dirname, 'guides/SCORING-GUIDE.md');
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Scoring guide not found' });
     }
@@ -2360,7 +2360,7 @@ router.get('/scoring-guide', (req, res) => {
 // GET /api/jobs-import-guide — 回傳職缺匯入 Bot 執行指南
 router.get('/jobs-import-guide', (req, res) => {
   try {
-    const guidePath = path.join(__dirname, 'JOB-IMPORT-GUIDE.md');
+    const guidePath = path.join(__dirname, 'guides/JOB-IMPORT-GUIDE.md');
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Job import guide not found' });
     }
@@ -2380,7 +2380,7 @@ router.get('/jobs-import-guide', (req, res) => {
 // GET /api/resume-guide — 回傳履歷分析教學指南（供 AIbot 學習使用）
 router.get('/resume-guide', (req, res) => {
   try {
-    const guidePath = path.join(__dirname, 'RESUME-ANALYSIS-GUIDE.md');
+    const guidePath = path.join(__dirname, 'guides/RESUME-ANALYSIS-GUIDE.md');
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Resume analysis guide not found' });
     }
