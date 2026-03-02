@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Candidate, CandidateStatus, AiMatchResult } from '../types';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
-import { apiPatch } from '../config/api';
+import { apiPatch, apiGet } from '../config/api';
 import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
@@ -46,7 +46,15 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [savingLinkedin, setSavingLinkedin] = useState(false);
   const [savingGithub, setSavingGithub] = useState(false);
   const [enrichedCandidate, setEnrichedCandidate] = useState(candidate);
-  
+
+  // 負責顧問 / 目標職缺 下拉清單
+  const [users, setUsers] = useState<string[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [recruiterSearch, setRecruiterSearch] = useState('');
+  const [jobs, setJobs] = useState<{ id: number; position_name: string; client_company: string }[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [targetJobSearch, setTargetJobSearch] = useState('');
+
   // 禁止背景滾動
   React.useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -76,7 +84,25 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
     };
     fetchLatest();
   }, [candidate.id, candidate]);
-  
+
+  // 預載入顧問清單與職缺清單
+  React.useEffect(() => {
+    setLoadingUsers(true);
+    apiGet<{ success: boolean; data: string[] }>('/api/users')
+      .then(res => { if (res.success) setUsers(res.data); })
+      .catch(() => {})
+      .finally(() => setLoadingUsers(false));
+
+    setLoadingJobs(true);
+    apiGet<any>('/api/jobs')
+      .then(res => {
+        const arr = Array.isArray(res) ? res : (res.data || []);
+        setJobs(arr.map((j: any) => ({ id: j.id, position_name: j.position_name || '', client_company: j.client_company || '' })));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingJobs(false));
+  }, []);
+
   // 新增進度記錄
   const handleAddProgress = async (eventType: string) => {
     setNewProgressEvent(eventType);
@@ -476,81 +502,136 @@ Step1ne Recruitment`;
           {activeTab === 'info' && (
             <div className="space-y-6">
               {/* 負責顧問 */}
-              <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-indigo-500" />
-                  <span className="text-xs text-indigo-600 font-medium">負責顧問</span>
-                  {editingRecruiter ? (
+              <div className="bg-indigo-50 rounded-lg border border-indigo-100">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <User className="w-4 h-4 text-indigo-500 shrink-0" />
+                    <span className="text-xs text-indigo-600 font-medium shrink-0">負責顧問</span>
+                    {!editingRecruiter && (
+                      <span className="ml-2 text-sm font-semibold text-indigo-900 truncate">
+                        {recruiterInput || '未指派'}
+                      </span>
+                    )}
+                    {editingRecruiter && recruiterInput && (
+                      <span className="ml-2 text-xs text-indigo-700 font-medium truncate">已選：{recruiterInput}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {editingRecruiter ? (
+                      <>
+                        <button onClick={handleSaveRecruiter} className="text-xs px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">儲存</button>
+                        <button onClick={() => { setEditingRecruiter(false); setRecruiterInput(candidate.consultant || ''); setRecruiterSearch(''); }} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
+                      </>
+                    ) : (
+                      <>
+                        {currentUserName && (
+                          <button
+                            onClick={() => { setRecruiterInput(currentUserName); setRecruiterSearch(currentUserName); setEditingRecruiter(true); }}
+                            className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                          >
+                            指派給我
+                          </button>
+                        )}
+                        <button onClick={() => { setRecruiterSearch(recruiterInput); setEditingRecruiter(true); }} className="text-xs px-2 py-1 border border-indigo-200 rounded text-indigo-600 hover:bg-indigo-100">
+                          更改
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {editingRecruiter && (
+                  <div className="px-3 pb-3">
                     <input
-                      value={recruiterInput}
-                      onChange={e => setRecruiterInput(e.target.value)}
-                      className="ml-2 border border-indigo-300 rounded px-2 py-0.5 text-sm w-36 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      placeholder="顧問姓名"
+                      value={recruiterSearch}
+                      onChange={e => setRecruiterSearch(e.target.value)}
+                      className="border border-indigo-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="搜尋顧問..."
                       autoFocus
                     />
-                  ) : (
-                    <span className="ml-2 text-sm font-semibold text-indigo-900">
-                      {candidate.consultant || '未指派'}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {editingRecruiter ? (
-                    <>
-                      <button onClick={handleSaveRecruiter} className="text-xs px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">儲存</button>
-                      <button onClick={() => { setEditingRecruiter(false); setRecruiterInput(candidate.consultant || ''); }} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
-                    </>
-                  ) : (
-                    <>
-                      {currentUserName && (
-                        <button
-                          onClick={() => { setRecruiterInput(currentUserName); setEditingRecruiter(true); }}
-                          className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                        >
-                          指派給我
-                        </button>
+                    <div className="mt-1 max-h-36 overflow-y-auto border border-indigo-200 rounded bg-white">
+                      {loadingUsers ? (
+                        <div className="px-3 py-2 text-xs text-gray-400">載入中...</div>
+                      ) : users.filter(u => !recruiterSearch || u.toLowerCase().includes(recruiterSearch.toLowerCase())).length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-gray-400">無符合的顧問</div>
+                      ) : (
+                        users
+                          .filter(u => !recruiterSearch || u.toLowerCase().includes(recruiterSearch.toLowerCase()))
+                          .map(u => (
+                            <button
+                              key={u}
+                              onClick={() => setRecruiterInput(u)}
+                              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 transition-colors ${recruiterInput === u ? 'bg-indigo-100 font-medium text-indigo-700' : 'text-gray-700'}`}
+                            >
+                              {u}
+                            </button>
+                          ))
                       )}
-                      <button onClick={() => setEditingRecruiter(true)} className="text-xs px-2 py-1 border border-indigo-200 rounded text-indigo-600 hover:bg-indigo-100">
-                        更改
-                      </button>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 目標職缺 */}
-              <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100">
-                <div className="flex items-center gap-2">
-                  <Target className="w-4 h-4 text-amber-500" />
-                  <span className="text-xs text-amber-600 font-medium">目標職缺</span>
-                  {editingTargetJob ? (
+              <div className="bg-amber-50 rounded-lg border border-amber-100">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Target className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span className="text-xs text-amber-600 font-medium shrink-0">目標職缺</span>
+                    {!editingTargetJob && (
+                      <span className="ml-2 text-sm font-semibold text-amber-900 truncate">
+                        {targetJobInput || '未指定'}
+                      </span>
+                    )}
+                    {editingTargetJob && targetJobInput && (
+                      <span className="ml-2 text-xs text-amber-700 font-medium truncate max-w-[140px]">已選：{targetJobInput}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {editingTargetJob ? (
+                      <>
+                        <button onClick={handleSaveTargetJob} disabled={savingTargetJob} className="text-xs px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-60">
+                          {savingTargetJob ? '儲存中...' : '儲存'}
+                        </button>
+                        <button onClick={() => { setEditingTargetJob(false); setTargetJobSearch(''); }} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
+                      </>
+                    ) : (
+                      <button onClick={() => { setTargetJobSearch(''); setEditingTargetJob(true); }} className="text-xs px-2 py-1 border border-amber-200 rounded text-amber-600 hover:bg-amber-100">
+                        {targetJobInput ? '更改' : '指定'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {editingTargetJob && (
+                  <div className="px-3 pb-3">
                     <input
-                      value={targetJobInput}
-                      onChange={e => setTargetJobInput(e.target.value)}
-                      className="ml-2 border border-amber-300 rounded px-2 py-0.5 text-sm w-48 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                      placeholder="填入目標職缺名稱"
+                      value={targetJobSearch}
+                      onChange={e => setTargetJobSearch(e.target.value)}
+                      className="border border-amber-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      placeholder="搜尋職缺名稱或公司..."
                       autoFocus
                     />
-                  ) : (
-                    <span className="ml-2 text-sm font-semibold text-amber-900">
-                      {targetJobInput || '未指定'}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {editingTargetJob ? (
-                    <>
-                      <button onClick={handleSaveTargetJob} disabled={savingTargetJob} className="text-xs px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-60">
-                        {savingTargetJob ? '儲存中...' : '儲存'}
-                      </button>
-                      <button onClick={() => setEditingTargetJob(false)} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
-                    </>
-                  ) : (
-                    <button onClick={() => setEditingTargetJob(true)} className="text-xs px-2 py-1 border border-amber-200 rounded text-amber-600 hover:bg-amber-100">
-                      {targetJobInput ? '更改' : '指定'}
-                    </button>
-                  )}
-                </div>
+                    <div className="mt-1 max-h-40 overflow-y-auto border border-amber-200 rounded bg-white">
+                      {loadingJobs ? (
+                        <div className="px-3 py-2 text-xs text-gray-400">載入中...</div>
+                      ) : jobs.filter(j => !targetJobSearch || `${j.position_name} ${j.client_company}`.toLowerCase().includes(targetJobSearch.toLowerCase())).length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-gray-400">無符合的職缺</div>
+                      ) : (
+                        jobs
+                          .filter(j => !targetJobSearch || `${j.position_name} ${j.client_company}`.toLowerCase().includes(targetJobSearch.toLowerCase()))
+                          .map(j => (
+                            <button
+                              key={j.id}
+                              onClick={() => setTargetJobInput(j.position_name)}
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-amber-50 transition-colors border-b border-gray-50 last:border-0 ${targetJobInput === j.position_name ? 'bg-amber-100 text-amber-700' : 'text-gray-700'}`}
+                            >
+                              <div className="font-medium">{j.position_name}</div>
+                              {j.client_company && <div className="text-xs text-gray-500 mt-0.5">{j.client_company}</div>}
+                            </button>
+                          ))
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Contact Info - 智能分離電話 + Email */}
