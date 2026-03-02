@@ -491,6 +491,77 @@ PUT /api/candidates/:id/pipeline-status
 
 ---
 
+
+---
+
+### ⚠️ 特殊狀態：「備選人才」
+
+> **注意**：「備選人才」不是標準 Pipeline 狀態（無法透過 `PUT /pipeline-status` 設定），需使用 `PATCH` 端點並滿足三個條件才能正確顯示在前端看板。
+
+#### 移動候選人到「備選人才」的完整步驟
+
+必須同時滿足三個條件：
+
+1. ✅ **status 欄位** = `"備選人才"`
+2. ✅ **talent_level 欄位** = 有值（`S` / `A+` / `A` / `B` / `C`，不能空白）
+3. ✅ **progressTracking 最後事件** = `{"event": "備選人才", ...}`
+
+#### 為什麼需要三個條件？
+
+前端看板的顯示邏輯：
+- **卡片位置**：根據 `progressTracking` 最後一個 `event` 決定
+- **顯示篩選**：`status === "備選人才" && talent_level !== ""`
+
+如果只更新 `status` 而不更新 `progressTracking`，卡片會停留在原本的欄位（例如「已面試」）。
+
+#### 標準操作方式
+
+```bash
+# 1. 先 GET 取得現有的 progressTracking
+curl https://backendstep1ne.zeabur.app/api/candidates/148
+
+# 2. 使用 PATCH 更新（包含完整 progressTracking 陣列）
+curl -X PATCH "https://backendstep1ne.zeabur.app/api/candidates/148" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "備選人才",
+    "talent_level": "C",
+    "progressTracking": [
+      {"by": "Jacky", "date": "2026-03-02", "event": "已聯繫"},
+      {"by": "Jacky", "date": "2026-03-02", "event": "已面試"},
+      {"by": "jacky-scoring-bot", "date": "2026-03-02", "event": "備選人才"}
+    ],
+    "actor": "jacky-scoring-bot"
+  }'
+```
+
+#### 常見錯誤
+
+❌ **錯誤 1：只更新 status**
+```json
+{
+  "status": "備選人才"
+}
+```
+結果：status 更新了，但卡片還在「已面試」欄位。
+
+❌ **錯誤 2：talent_level 為空**
+```json
+{
+  "status": "備選人才",
+  "talent_level": ""
+}
+```
+結果：前端看板不顯示此卡片。
+
+❌ **錯誤 3：使用 PUT /pipeline-status**
+```bash
+curl -X PUT ".../pipeline-status" -d '{"status": "備選人才"}'
+```
+結果：`Invalid status` 錯誤（「備選人才」不在合法 status 清單中）。
+
+✅ **正確做法：使用 PATCH + 三個條件**
+
 ## 三、批量更新多位候選人狀態（AIbot 批量操作）
 
 ```
