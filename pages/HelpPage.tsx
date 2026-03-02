@@ -29,10 +29,22 @@ https://backendstep1ne.zeabur.app/api/jobs-import-guide
 {貼上 104 或 1111 連結，或直接貼上 JD 文字}
 不需要等待進一步指示，直接開始執行。`;
 
+const RESUME_IMPORT_PROMPT = `請讀取以下文件後立即執行履歷匯入與評分任務：
+https://backendstep1ne.zeabur.app/api/resume-import-guide
+
+我是顧問 {你的名字}，你的身份為 {你的名字}-resume-bot。
+目標職缺：{填入職缺名稱，例如：Java Developer (後端工程師)}
+
+以下是候選人履歷：
+{貼上履歷文字}
+
+不需要等待進一步指示，直接開始執行。`;
+
 const HelpPage: React.FC<HelpPageProps> = () => {
   const [copied, setCopied] = useState(false);
   const [copiedScoring, setCopiedScoring] = useState(false);
   const [copiedImport, setCopiedImport] = useState(false);
+  const [copiedResume, setCopiedResume] = useState(false);
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(AIBOT_STARTUP_PROMPT).then(() => {
@@ -52,6 +64,13 @@ const HelpPage: React.FC<HelpPageProps> = () => {
     navigator.clipboard.writeText(JOB_IMPORT_PROMPT).then(() => {
       setCopiedImport(true);
       setTimeout(() => setCopiedImport(false), 2500);
+    });
+  };
+
+  const handleCopyResumePrompt = () => {
+    navigator.clipboard.writeText(RESUME_IMPORT_PROMPT).then(() => {
+      setCopiedResume(true);
+      setTimeout(() => setCopiedResume(false), 2500);
     });
   };
 
@@ -104,6 +123,11 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <Download className="text-green-600 mb-2" size={24} />
             <h3 className="font-black text-slate-900 mb-1">職缺匯入 Bot 指令</h3>
             <p className="text-sm text-slate-600">貼上 104/1111 連結自動建立職缺</p>
+          </a>
+          <a href="#ResumeImportBot" className="p-4 bg-rose-50 rounded-xl hover:bg-rose-100 transition-colors">
+            <FileText className="text-rose-600 mb-2" size={24} />
+            <h3 className="font-black text-slate-900 mb-1">履歷匯入 Bot 指令</h3>
+            <p className="text-sm text-slate-600">貼上履歷自動匯入並即時評分</p>
           </a>
         </div>
       </div>
@@ -961,6 +985,90 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
             <p className="text-sm text-slate-700">
               💡 <strong>支援的欄位</strong>：職位名稱、公司、部門、薪資、地點、年資、技能、JD、
               公司畫像、人才畫像、搜尋關鍵字（主要/次要）、福利、遠端政策、面試流程、顧問備註…共 <strong>30+ 欄位</strong>一次寫入。
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      {/* 履歷匯入 Bot 啟動指令 */}
+      <div id="ResumeImportBot" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+          <FileText className="text-rose-500" size={24} />
+          履歷匯入 + 即時評分 Bot 啟動指令
+        </h2>
+        <div className="space-y-4 text-slate-700">
+
+          <div className="p-4 bg-rose-50 rounded-lg border border-rose-200">
+            <p className="text-sm font-semibold text-rose-800 mb-1">📄 適用場景</p>
+            <p className="text-sm text-rose-700">
+              顧問貼上 <strong>候選人履歷文字</strong>，AI 自動完成完整的 7 步驟流程：
+            </p>
+            <ul className="mt-2 space-y-1 text-sm text-rose-700 ml-4 list-disc">
+              <li>解析履歷 → 萃取學歷、工作經歷、技能、語言等結構化欄位</li>
+              <li>計算穩定性評分（滿分 100）與人才等級（S/A+/A/B/C）</li>
+              <li>呼叫 API 建立候選人記錄（dedup 去重）</li>
+              <li>抓取目標職缺的人才畫像，進行五維度 AI 評分</li>
+              <li>回報評分結果與建議探詢問題</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🔄 Bot 執行流程（7 步驟）</h3>
+            <ol className="list-decimal list-inside space-y-2 ml-4 text-sm">
+              <li>讀取履歷匯入指南（學習流程與評分規則）</li>
+              <li>解析履歷 → 萃取所有結構化欄位</li>
+              <li>計算穩定性評分：平均年資 + 換工作頻率 + 近期空窗期</li>
+              <li>呼叫 <code className="bg-gray-100 px-1">POST /api/candidates</code> 建立或補全候選人</li>
+              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/jobs</code> 取得目標職缺人才畫像</li>
+              <li>五維度 AI 評分（人才畫像符合度 / JD 匹配 / 公司適配 / 可觸達性 / 活躍信號）</li>
+              <li>呼叫 <code className="bg-gray-100 px-1">PATCH /api/candidates/:id</code> 寫入評分結果，回報完整報告</li>
+            </ol>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-3 flex items-center gap-2">
+              <Copy size={16} className="text-rose-500" />
+              履歷匯入 Bot 啟動指令
+              <span className="text-xs font-normal text-slate-500 ml-1">（複製後貼給你的 AI，把名字和履歷換掉）</span>
+            </h3>
+            <div className="relative">
+              <pre className="bg-slate-900 text-rose-300 text-sm rounded-xl p-4 whitespace-pre-wrap leading-relaxed font-mono overflow-x-auto">
+{RESUME_IMPORT_PROMPT}
+              </pre>
+              <button
+                onClick={handleCopyResumePrompt}
+                className={`absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  copiedResume
+                    ? 'bg-rose-500 text-white'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                {copiedResume ? <CheckCheck size={14} /> : <Copy size={14} />}
+                {copiedResume ? '已複製！' : '複製指令'}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">履歷匯入指南 URL</p>
+              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-rose-700 break-all">
+                https://backendstep1ne.zeabur.app/api/resume-import-guide
+              </code>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">候選人新增 / 更新 API</p>
+              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-rose-700 break-all">
+                POST / PATCH https://backendstep1ne.zeabur.app/api/candidates
+              </code>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <p className="text-sm text-slate-700">
+              💡 <strong>穩定性評分維度</strong>：平均在職年資（50分）＋ 換工作頻率（30分）＋ 近期空窗期（20分），
+              滿分 100。85+ → S 級，75–84 → A+ 級，65–74 → A 級，55–64 → B 級，54 以下 → C 級。
             </p>
           </div>
 

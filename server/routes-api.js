@@ -2397,6 +2397,26 @@ router.get('/resume-guide', (req, res) => {
   }
 });
 
+// GET /api/resume-import-guide — 履歷匯入 + 即時評分合併執行指南
+router.get('/resume-import-guide', (req, res) => {
+  try {
+    const guidePath = path.join(__dirname, 'guides/RESUME-IMPORT-GUIDE.md');
+    if (!fs.existsSync(guidePath)) {
+      return res.status(404).json({ success: false, error: 'Resume import guide not found' });
+    }
+    const content = fs.readFileSync(guidePath, 'utf-8');
+    const accept = req.headers['accept'] || '';
+    if (accept.includes('application/json')) {
+      res.json({ success: true, content });
+    } else {
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.send(content);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ==================== 人才智能爬蟲 API (NEW - 2026-02-26) ====================
 // 整合 step1ne-headhunter-skill 的爬蟲系統
 
