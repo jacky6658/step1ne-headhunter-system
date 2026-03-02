@@ -34,28 +34,21 @@ function githubApiCall(url) {
       });
       
       res.on('end', () => {
-        console.log(`[GitHub API] ${url} returned ${res.statusCode}`);
         if (res.statusCode === 200) {
           try {
             resolve(JSON.parse(data));
           } catch (e) {
-            console.error('[GitHub API] Parse error:', e.message);
             reject(new Error('Failed to parse GitHub API response'));
           }
         } else if (res.statusCode === 404) {
-          console.warn(`[GitHub API] User not found: ${url}`);
           resolve(null); // User not found
         } else {
-          console.error(`[GitHub API] Error ${res.statusCode}: ${data.substring(0, 200)}`);
           reject(new Error(`GitHub API returned ${res.statusCode}`));
         }
       });
     });
 
-    req.on('error', (err) => {
-      console.error('[GitHub API] Request error:', err.message);
-      reject(err);
-    });
+    req.on('error', reject);
     req.setTimeout(10000, () => {
       req.destroy();
       reject(new Error('GitHub API timeout'));

@@ -1,6 +1,7 @@
 // Step1ne Headhunter System - 候選人服務層
 import { Candidate, CandidateStatus, CandidateSource } from '../types';
-import { API_BASE_URL, STORAGE_KEYS_EXT, CACHE_EXPIRY } from '../constants';
+import { STORAGE_KEYS_EXT, CACHE_EXPIRY } from '../constants';
+import { apiGet, apiPatch, apiPost } from '../config/api';
 
 /**
  * 權限過濾：根據用戶角色過濾候選人
@@ -29,43 +30,12 @@ export function filterCandidatesByPermission(
  * 從 API 或 Mock 資料取得候選人（支援權限過濾）
  */
 export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
-  // 【強制】永遠打真實 API，不能 fallback 到 Mock（用於本機開發驗證雲端連線）
-  if (API_BASE_URL) {
-    let url = `${API_BASE_URL}/candidates?limit=1000`; // 強制取全部候選人
-    
-    const response = await fetch(url);
-    if (response.ok) {
-      const text = await response.text();
-      // 把 API 響應長度寫到 document.title 便於診斷
-      document.title = `API_OK_${text.length}_chars`;
-      const result = JSON.parse(text);
-      const dataLength = result.data?.length || 0;
-      document.title = `CANDIDATES_${dataLength}`;
-      const candidates = (result.data || []).map((c: any) => ({
-        ...c,
-        aiMatchResult: c.ai_match_result || c.aiMatchResult || null
-      }));
-      return candidates;
-    } else {
-      const errText = await response.text();
-      console.error('❌ API 錯誤:', response.status, errText.substring(0, 100));
-      throw new Error(`API 失敗 ${response.status}: ${errText.substring(0, 200)}`);
-    }
-  }
-  
-  // 舊快取邏輯（保留）
-  if (!userProfile) {
-    const cached = localStorage.getItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE);
-    const lastSync = localStorage.getItem(STORAGE_KEYS_EXT.LAST_SYNC);
-    if (cached && lastSync) {
-      const cacheAge = Date.now() - parseInt(lastSync);
-      if (cacheAge < CACHE_EXPIRY) {
-        return JSON.parse(cached);
-      }
-    }
-  }
-  
-  throw new Error('無法取得候選人資料：API 不可用且無快取');
+  const result = await apiGet<{ success: boolean; data: any[] }>('/candidates?limit=1000');
+  const candidates = (result.data || []).map((c: any) => ({
+    ...c,
+    aiMatchResult: c.ai_match_result || c.aiMatchResult || null
+  }));
+  return candidates;
 }
 
 /**
@@ -113,35 +83,8 @@ export async function updateCandidateStatus(
   candidateId: string,
   newStatus: CandidateStatus
 ): Promise<void> {
-  try {
-    if (API_BASE_URL) {
-      const response = await fetch(`${API_BASE_URL}/candidates/${candidateId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
-      
-      if (response.ok) {
-        // 清除快取
-        clearCache();
-        return;
-      }
-    }
-  } catch (error) {
-    console.error('更新狀態失敗:', error);
-  }
-  
-  // Fallback: 更新本地快取
-  const cached = localStorage.getItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE);
-  if (cached) {
-    const candidates = JSON.parse(cached);
-    const candidate = candidates.find((c: Candidate) => c.id === candidateId);
-    if (candidate) {
-      candidate.status = newStatus;
-      candidate.updatedAt = new Date().toISOString();
-      localStorage.setItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE, JSON.stringify(candidates));
-    }
-  }
+  await apiPatch(`/candidates/${candidateId}`, { status: newStatus });
+  clearCache();
 }
 
 /**
@@ -149,18 +92,9 @@ export async function updateCandidateStatus(
  */
 export async function syncFromSheets(): Promise<{ success: boolean; message: string }> {
   try {
-    if (API_BASE_URL) {
-      const response = await fetch(`${API_BASE_URL}/sync/sheets-to-sql`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (response.ok) {
-        const result = await response.json();
-        clearCache();
-        return { success: true, message: result.message };
-      }
-    }
-    return { success: false, message: 'API 無法連接' };
+    const result = await apiPost<{ message: string }>('/sync/sheets-to-sql');
+    clearCache();
+    return { success: true, message: result.message };
   } catch (error) {
     console.error('Sheets → SQL 同步失敗:', error);
     return { success: false, message: String(error) };
