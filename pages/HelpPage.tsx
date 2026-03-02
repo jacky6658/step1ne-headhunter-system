@@ -991,41 +991,100 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
         </div>
       </div>
 
-      {/* 履歷匯入 Bot 啟動指令 */}
+      {/* 履歷匯入 + 即時評分 Bot */}
       <div id="ResumeImportBot" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
           <FileText className="text-rose-500" size={24} />
-          履歷匯入 + 即時評分 Bot 啟動指令
+          履歷匯入 + 即時評分 Bot
         </h2>
-        <div className="space-y-4 text-slate-700">
+        <div className="space-y-5 text-slate-700">
 
-          <div className="p-4 bg-rose-50 rounded-lg border border-rose-200">
-            <p className="text-sm font-semibold text-rose-800 mb-1">📄 適用場景</p>
-            <p className="text-sm text-rose-700">
-              顧問貼上 <strong>候選人履歷文字</strong>，AI 自動完成完整的 7 步驟流程：
+          {/* 功能說明 */}
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">📋 功能說明</h3>
+            <p className="mb-3">
+              顧問只需把候選人的<strong>履歷文字</strong>與<strong>目標職缺名稱</strong>貼給 AI，Bot 就會自動完成
+              「解析 → 建檔 → 評分 → 寫回系統」的完整流程，全程無需手動填表，<strong>一個指令跑完所有步驟</strong>。
             </p>
-            <ul className="mt-2 space-y-1 text-sm text-rose-700 ml-4 list-disc">
-              <li>解析履歷 → 萃取學歷、工作經歷、技能、語言等結構化欄位</li>
-              <li>計算穩定性評分（滿分 100）與人才等級（S/A+/A/B/C）</li>
-              <li>呼叫 API 建立候選人記錄（dedup 去重）</li>
-              <li>抓取目標職缺的人才畫像，進行五維度 AI 評分</li>
-              <li>回報評分結果與建議探詢問題</li>
-            </ul>
+            <div className="p-4 bg-rose-50 rounded-lg border border-rose-200">
+              <p className="text-sm font-semibold text-rose-800 mb-2">✅ 你只需要準備：</p>
+              <ul className="text-sm text-rose-700 space-y-1 list-disc list-inside ml-2">
+                <li>候選人的履歷文字（直接貼上即可，不需整理格式）</li>
+                <li>目標職缺名稱（例：Java Developer、後端工程師）</li>
+              </ul>
+            </div>
           </div>
 
+          {/* 顧問操作步驟 */}
           <div>
-            <h3 className="font-black text-slate-900 mb-2">🔄 Bot 執行流程（7 步驟）</h3>
+            <h3 className="font-black text-slate-900 mb-2">🚀 顧問操作步驟</h3>
             <ol className="list-decimal list-inside space-y-2 ml-4 text-sm">
-              <li>讀取履歷匯入指南（學習流程與評分規則）</li>
-              <li>解析履歷 → 萃取所有結構化欄位</li>
-              <li>計算穩定性評分：平均年資 + 換工作頻率 + 近期空窗期</li>
-              <li>呼叫 <code className="bg-gray-100 px-1">POST /api/candidates</code> 建立或補全候選人</li>
-              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/jobs</code> 取得目標職缺人才畫像</li>
-              <li>五維度 AI 評分（人才畫像符合度 / JD 匹配 / 公司適配 / 可觸達性 / 活躍信號）</li>
-              <li>呼叫 <code className="bg-gray-100 px-1">PATCH /api/candidates/:id</code> 寫入評分結果，回報完整報告</li>
+              <li>開啟你的 AI 助理（Claude / ChatGPT 等）</li>
+              <li>複製下方「啟動指令」，把 <code className="bg-gray-100 px-1">{'{你的名字}'}</code>、職缺名稱、履歷文字填入</li>
+              <li>貼到對話框送出，等待 Bot 完成所有步驟</li>
+              <li>Bot 完成後會回報候選人 ID、穩定性評分、五維度得分及建議探詢問題</li>
+              <li>前往系統「候選人總表」即可看到完整評分結果</li>
             </ol>
           </div>
 
+          {/* Bot 能做的事 */}
+          <div>
+            <h3 className="font-black text-slate-900 mb-3">🤖 Bot 可以幫你做的事</h3>
+            <div className="space-y-3">
+
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="font-semibold text-blue-700 text-sm mb-2">📄 履歷解析 → 自動建檔</p>
+                <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside ml-1">
+                  <li>萃取姓名、聯絡資訊、學歷、工作經歷、技能、語言等所有欄位</li>
+                  <li>呼叫 API 建立候選人記錄（同名候選人自動去重、補全空白欄位）</li>
+                  <li>LinkedIn / GitHub 連結自動寫入系統</li>
+                </ul>
+                <p className="text-xs text-blue-600 mt-2 italic">不論履歷格式為何，Bot 都能解析純文字內容</p>
+              </div>
+
+              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <p className="font-semibold text-purple-700 text-sm mb-2">📊 穩定性評分（滿分 100）</p>
+                <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside ml-1">
+                  <li><strong>平均在職年資</strong>（50 分）：每份工作平均待多久</li>
+                  <li><strong>換工作頻率</strong>（30 分）：每年平均換工作次數</li>
+                  <li><strong>近期空窗期</strong>（20 分）：最近一份工作到現在的空白時間</li>
+                </ul>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <span className="bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">85–100 → S 級</span>
+                  <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full font-semibold">75–84 → A+ 級</span>
+                  <span className="bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-semibold">65–74 → A 級</span>
+                  <span className="bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full font-semibold">55–64 → B 級</span>
+                  <span className="bg-red-200 text-red-800 px-2 py-0.5 rounded-full font-semibold">54 以下 → C 級</span>
+                </div>
+              </div>
+
+              <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                <p className="font-semibold text-emerald-700 text-sm mb-2">🎯 五維度 AI 配對評分</p>
+                <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside ml-1">
+                  <li><strong>人才畫像符合度</strong>：與目標職缺人才畫像的吻合程度</li>
+                  <li><strong>JD 技能匹配</strong>：必要技能與加分技能的覆蓋率</li>
+                  <li><strong>公司文化適配</strong>：工作風格與公司文化的契合度</li>
+                  <li><strong>可觸達性</strong>：聯絡方式是否完整、是否在職</li>
+                  <li><strong>活躍信號</strong>：GitHub / LinkedIn 近期活躍程度</li>
+                </ul>
+                <p className="text-xs text-emerald-600 mt-2 italic">評分結果自動寫入系統 ai_match_result 欄位</p>
+              </div>
+
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <p className="font-semibold text-amber-700 text-sm mb-2">💬 回報完整評估報告</p>
+                <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside ml-1">
+                  <li>優勢分析（matched_skills）、缺口技能（missing_skills）</li>
+                  <li>推薦等級與推薦理由</li>
+                  <li>3–5 個客製化探詢問題（開場問法建議）</li>
+                  <li>候選人系統 ID，方便後續追蹤</li>
+                </ul>
+                <p className="text-xs text-amber-600 mt-2 italic">例：「推薦指數 82 / 100，具備 8 年 Java 經驗，缺 Kubernetes 實務」</p>
+              </div>
+
+            </div>
+          </div>
+
+          {/* 啟動指令 */}
           <div>
             <h3 className="font-black text-slate-900 mb-3 flex items-center gap-2">
               <Copy size={16} className="text-rose-500" />
@@ -1050,6 +1109,7 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
             </div>
           </div>
 
+          {/* API URL */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">履歷匯入指南 URL</p>
@@ -1063,13 +1123,6 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
                 POST / PATCH https://backendstep1ne.zeabur.app/api/candidates
               </code>
             </div>
-          </div>
-
-          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-            <p className="text-sm text-slate-700">
-              💡 <strong>穩定性評分維度</strong>：平均在職年資（50分）＋ 換工作頻率（30分）＋ 近期空窗期（20分），
-              滿分 100。85+ → S 級，75–84 → A+ 級，65–74 → A 級，55–64 → B 級，54 以下 → C 級。
-            </p>
           </div>
 
         </div>
