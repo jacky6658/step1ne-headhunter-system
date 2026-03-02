@@ -743,6 +743,72 @@ GET /api/jobs
 GET /api/jobs/:id
 ```
 
+### 新增職缺（AI 職缺匯入 Bot 使用）
+
+```
+POST /api/jobs
+Content-Type: application/json
+```
+
+> 完整職缺匯入流程請讀：`GET /api/jobs-import-guide`
+
+**必填欄位：**
+
+| 欄位 | 說明 | 範例 |
+|------|------|------|
+| `position_name` | 職位名稱 | `"資深前端工程師"` |
+
+**選填欄位（能填多少填多少）：**
+
+| 欄位 | 說明 |
+|------|------|
+| `client_company` | 公司名稱 |
+| `department` | 部門 |
+| `open_positions` | 招募人數 |
+| `salary_range` | 薪資範圍（文字，如 `"月薪 60,000-100,000"`） |
+| `salary_min` / `salary_max` | 薪資數值（數字） |
+| `location` | 工作地點 |
+| `experience_required` | 年資要求 |
+| `education_required` | 學歷要求 |
+| `key_skills` | 技能需求 |
+| `job_description` | 完整 JD |
+| `talent_profile` | 理想人選畫像（AI 生成） |
+| `search_primary` | 主要搜尋關鍵字（AI 生成） |
+| `search_secondary` | 次要搜尋關鍵字（AI 生成） |
+| `job_url` | 原始職缺連結（104/1111 URL） |
+| `source` | 來源平台，預設 `"104"` |
+| `job_status` | 狀態，預設 `"招募中"` |
+| `consultant_notes` | 顧問備註 |
+
+**Request 範例：**
+
+```json
+{
+  "position_name": "資深前端工程師",
+  "client_company": "某科技股份有限公司",
+  "location": "台北市",
+  "salary_range": "月薪 80,000-120,000",
+  "key_skills": "React, TypeScript, Next.js",
+  "job_url": "https://www.104.com.tw/job/abcde",
+  "source": "104",
+  "job_status": "招募中"
+}
+```
+
+**Response 範例：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 42,
+    "position_name": "資深前端工程師",
+    "client_company": "某科技股份有限公司",
+    "job_status": "招募中"
+  }
+}
+```
+
 ---
 
 ## 六、查詢操作日誌
