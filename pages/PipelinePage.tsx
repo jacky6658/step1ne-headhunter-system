@@ -201,6 +201,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const [jobFilter, setJobFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [linkedinFilter, setLinkedinFilter] = useState<'all' | 'has' | 'no'>('all');
+  const [dataCompletenessFilter, setDataCompletenessFilter] = useState<'all' | 'complete' | 'partial' | 'critical'>('all');
 
   const loadCandidates = async () => {
     setLoading(true);
@@ -268,6 +269,27 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     return [...new Set(allJobs)].sort();
   }, [candidatesWithStage]);
 
+  // 判断资料完整度
+  const getDataCompleteness = (candidate: Candidate): 'complete' | 'partial' | 'critical' => {
+    const hasLinkedin = !!(candidate as any).linkedinUrl && (candidate as any).linkedinUrl.trim() !== '';
+    const hasGithub = !!(candidate as any).githubUrl && (candidate as any).githubUrl.trim() !== '';
+    const hasEmail = !!candidate.email && candidate.email.trim() !== '';
+    const hasPhone = !!candidate.phone && candidate.phone.trim() !== '';
+    
+    // 完整：有 LinkedIn 或 GitHub 其中之一
+    if (hasLinkedin || hasGithub) {
+      return 'complete';
+    }
+    
+    // 部分缺失：有電話或 Email，但無外部連結
+    if (hasEmail || hasPhone) {
+      return 'partial';
+    }
+    
+    // 嚴重缺失：LinkedIn + GitHub 都沒有，且沒有聯絡方式
+    return 'critical';
+  };
+
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return candidatesWithStage.filter(item => {
@@ -279,6 +301,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       const linkedinMatched = linkedinFilter === 'all' || 
         (linkedinFilter === 'has' && hasLinkedin) ||
         (linkedinFilter === 'no' && !hasLinkedin);
+      // 資料完整度篩選
+      const completeness = getDataCompleteness(item.candidate);
+      const completenessMatched = dataCompletenessFilter === 'all' || completeness === dataCompletenessFilter;
       // REVIEWER 只顯示自己的候選人，ADMIN 顯示全部
       const roleMatched = userProfile.role === 'ADMIN' || consultant === userProfile.displayName;
       const searchMatched = !q || [
@@ -288,9 +313,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         ...item.allTargetJobs,
         item.latestProgress?.note,
       ].some(val => (val || '').toLowerCase().includes(q));
-      return consultantMatched && jobMatched && linkedinMatched && roleMatched && searchMatched;
+      return consultantMatched && jobMatched && linkedinMatched && completenessMatched && roleMatched && searchMatched;
     });
-  }, [candidatesWithStage, consultantFilter, jobFilter, linkedinFilter, searchQuery, userProfile]);
+  }, [candidatesWithStage, consultantFilter, jobFilter, linkedinFilter, dataCompletenessFilter, searchQuery, userProfile]);
 
   const grouped = useMemo(() => {
     const result: Record<PipelineStageKey, PipelineItem[]> = {
@@ -329,7 +354,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     return result;
   }, [candidatesWithStage]);
 
-  const isFiltering = searchQuery.trim() !== '' || jobFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all';
+  const isFiltering = searchQuery.trim() !== '' || jobFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all' || dataCompletenessFilter !== 'all';
   
   // 计算每个阶段的 LinkedIn 统计（仅 AI 推荐阶段）
   const linkedinStats = useMemo(() => {
@@ -340,6 +365,15 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }).length;
     const noLinkedin = aiRecommendedAll.length - hasLinkedin;
     return { total: aiRecommendedAll.length, has: hasLinkedin, no: noLinkedin };
+  }, [candidatesWithStage]);
+  
+  // 计算资料完整度统计（仅 AI 推荐阶段）
+  const completenessStats = useMemo(() => {
+    const aiRecommendedAll = candidatesWithStage.filter(item => item.stage === 'ai_recommended');
+    const complete = aiRecommendedAll.filter(item => getDataCompleteness(item.candidate) === 'complete').length;
+    const partial = aiRecommendedAll.filter(item => getDataCompleteness(item.candidate) === 'partial').length;
+    const critical = aiRecommendedAll.filter(item => getDataCompleteness(item.candidate) === 'critical').length;
+    return { total: aiRecommendedAll.length, complete, partial, critical };
   }, [candidatesWithStage]);
 
   const totalWithTracking = filteredItems.filter(item => (item.candidate.progressTracking || []).length > 0).length;
@@ -637,19 +671,25 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
             </span>
           )}
 
-          {/* LinkedIn 筛选标签 */}
-          {linkedinFilter !== 'all' && (
-            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-blue-100 text-blue-700 font-medium">
-              <Linkedin className="w-3 h-3" />
-              {linkedinFilter === 'has' ? '有LinkedIn' : '無LinkedIn'}
-              <button onClick={() => setLinkedinFilter('all')} className="ml-1 hover:text-blue-900">✕</button>
+          {/* 資料完整度篩選標籤 */}
+          {dataCompletenessFilter !== 'all' && (
+            <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+              dataCompletenessFilter === 'complete' ? 'bg-green-100 text-green-700' :
+              dataCompletenessFilter === 'partial' ? 'bg-amber-100 text-amber-700' :
+              'bg-rose-100 text-rose-700'
+            }`}>
+              <AlertTriangle className="w-3 h-3" />
+              {dataCompletenessFilter === 'complete' ? '完整資料' :
+               dataCompletenessFilter === 'partial' ? '部分缺失' :
+               '嚴重缺失'}
+              <button onClick={() => setDataCompletenessFilter('all')} className="ml-1 hover:opacity-70">✕</button>
             </span>
           )}
 
           {/* 清除全部 */}
-          {(searchQuery || jobFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all') && (
+          {(searchQuery || jobFilter !== 'all' || consultantFilter !== 'all' || dataCompletenessFilter !== 'all') && (
             <button
-              onClick={() => { setSearchQuery(''); setJobFilter('all'); setConsultantFilter('all'); setLinkedinFilter('all'); }}
+              onClick={() => { setSearchQuery(''); setJobFilter('all'); setConsultantFilter('all'); setDataCompletenessFilter('all'); }}
               className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-gray-500 hover:bg-gray-100 transition-colors"
             >
               <X className="w-3 h-3" /> 清除
@@ -708,40 +748,51 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                     </div>
                   </div>
                   
-                  {/* LinkedIn 快速筛选按钮（仅 AI 推荐栏位显示）*/}
-                  {stage.key === 'ai_recommended' && linkedinStats.total > 0 && (
-                    <div className="mt-2 flex gap-1 flex-wrap">
-                      <button
-                        onClick={() => setLinkedinFilter('all')}
-                        className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
-                          linkedinFilter === 'all'
-                            ? 'bg-violet-600 text-white shadow-sm'
-                            : 'bg-white/70 text-violet-700 hover:bg-white border border-violet-200'
-                        }`}
-                      >
-                        全部 {linkedinStats.total}
-                      </button>
-                      <button
-                        onClick={() => setLinkedinFilter('has')}
-                        className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors flex items-center gap-1 ${
-                          linkedinFilter === 'has'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'bg-white/70 text-blue-700 hover:bg-white border border-blue-200'
-                        }`}
-                      >
-                        <Linkedin className="w-2.5 h-2.5" />
-                        有LinkedIn {linkedinStats.has}
-                      </button>
-                      <button
-                        onClick={() => setLinkedinFilter('no')}
-                        className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
-                          linkedinFilter === 'no'
-                            ? 'bg-gray-600 text-white shadow-sm'
-                            : 'bg-white/70 text-gray-700 hover:bg-white border border-gray-200'
-                        }`}
-                      >
-                        無LinkedIn {linkedinStats.no}
-                      </button>
+                  {/* 資料完整度快速篩選（仅 AI 推荐栏位显示）*/}
+                  {stage.key === 'ai_recommended' && completenessStats.total > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <div className="flex gap-1 flex-wrap">
+                        <button
+                          onClick={() => setDataCompletenessFilter('all')}
+                          className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
+                            dataCompletenessFilter === 'all'
+                              ? 'bg-violet-600 text-white shadow-sm'
+                              : 'bg-white/70 text-violet-700 hover:bg-white border border-violet-200'
+                          }`}
+                        >
+                          全部 {completenessStats.total}
+                        </button>
+                        <button
+                          onClick={() => setDataCompletenessFilter('complete')}
+                          className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
+                            dataCompletenessFilter === 'complete'
+                              ? 'bg-green-600 text-white shadow-sm'
+                              : 'bg-white/70 text-green-700 hover:bg-white border border-green-200'
+                          }`}
+                        >
+                          ✓ 完整資料 {completenessStats.complete}
+                        </button>
+                        <button
+                          onClick={() => setDataCompletenessFilter('partial')}
+                          className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
+                            dataCompletenessFilter === 'partial'
+                              ? 'bg-amber-600 text-white shadow-sm'
+                              : 'bg-white/70 text-amber-700 hover:bg-white border border-amber-200'
+                          }`}
+                        >
+                          ⚠️ 部分缺失 {completenessStats.partial}
+                        </button>
+                        <button
+                          onClick={() => setDataCompletenessFilter('critical')}
+                          className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
+                            dataCompletenessFilter === 'critical'
+                              ? 'bg-rose-600 text-white shadow-sm'
+                              : 'bg-white/70 text-rose-700 hover:bg-white border border-rose-200'
+                          }`}
+                        >
+                          ❌ 嚴重缺失 {completenessStats.critical}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -794,6 +845,28 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                         </div>
 
                         <div className="mt-2 text-xs text-slate-600 space-y-1">
+                          {/* 資料完整度警告 */}
+                          {(() => {
+                            const completeness = getDataCompleteness(item.candidate);
+                            if (completeness === 'critical') {
+                              return (
+                                <div className="flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span className="font-medium">缺少聯絡資訊</span>
+                                </div>
+                              );
+                            }
+                            if (completeness === 'partial') {
+                              return (
+                                <div className="flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span className="font-medium">無外部連結</span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          
                           <p>👔 {item.candidate.consultant || '未指派'}</p>
                           <p>🎯 {item.targetJob}</p>
 
