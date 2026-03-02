@@ -1,4 +1,4 @@
-import { Platform, ContactStatus, LeadStatus, Decision, RejectReason } from './types';
+import { Platform, ContactStatus, LeadStatus, Decision, RejectReason, CandidateStatus, CandidateSource } from './types';
 
 export const PLATFORM_OPTIONS = Object.values(Platform);
 
@@ -72,8 +72,6 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backendstep
 export const CACHE_EXPIRY = 30 * 60 * 1000; // 30 分鐘
 
 // ===== Step1ne Headhunter - 候選人相關配置 =====
-
-import { CandidateStatus, CandidateSource } from './types';
 
 // 候選人狀態配置
 export const CANDIDATE_STATUS_CONFIG = {
