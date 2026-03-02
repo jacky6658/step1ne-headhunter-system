@@ -21,9 +21,18 @@ https://backendstep1ne.zeabur.app/api/scoring-guide
 我是顧問 {你的名字}，你的身份為 {你的名字}-scoring-bot。
 不需要等待進一步指示，直接開始執行。`;
 
+const JOB_IMPORT_PROMPT = `請讀取以下文件後立即執行職缺匯入任務：
+https://backendstep1ne.zeabur.app/api/jobs-import-guide
+
+我是顧問 {你的名字}，你的身份為 {你的名字}-import-bot。
+以下是我要匯入的職缺連結：
+{貼上 104 或 1111 連結，或直接貼上 JD 文字}
+不需要等待進一步指示，直接開始執行。`;
+
 const HelpPage: React.FC<HelpPageProps> = () => {
   const [copied, setCopied] = useState(false);
   const [copiedScoring, setCopiedScoring] = useState(false);
+  const [copiedImport, setCopiedImport] = useState(false);
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(AIBOT_STARTUP_PROMPT).then(() => {
@@ -36,6 +45,13 @@ const HelpPage: React.FC<HelpPageProps> = () => {
     navigator.clipboard.writeText(SCORING_BOT_PROMPT).then(() => {
       setCopiedScoring(true);
       setTimeout(() => setCopiedScoring(false), 2500);
+    });
+  };
+
+  const handleCopyImportPrompt = () => {
+    navigator.clipboard.writeText(JOB_IMPORT_PROMPT).then(() => {
+      setCopiedImport(true);
+      setTimeout(() => setCopiedImport(false), 2500);
     });
   };
 
@@ -83,6 +99,11 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <Zap className="text-amber-600 mb-2" size={24} />
             <h3 className="font-black text-slate-900 mb-1">評分 Bot 啟動指令</h3>
             <p className="text-sm text-slate-600">openclaw 定時評分任務指令</p>
+          </a>
+          <a href="#JobImportBot" className="p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors">
+            <Download className="text-green-600 mb-2" size={24} />
+            <h3 className="font-black text-slate-900 mb-1">職缺匯入 Bot 指令</h3>
+            <p className="text-sm text-slate-600">貼上 104/1111 連結自動建立職缺</p>
           </a>
         </div>
       </div>
@@ -860,6 +881,86 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
             <p className="text-sm text-slate-700">
               ⏱️ <strong>執行時間預估</strong>：10 位候選人約需 <strong>5–8 分鐘</strong>（每位候選人間隔 10–20 秒反爬蟲停頓）。
               若不需 Playwright 讀頁面可加 <code className="bg-white px-1 rounded">--no-profile-read</code> 縮短至約 1 分鐘。
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      {/* 職缺匯入 Bot 啟動指令 */}
+      <div id="JobImportBot" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+          <Download className="text-green-500" size={24} />
+          職缺匯入 Bot 啟動指令
+        </h2>
+        <div className="space-y-4 text-slate-700">
+
+          <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+            <p className="text-sm font-semibold text-green-800 mb-1">📥 適用場景</p>
+            <p className="text-sm text-green-700">
+              顧問提供 <strong>104 或 1111 職缺連結</strong>（或直接貼上 JD 文字），AI 自動：
+            </p>
+            <ul className="mt-2 space-y-1 text-sm text-green-700 ml-4 list-disc">
+              <li>讀取頁面 → 提取職位、薪資、技能、JD 等所有欄位</li>
+              <li>AI 自動生成公司畫像、人才畫像、爬蟲搜尋關鍵字</li>
+              <li>一次呼叫 API 建立完整職缺記錄</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🔄 匯入 Bot 執行流程</h3>
+            <ol className="list-decimal list-inside space-y-2 ml-4 text-sm">
+              <li>讀取職缺匯入指南（學習流程與 API 格式）</li>
+              <li>Fetch 104 / 1111 頁面，提取所有結構化欄位</li>
+              <li>AI 分析 JD → 生成公司畫像 / 人才畫像 / 搜尋關鍵字</li>
+              <li>呼叫 <code className="bg-gray-100 px-1">POST /api/jobs</code>，一次寫入所有欄位</li>
+              <li>回報職缺 ID、已填欄位、建議搜尋詞</li>
+            </ol>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-3 flex items-center gap-2">
+              <Copy size={16} className="text-green-500" />
+              職缺匯入 Bot 啟動指令
+              <span className="text-xs font-normal text-slate-500 ml-1">（複製後貼給你的 AI，把名字和連結換掉）</span>
+            </h3>
+            <div className="relative">
+              <pre className="bg-slate-900 text-green-300 text-sm rounded-xl p-4 whitespace-pre-wrap leading-relaxed font-mono overflow-x-auto">
+{JOB_IMPORT_PROMPT}
+              </pre>
+              <button
+                onClick={handleCopyImportPrompt}
+                className={`absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  copiedImport
+                    ? 'bg-green-500 text-white'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                {copiedImport ? <CheckCheck size={14} /> : <Copy size={14} />}
+                {copiedImport ? '已複製！' : '複製指令'}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">職缺匯入指南 URL</p>
+              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-green-700 break-all">
+                https://backendstep1ne.zeabur.app/api/jobs-import-guide
+              </code>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">職缺新增 API</p>
+              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-green-700 break-all">
+                POST https://backendstep1ne.zeabur.app/api/jobs
+              </code>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <p className="text-sm text-slate-700">
+              💡 <strong>支援的欄位</strong>：職位名稱、公司、部門、薪資、地點、年資、技能、JD、
+              公司畫像、人才畫像、搜尋關鍵字（主要/次要）、福利、遠端政策、面試流程、顧問備註…共 <strong>30+ 欄位</strong>一次寫入。
             </p>
           </div>
 

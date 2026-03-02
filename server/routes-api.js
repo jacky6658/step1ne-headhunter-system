@@ -1662,76 +1662,74 @@ router.patch('/jobs/:id/status', async (req, res) => {
  */
 router.post('/jobs', async (req, res) => {
   try {
-    const {
-      company_name, position_name, client_company, department,
-      salary_min, salary_max, location, experience_required, education_required,
-      job_description, required_skills, headcount,
-      status = '招募中', source = '104', job_status = '招募中'
-    } = req.body;
+    const b = req.body;
 
-    if (!position_name) {
-      return res.status(400).json({
-        success: false,
-        error: 'Position name is required'
-      });
+    if (!b.position_name) {
+      return res.status(400).json({ success: false, error: 'position_name 為必填欄位' });
     }
 
-    const client = await pool.connect();
+    const dbClient = await pool.connect();
 
-    // 檢查 jobs_pipeline 表的欄位（如果有擴充）
-    const fields = [
-      'position_name', 'client_company', 'company_name', 'department',
-      'salary_min', 'salary_max', 'location',
-      'experience_required', 'education_required',
-      'job_description', 'required_skills', 'headcount',
-      'job_status', 'source', 'created_at', 'last_updated'
-    ];
-
-    // 先檢查表的實際欄位（動態適應）
-    const tableInfo = await client.query(`
+    // 先查表有哪些欄位（動態適應 ALTER TABLE 擴充）
+    const tableInfo = await dbClient.query(`
       SELECT column_name FROM information_schema.columns
       WHERE table_name='jobs_pipeline'
     `);
-    const availableFields = tableInfo.rows.map(r => r.column_name);
+    const availableCols = new Set(tableInfo.rows.map(r => r.column_name));
 
-    // 只使用表中實際存在的欄位
-    const fieldsToUse = fields.filter(f => availableFields.includes(f) || f === 'created_at' || f === 'last_updated');
-    const valuesToUse = fieldsToUse.map(f => {
-      switch(f) {
-        case 'position_name': return position_name;
-        case 'client_company': return client_company || company_name || '';
-        case 'company_name': return company_name || client_company || '';
-        case 'department': return department || '';
-        case 'salary_min': return salary_min || null;
-        case 'salary_max': return salary_max || null;
-        case 'location': return location || '';
-        case 'experience_required': return experience_required || '';
-        case 'education_required': return education_required || '';
-        case 'job_description': return job_description || '';
-        case 'required_skills': return required_skills || '';
-        case 'headcount': return headcount || '';
-        case 'job_status': return status || job_status || '招募中';
-        case 'source': return source;
-        case 'created_at': return 'NOW()';
-        case 'last_updated': return 'NOW()';
-        default: return null;
-      }
-    });
+    // 所有支援的欄位與對應值
+    const allFields = {
+      position_name:           b.position_name,
+      client_company:          b.client_company || b.company_name || '',
+      company_name:            b.company_name || b.client_company || '',
+      department:              b.department || '',
+      open_positions:          b.open_positions || b.headcount || '',
+      salary_range:            b.salary_range || '',
+      salary_min:              b.salary_min || null,
+      salary_max:              b.salary_max || null,
+      key_skills:              b.key_skills || b.required_skills || '',
+      required_skills:         b.required_skills || b.key_skills || '',
+      experience_required:     b.experience_required || '',
+      education_required:      b.education_required || '',
+      location:                b.location || '',
+      language_required:       b.language_required || '',
+      special_conditions:      b.special_conditions || '',
+      industry_background:     b.industry_background || '',
+      team_size:               b.team_size || '',
+      key_challenges:          b.key_challenges || '',
+      attractive_points:       b.attractive_points || '',
+      recruitment_difficulty:  b.recruitment_difficulty || '',
+      interview_process:       b.interview_process || '',
+      job_description:         b.job_description || '',
+      consultant_notes:        b.consultant_notes || '',
+      company_profile:         b.company_profile || '',
+      talent_profile:          b.talent_profile || '',
+      search_primary:          b.search_primary || '',
+      search_secondary:        b.search_secondary || '',
+      welfare_tags:            b.welfare_tags || '',
+      welfare_detail:          b.welfare_detail || '',
+      work_hours:              b.work_hours || '',
+      vacation_policy:         b.vacation_policy || '',
+      remote_work:             b.remote_work || '',
+      business_trip:           b.business_trip || '',
+      job_url:                 b.job_url || '',
+      job_status:              b.job_status || b.status || '招募中',
+      source:                  b.source || '104',
+    };
 
-    // 構建動態 SQL
-    const sqlFields = fieldsToUse.filter(f => f !== 'created_at' && f !== 'last_updated');
-    const sqlValues = sqlFields.map((_, i) => `$${i + 1}`).concat(['NOW()', 'NOW()']);
-    const sqlFieldsStr = [...sqlFields, 'created_at', 'last_updated'].join(', ');
-    const sqlValuesStr = sqlValues.join(', ');
+    // 只保留表中實際存在的欄位
+    const colsToInsert = Object.keys(allFields).filter(f => availableCols.has(f));
+    const valsToInsert = colsToInsert.map(f => allFields[f]);
+    const placeholders = colsToInsert.map((_, i) => `$${i + 1}`);
 
-    const result = await client.query(
-      `INSERT INTO jobs_pipeline (${sqlFieldsStr})
-       VALUES (${sqlValuesStr})
+    const result = await dbClient.query(
+      `INSERT INTO jobs_pipeline (${colsToInsert.join(', ')}, created_at, last_updated)
+       VALUES (${placeholders.join(', ')}, NOW(), NOW())
        RETURNING *`,
-      valuesToUse.slice(0, sqlFields.length)
+      valsToInsert
     );
 
-    client.release();
+    dbClient.release();
 
     res.status(201).json({
       success: true,
@@ -1740,10 +1738,7 @@ router.post('/jobs', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ POST /jobs error:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -2348,6 +2343,26 @@ router.get('/scoring-guide', (req, res) => {
     const guidePath = path.join(__dirname, 'SCORING-GUIDE.md');
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Scoring guide not found' });
+    }
+    const content = fs.readFileSync(guidePath, 'utf-8');
+    const accept = req.headers['accept'] || '';
+    if (accept.includes('application/json')) {
+      res.json({ success: true, content });
+    } else {
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.send(content);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/jobs-import-guide — 回傳職缺匯入 Bot 執行指南
+router.get('/jobs-import-guide', (req, res) => {
+  try {
+    const guidePath = path.join(__dirname, 'JOB-IMPORT-GUIDE.md');
+    if (!fs.existsSync(guidePath)) {
+      return res.status(404).json({ success: false, error: 'Job import guide not found' });
     }
     const content = fs.readFileSync(guidePath, 'utf-8');
     const accept = req.headers['accept'] || '';
