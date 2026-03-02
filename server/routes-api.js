@@ -2912,4 +2912,62 @@ router.post('/migrate/fix-ai-match-result', async (req, res) => {
   }
 });
 
+
+// ==================== GitHub 分析 API ====================
+const githubAnalysis = require('./githubAnalysisService');
+
+/**
+ * GET /api/github/analyze/:username
+ * 完整 GitHub 分析
+ */
+router.get('/github/analyze/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const result = await githubAnalysis.analyzeGithubProfile(`https://github.com/${username}`);
+    
+    if (!result.success) {
+      return res.status(404).json({ success: false, error: result.error });
+    }
+    
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/candidates/:id/github-stats
+ * 獲取候選人的 GitHub 快速統計（用於卡片顯示）
+ */
+router.get('/candidates/:id/github-stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // 從數據庫獲取候選人的 GitHub URL
+    const client = await pool.connect();
+    const result = await client.query(
+      'SELECT github_url FROM candidates_pipeline WHERE id = $1',
+      [id]
+    );
+    client.release();
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '候選人不存在' });
+    }
+    
+    const githubUrl = result.rows[0].github_url;
+    
+    if (!githubUrl || !githubUrl.trim()) {
+      return res.json({ success: true, data: null }); // 無 GitHub 連結
+    }
+    
+    // 獲取 GitHub 快速統計
+    const stats = await githubAnalysis.getGithubQuickStats(githubUrl);
+    
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

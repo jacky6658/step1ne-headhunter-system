@@ -3,7 +3,7 @@ import { Candidate, CandidateStatus, ProgressEvent, UserProfile } from '../types
 import { getCandidates, clearCache } from '../services/candidateService';
 import { CandidateModal } from '../components/CandidateModal';
 import { apiPut } from '../config/api';
-import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2, Linkedin } from 'lucide-react';
+import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2, Linkedin, Github, Star } from 'lucide-react';
 
 interface PipelinePageProps {
   userProfile: UserProfile;
@@ -18,6 +18,19 @@ interface PipelineItem {
   idleDays: number;
   targetJob: string;        // 第一個目標職缺（顯示用）
   allTargetJobs: string[];  // 所有目標職缺（篩選用）
+}
+
+interface GithubStats {
+  score: number;
+  stars: number;
+  activity: {
+    status: string;
+    statusText: string;
+    daysAgo: number;
+  };
+  topLanguage: string;
+  followers: number;
+  totalStars: number;
 }
 
 /** 判斷是否為台灣時區今天新增 */
@@ -202,6 +215,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [linkedinFilter, setLinkedinFilter] = useState<'all' | 'has' | 'no'>('all');
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState<'all' | 'complete' | 'partial' | 'critical'>('all');
+  const [githubStatsCache, setGithubStatsCache] = useState<Record<string, GithubStats | null>>({});
 
   const loadCandidates = async () => {
     setLoading(true);
@@ -215,11 +229,45 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }
   };
 
+  const fetchGithubStats = async (candidateId: string) => {
+    if (githubStatsCache[candidateId] !== undefined) {
+      return githubStatsCache[candidateId];
+    }
+
+    try {
+      const response = await fetch(`https://backendstep1ne.zeabur.app/api/candidates/${candidateId}/github-stats`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setGithubStatsCache(prev => ({ ...prev, [candidateId]: result.data }));
+        return result.data;
+      }
+    } catch (error) {
+      console.error(`Failed to fetch GitHub stats for candidate ${candidateId}:`, error);
+    }
+    
+    setGithubStatsCache(prev => ({ ...prev, [candidateId]: null }));
+    return null;
+  };
+
   useEffect(() => {
     if (userProfile) {
       loadCandidates();
     }
   }, [userProfile]);
+
+  // 異步獲取 AI 推薦候選人的 GitHub 統計數據
+  useEffect(() => {
+    const aiRecommended = candidatesWithStage.filter(item => item.stage === 'ai_recommended');
+    
+    // 只獲取有 GitHub 連結且尚未載入的候選人數據
+    aiRecommended.forEach(item => {
+      const hasGithub = !!(item.candidate as any).githubUrl && (item.candidate as any).githubUrl.trim() !== '';
+      if (hasGithub && githubStatsCache[item.candidate.id] === undefined) {
+        fetchGithubStats(item.candidate.id);
+      }
+    });
+  }, [candidatesWithStage]);
 
   // 每小時更新一次「現在時間」，讓停留天數與 SLA 自動重算
   useEffect(() => {
@@ -827,8 +875,72 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                                   <Linkedin className="w-3.5 h-3.5" />
                                 </a>
                               )}
+                              {(item.candidate as any).githubUrl && (item.candidate as any).githubUrl.trim() && (
+                                <a
+                                  href={(item.candidate as any).githubUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="p-0.5 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+                                  title="查看 GitHub 個人檔案"
+                                >
+                                  <Github className="w-3.5 h-3.5" />
+                                </a>
+                              )}
                             </div>
                             <p className="text-xs text-slate-500 mt-0.5">{item.candidate.position || '未填寫職位'}</p>
+                            
+                            {/* GitHub 評分（方案 D）*/}
+                            {(() => {
+                              const githubStats = githubStatsCache[item.candidate.id];
+                              const hasGithub = !!(item.candidate as any).githubUrl && (item.candidate as any).githubUrl.trim();
+                              
+                              if (!hasGithub) return null;
+                              
+                              if (githubStats === undefined) {
+                                return (
+                                  <div className="mt-1 text-[10px] text-slate-400">
+                                    載入 GitHub 數據中...
+                                  </div>
+                                );
+                              }
+                              
+                              if (!githubStats) return null;
+                              
+                              const renderStars = (count: number) => {
+                                const stars = [];
+                                for (let i = 0; i < 5; i++) {
+                                  stars.push(
+                                    <Star
+                                      key={i}
+                                      className={`w-2.5 h-2.5 ${i < count ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                                    />
+                                  );
+                                }
+                                return stars;
+                              };
+                              
+                              const activityColor = 
+                                githubStats.activity.daysAgo <= 7 ? 'text-green-600' :
+                                githubStats.activity.daysAgo <= 30 ? 'text-blue-600' :
+                                githubStats.activity.daysAgo <= 90 ? 'text-amber-600' :
+                                'text-slate-500';
+                              
+                              return (
+                                <div className="mt-1.5 flex items-center gap-2 text-[10px]">
+                                  <div className="flex items-center gap-0.5">
+                                    <Github className="w-3 h-3 text-slate-600" />
+                                    <span className="font-medium text-slate-700">{githubStats.score}分</span>
+                                  </div>
+                                  <div className="flex items-center gap-0.5">
+                                    {renderStars(githubStats.stars)}
+                                  </div>
+                                  <span className={`${activityColor} font-medium`}>
+                                    {githubStats.activity.daysAgo}天前
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-500">
