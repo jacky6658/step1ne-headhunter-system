@@ -31,7 +31,7 @@ export function filterCandidatesByPermission(
 export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
   // 【強制】永遠打真實 API，不能 fallback 到 Mock（用於本機開發驗證雲端連線）
   if (API_BASE_URL) {
-    let url = `${API_BASE_URL}/api/candidates?limit=1000`; // 強制取全部 189 位候選人
+    let url = `${API_BASE_URL}/candidates?limit=1000`; // 強制取全部候選人
     
     const response = await fetch(url);
     if (response.ok) {
@@ -115,7 +115,7 @@ export async function updateCandidateStatus(
 ): Promise<void> {
   try {
     if (API_BASE_URL) {
-      const response = await fetch(`${API_BASE_URL}/api/candidates/${candidateId}`, {
+      const response = await fetch(`${API_BASE_URL}/candidates/${candidateId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -150,7 +150,7 @@ export async function updateCandidateStatus(
 export async function syncFromSheets(): Promise<{ success: boolean; message: string }> {
   try {
     if (API_BASE_URL) {
-      const response = await fetch(`${API_BASE_URL}/api/sync/sheets-to-sql`, {
+      const response = await fetch(`${API_BASE_URL}/sync/sheets-to-sql`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });

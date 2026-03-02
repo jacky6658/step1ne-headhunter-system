@@ -256,19 +256,6 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }
   }, [userProfile]);
 
-  // 異步獲取 AI 推薦候選人的 GitHub 統計數據
-  useEffect(() => {
-    const aiRecommended = candidatesWithStage.filter(item => item.stage === 'ai_recommended');
-    
-    // 只獲取有 GitHub 連結且尚未載入的候選人數據
-    aiRecommended.forEach(item => {
-      const hasGithub = !!(item.candidate as any).githubUrl && (item.candidate as any).githubUrl.trim() !== '';
-      if (hasGithub && githubStatsCache[item.candidate.id] === undefined) {
-        fetchGithubStats(item.candidate.id);
-      }
-    });
-  }, [candidatesWithStage]);
-
   // 每小時更新一次「現在時間」，讓停留天數與 SLA 自動重算
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60 * 60 * 1000);
@@ -427,6 +414,19 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const totalWithTracking = filteredItems.filter(item => (item.candidate.progressTracking || []).length > 0).length;
   const staleCount = filteredItems.filter(item => item.idleDays >= 7).length;
   const slaOverdueCount = filteredItems.filter(item => isSlaOverdue(item.stage, item.idleDays)).length;
+
+  // 異步獲取 AI 推薦候選人的 GitHub 統計數據
+  useEffect(() => {
+    const aiRecommended = candidatesWithStage.filter(item => item.stage === 'ai_recommended');
+    
+    // 只獲取有 GitHub 連結且尚未載入的候選人數據
+    aiRecommended.forEach(item => {
+      const hasGithub = !!(item.candidate as any).githubUrl && (item.candidate as any).githubUrl.trim() !== '';
+      if (hasGithub && githubStatsCache[item.candidate.id] === undefined) {
+        fetchGithubStats(item.candidate.id);
+      }
+    });
+  }, [candidatesWithStage, githubStatsCache]);
 
   useEffect(() => {
     if (!toastMessage) return;
