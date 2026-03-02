@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
-import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles, FileText, Edit3, Save, X as XIcon, Bot, Plus } from 'lucide-react';
-import { apiGet, apiPut } from '../config/api';
+import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles, FileText, Edit3, Save, X as XIcon, Bot, Plus, Trash2 } from 'lucide-react';
+import { apiGet, apiPut, apiDelete } from '../config/api';
 import { fmtDate } from '../utils/dateFormat';
 
 interface JobsPageProps {
@@ -55,6 +55,15 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
   const [editingJD, setEditingJD] = useState(false);
   const [jdDraft, setJdDraft] = useState('');
   const [savingJD, setSavingJD] = useState(false);
+
+  // ── 編輯基本資料狀態 ──
+  const [editingBasic, setEditingBasic] = useState(false);
+  const [basicDraft, setBasicDraft] = useState<Partial<Job>>({});
+  const [savingBasic, setSavingBasic] = useState(false);
+
+  // ── 刪除狀態 ──
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // ── 爬蟲搜尋設定狀態 ──
   const [editingSearch, setEditingSearch] = useState(false);
@@ -152,6 +161,9 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     setSelectedJob(job);
     setEditingJD(false);
     setJdDraft(job.job_description || '');
+    setEditingBasic(false);
+    setBasicDraft({});
+    setShowDeleteConfirm(false);
     setEditingSearch(false);
     setCompanyProfileDraft(job.company_profile || '');
     setTalentProfileDraft(job.talent_profile || '');
@@ -210,6 +222,67 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
       alert('❌ 儲存失敗，請稍後再試');
     } finally {
       setSavingJD(false);
+    }
+  };
+
+  const handleStartEditBasic = () => {
+    if (!selectedJob) return;
+    setBasicDraft({
+      position_name: selectedJob.position_name,
+      client_company: selectedJob.client_company,
+      department: selectedJob.department,
+      open_positions: selectedJob.open_positions,
+      salary_range: selectedJob.salary_range,
+      location: selectedJob.location,
+      key_skills: selectedJob.key_skills,
+      experience_required: selectedJob.experience_required,
+      education_required: selectedJob.education_required,
+      language_required: selectedJob.language_required,
+      job_status: selectedJob.job_status,
+    });
+    setEditingBasic(true);
+  };
+
+  const handleSaveBasic = async () => {
+    if (!selectedJob) return;
+    setSavingBasic(true);
+    try {
+      await apiPut(`/api/jobs/${selectedJob.id}`, basicDraft);
+      const updatedJob = { ...selectedJob, ...basicDraft };
+      setSelectedJob(updatedJob);
+      setJobs(prev => prev.map(j => j.id === selectedJob.id ? { ...j, ...basicDraft } : j));
+      setEditingBasic(false);
+    } catch {
+      alert('❌ 儲存失敗，請稍後再試');
+    } finally {
+      setSavingBasic(false);
+    }
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    setDeletingJobId(jobId);
+    try {
+      await apiDelete(`/api/jobs/${jobId}`);
+      setJobs(prev => prev.filter(j => j.id !== jobId));
+      if (selectedJob?.id === jobId) {
+        setSelectedJob(null);
+      }
+      setShowDeleteConfirm(false);
+      // 顯示成功通知
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[60] flex items-center gap-2';
+      notification.innerHTML = `
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        <span>職缺已成功刪除</span>
+      `;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 3000);
+    } catch (err) {
+      alert('❌ 刪除失敗，請稍後再試');
+    } finally {
+      setDeletingJobId(null);
     }
   };
 
@@ -381,16 +454,31 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                 {job.location && <span>{job.location} · </span>}
                 建立：{fmtDate(job.lastUpdated)}
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleStartMatching(job.id.toString());
-                }}
-                className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
-              >
-                <Sparkles size={14} />
-                AI 配對
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStartMatching(job.id.toString());
+                  }}
+                  className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
+                >
+                  <Sparkles size={14} />
+                  AI 配對
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm(`確定要刪除「${job.position_name}」？此操作無法復原。`)) {
+                      handleDeleteJob(job.id);
+                    }
+                  }}
+                  disabled={deletingJobId === job.id}
+                  className="px-3 py-1.5 bg-red-50 text-red-600 text-xs rounded-lg hover:bg-red-100 transition-all flex items-center gap-1 border border-red-200"
+                >
+                  <Trash2 size={14} />
+                  {deletingJobId === job.id ? '刪除中...' : '刪除'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -446,16 +534,31 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStartMatching(job.id.toString());
-                        }}
-                        className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
-                      >
-                        <Sparkles size={14} />
-                        AI 配對
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartMatching(job.id.toString());
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
+                        >
+                          <Sparkles size={14} />
+                          AI 配對
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`確定要刪除「${job.position_name}」？此操作無法復原。`)) {
+                              handleDeleteJob(job.id);
+                            }
+                          }}
+                          disabled={deletingJobId === job.id}
+                          className="px-2 py-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="刪除職缺"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -471,71 +574,243 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
       {selectedJob && (
         <div 
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => { setSelectedJob(null); setEditingJD(false); setEditingSearch(false); }}
+          onClick={() => { setSelectedJob(null); setEditingJD(false); setEditingSearch(false); setEditingBasic(false); }}
         >
-          <div 
+          <div
             className="bg-white rounded-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-3 sm:p-6 border-b border-slate-200 sticky top-0 bg-white">
+            <div className="p-3 sm:p-6 border-b border-slate-200 sticky top-0 bg-white z-10">
               <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900">{selectedJob.position_name}</h2>
-                  <p className="text-slate-600 mt-1">{selectedJob.client_company}</p>
+                <div className="flex-1 min-w-0">
+                  {editingBasic ? (
+                    <input
+                      type="text"
+                      value={basicDraft.position_name || ''}
+                      onChange={e => setBasicDraft(prev => ({ ...prev, position_name: e.target.value }))}
+                      className="text-2xl font-bold text-slate-900 w-full border-b-2 border-indigo-400 focus:outline-none bg-transparent pb-1"
+                      placeholder="職位名稱"
+                    />
+                  ) : (
+                    <h2 className="text-2xl font-bold text-slate-900">{selectedJob.position_name}</h2>
+                  )}
+                  {editingBasic ? (
+                    <input
+                      type="text"
+                      value={basicDraft.client_company || ''}
+                      onChange={e => setBasicDraft(prev => ({ ...prev, client_company: e.target.value }))}
+                      className="text-slate-600 mt-1 w-full border-b border-indigo-300 focus:outline-none bg-transparent pb-0.5"
+                      placeholder="客戶公司"
+                    />
+                  ) : (
+                    <p className="text-slate-600 mt-1">{selectedJob.client_company}</p>
+                  )}
                 </div>
-                <button
-                  onClick={() => { setSelectedJob(null); setEditingJD(false); setEditingSearch(false); }}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                  {!editingBasic ? (
+                    <>
+                      <button
+                        onClick={handleStartEditBasic}
+                        className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                        title="編輯基本資料"
+                      >
+                        <Edit3 size={14} />
+                        編輯
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                        title="刪除職缺"
+                      >
+                        <Trash2 size={14} />
+                        刪除
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleSaveBasic}
+                        disabled={savingBasic}
+                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      >
+                        <Save size={12} />
+                        {savingBasic ? '儲存中...' : '儲存'}
+                      </button>
+                      <button
+                        onClick={() => { setEditingBasic(false); setBasicDraft({}); }}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5"
+                      >
+                        <XIcon size={14} />
+                        取消
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => { setSelectedJob(null); setEditingJD(false); setEditingSearch(false); setEditingBasic(false); }}
+                    className="text-slate-400 hover:text-slate-600 ml-1"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
+
+              {/* 刪除確認 */}
+              {showDeleteConfirm && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-sm text-red-800 mb-2">
+                    確定要刪除「{selectedJob.position_name}」？此操作無法復原。
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleDeleteJob(selectedJob.id)}
+                      disabled={deletingJobId === selectedJob.id}
+                      className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all"
+                    >
+                      {deletingJobId === selectedJob.id ? '刪除中...' : '確認刪除'}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-3 py-1.5 bg-white text-slate-600 text-xs rounded-lg border border-slate-300 hover:bg-slate-50 transition-all"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-3 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-600 uppercase">部門</label>
-                  <p className="text-sm text-slate-900">{selectedJob.department || '-'}</p>
+                  {editingBasic ? (
+                    <input
+                      type="text"
+                      value={basicDraft.department || ''}
+                      onChange={e => setBasicDraft(prev => ({ ...prev, department: e.target.value }))}
+                      className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-900">{selectedJob.department || '-'}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 uppercase">需求人數</label>
-                  <p className="text-sm text-slate-900">{selectedJob.open_positions || '-'}</p>
+                  {editingBasic ? (
+                    <input
+                      type="text"
+                      value={basicDraft.open_positions || ''}
+                      onChange={e => setBasicDraft(prev => ({ ...prev, open_positions: e.target.value }))}
+                      className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-900">{selectedJob.open_positions || '-'}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 uppercase">薪資範圍</label>
-                  <p className="text-sm text-slate-900">{selectedJob.salary_range || '-'}</p>
+                  {editingBasic ? (
+                    <input
+                      type="text"
+                      value={basicDraft.salary_range || ''}
+                      onChange={e => setBasicDraft(prev => ({ ...prev, salary_range: e.target.value }))}
+                      className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-900">{selectedJob.salary_range || '-'}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 uppercase">地點</label>
-                  <p className="text-sm text-slate-900">{selectedJob.location || '-'}</p>
+                  {editingBasic ? (
+                    <input
+                      type="text"
+                      value={basicDraft.location || ''}
+                      onChange={e => setBasicDraft(prev => ({ ...prev, location: e.target.value }))}
+                      className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-900">{selectedJob.location || '-'}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">狀態</label>
+                  {editingBasic ? (
+                    <select
+                      value={basicDraft.job_status || ''}
+                      onChange={e => setBasicDraft(prev => ({ ...prev, job_status: e.target.value }))}
+                      className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    >
+                      <option value="招募中">招募中</option>
+                      <option value="暫停">暫停</option>
+                      <option value="已滿額">已滿額</option>
+                      <option value="關閉">關閉</option>
+                    </select>
+                  ) : null}
                 </div>
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase">主要技能</label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {parseSkills(selectedJob.key_skills).map((skill, idx) => (
-                    <span key={idx} className="px-3 py-1 bg-indigo-50 text-indigo-700 text-sm rounded-lg">
-                      {skill}
-                    </span>
-                  ))}
-                </div>
+                {editingBasic ? (
+                  <input
+                    type="text"
+                    value={basicDraft.key_skills || ''}
+                    onChange={e => setBasicDraft(prev => ({ ...prev, key_skills: e.target.value }))}
+                    className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    placeholder="用「、」分隔，例：React、TypeScript、Node.js"
+                  />
+                ) : (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {parseSkills(selectedJob.key_skills).map((skill, idx) => (
+                      <span key={idx} className="px-3 py-1 bg-indigo-50 text-indigo-700 text-sm rounded-lg">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase">經驗要求</label>
-                <p className="text-sm text-slate-900 mt-1">{selectedJob.experience_required || '-'}</p>
+                {editingBasic ? (
+                  <input
+                    type="text"
+                    value={basicDraft.experience_required || ''}
+                    onChange={e => setBasicDraft(prev => ({ ...prev, experience_required: e.target.value }))}
+                    className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                ) : (
+                  <p className="text-sm text-slate-900 mt-1">{selectedJob.experience_required || '-'}</p>
+                )}
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase">學歷要求</label>
-                <p className="text-sm text-slate-900 mt-1">{selectedJob.education_required || '-'}</p>
+                {editingBasic ? (
+                  <input
+                    type="text"
+                    value={basicDraft.education_required || ''}
+                    onChange={e => setBasicDraft(prev => ({ ...prev, education_required: e.target.value }))}
+                    className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                ) : (
+                  <p className="text-sm text-slate-900 mt-1">{selectedJob.education_required || '-'}</p>
+                )}
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase">語言要求</label>
-                <p className="text-sm text-slate-900 mt-1">{selectedJob.language_required || '-'}</p>
+                {editingBasic ? (
+                  <input
+                    type="text"
+                    value={basicDraft.language_required || ''}
+                    onChange={e => setBasicDraft(prev => ({ ...prev, language_required: e.target.value }))}
+                    className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                ) : (
+                  <p className="text-sm text-slate-900 mt-1">{selectedJob.language_required || '-'}</p>
+                )}
               </div>
 
               <div>

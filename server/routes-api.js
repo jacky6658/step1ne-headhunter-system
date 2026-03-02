@@ -1534,7 +1534,12 @@ router.put('/jobs/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      position_name, job_status, consultant_notes, job_description,
+      position_name, client_company, department, open_positions,
+      salary_range, key_skills, experience_required, education_required,
+      location, language_required, special_conditions, industry_background,
+      team_size, key_challenges, attractive_points, recruitment_difficulty,
+      interview_process,
+      job_status, consultant_notes, job_description,
       company_profile, talent_profile, search_primary, search_secondary,
       welfare_tags, welfare_detail, work_hours, vacation_policy,
       remote_work, business_trip, job_url,
@@ -1559,6 +1564,12 @@ router.put('/jobs/:id', async (req, res) => {
            welfare_tags = $9, welfare_detail = $10,
            work_hours = $11, vacation_policy = $12,
            remote_work = $13, business_trip = $14, job_url = $15,
+           client_company = $17, department = $18, open_positions = $19,
+           salary_range = $20, key_skills = $21, experience_required = $22,
+           education_required = $23, location = $24, language_required = $25,
+           special_conditions = $26, industry_background = $27, team_size = $28,
+           key_challenges = $29, attractive_points = $30, recruitment_difficulty = $31,
+           interview_process = $32,
            last_updated = NOW()
        WHERE id = $16
        RETURNING *`,
@@ -1579,6 +1590,22 @@ router.put('/jobs/:id', async (req, res) => {
         business_trip    !== undefined ? business_trip    : existing.business_trip,
         job_url          !== undefined ? job_url          : existing.job_url,
         id,
+        client_company       !== undefined ? client_company       : existing.client_company,
+        department           !== undefined ? department           : existing.department,
+        open_positions       !== undefined ? open_positions       : existing.open_positions,
+        salary_range         !== undefined ? salary_range         : existing.salary_range,
+        key_skills           !== undefined ? key_skills           : existing.key_skills,
+        experience_required  !== undefined ? experience_required  : existing.experience_required,
+        education_required   !== undefined ? education_required   : existing.education_required,
+        location             !== undefined ? location             : existing.location,
+        language_required    !== undefined ? language_required    : existing.language_required,
+        special_conditions   !== undefined ? special_conditions   : existing.special_conditions,
+        industry_background  !== undefined ? industry_background  : existing.industry_background,
+        team_size            !== undefined ? team_size            : existing.team_size,
+        key_challenges       !== undefined ? key_challenges       : existing.key_challenges,
+        attractive_points    !== undefined ? attractive_points    : existing.attractive_points,
+        recruitment_difficulty !== undefined ? recruitment_difficulty : existing.recruitment_difficulty,
+        interview_process    !== undefined ? interview_process    : existing.interview_process,
       ]
     );
 
@@ -1652,6 +1679,50 @@ router.patch('/jobs/:id/status', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ PATCH /jobs/:id/status error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/jobs/:id
+ * 刪除職缺
+ */
+router.delete('/jobs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const client = await pool.connect();
+
+    const result = await client.query(
+      'DELETE FROM jobs_pipeline WHERE id = $1 RETURNING id, position_name, client_company',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ success: false, error: 'Job not found' });
+    }
+
+    // 寫入 system_logs
+    await client.query(
+      `INSERT INTO system_logs (action, actor, actor_type, candidate_id, candidate_name, detail)
+       VALUES ('DELETE', $1, 'HUMAN', $2, $3, $4)`,
+      [
+        'user',
+        id,
+        result.rows[0].position_name || `Job#${id}`,
+        JSON.stringify({ type: 'job', company: result.rows[0].client_company })
+      ]
+    ).catch(() => {}); // log 失敗不影響主流程
+
+    client.release();
+
+    res.json({
+      success: true,
+      message: `職缺「${result.rows[0].position_name}」已刪除`,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ DELETE /jobs/:id error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
