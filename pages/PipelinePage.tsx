@@ -3,7 +3,7 @@ import { Candidate, CandidateStatus, ProgressEvent, UserProfile } from '../types
 import { getCandidates, clearCache } from '../services/candidateService';
 import { CandidateModal } from '../components/CandidateModal';
 import { apiPut } from '../config/api';
-import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2 } from 'lucide-react';
+import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2, Linkedin } from 'lucide-react';
 
 interface PipelinePageProps {
   userProfile: UserProfile;
@@ -200,6 +200,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const [consultantFilter, setConsultantFilter] = useState<string>('all');
   const [jobFilter, setJobFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [linkedinFilter, setLinkedinFilter] = useState<'all' | 'has' | 'no'>('all');
 
   const loadCandidates = async () => {
     setLoading(true);
@@ -273,6 +274,11 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       const consultant = item.candidate.consultant || '未指派';
       const consultantMatched = consultantFilter === 'all' || consultant === consultantFilter;
       const jobMatched = jobFilter === 'all' || item.allTargetJobs.includes(jobFilter);
+      // LinkedIn 筛选
+      const hasLinkedin = !!(item.candidate as any).linkedinUrl && (item.candidate as any).linkedinUrl.trim() !== '';
+      const linkedinMatched = linkedinFilter === 'all' || 
+        (linkedinFilter === 'has' && hasLinkedin) ||
+        (linkedinFilter === 'no' && !hasLinkedin);
       // REVIEWER 只顯示自己的候選人，ADMIN 顯示全部
       const roleMatched = userProfile.role === 'ADMIN' || consultant === userProfile.displayName;
       const searchMatched = !q || [
@@ -282,9 +288,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         ...item.allTargetJobs,
         item.latestProgress?.note,
       ].some(val => (val || '').toLowerCase().includes(q));
-      return consultantMatched && jobMatched && roleMatched && searchMatched;
+      return consultantMatched && jobMatched && linkedinMatched && roleMatched && searchMatched;
     });
-  }, [candidatesWithStage, consultantFilter, jobFilter, searchQuery, userProfile]);
+  }, [candidatesWithStage, consultantFilter, jobFilter, linkedinFilter, searchQuery, userProfile]);
 
   const grouped = useMemo(() => {
     const result: Record<PipelineStageKey, PipelineItem[]> = {
@@ -323,7 +329,18 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     return result;
   }, [candidatesWithStage]);
 
-  const isFiltering = searchQuery.trim() !== '' || jobFilter !== 'all' || consultantFilter !== 'all';
+  const isFiltering = searchQuery.trim() !== '' || jobFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all';
+  
+  // 计算每个阶段的 LinkedIn 统计（仅 AI 推荐阶段）
+  const linkedinStats = useMemo(() => {
+    const aiRecommendedAll = candidatesWithStage.filter(item => item.stage === 'ai_recommended');
+    const hasLinkedin = aiRecommendedAll.filter(item => {
+      const url = (item.candidate as any).linkedinUrl;
+      return url && url.trim() !== '';
+    }).length;
+    const noLinkedin = aiRecommendedAll.length - hasLinkedin;
+    return { total: aiRecommendedAll.length, has: hasLinkedin, no: noLinkedin };
+  }, [candidatesWithStage]);
 
   const totalWithTracking = filteredItems.filter(item => (item.candidate.progressTracking || []).length > 0).length;
   const staleCount = filteredItems.filter(item => item.idleDays >= 7).length;
@@ -620,10 +637,19 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
             </span>
           )}
 
+          {/* LinkedIn 筛选标签 */}
+          {linkedinFilter !== 'all' && (
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-blue-100 text-blue-700 font-medium">
+              <Linkedin className="w-3 h-3" />
+              {linkedinFilter === 'has' ? '有LinkedIn' : '無LinkedIn'}
+              <button onClick={() => setLinkedinFilter('all')} className="ml-1 hover:text-blue-900">✕</button>
+            </span>
+          )}
+
           {/* 清除全部 */}
-          {(searchQuery || jobFilter !== 'all' || consultantFilter !== 'all') && (
+          {(searchQuery || jobFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all') && (
             <button
-              onClick={() => { setSearchQuery(''); setJobFilter('all'); setConsultantFilter('all'); }}
+              onClick={() => { setSearchQuery(''); setJobFilter('all'); setConsultantFilter('all'); setLinkedinFilter('all'); }}
               className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-gray-500 hover:bg-gray-100 transition-colors"
             >
               <X className="w-3 h-3" /> 清除
@@ -681,6 +707,43 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                       )}
                     </div>
                   </div>
+                  
+                  {/* LinkedIn 快速筛选按钮（仅 AI 推荐栏位显示）*/}
+                  {stage.key === 'ai_recommended' && linkedinStats.total > 0 && (
+                    <div className="mt-2 flex gap-1 flex-wrap">
+                      <button
+                        onClick={() => setLinkedinFilter('all')}
+                        className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
+                          linkedinFilter === 'all'
+                            ? 'bg-violet-600 text-white shadow-sm'
+                            : 'bg-white/70 text-violet-700 hover:bg-white border border-violet-200'
+                        }`}
+                      >
+                        全部 {linkedinStats.total}
+                      </button>
+                      <button
+                        onClick={() => setLinkedinFilter('has')}
+                        className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors flex items-center gap-1 ${
+                          linkedinFilter === 'has'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-white/70 text-blue-700 hover:bg-white border border-blue-200'
+                        }`}
+                      >
+                        <Linkedin className="w-2.5 h-2.5" />
+                        有LinkedIn {linkedinStats.has}
+                      </button>
+                      <button
+                        onClick={() => setLinkedinFilter('no')}
+                        className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
+                          linkedinFilter === 'no'
+                            ? 'bg-gray-600 text-white shadow-sm'
+                            : 'bg-white/70 text-gray-700 hover:bg-white border border-gray-200'
+                        }`}
+                      >
+                        無LinkedIn {linkedinStats.no}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-3 space-y-3 overflow-y-auto">
@@ -699,7 +762,21 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
-                            <p className="font-bold text-slate-900">{item.candidate.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-bold text-slate-900">{item.candidate.name}</p>
+                              {(item.candidate as any).linkedinUrl && (item.candidate as any).linkedinUrl.trim() && (
+                                <a
+                                  href={(item.candidate as any).linkedinUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="p-0.5 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                                  title="查看 LinkedIn 個人檔案"
+                                >
+                                  <Linkedin className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                            </div>
                             <p className="text-xs text-slate-500 mt-0.5">{item.candidate.position || '未填寫職位'}</p>
                           </div>
                           <div className="flex items-center gap-1">
