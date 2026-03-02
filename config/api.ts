@@ -1,7 +1,8 @@
 // API 配置 - 自動偵測開發/生產環境
 
-// API Base URL - 統一連 Zeabur（本地開發無需跑本地後端）
-export const API_BASE_URL = 'https://backendstep1ne.zeabur.app/api';
+// API Base URL - 本地開發透過 Vite proxy，生產環境直連 Zeabur
+import { API_BASE_URL as BASE } from '../constants';
+export const API_BASE_URL = BASE ? `${BASE}/api` : '/api';
 
 // 完整 URL 生成器
 export function getApiUrl(endpoint: string): string {
@@ -72,6 +73,19 @@ export async function apiPatch<T>(endpoint: string, data?: any): Promise<T> {
     ...defaultFetchConfig,
     method: 'PATCH',
     body: data ? JSON.stringify(data) : undefined,
+  });
+
+  if (!response.ok) {
+    throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function apiDelete<T>(endpoint: string): Promise<T> {
+  const response = await fetch(getApiUrl(endpoint), {
+    ...defaultFetchConfig,
+    method: 'DELETE',
   });
 
   if (!response.ok) {

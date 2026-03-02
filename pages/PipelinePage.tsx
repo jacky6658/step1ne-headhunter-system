@@ -3,6 +3,7 @@ import { Candidate, CandidateStatus, ProgressEvent, UserProfile } from '../types
 import { getCandidates, clearCache } from '../services/candidateService';
 import { CandidateModal } from '../components/CandidateModal';
 import { apiPut } from '../config/api';
+import { API_BASE_URL } from '../constants';
 import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2, Linkedin, Github, Star } from 'lucide-react';
 
 interface PipelinePageProps {
@@ -235,7 +236,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }
 
     try {
-      const response = await fetch(`https://backendstep1ne.zeabur.app/api/candidates/${candidateId}/github-stats`);
+      const response = await fetch(`${API_BASE_URL}/api/candidates/${candidateId}/github-stats`);
       const result = await response.json();
       
       if (result.success) {
@@ -255,19 +256,6 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       loadCandidates();
     }
   }, [userProfile]);
-
-  // 異步獲取 AI 推薦候選人的 GitHub 統計數據
-  useEffect(() => {
-    const aiRecommended = candidatesWithStage.filter(item => item.stage === 'ai_recommended');
-    
-    // 只獲取有 GitHub 連結且尚未載入的候選人數據
-    aiRecommended.forEach(item => {
-      const hasGithub = !!(item.candidate as any).githubUrl && (item.candidate as any).githubUrl.trim() !== '';
-      if (hasGithub && githubStatsCache[item.candidate.id] === undefined) {
-        fetchGithubStats(item.candidate.id);
-      }
-    });
-  }, [candidatesWithStage]);
 
   // 每小時更新一次「現在時間」，讓停留天數與 SLA 自動重算
   useEffect(() => {
@@ -305,6 +293,19 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       return { candidate, stage, latestProgress, idleDays, targetJob, allTargetJobs };
     });
   }, [candidates, now]);
+
+  // 異步獲取 AI 推薦候選人的 GitHub 統計數據
+  useEffect(() => {
+    const aiRecommended = candidatesWithStage.filter(item => item.stage === 'ai_recommended');
+
+    // 只獲取有 GitHub 連結且尚未載入的候選人數據
+    aiRecommended.forEach(item => {
+      const hasGithub = !!(item.candidate as any).githubUrl && (item.candidate as any).githubUrl.trim() !== '';
+      if (hasGithub && githubStatsCache[item.candidate.id] === undefined) {
+        fetchGithubStats(item.candidate.id);
+      }
+    });
+  }, [candidatesWithStage]);
 
   const consultantOptions = useMemo(() => {
     const list = [...new Set(candidatesWithStage.map(item => item.candidate.consultant || '未指派'))];
@@ -503,7 +504,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }
 
     try {
-      const response = await fetch(`https://backendstep1ne.zeabur.app/api/candidates/${candidateId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/candidates/${candidateId}`, {
         method: 'DELETE',
       });
 
