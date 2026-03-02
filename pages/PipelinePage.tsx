@@ -256,10 +256,27 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }
   }, [userProfile]);
 
+  const candidatesWithStage = useMemo<PipelineItem[]>(() => {
+    return candidates.map(candidate => {
+      const latestProgress = getLatestProgress(candidate.progressTracking);
+      const baseStage = latestProgress ? mapEventToStage(latestProgress.event) : mapStatusToStage(candidate.status);
+      // 今日新增：created_at 是台灣時區今天 且 尚未有任何進度更新（仍在未開始階段）
+      // ai_recommended 不受 today_new 邏輯影響
+      const stage: PipelineStageKey =
+        (baseStage === 'not_started' && isTodayTaiwan(candidate.createdAt))
+          ? 'today_new'
+          : baseStage;
+      const idleDays = latestProgress?.date ? getIdleDays(latestProgress.date, now) : getIdleDays(candidate.updatedAt, now);
+      const targetJob = parseTargetJob(candidate.notes);
+      const allTargetJobs = parseAllTargetJobs(candidate.notes);
+      return { candidate, stage, latestProgress, idleDays, targetJob, allTargetJobs };
+    });
+  }, [candidates, now]);
+
   // 異步獲取 AI 推薦候選人的 GitHub 統計數據
   useEffect(() => {
     const aiRecommended = candidatesWithStage.filter(item => item.stage === 'ai_recommended');
-    
+
     // 只獲取有 GitHub 連結且尚未載入的候選人數據
     aiRecommended.forEach(item => {
       const hasGithub = !!(item.candidate as any).githubUrl && (item.candidate as any).githubUrl.trim() !== '';
@@ -288,23 +305,6 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       setRefreshing(false);
     }
   };
-
-  const candidatesWithStage = useMemo<PipelineItem[]>(() => {
-    return candidates.map(candidate => {
-      const latestProgress = getLatestProgress(candidate.progressTracking);
-      const baseStage = latestProgress ? mapEventToStage(latestProgress.event) : mapStatusToStage(candidate.status);
-      // 今日新增：created_at 是台灣時區今天 且 尚未有任何進度更新（仍在未開始階段）
-      // ai_recommended 不受 today_new 邏輯影響
-      const stage: PipelineStageKey =
-        (baseStage === 'not_started' && isTodayTaiwan(candidate.createdAt))
-          ? 'today_new'
-          : baseStage;
-      const idleDays = latestProgress?.date ? getIdleDays(latestProgress.date, now) : getIdleDays(candidate.updatedAt, now);
-      const targetJob = parseTargetJob(candidate.notes);
-      const allTargetJobs = parseAllTargetJobs(candidate.notes);
-      return { candidate, stage, latestProgress, idleDays, targetJob, allTargetJobs };
-    });
-  }, [candidates, now]);
 
   const consultantOptions = useMemo(() => {
     const list = [...new Set(candidatesWithStage.map(item => item.candidate.consultant || '未指派'))];
