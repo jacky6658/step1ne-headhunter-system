@@ -241,6 +241,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const [linkedinFilter, setLinkedinFilter] = useState<'all' | 'has' | 'no'>('all');
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState<'all' | 'complete' | 'partial' | 'critical'>('all');
   const [githubStatsCache, setGithubStatsCache] = useState<Record<string, GithubStats | null>>({});
+  // 婉拒確認 Modal
   const [rejectionModal, setRejectionModal] = useState<{
     candidateId: string;
     candidateName: string;
@@ -476,56 +477,41 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     e.preventDefault();
   };
 
-  const applyStageChange = async (candidateId: string, stage: PipelineStageKey, reason?: string) => {
-    const targetCandidate = candidates.find(c => c.id === candidateId);
-    if (!targetCandidate) return;
-
+  /** 實際執行 Pipeline 狀態更新（拖拉或確認婉拒後呼叫） */
+  const applyStageChange = async (
+    candidate: Candidate,
+    stage: PipelineStageKey,
+    rejectionNote?: string
+  ) => {
     const userName = userProfile.displayName || 'System';
     const newStatus = stageToStatus(stage);
+    const eventNote = rejectionNote ? `婉拒原因：${rejectionNote}` : undefined;
     const newEvent: ProgressEvent = {
       date: new Date().toISOString().split('T')[0],
-      event: stageToEvent(stage),
+      event: eventNote || stageToEvent(stage),
       by: userName,
-      ...(reason ? { note: reason } : {}),
     };
-    const updatedProgress = [...(targetCandidate.progressTracking || []), newEvent];
+    const updatedProgress = [...(candidate.progressTracking || []), newEvent];
 
     try {
-      await apiPut(`/api/candidates/${targetCandidate.id}/pipeline-status`, {
+      await apiPut(`/api/candidates/${candidate.id}/pipeline-status`, {
         status: newStatus,
         by: userName,
-        ...(reason ? { note: reason } : {}),
+        ...(rejectionNote ? { notes: `${candidate.notes ? candidate.notes + '\n' : ''}婉拒原因：${rejectionNote}` } : {}),
       });
 
       setCandidates(prev =>
         prev.map(c =>
-          c.id === targetCandidate.id
-            ? {
-                ...c,
-                status: newStatus,
-                progressTracking: updatedProgress,
-                updatedAt: new Date().toISOString(),
-              }
+          c.id === candidate.id
+            ? { ...c, status: newStatus, progressTracking: updatedProgress, updatedAt: new Date().toISOString() }
             : c
         )
       );
-      setToastMessage(`✅ ${targetCandidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」`);
+      setToastMessage(`✅ ${candidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」`);
     } catch (error) {
       console.error('❌ 更新 Pipeline 失敗:', error);
       alert('❌ 更新失敗，請稍後再試');
     }
-  };
-
-  const handleRejectionConfirm = async () => {
-    if (!rejectionModal) return;
-    if (!rejectionReason.trim()) {
-      alert('請填寫婉拒原因');
-      return;
-    }
-    await applyStageChange(rejectionModal.candidateId, rejectionModal.targetStage, rejectionReason.trim());
-    setRejectionModal(null);
-    setRejectionReason('');
-    setDraggingCandidateId(null);
   };
 
   const handleDropToStage = async (stage: PipelineStageKey) => {
@@ -542,19 +528,30 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       return;
     }
 
-    // 婉拒需強制填寫原因，開啟 modal 後暫停流程
+    // 移入婉拒欄：必須填寫婉拒原因，開啟 Modal
     if (stage === 'rejected') {
       setRejectionModal({
-        candidateId: draggingCandidateId,
+        candidateId: targetCandidate.id,
         candidateName: targetCandidate.name,
         targetStage: stage,
       });
       setRejectionReason('');
-      return; // draggingCandidateId 保留，待 confirm 後清除
+      setDraggingCandidateId(null);
+      return;
     }
 
-    await applyStageChange(draggingCandidateId, stage);
     setDraggingCandidateId(null);
+    await applyStageChange(targetCandidate, stage);
+  };
+
+  /** 婉拒 Modal 確認送出 */
+  const handleRejectionConfirm = async () => {
+    if (!rejectionModal || !rejectionReason.trim()) return;
+    const candidate = candidates.find(c => c.id === rejectionModal.candidateId);
+    if (!candidate) return;
+    await applyStageChange(candidate, rejectionModal.targetStage, rejectionReason.trim());
+    setRejectionModal(null);
+    setRejectionReason('');
   };
 
   const handleDeleteCandidate = async (candidateId: string, candidateName: string, e: React.MouseEvent) => {
@@ -1157,35 +1154,37 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         </div>
       )}
 
+      {/* 婉拒確認 Modal */}
       {rejectionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">婉拒候選人</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-black text-slate-900 mb-1 flex items-center gap-2">
+              <span className="text-rose-500">婉拒</span> 確認
+            </h3>
             <p className="text-sm text-slate-500 mb-4">
-              請填寫婉拒「<span className="font-medium text-slate-700">{rejectionModal.candidateName}</span>」的原因（必填）
+              將 <span className="font-semibold text-slate-800">{rejectionModal.candidateName}</span> 移入婉拒，請填寫婉拒原因（必填）
             </p>
             <textarea
               autoFocus
               value={rejectionReason}
               onChange={e => setRejectionReason(e.target.value)}
-              placeholder="例：技術棧不符、薪資期望過高、無法配合到職時間…"
-              className="w-full h-28 border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-rose-400"
+              placeholder="例：薪資期望過高、技術不符、候選人主動婉拒..."
+              className="w-full border border-slate-300 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-rose-400 min-h-[96px]"
             />
-            <div className="flex justify-end gap-3 mt-4">
+            {rejectionReason.trim() === '' && (
+              <p className="text-xs text-rose-500 mt-1">* 婉拒原因不可空白</p>
+            )}
+            <div className="flex gap-2 mt-4 justify-end">
               <button
-                onClick={() => {
-                  setRejectionModal(null);
-                  setRejectionReason('');
-                  setDraggingCandidateId(null);
-                }}
-                className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors"
+                onClick={() => { setRejectionModal(null); setRejectionReason(''); }}
+                className="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 取消
               </button>
               <button
                 onClick={handleRejectionConfirm}
                 disabled={!rejectionReason.trim()}
-                className="px-4 py-2 text-sm rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 確認婉拒
               </button>
