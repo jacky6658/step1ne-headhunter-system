@@ -16,9 +16,10 @@ interface CandidateModalProps {
   onUpdateStatus?: (candidateId: string, newStatus: CandidateStatus) => void;
   currentUserName?: string;
   onAssignRecruiter?: (candidateId: string, recruiter: string) => void;
+  onCandidateUpdate?: (candidateId: string, updates: Partial<Candidate>) => void;
 }
 
-export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUserName, onAssignRecruiter }: CandidateModalProps) {
+export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUserName, onAssignRecruiter, onCandidateUpdate }: CandidateModalProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes' | 'ai_match'>('info');
   const [showResume, setShowResume] = useState(false);
   const [addingProgress, setAddingProgress] = useState(false);
@@ -226,6 +227,7 @@ Step1ne Recruitment`;
       });
       setLocalNotes(newNotes);
       setEditingTargetJob(false);
+      onCandidateUpdate?.(candidate.id, { notes: newNotes });
     } catch (err) {
       alert('❌ 儲存目標職缺失敗，請稍後再試');
     } finally {

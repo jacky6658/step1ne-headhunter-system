@@ -1137,6 +1137,10 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         <CandidateModal
           candidate={selectedCandidate}
           onClose={() => setSelectedCandidate(null)}
+          onCandidateUpdate={(id, updates) => {
+            setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+            setSelectedCandidate(prev => prev && prev.id === id ? { ...prev, ...updates } : prev);
+          }}
         />
       )}
 
