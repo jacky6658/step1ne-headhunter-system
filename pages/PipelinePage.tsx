@@ -369,17 +369,19 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     const q = searchQuery.trim().toLowerCase();
     return candidatesWithStage.filter(item => {
       const consultant = item.candidate.consultant || '未指派';
+      // 未指派的候選人：只有明確選擇「未指派」篩選時才顯示，預設不出現在追蹤表
+      if (consultant === '未指派' && consultantFilter !== '未指派') return false;
       const consultantMatched = consultantFilter === 'all' || consultant === consultantFilter;
       const jobMatched = jobFilter === 'all' || item.allTargetJobs.includes(jobFilter);
       // LinkedIn 筛选
       const hasLinkedin = !!(item.candidate as any).linkedinUrl && (item.candidate as any).linkedinUrl.trim() !== '';
-      const linkedinMatched = linkedinFilter === 'all' || 
+      const linkedinMatched = linkedinFilter === 'all' ||
         (linkedinFilter === 'has' && hasLinkedin) ||
         (linkedinFilter === 'no' && !hasLinkedin);
       // 資料完整度篩選
       const completeness = getDataCompleteness(item.candidate);
       const completenessMatched = dataCompletenessFilter === 'all' || completeness === dataCompletenessFilter;
-      // REVIEWER 只顯示自己的候選人，ADMIN 顯示全部
+      // REVIEWER 只顯示自己的候選人，ADMIN 顯示全部（已指派顧問的）
       const roleMatched = userProfile.role === 'ADMIN' || consultant === userProfile.displayName;
       const searchMatched = !q || [
         item.candidate.name,
