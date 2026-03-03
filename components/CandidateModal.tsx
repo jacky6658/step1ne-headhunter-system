@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Candidate, CandidateStatus, AiMatchResult } from '../types';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
-import { apiPatch, apiGet } from '../config/api';
+import { apiPatch, apiGet, getApiUrl } from '../config/api';
 import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
@@ -67,7 +67,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   React.useEffect(() => {
     const fetchLatest = async () => {
       try {
-        const response = await fetch(`https://backendstep1ne.zeabur.app/api/candidates/${candidate.id}`);
+        const response = await fetch(getApiUrl(`/candidates/${candidate.id}`));
         if (response.ok) {
           const result = await response.json();
           const data = result.data || {};
