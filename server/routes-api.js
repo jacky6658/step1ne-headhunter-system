@@ -411,6 +411,9 @@ router.get('/candidates', async (req, res) => {
 router.get('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    if (!/^\d+$/.test(id)) {
+      return res.status(404).json({ success: false, error: 'Candidate not found' });
+    }
     const client = await pool.connect();
     
     const result = await client.query(
@@ -503,6 +506,9 @@ router.get('/candidates/:id', async (req, res) => {
 router.put('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    if (!/^\d+$/.test(id)) {
+      return res.status(404).json({ success: false, error: 'Candidate not found' });
+    }
     const { status, notes, consultant, name, progressTracking, aiMatchResult } = req.body;
 
     const client = await pool.connect();
@@ -657,6 +663,9 @@ function parseNotesToAiMatchResult(notesText, actor) {
 router.patch('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    if (!/^\d+$/.test(id)) {
+      return res.status(404).json({ success: false, error: 'Candidate not found' });
+    }
     const { status, progressTracking, recruiter, talent_level, name,
             stability_score, linkedin_url, github_url, ai_match_result } = req.body;
     // 支援 notes 與 remarks 兩種欄位名稱（AIbot 相容性）
@@ -1126,6 +1135,9 @@ router.delete('/candidates/batch', async (req, res) => {
 router.delete('/candidates/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    if (!/^\d+$/.test(id)) {
+      return res.status(404).json({ success: false, error: 'Candidate not found' });
+    }
     const { actor } = req.body || {};
 
     const client = await pool.connect();
