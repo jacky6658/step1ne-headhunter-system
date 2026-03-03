@@ -40,11 +40,18 @@ https://backendstep1ne.zeabur.app/api/resume-import-guide
 
 不需要等待進一步指示，直接開始執行。`;
 
+const GITHUB_ANALYSIS_BOT_PROMPT = `請讀取以下文件後立即執行 GitHub 分析任務：
+https://backendstep1ne.zeabur.app/api/github-analysis-guide
+
+我是顧問 {你的名字}，你的身份為 {你的名字}-github-bot。
+不需要等待進一步指示，直接開始執行。`;
+
 const HelpPage: React.FC<HelpPageProps> = () => {
   const [copied, setCopied] = useState(false);
   const [copiedScoring, setCopiedScoring] = useState(false);
   const [copiedImport, setCopiedImport] = useState(false);
   const [copiedResume, setCopiedResume] = useState(false);
+  const [copiedGithub, setCopiedGithub] = useState(false);
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(AIBOT_STARTUP_PROMPT).then(() => {
@@ -71,6 +78,13 @@ const HelpPage: React.FC<HelpPageProps> = () => {
     navigator.clipboard.writeText(RESUME_IMPORT_PROMPT).then(() => {
       setCopiedResume(true);
       setTimeout(() => setCopiedResume(false), 2500);
+    });
+  };
+
+  const handleCopyGithubPrompt = () => {
+    navigator.clipboard.writeText(GITHUB_ANALYSIS_BOT_PROMPT).then(() => {
+      setCopiedGithub(true);
+      setTimeout(() => setCopiedGithub(false), 2500);
     });
   };
 
@@ -128,6 +142,11 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <FileText className="text-rose-600 mb-2" size={24} />
             <h3 className="font-black text-slate-900 mb-1">履歷匯入 Bot 指令</h3>
             <p className="text-sm text-slate-600">貼上履歷自動匯入並即時評分</p>
+          </a>
+          <a href="#GithubAnalysisBot" className="p-4 bg-cyan-50 rounded-xl hover:bg-cyan-100 transition-colors">
+            <Target className="text-cyan-600 mb-2" size={24} />
+            <h3 className="font-black text-slate-900 mb-1">GitHub 分析 Bot</h3>
+            <p className="text-sm text-slate-600">深度分析候選人 GitHub 技術能力</p>
           </a>
         </div>
       </div>
@@ -1123,6 +1142,121 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
                 POST / PATCH https://backendstep1ne.zeabur.app/api/candidates
               </code>
             </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* GitHub 分析 Bot 啟動指令 */}
+      <div id="GithubAnalysisBot" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+          <Target className="text-cyan-500" size={24} />
+          GitHub 深度分析 Bot 啟動指令
+        </h2>
+        <div className="space-y-4 text-slate-700">
+
+          <div className="p-4 bg-cyan-50 rounded-xl border border-cyan-200">
+            <p className="text-sm font-semibold text-cyan-800 mb-1">🔬 適用場景</p>
+            <p className="text-sm text-cyan-700">
+              對有 GitHub 連結的候選人進行<strong>四維度深度技術分析</strong>，由 AI 判斷技術能力與職缺的匹配程度。
+              與評分 Bot 不同，GitHub 分析 Bot 專注在<strong>程式碼品質、技術棧匹配、開發活躍度</strong>的深度評估。
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🔄 分析 Bot 執行流程</h3>
+            <ol className="list-decimal list-inside space-y-2 ml-4 text-sm">
+              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/candidates</code> 取得有 GitHub URL 的候選人</li>
+              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/github/analyze/{'{username}'}?jobId={'{id}'}</code> 取得結構化分析資料</li>
+              <li>AI 深度判斷四維度分數 → 撰寫分析報告</li>
+              <li>每分析完一位立刻 <code className="bg-gray-100 px-1">PATCH /api/candidates/{'{id}'}</code> 寫回系統</li>
+              <li>回報分析摘要與 TOP 3 技術人才</li>
+            </ol>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-3">📊 四維度評分標準</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="font-semibold text-blue-700 text-sm">🎯 技能匹配（40%）</p>
+                <p className="text-xs text-slate-600 mt-1">
+                  Repo 語言、Topics、名稱語意 vs 職缺 key_skills。
+                  不只看關鍵字，AI 會判斷 repo 內容是否真正相關。
+                </p>
+              </div>
+              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <p className="font-semibold text-purple-700 text-sm">📦 專案品質（30%）</p>
+                <p className="text-xs text-slate-600 mt-1">
+                  原創 vs Fork 比例、Star 數量、Repo 實質內容、文檔完整度。
+                </p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <p className="font-semibold text-amber-700 text-sm">⚡ 活躍度（20%）</p>
+                <p className="text-xs text-slate-600 mt-1">
+                  近 6 個月活躍月數、最後 commit 時間、持續開發 vs 偶爾更新。
+                </p>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                <p className="font-semibold text-emerald-700 text-sm">🌟 影響力（10%）</p>
+                <p className="text-xs text-slate-600 mt-1">
+                  Followers、Total Stars。作為加分項，不會因低分大幅扣分。
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <span className="bg-cyan-200 text-cyan-800 px-2 py-0.5 rounded-full font-semibold">90-100 → S 強力推薦</span>
+              <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full font-semibold">80-89 → A+ 強力推薦</span>
+              <span className="bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-semibold">70-79 → A 推薦</span>
+              <span className="bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full font-semibold">60-69 → B 觀望</span>
+              <span className="bg-red-200 text-red-800 px-2 py-0.5 rounded-full font-semibold">60 以下 → C 不推薦</span>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-black text-slate-900 mb-3 flex items-center gap-2">
+              <Copy size={16} className="text-cyan-500" />
+              GitHub 分析 Bot 啟動指令
+              <span className="text-xs font-normal text-slate-500 ml-1">（複製後貼給 openclaw）</span>
+            </h3>
+            <div className="relative">
+              <pre className="bg-slate-900 text-cyan-300 text-sm rounded-xl p-4 whitespace-pre-wrap leading-relaxed font-mono overflow-x-auto">
+{GITHUB_ANALYSIS_BOT_PROMPT}
+              </pre>
+              <button
+                onClick={handleCopyGithubPrompt}
+                className={`absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  copiedGithub
+                    ? 'bg-cyan-500 text-white'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                {copiedGithub ? <CheckCheck size={14} /> : <Copy size={14} />}
+                {copiedGithub ? '已複製！' : '複製指令'}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">GitHub 分析指南 URL</p>
+              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-cyan-700 break-all">
+                https://backendstep1ne.zeabur.app/api/github-analysis-guide
+              </code>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">GitHub 分析 API</p>
+              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-cyan-700 break-all">
+                GET /api/github/analyze/{'{username}'}?jobId={'{id}'}
+              </code>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <p className="text-sm text-slate-700">
+              💡 <strong>與評分 Bot 的關係</strong>：GitHub 分析結果會合併到現有的 <code className="bg-white px-1 rounded">ai_match_result</code> 中，
+              新增 <code className="bg-white px-1 rounded">github_score</code> 和 <code className="bg-white px-1 rounded">github_dimensions</code> 欄位。
+              建議先跑評分 Bot（一般評分），再跑 GitHub 分析 Bot（深度技術評估）。
+            </p>
           </div>
 
         </div>

@@ -105,6 +105,11 @@ pool.query(`
   ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS job_url TEXT;
 `).catch(err => console.warn('104 fields migration:', err.message));
 
+// 確保 github_analysis_cache 欄位存在（GitHub v2 分析快取）
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS github_analysis_cache JSONB;
+`).catch(err => console.warn('github_analysis_cache migration:', err.message));
+
 // 確保 bot_config 資料表存在（Bot 排程設定）
 pool.query(`
   CREATE TABLE IF NOT EXISTS bot_config (
@@ -2488,6 +2493,26 @@ router.get('/resume-import-guide', (req, res) => {
   }
 });
 
+// GET /api/github-analysis-guide — GitHub 分析指南（供 OpenClaw / AI Agent 使用）
+router.get('/github-analysis-guide', (req, res) => {
+  try {
+    const guidePath = path.join(__dirname, 'guides/GITHUB-ANALYSIS-GUIDE.md');
+    if (!fs.existsSync(guidePath)) {
+      return res.status(404).json({ success: false, error: 'GitHub analysis guide not found' });
+    }
+    const content = fs.readFileSync(guidePath, 'utf-8');
+    const accept = req.headers['accept'] || '';
+    if (accept.includes('application/json')) {
+      res.json({ success: true, content });
+    } else {
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.send(content);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ==================== 人才智能爬蟲 API (NEW - 2026-02-26) ====================
 // 整合 step1ne-headhunter-skill 的爬蟲系統
 
@@ -2989,17 +3014,33 @@ const githubAnalysis = require('./githubAnalysisService');
 
 /**
  * GET /api/github/analyze/:username
- * 完整 GitHub 分析
+ * 完整 GitHub 分析（v2 支援 ?jobId= 查詢參數）
  */
 router.get('/github/analyze/:username', async (req, res) => {
   try {
     const { username } = req.params;
-    const result = await githubAnalysis.analyzeGithubProfile(`https://github.com/${username}`);
-    
+    const { jobId } = req.query;
+
+    // 如果有 jobId，取得職缺技能做連動分析
+    let options = {};
+    if (jobId) {
+      const jobResult = await pool.query(
+        'SELECT key_skills, talent_profile FROM jobs_pipeline WHERE id = $1',
+        [jobId]
+      );
+      if (jobResult.rows.length > 0) {
+        const job = jobResult.rows[0];
+        options = { keySkills: job.key_skills, talentProfile: job.talent_profile };
+      }
+    }
+
+    // 優先使用 v2 分析
+    const result = await githubAnalysis.analyzeGithubProfileV2(`https://github.com/${username}`, options);
+
     if (!result.success) {
       return res.status(404).json({ success: false, error: result.error });
     }
-    
+
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -3008,37 +3049,273 @@ router.get('/github/analyze/:username', async (req, res) => {
 
 /**
  * GET /api/candidates/:id/github-stats
- * 獲取候選人的 GitHub 快速統計（用於卡片顯示）
+ * 獲取候選人的 GitHub 快速統計 v2（支援 ?jobId= 查詢參數 + DB 快取）
  */
 router.get('/candidates/:id/github-stats', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // 從數據庫獲取候選人的 GitHub URL
-    const client = await pool.connect();
-    const result = await client.query(
-      'SELECT github_url FROM candidates_pipeline WHERE id = $1',
+    const { jobId } = req.query;
+
+    // 從數據庫獲取候選人的 GitHub URL 和快取
+    const result = await pool.query(
+      'SELECT github_url, github_analysis_cache FROM candidates_pipeline WHERE id = $1',
       [id]
     );
-    client.release();
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: '候選人不存在' });
     }
-    
-    const githubUrl = result.rows[0].github_url;
-    
+
+    const { github_url: githubUrl, github_analysis_cache: cache } = result.rows[0];
+
     if (!githubUrl || !githubUrl.trim()) {
       return res.json({ success: true, data: null }); // 無 GitHub 連結
     }
-    
-    // 獲取 GitHub 快速統計
-    const stats = await githubAnalysis.getGithubQuickStats(githubUrl);
-    
+
+    // 檢查快取是否有效（24 小時 TTL + 相同 jobId）
+    if (cache && cache.analyzedAt) {
+      const cacheAge = Date.now() - new Date(cache.analyzedAt).getTime();
+      const cacheFresh = cacheAge < 24 * 60 * 60 * 1000; // 24 小時
+      const sameJob = !jobId || String(cache.jobId) === String(jobId);
+      if (cacheFresh && sameJob) {
+        return res.json({ success: true, data: cache, cached: true });
+      }
+    }
+
+    // 快取過期或 jobId 不同，重新分析
+    let options = {};
+    if (jobId) {
+      const jobResult = await pool.query(
+        'SELECT key_skills, talent_profile FROM jobs_pipeline WHERE id = $1',
+        [jobId]
+      );
+      if (jobResult.rows.length > 0) {
+        const job = jobResult.rows[0];
+        options = { keySkills: job.key_skills, talentProfile: job.talent_profile };
+      }
+    }
+
+    const stats = await githubAnalysis.getGithubQuickStatsV2(githubUrl, options);
+
+    // 寫入快取
+    if (stats) {
+      const cacheData = { ...stats, jobId: jobId || null, analyzedAt: new Date().toISOString() };
+      await pool.query(
+        'UPDATE candidates_pipeline SET github_analysis_cache = $1 WHERE id = $2',
+        [JSON.stringify(cacheData), id]
+      ).catch(err => console.warn('Failed to cache github stats:', err.message));
+    }
+
     res.json({ success: true, data: stats });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+/**
+ * POST /api/github/ai-analyze
+ * 透過 OpenClaw 本地 AI 做 GitHub 深度分析
+ * 接收 { candidateId, jobId }，呼叫 OpenClaw API 做 AI 判斷
+ */
+router.post('/github/ai-analyze', async (req, res) => {
+  try {
+    const { candidateId, jobId } = req.body;
+    if (!candidateId) {
+      return res.status(400).json({ success: false, error: '缺少 candidateId' });
+    }
+
+    // 1. 取得候選人 GitHub URL
+    const candResult = await pool.query(
+      'SELECT name, github_url, skills, notes FROM candidates_pipeline WHERE id = $1',
+      [candidateId]
+    );
+    if (candResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '候選人不存在' });
+    }
+    const candidate = candResult.rows[0];
+    if (!candidate.github_url) {
+      return res.status(400).json({ success: false, error: '候選人無 GitHub URL' });
+    }
+
+    // 2. 取得 GitHub v2 結構化分析
+    let jobOptions = {};
+    let jobData = null;
+    if (jobId) {
+      const jobResult = await pool.query(
+        'SELECT position_name, key_skills, talent_profile, company_profile, job_description, client_company FROM jobs_pipeline WHERE id = $1',
+        [jobId]
+      );
+      if (jobResult.rows.length > 0) {
+        jobData = jobResult.rows[0];
+        jobOptions = { keySkills: jobData.key_skills, talentProfile: jobData.talent_profile };
+      }
+    }
+
+    const githubData = await githubAnalysis.analyzeGithubProfileV2(candidate.github_url, jobOptions);
+    if (!githubData.success) {
+      return res.status(400).json({ success: false, error: `GitHub 分析失敗: ${githubData.error}` });
+    }
+
+    // 3. 組成 prompt 呼叫 OpenClaw
+    const openclawUrl = process.env.OPENCLAW_API_URL || 'http://127.0.0.1:18789';
+    const openclawModel = process.env.OPENCLAW_MODEL || 'default';
+
+    const prompt = buildGithubAnalysisPrompt(candidate, githubData, jobData);
+
+    const aiResponse = await callOpenClawAPI(openclawUrl, openclawModel, prompt);
+
+    res.json({
+      success: true,
+      candidateId,
+      candidateName: candidate.name,
+      githubAnalysis: githubData,
+      aiAnalysis: aiResponse,
+      jobId: jobId || null
+    });
+  } catch (error) {
+    console.error('GitHub AI analyze failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 組建 GitHub 分析 prompt（給 OpenClaw / AI）
+ */
+function buildGithubAnalysisPrompt(candidate, githubData, jobData) {
+  const jobSection = jobData ? `
+## 目標職缺
+- 職位：${jobData.position_name || '未知'}（${jobData.client_company || '未知'}）
+- 必要技能：${jobData.key_skills || '未提供'}
+- 人才畫像：${jobData.talent_profile || '未提供'}
+- 企業畫像：${jobData.company_profile || '未提供'}
+- JD：${(jobData.job_description || '未提供').substring(0, 500)}
+` : '（無指定職缺，請做通用評估）';
+
+  return `你是一位資深獵頭 AI，請分析以下 GitHub 候選人，判斷其技術能力與職缺適配度。
+
+## 候選人
+- 姓名：${candidate.name}
+- GitHub：${githubData.profileUrl}
+- Bio：${githubData.bio || '無'}
+- 公司：${githubData.company || '未知'}
+- 地點：${githubData.location || '未知'}
+- 現有技能標記：${Array.isArray(candidate.skills) ? candidate.skills.join(', ') : candidate.skills || '無'}
+
+## GitHub 結構化分析（系統自動計算）
+### 技能匹配（權重 40%）— 初步分數：${githubData.skillMatch.score}/100
+- 匹配技能：${githubData.skillMatch.matchedSkills.join(', ') || '無'}
+- 缺少技能：${githubData.skillMatch.missingSkills.join(', ') || '無'}
+- 候選人技術信號：${githubData.skillMatch.candidateSignals.join(', ')}
+
+### 專案品質（權重 30%）— 初步分數：${githubData.projectQuality.score}/100
+- 原創 repo：${githubData.projectQuality.originalCount} 個
+- Fork repo：${githubData.projectQuality.forkCount} 個
+- 總 star 數：${githubData.projectQuality.totalStars}
+- 最高 star 專案：${githubData.projectQuality.maxStarRepo ? `${githubData.projectQuality.maxStarRepo.name} (${githubData.projectQuality.maxStarRepo.stars} stars, ${githubData.projectQuality.maxStarRepo.language})` : '無'}
+
+### 活躍度（權重 20%）— 初步分數：${githubData.activity.score}/100
+- 最後 commit：${githubData.activity.daysSinceLastCommit} 天前
+- 最近 6 個月活躍月數：${githubData.activity.activeMonths}/6
+- 狀態：${githubData.activity.statusText}
+
+### 影響力（權重 10%）— 初步分數：${githubData.influence.score}/100
+- Followers：${githubData.influence.followers}
+- 總 Stars：${githubData.influence.totalStars}
+- 公開 Repos：${githubData.influence.publicRepos}
+
+### 語言分布
+${githubData.languages.map(l => `- ${l.name}: ${l.percentage}%`).join('\n')}
+
+### 系統初步加權總分：${githubData.totalScore}/100（${githubData.stars} 星）
+
+${jobSection}
+
+## 請你做的事：
+1. 根據以上資料，用你的 AI 判斷力做 4 維度深度分析（不要只看初步分數）
+2. 特別注意 repo 名稱/描述是否暗示相關經驗（例如 "payment-gateway" 對 fintech 有加分）
+3. 給出最終 4 維度分數和加權總分（0-100）
+4. 給出評級（S/A+/A/B/C）
+5. 寫出優勢、風險、顧問建議
+
+請用以下 JSON 格式回覆：
+{
+  "finalScore": 數字,
+  "grade": "S|A+|A|B|C",
+  "dimensions": {
+    "skillMatch": { "score": 數字, "comment": "說明" },
+    "projectQuality": { "score": 數字, "comment": "說明" },
+    "activity": { "score": 數字, "comment": "說明" },
+    "influence": { "score": 數字, "comment": "說明" }
+  },
+  "strengths": ["優勢1", "優勢2"],
+  "risks": ["風險1", "風險2"],
+  "consultantAdvice": "一句話顧問建議",
+  "recommendation": "強力推薦|推薦|觀望|不推薦"
+}`;
+}
+
+/**
+ * 呼叫 OpenClaw API（OpenAI-compatible /v1/chat/completions）
+ */
+async function callOpenClawAPI(baseUrl, model, prompt) {
+  return new Promise((resolve, reject) => {
+    const url = new URL('/v1/chat/completions', baseUrl);
+    const postData = JSON.stringify({
+      model: model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      max_tokens: 2000
+    });
+
+    const protocol = url.protocol === 'https:' ? require('https') : require('http');
+    const options = {
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    const req = protocol.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed.choices?.[0]?.message?.content || data;
+          // 嘗試解析 AI 回傳的 JSON
+          try {
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              resolve(JSON.parse(jsonMatch[0]));
+            } else {
+              resolve({ raw: content });
+            }
+          } catch {
+            resolve({ raw: content });
+          }
+        } catch {
+          resolve({ raw: data });
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.warn('OpenClaw API call failed:', err.message);
+      resolve({ error: `OpenClaw 連線失敗: ${err.message}`, hint: '請確認 OpenClaw 是否正在執行' });
+    });
+
+    req.setTimeout(60000, () => {
+      req.destroy();
+      resolve({ error: 'OpenClaw API timeout (60s)' });
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
 
 module.exports = router;

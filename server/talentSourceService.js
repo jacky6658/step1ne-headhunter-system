@@ -41,7 +41,7 @@ function validateScripts() {
 // 評分邏輯（Node.js，直接對比職缺要求）
 // ============================================================
 
-function scoreCandidate(candidate, job) {
+function scoreCandidate(candidate, job, githubAnalysis) {
   const rawSkills = [job.key_skills, job.experience_required, job.special_conditions]
     .filter(Boolean).join(',');
   const requiredSkills = rawSkills
@@ -51,7 +51,6 @@ function scoreCandidate(candidate, job) {
 
   const candidateSkills = (candidate.skills || []).map(s => (s || '').toLowerCase());
   const candidateBio = (candidate.bio || '').toLowerCase();
-  const candidateName = (candidate.name || '').toLowerCase();
 
   // 技能比對（60%）
   const matched = requiredSkills.filter(req =>
@@ -62,9 +61,13 @@ function scoreCandidate(candidate, job) {
     ? Math.round((matched.length / requiredSkills.length) * 100)
     : 50;
 
-  // 個人資料品質（40%）
+  // 個人資料品質（40%）— v2: 如果有 GitHub 深度分析，用 v2 總分
   let profileScore = 40;
-  if (candidate.source === 'github') {
+  if (githubAnalysis && githubAnalysis.totalScore != null) {
+    // v2: 使用 GitHub 4 維度加權總分
+    profileScore = githubAnalysis.totalScore;
+  } else if (candidate.source === 'github') {
+    // v1 fallback: 原有粗略邏輯
     const repos = candidate.public_repos || 0;
     const followers = candidate.followers || 0;
     if (repos > 30 || followers > 100) profileScore = 95;
@@ -86,7 +89,17 @@ function scoreCandidate(candidate, job) {
 
   const missingSkills = requiredSkills.filter(r => !matched.includes(r));
 
-  return { totalScore, skillScore, profileScore, grade, matchedSkills: matched, missingSkills };
+  return {
+    totalScore, skillScore, profileScore, grade,
+    matchedSkills: matched, missingSkills,
+    // v2: 附加 GitHub 分析細節（如有）
+    githubBreakdown: githubAnalysis ? {
+      skillMatch: githubAnalysis.skillMatch?.score,
+      projectQuality: githubAnalysis.projectQuality?.score,
+      activity: githubAnalysis.activity?.score,
+      influence: githubAnalysis.influence?.score
+    } : undefined
+  };
 }
 
 // ============================================================

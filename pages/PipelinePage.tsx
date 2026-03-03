@@ -27,10 +27,27 @@ interface GithubStats {
     status: string;
     statusText: string;
     daysAgo: number;
+    activeMonths?: number;
+    score?: number;
   };
   topLanguage: string;
   followers: number;
   totalStars: number;
+  // v2 新增維度
+  skillMatch?: {
+    score: number;
+    matchedSkills: string[];
+    missingSkills: string[];
+  };
+  projectQuality?: {
+    score: number;
+    originalCount: number;
+    forkCount: number;
+  };
+  influence?: {
+    score: number;
+  };
+  version?: number;
 }
 
 /** 判斷是否為台灣時區今天新增 */
@@ -972,17 +989,32 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                                 'text-slate-500';
                               
                               return (
-                                <div className="mt-1.5 flex items-center gap-2 text-[10px]">
-                                  <div className="flex items-center gap-0.5">
-                                    <Github className="w-3 h-3 text-slate-600" />
-                                    <span className="font-medium text-slate-700">{githubStats.score}分</span>
+                                <div className="mt-1.5 space-y-0.5">
+                                  <div className="flex items-center gap-2 text-[10px]">
+                                    <div className="flex items-center gap-0.5">
+                                      <Github className="w-3 h-3 text-slate-600" />
+                                      <span className="font-medium text-slate-700">{githubStats.score}分</span>
+                                    </div>
+                                    <div className="flex items-center gap-0.5">
+                                      {renderStars(githubStats.stars)}
+                                    </div>
+                                    <span className={`${activityColor} font-medium`}>
+                                      {githubStats.activity.daysAgo}天前
+                                    </span>
                                   </div>
-                                  <div className="flex items-center gap-0.5">
-                                    {renderStars(githubStats.stars)}
-                                  </div>
-                                  <span className={`${activityColor} font-medium`}>
-                                    {githubStats.activity.daysAgo}天前
-                                  </span>
+                                  {/* v2: 4 維度摘要 */}
+                                  {githubStats.version === 2 && githubStats.skillMatch && (
+                                    <div className="flex items-center gap-1.5 text-[9px] text-slate-500">
+                                      <span title="技能匹配">🎯{githubStats.skillMatch.score}%</span>
+                                      <span title="專案品質">📦{githubStats.projectQuality?.score || 0}</span>
+                                      <span title={`活躍 ${githubStats.activity.activeMonths || 0}/6 個月`}>⚡{githubStats.activity.activeMonths || 0}/6月</span>
+                                      {githubStats.skillMatch.matchedSkills.length > 0 && (
+                                        <span className="text-green-600 truncate max-w-[80px]" title={githubStats.skillMatch.matchedSkills.join(', ')}>
+                                          ✓{githubStats.skillMatch.matchedSkills.slice(0, 2).join(',')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })()}
