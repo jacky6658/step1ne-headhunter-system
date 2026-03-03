@@ -671,9 +671,18 @@ router.patch('/candidates/:id', async (req, res) => {
     const work_history = req.body.work_history;
     const education_details = req.body.education_details;
     const actor = req.body.actor || req.body.by || '';
-    const isAIBot = /aibot|bot$/i.test(actor);
+    const isAIBot = /aibot|bot$|openclaw|yuqi|ai$/i.test(actor);
 
     const client = await pool.connect();
+
+    // AI bot 更新 status 時，預先抓目前的 progress_tracking（稍後自動附加紀錄）
+    let existingProgressForAI = null;
+    if (status !== undefined && progressTracking === undefined && isAIBot) {
+      const pData = await client.query(
+        'SELECT progress_tracking FROM candidates_pipeline WHERE id = $1', [id]
+      );
+      existingProgressForAI = pData.rows[0]?.progress_tracking || [];
+    }
 
     const setClauses = [];
     const values = [];
@@ -809,6 +818,15 @@ router.patch('/candidates/:id', async (req, res) => {
     if (resolvedAiMatch !== undefined) {
       setClauses.push(`ai_match_result = $${idx++}`);
       values.push(JSON.stringify(resolvedAiMatch));
+    }
+
+    // AI bot 更新 status → 自動附加 progressTracking 條目，讓「進度追蹤」tab 可見
+    if (existingProgressForAI !== null) {
+      const today = new Date().toISOString().split('T')[0];
+      const scoreNote = resolvedAiMatch?.score != null ? `AI評分 ${resolvedAiMatch.score}分` : 'AI自動評分';
+      const autoEntry = { date: today, event: status, by: actor, note: scoreNote };
+      setClauses.push(`progress_tracking = $${idx++}`);
+      values.push(JSON.stringify([...existingProgressForAI, autoEntry]));
     }
 
     if (setClauses.length === 0) {
