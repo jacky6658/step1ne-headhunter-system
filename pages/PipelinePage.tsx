@@ -60,6 +60,7 @@ function isTodayTaiwan(createdAt?: string): boolean {
 
 const PIPELINE_STAGES: Array<{ key: PipelineStageKey; title: string; color: string; bg: string; locked?: boolean }> = [
   { key: 'today_new',       title: '今日新增', color: 'text-teal-700',   bg: 'bg-teal-100',   locked: true },
+  { key: 'not_started',     title: '未開始',   color: 'text-slate-700',  bg: 'bg-slate-100' },
   { key: 'ai_recommended',  title: 'AI推薦',   color: 'text-violet-700', bg: 'bg-violet-100' },
   { key: 'contacted',       title: '已聯繫',   color: 'text-blue-700',   bg: 'bg-blue-100' },
   { key: 'interviewed',     title: '已面試',   color: 'text-indigo-700', bg: 'bg-indigo-100' },
@@ -67,7 +68,6 @@ const PIPELINE_STAGES: Array<{ key: PipelineStageKey; title: string; color: stri
   { key: 'onboarded',       title: '已上職',   color: 'text-green-700',  bg: 'bg-green-100' },
   { key: 'rejected',        title: '婉拒',     color: 'text-rose-700',   bg: 'bg-rose-100' },
   { key: 'other',           title: '備選人才', color: 'text-purple-700', bg: 'bg-purple-100' },
-  { key: 'not_started',     title: '未開始',   color: 'text-slate-700',  bg: 'bg-slate-100' },
 ];
 
 function mapEventToStage(event?: string): PipelineStageKey {
@@ -178,20 +178,24 @@ function getIdleDays(dateString?: string, now: Date = new Date()): number {
   return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
 }
 
-function parseTargetJob(notes?: string): string {
-  if (!notes) return '未指定';
-  // Bot 自動匯入格式：目標職缺：Java Developer (後端工程師)
+function parseTargetJob(candidate: Candidate): string {
+  // 優先使用獨立欄位（新架構）
+  if (candidate.targetJobLabel) return candidate.targetJobLabel;
+  // 備援：舊資料從 notes 解析
+  const notes = candidate.notes || '';
   const botMatch = notes.match(/目標職缺：(.+?)(?:\s*\||\s*$)/m);
   if (botMatch) return botMatch[1].trim();
-  // 舊格式：應徵：職位名稱 (公司)
   const legacyMatch = notes.match(/應徵：(.+?)\s*\((.+?)\)/);
   if (legacyMatch) return `${legacyMatch[1]} (${legacyMatch[2]})`;
   return '未指定';
 }
 
 // 解析所有目標職缺（同一候選人可能因多個 Job 上傳而有多筆記錄）
-function parseAllTargetJobs(notes?: string): string[] {
-  if (!notes) return ['未指定'];
+function parseAllTargetJobs(candidate: Candidate): string[] {
+  // 優先使用獨立欄位（新架構）
+  if (candidate.targetJobLabel) return [candidate.targetJobLabel];
+  // 備援：舊資料從 notes 解析
+  const notes = candidate.notes || '';
   const matches = [...notes.matchAll(/目標職缺：(.+?)(?:\s*\||\s*$)/gm)];
   if (matches.length === 0) return ['未指定'];
   return [...new Set(matches.map(m => m[1].trim()))];
@@ -237,6 +241,12 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const [linkedinFilter, setLinkedinFilter] = useState<'all' | 'has' | 'no'>('all');
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState<'all' | 'complete' | 'partial' | 'critical'>('all');
   const [githubStatsCache, setGithubStatsCache] = useState<Record<string, GithubStats | null>>({});
+  const [rejectionModal, setRejectionModal] = useState<{
+    candidateId: string;
+    candidateName: string;
+    targetStage: PipelineStageKey;
+  } | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   const loadCandidates = async () => {
     setLoading(true);
@@ -288,8 +298,8 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
           ? 'today_new'
           : baseStage;
       const idleDays = latestProgress?.date ? getIdleDays(latestProgress.date, now) : getIdleDays(candidate.updatedAt, now);
-      const targetJob = parseTargetJob(candidate.notes);
-      const allTargetJobs = parseAllTargetJobs(candidate.notes);
+      const targetJob = parseTargetJob(candidate);
+      const allTargetJobs = parseAllTargetJobs(candidate);
       return { candidate, stage, latestProgress, idleDays, targetJob, allTargetJobs };
     });
   }, [candidates, now]);
@@ -363,17 +373,20 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     const q = searchQuery.trim().toLowerCase();
     return candidatesWithStage.filter(item => {
       const consultant = item.candidate.consultant || '未指派';
+      // 未指派/待指派候選人：只有明確選擇對應篩選時才顯示，預設不出現在追蹤表
+      const isUnassigned = consultant === '未指派' || consultant === '待指派';
+      if (isUnassigned && consultantFilter !== consultant) return false;
       const consultantMatched = consultantFilter === 'all' || consultant === consultantFilter;
       const jobMatched = jobFilter === 'all' || item.allTargetJobs.includes(jobFilter);
       // LinkedIn 筛选
       const hasLinkedin = !!(item.candidate as any).linkedinUrl && (item.candidate as any).linkedinUrl.trim() !== '';
-      const linkedinMatched = linkedinFilter === 'all' || 
+      const linkedinMatched = linkedinFilter === 'all' ||
         (linkedinFilter === 'has' && hasLinkedin) ||
         (linkedinFilter === 'no' && !hasLinkedin);
       // 資料完整度篩選
       const completeness = getDataCompleteness(item.candidate);
       const completenessMatched = dataCompletenessFilter === 'all' || completeness === dataCompletenessFilter;
-      // REVIEWER 只顯示自己的候選人，ADMIN 顯示全部
+      // REVIEWER 只顯示自己的候選人，ADMIN 顯示全部（已指派顧問的）
       const roleMatched = userProfile.role === 'ADMIN' || consultant === userProfile.displayName;
       const searchMatched = !q || [
         item.candidate.name,
@@ -463,19 +476,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     e.preventDefault();
   };
 
-  const handleDropToStage = async (stage: PipelineStageKey) => {
-    if (!draggingCandidateId) return;
-    if (stage === 'today_new') return; // 今日新增欄位為自動，不可手動拖入
-
-    const targetCandidate = candidates.find(c => c.id === draggingCandidateId);
+  const applyStageChange = async (candidateId: string, stage: PipelineStageKey, reason?: string) => {
+    const targetCandidate = candidates.find(c => c.id === candidateId);
     if (!targetCandidate) return;
-
-    const latest = getLatestProgress(targetCandidate.progressTracking);
-    const currentStage = latest ? mapEventToStage(latest.event) : mapStatusToStage(targetCandidate.status);
-    if (currentStage === stage) {
-      setDraggingCandidateId(null);
-      return;
-    }
 
     const userName = userProfile.displayName || 'System';
     const newStatus = stageToStatus(stage);
@@ -483,18 +486,17 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       date: new Date().toISOString().split('T')[0],
       event: stageToEvent(stage),
       by: userName,
+      ...(reason ? { note: reason } : {}),
     };
     const updatedProgress = [...(targetCandidate.progressTracking || []), newEvent];
 
     try {
-      // 使用專用 pipeline-status 端點，同時寫入日誌（PIPELINE_CHANGE）
-      // 與 AIbot 操作使用相同端點，確保日誌一致性
       await apiPut(`/api/candidates/${targetCandidate.id}/pipeline-status`, {
         status: newStatus,
         by: userName,
+        ...(reason ? { note: reason } : {}),
       });
 
-      // 本地更新 UI（快速反應）
       setCandidates(prev =>
         prev.map(c =>
           c.id === targetCandidate.id
@@ -509,11 +511,50 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       );
       setToastMessage(`✅ ${targetCandidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」`);
     } catch (error) {
-      console.error('❌ 拖拉更新 Pipeline 失敗:', error);
+      console.error('❌ 更新 Pipeline 失敗:', error);
       alert('❌ 更新失敗，請稍後再試');
-    } finally {
-      setDraggingCandidateId(null);
     }
+  };
+
+  const handleRejectionConfirm = async () => {
+    if (!rejectionModal) return;
+    if (!rejectionReason.trim()) {
+      alert('請填寫婉拒原因');
+      return;
+    }
+    await applyStageChange(rejectionModal.candidateId, rejectionModal.targetStage, rejectionReason.trim());
+    setRejectionModal(null);
+    setRejectionReason('');
+    setDraggingCandidateId(null);
+  };
+
+  const handleDropToStage = async (stage: PipelineStageKey) => {
+    if (!draggingCandidateId) return;
+    if (stage === 'today_new') return; // 今日新增欄位為自動，不可手動拖入
+
+    const targetCandidate = candidates.find(c => c.id === draggingCandidateId);
+    if (!targetCandidate) return;
+
+    const latest = getLatestProgress(targetCandidate.progressTracking);
+    const currentStage = latest ? mapEventToStage(latest.event) : mapStatusToStage(targetCandidate.status);
+    if (currentStage === stage) {
+      setDraggingCandidateId(null);
+      return;
+    }
+
+    // 婉拒需強制填寫原因，開啟 modal 後暫停流程
+    if (stage === 'rejected') {
+      setRejectionModal({
+        candidateId: draggingCandidateId,
+        candidateName: targetCandidate.name,
+        targetStage: stage,
+      });
+      setRejectionReason('');
+      return; // draggingCandidateId 保留，待 confirm 後清除
+    }
+
+    await applyStageChange(draggingCandidateId, stage);
+    setDraggingCandidateId(null);
   };
 
   const handleDeleteCandidate = async (candidateId: string, candidateName: string, e: React.MouseEvent) => {
@@ -1103,12 +1144,53 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         <CandidateModal
           candidate={selectedCandidate}
           onClose={() => setSelectedCandidate(null)}
+          onCandidateUpdate={(id, updates) => {
+            setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+            setSelectedCandidate(prev => prev && prev.id === id ? { ...prev, ...updates } : prev);
+          }}
         />
       )}
 
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 rounded-xl bg-slate-900 text-white text-sm px-4 py-2.5 shadow-2xl">
           {toastMessage}
+        </div>
+      )}
+
+      {rejectionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-slate-900 mb-1">婉拒候選人</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              請填寫婉拒「<span className="font-medium text-slate-700">{rejectionModal.candidateName}</span>」的原因（必填）
+            </p>
+            <textarea
+              autoFocus
+              value={rejectionReason}
+              onChange={e => setRejectionReason(e.target.value)}
+              placeholder="例：技術棧不符、薪資期望過高、無法配合到職時間…"
+              className="w-full h-28 border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-rose-400"
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => {
+                  setRejectionModal(null);
+                  setRejectionReason('');
+                  setDraggingCandidateId(null);
+                }}
+                className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleRejectionConfirm}
+                disabled={!rejectionReason.trim()}
+                className="px-4 py-2 text-sm rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                確認婉拒
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

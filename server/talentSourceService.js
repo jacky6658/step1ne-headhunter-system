@@ -243,11 +243,13 @@ async function saveCandidate(candidate, job, notes, scoreResult, actor) {
         name, email, phone, location, position_name,
         years_experience, skills, github_url, linkedin_url,
         contact_link, notes, status, recruiter, talent_level,
+        target_job_id,
         created_at, updated_at
       ) VALUES (
         $1, $2, $3, $4, $5,
         $6, $7, $8, $9,
         $10, $11, '未開始', $12, $13,
+        $14,
         NOW(), NOW()
       ) RETURNING id
     `, [
@@ -264,6 +266,7 @@ async function saveCandidate(candidate, job, notes, scoreResult, actor) {
       notes,
       actor || 'AI搜尋',
       scoreResult.grade,
+      job?.id || null,
     ]);
     return result.rows[0]?.id;
   } finally {
@@ -499,7 +502,7 @@ class TalentSourceService {
         // 評分
         const scoreResult = scoreCandidate(candidate, job);
 
-        // 生成 AI notes
+        // 生成 AI notes（target_job_id 已單獨存入 DB，notes 不再包含目標職缺前綴）
         const notes = generateAINotes(candidate, job, clientInfo, scoreResult, allJobs);
 
         // 寫入 DB

@@ -319,6 +319,30 @@ export interface AiMatchResult {
   evaluated_by: string;             // AIBot-xxx
 }
 
+export interface JobRankingEntry {
+  job_id: number;
+  job_title: string;
+  company: string;
+  department: string;
+  salary_range: string;
+  job_status: string;
+  match_score: number;           // 0-100 加權總分
+  skill_score: number;           // 技能比對分數
+  matched_skills: string[];      // 符合的技能
+  missing_skills: string[];      // 缺口技能
+  required_skills_count: number; // 職缺要求技能總數
+  recommendation: '強力推薦' | '推薦' | '觀望' | '不推薦';
+}
+
+// 系統外職缺建議（rule-based，前端生成）
+export interface ExternalJobSuggestion {
+  industry: string;           // e.g., "Fintech"
+  role: string;               // e.g., "後端工程師"
+  reason: string;             // 簡短說明為何推薦
+  triggered_skills: string[]; // 觸發此建議的候選人技能
+  confidence: 'high' | 'medium'; // high = 2+ 關鍵字命中
+}
+
 // 候選人
 // 進度追蹤事件
 export interface ProgressEvent {
@@ -356,6 +380,8 @@ export interface Candidate {
   githubUrl?: string;    // GitHub 連結
   progressTracking?: ProgressEvent[];  // 進度追蹤（W 欄）
   aiMatchResult?: AiMatchResult | null; // AI 匹配評分結果
+  targetJobId?: number | null;          // 目標職缺 FK → jobs_pipeline.id
+  targetJobLabel?: string | null;       // 目標職缺顯示名稱（JOIN 計算：職缺名 (公司)）
   createdAt: string;
   updatedAt: string;
   createdBy: string;

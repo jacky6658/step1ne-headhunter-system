@@ -76,7 +76,7 @@ app.use(cors({
   origin: function(origin, callback) {
     // 允許沒有 origin 的請求（如 curl, mobile apps）
     // 允許所有 localhost 開發 port
-    if (!origin || allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
       callback(null, true);
     } else {
       console.warn(`CORS 拒絕: ${origin}`);
@@ -90,6 +90,18 @@ app.use(cors({
 
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
+
+// Multer：PDF 上傳（memory storage，Zeabur 雲端友善）
+const multer = require('multer');
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') cb(null, true);
+    else cb(new Error('僅接受 PDF 檔案'), false);
+  },
+});
+app.locals.upload = upload; // 掛載到 app.locals 讓 router 取用
 
 // 請求日誌中間件
 app.use((req, res, next) => {
