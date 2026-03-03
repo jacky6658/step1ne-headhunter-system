@@ -126,6 +126,12 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS github_analysis_cache JSONB;
 `).catch(err => console.warn('github_analysis_cache migration:', err.message));
 
+// 目標職缺欄位：改為直接 FK 對應 jobs_pipeline（不再存在 notes 文字內）
+pool.query(`
+  ALTER TABLE candidates_pipeline
+  ADD COLUMN IF NOT EXISTS target_job_id INTEGER REFERENCES jobs_pipeline(id) ON DELETE SET NULL
+`).catch(err => console.warn('target_job_id migration:', err.message));
+
 // 一次性資料清理：將歷史遺留的「待聯繫」「待審核」狀態統一轉為「未開始」，顧問設為「待指派」
 pool.query(`
   UPDATE candidates_pipeline
@@ -280,10 +286,10 @@ router.get('/candidates', async (req, res) => {
 
     if (status) {
       params.push(status);
-      conditions.push(`status = $${params.length}`);
+      conditions.push(`c.status = $${params.length}`);
     }
     if (created_today === 'true') {
-      conditions.push(`DATE(created_at AT TIME ZONE 'Asia/Taipei') = DATE(NOW() AT TIME ZONE 'Asia/Taipei')`);
+      conditions.push(`DATE(c.created_at AT TIME ZONE 'Asia/Taipei') = DATE(NOW() AT TIME ZONE 'Asia/Taipei')`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -291,38 +297,18 @@ router.get('/candidates', async (req, res) => {
 
     const result = await client.query(`
       SELECT
-        id,
-        name,
-        contact_link,
-        phone,
-        email,
-        linkedin_url,
-        github_url,
-        location,
-        current_position,
-        years_experience,
-        job_changes,
-        avg_tenure_months,
-        recent_gap_months,
-        skills,
-        education,
-        source,
-        work_history,
-        leaving_reason,
-        stability_score,
-        education_details,
-        personality_type,
-        status,
-        recruiter,
-        notes,
-        talent_level,
-        progress_tracking,
-        created_at,
-        updated_at,
-        ai_match_result
-      FROM candidates_pipeline
+        c.id, c.name, c.contact_link, c.phone, c.email,
+        c.linkedin_url, c.github_url, c.location, c.current_position,
+        c.years_experience, c.job_changes, c.avg_tenure_months, c.recent_gap_months,
+        c.skills, c.education, c.source, c.work_history, c.leaving_reason,
+        c.stability_score, c.education_details, c.personality_type,
+        c.status, c.recruiter, c.notes, c.talent_level, c.progress_tracking,
+        c.created_at, c.updated_at, c.ai_match_result, c.target_job_id,
+        j.position_name AS target_job_label, j.client_company AS target_job_company
+      FROM candidates_pipeline c
+      LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
       ${whereClause}
-      ORDER BY id ASC
+      ORDER BY c.id ASC
       LIMIT ${limitVal}
     `, params);
 
@@ -353,24 +339,26 @@ router.get('/candidates', async (req, res) => {
       linkedinUrl: row.linkedin_url || '',
       githubUrl: row.github_url || '',
       resumeLink: row.contact_link || '',
-      workHistory: row.work_history || [],
+      workHistory: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       quitReasons: row.leaving_reason || '',
-      educationJson: row.education_details || [],
+      educationJson: (() => { const v = row.education_details; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       discProfile: row.personality_type || '',
       progressTracking: row.progress_tracking || [],
       aiMatchResult: row.ai_match_result ? (() => {
         // 支援新舊格式，直接傳遞完整的 ai_match_result 物件
         const am = row.ai_match_result;
+        // 確保陣列欄位始終是陣列（AI Bot 有時會寫入字串）
+        const toArr = (v) => Array.isArray(v) ? v : (typeof v === 'string' && v.trim() ? v.split(/[,、\n]+/).map(s => s.trim()).filter(Boolean) : []);
         return {
           score: am.score || 0,
           grade: am.grade || 'B',
           recommendation: am.recommendation || (am.grade === 'A+' ? '強力推薦' : am.grade === 'A' ? '推薦' : am.grade === 'B' ? '觀望' : '不推薦'),
           job_title: am.job_title || am.position || '',
           company: am.company || '',
-          matched_skills: am.matched_skills || am.strengths || [],
-          missing_skills: am.missing_skills || am.to_confirm || [],
-          strengths: am.strengths || [],
-          probing_questions: am.probing_questions || [],
+          matched_skills: toArr(am.matched_skills || am.strengths),
+          missing_skills: toArr(am.missing_skills || am.to_confirm),
+          strengths: toArr(am.strengths),
+          probing_questions: toArr(am.probing_questions),
           salary_fit: am.salary_fit || '',
           conclusion: am.conclusion || '',
           suggestion: am.suggestion || '',
@@ -387,13 +375,17 @@ router.get('/candidates', async (req, res) => {
       job_changes: row.job_changes || '',
       avg_tenure_months: row.avg_tenure_months || '',
       recent_gap_months: row.recent_gap_months || '',
-      work_history: row.work_history || [],
+      work_history: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       leaving_reason: row.leaving_reason || '',
       stability_score: row.stability_score || '',
-      education_details: row.education_details || [],
+      education_details: (() => { const v = row.education_details; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       personality_type: row.personality_type || '',
       recruiter: row.recruiter || 'Jacky',
-      talent_level: row.talent_level || ''
+      talent_level: row.talent_level || '',
+      targetJobId: row.target_job_id || null,
+      targetJobLabel: row.target_job_label
+        ? `${row.target_job_label}${row.target_job_company ? ` (${row.target_job_company})` : ''}`
+        : null,
     }));
 
     client.release();
@@ -422,7 +414,10 @@ router.get('/candidates/:id', async (req, res) => {
     const client = await pool.connect();
     
     const result = await client.query(
-      `SELECT * FROM candidates_pipeline WHERE id = $1`,
+      `SELECT c.*, j.position_name AS target_job_label, j.client_company AS target_job_company
+       FROM candidates_pipeline c
+       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
+       WHERE c.id = $1`,
       [id]
     );
 
@@ -457,19 +452,25 @@ router.get('/candidates/:id', async (req, res) => {
       linkedinUrl: row.linkedin_url || '',
       githubUrl: row.github_url || '',
       resumeLink: row.contact_link || '',
+      targetJobId: row.target_job_id || null,
+      targetJobLabel: row.target_job_label
+        ? `${row.target_job_label}${row.target_job_company ? ` (${row.target_job_company})` : ''}`
+        : null,
       aiMatchResult: row.ai_match_result ? (() => {
         // 支援新舊格式，直接傳遞完整的 ai_match_result 物件
         const am = row.ai_match_result;
+        // 確保陣列欄位始終是陣列（AI Bot 有時會寫入字串）
+        const toArr = (v) => Array.isArray(v) ? v : (typeof v === 'string' && v.trim() ? v.split(/[,、\n]+/).map(s => s.trim()).filter(Boolean) : []);
         return {
           score: am.score || 0,
           grade: am.grade || 'B',
           recommendation: am.recommendation || (am.grade === 'A+' ? '強力推薦' : am.grade === 'A' ? '推薦' : am.grade === 'B' ? '觀望' : '不推薦'),
           job_title: am.job_title || am.position || '',
           company: am.company || '',
-          matched_skills: am.matched_skills || am.strengths || [],
-          missing_skills: am.missing_skills || am.to_confirm || [],
-          strengths: am.strengths || [],
-          probing_questions: am.probing_questions || [],
+          matched_skills: toArr(am.matched_skills || am.strengths),
+          missing_skills: toArr(am.missing_skills || am.to_confirm),
+          strengths: toArr(am.strengths),
+          probing_questions: toArr(am.probing_questions),
           salary_fit: am.salary_fit || '',
           conclusion: am.conclusion || '',
           suggestion: am.suggestion || '',
@@ -670,6 +671,7 @@ router.patch('/candidates/:id', async (req, res) => {
     const education = req.body.education;
     const work_history = req.body.work_history;
     const education_details = req.body.education_details;
+    const target_job_id = req.body.target_job_id !== undefined ? req.body.target_job_id : undefined;
     const actor = req.body.actor || req.body.by || '';
     const isAIBot = /aibot|bot$|openclaw|yuqi|ai$/i.test(actor);
 
@@ -759,6 +761,10 @@ router.patch('/candidates/:id', async (req, res) => {
     if (education_details !== undefined) {
       setClauses.push(`education_details = $${idx++}`);
       values.push(JSON.stringify(education_details));
+    }
+    if (target_job_id !== undefined) {
+      setClauses.push(`target_job_id = $${idx++}`);
+      values.push(target_job_id === null ? null : Number(target_job_id));
     }
     // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析
     let resolvedAiMatch = ai_match_result;
@@ -1238,8 +1244,8 @@ router.post('/candidates', async (req, res) => {
           skills, education, source, status, recruiter, notes,
           stability_score, personality_type, job_changes, avg_tenure_months,
           recent_gap_months, work_history, education_details, leaving_reason,
-          talent_level, ai_match_result, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,NOW(),NOW())
+          talent_level, ai_match_result, target_job_id, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,NOW(),NOW())
          RETURNING id, name, contact_link, current_position, status`,
         [
           c.name.trim(), c.phone || '', c.email || '',
@@ -1253,7 +1259,8 @@ router.post('/candidates', async (req, res) => {
           c.work_history ? JSON.stringify(c.work_history) : null,
           c.education_details ? JSON.stringify(c.education_details) : null,
           c.leaving_reason || '', c.talent_level || '',
-          (c.ai_match_result && typeof c.ai_match_result === 'object') ? JSON.stringify(c.ai_match_result) : null
+          (c.ai_match_result && typeof c.ai_match_result === 'object') ? JSON.stringify(c.ai_match_result) : null,
+          c.target_job_id || null
         ]
       );
     }
@@ -3507,4 +3514,107 @@ async function callOpenClawAPI(baseUrl, model, prompt) {
   });
 }
 
+// ─────────────────────────────────────────────────────────────
+// PDF 履歷解析端點
+// ─────────────────────────────────────────────────────────────
+
+const { parseResumePDF } = require('./resumePDFService');
+
+/**
+ * POST /api/resume/parse
+ * 單筆 PDF 解析
+ * Body: multipart/form-data  file=<PDF>  useAI=true|false
+ */
+router.post('/resume/parse', (req, res) => {
+  const upload = req.app.locals.upload;
+  if (!upload) return res.status(500).json({ success: false, error: 'multer 未初始化' });
+
+  upload.single('file')(req, res, async (err) => {
+    if (err) return res.status(400).json({ success: false, error: err.message });
+    if (!req.file) return res.status(400).json({ success: false, error: '請上傳 PDF 檔案（欄位名稱：file）' });
+
+    const useAI = req.body.useAI === 'true';
+    try {
+      const parsed = await parseResumePDF(req.file.buffer, useAI);
+      res.json({
+        success: true,
+        filename: req.file.originalname,
+        parsed,
+      });
+    } catch (e) {
+      console.error('[/api/resume/parse]', e.message);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+});
+
+/**
+ * POST /api/resume/batch-parse
+ * 批量 PDF 解析（最多 20 份）
+ * Body: multipart/form-data  files[]=<PDF>...  useAI=true|false
+ * 回傳每份 PDF 解析結果 + 比對現有候選人
+ */
+router.post('/resume/batch-parse', (req, res) => {
+  const upload = req.app.locals.upload;
+  if (!upload) return res.status(500).json({ success: false, error: 'multer 未初始化' });
+
+  upload.array('files', 20)(req, res, async (err) => {
+    if (err) return res.status(400).json({ success: false, error: err.message });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, error: '請上傳至少一個 PDF 檔案（欄位名稱：files）' });
+    }
+
+    const useAI = req.body.useAI === 'true';
+    const results = [];
+
+    for (const file of req.files) {
+      try {
+        const parsed = await parseResumePDF(file.buffer, useAI);
+
+        // 比對現有候選人
+        let existingMatch = null;
+
+        // 1. 優先：LinkedIn URL 精確比對
+        if (parsed.linkedinUrl) {
+          const urlResult = await pool.query(
+            `SELECT id, name FROM candidates_pipeline WHERE linkedin_url ILIKE $1 LIMIT 1`,
+            [parsed.linkedinUrl]
+          );
+          if (urlResult.rows.length > 0) existingMatch = urlResult.rows[0];
+        }
+
+        // 2. Fallback：姓名模糊比對
+        if (!existingMatch && parsed.name) {
+          const nameResult = await pool.query(
+            `SELECT id, name FROM candidates_pipeline WHERE name ILIKE $1 LIMIT 1`,
+            [`%${parsed.name}%`]
+          );
+          if (nameResult.rows.length > 0) existingMatch = nameResult.rows[0];
+        }
+
+        results.push({
+          filename: file.originalname,
+          status: 'ok',
+          parsed,
+          existingMatch,
+        });
+      } catch (e) {
+        console.error(`[/api/resume/batch-parse] ${file.originalname}:`, e.message);
+        results.push({
+          filename: file.originalname,
+          status: 'error',
+          error: e.message,
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      total: req.files.length,
+      results,
+    });
+  });
+});
+
 module.exports = router;
+

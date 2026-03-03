@@ -178,20 +178,24 @@ function getIdleDays(dateString?: string, now: Date = new Date()): number {
   return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
 }
 
-function parseTargetJob(notes?: string): string {
-  if (!notes) return '未指定';
-  // Bot 自動匯入格式：目標職缺：Java Developer (後端工程師)
+function parseTargetJob(candidate: Candidate): string {
+  // 優先使用獨立欄位（新架構）
+  if (candidate.targetJobLabel) return candidate.targetJobLabel;
+  // 備援：舊資料從 notes 解析
+  const notes = candidate.notes || '';
   const botMatch = notes.match(/目標職缺：(.+?)(?:\s*\||\s*$)/m);
   if (botMatch) return botMatch[1].trim();
-  // 舊格式：應徵：職位名稱 (公司)
   const legacyMatch = notes.match(/應徵：(.+?)\s*\((.+?)\)/);
   if (legacyMatch) return `${legacyMatch[1]} (${legacyMatch[2]})`;
   return '未指定';
 }
 
 // 解析所有目標職缺（同一候選人可能因多個 Job 上傳而有多筆記錄）
-function parseAllTargetJobs(notes?: string): string[] {
-  if (!notes) return ['未指定'];
+function parseAllTargetJobs(candidate: Candidate): string[] {
+  // 優先使用獨立欄位（新架構）
+  if (candidate.targetJobLabel) return [candidate.targetJobLabel];
+  // 備援：舊資料從 notes 解析
+  const notes = candidate.notes || '';
   const matches = [...notes.matchAll(/目標職缺：(.+?)(?:\s*\||\s*$)/gm)];
   if (matches.length === 0) return ['未指定'];
   return [...new Set(matches.map(m => m[1].trim()))];
@@ -294,8 +298,8 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
           ? 'today_new'
           : baseStage;
       const idleDays = latestProgress?.date ? getIdleDays(latestProgress.date, now) : getIdleDays(candidate.updatedAt, now);
-      const targetJob = parseTargetJob(candidate.notes);
-      const allTargetJobs = parseAllTargetJobs(candidate.notes);
+      const targetJob = parseTargetJob(candidate);
+      const allTargetJobs = parseAllTargetJobs(candidate);
       return { candidate, stage, latestProgress, idleDays, targetJob, allTargetJobs };
     });
   }, [candidates, now]);

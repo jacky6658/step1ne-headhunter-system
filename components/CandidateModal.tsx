@@ -1,14 +1,74 @@
 // Step1ne Headhunter System - 候選人詳情 Modal
 import React, { useState } from 'react';
-import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry } from '../types';
+import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion } from '../types';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
 import { apiPatch, apiGet, getApiUrl } from '../config/api';
 import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
   CheckCircle2, AlertCircle, Bot, Star, ThumbsUp, ThumbsDown,
-  HelpCircle, Sparkles, Target
+  HelpCircle, Sparkles, Target, Globe
 } from 'lucide-react';
+
+// ── 系統外職缺建議：rule-based 技能→產業/職缺對照 ──────────────────────────
+function generateExternalSuggestions(rawSkills: string | string[]): ExternalJobSuggestion[] {
+  const skillsArr: string[] = Array.isArray(rawSkills)
+    ? rawSkills
+    : (rawSkills || '').split(/[,、]+/).map(s => s.trim()).filter(Boolean);
+  const normalized = skillsArr.map(s => s.toLowerCase().trim());
+
+  const rules: Array<{ keywords: string[]; industry: string; role: string; reason: string; priority: number }> = [
+    { keywords: ['java', 'spring', 'spring boot'], industry: 'Fintech', role: '後端工程師', reason: 'Java + Spring Boot 是 Fintech 後端核心技術棧，銀行、保險、支付公司需求旺盛', priority: 90 },
+    { keywords: ['golang', 'go'], industry: '雲端服務 / SaaS', role: '後端工程師', reason: 'Go 語言高併發特性，適合雲端 SaaS 與高流量後端系統', priority: 85 },
+    { keywords: ['python', 'django', 'fastapi', 'flask'], industry: 'AI / 數據平台', role: '後端 / 數據工程師', reason: 'Python 生態廣泛應用於 AI 產品開發與數據工程，各產業均有需求', priority: 82 },
+    { keywords: ['node.js', 'nodejs', 'express', 'nestjs'], industry: 'SaaS / 新創', role: '全端工程師', reason: 'Node.js 在新創 SaaS 平台是主流技術棧，適合快速迭代環境', priority: 78 },
+    { keywords: ['php', 'laravel'], industry: '電商 / 企業系統', role: '後端工程師', reason: 'PHP / Laravel 是電商平台與內容管理系統的主力語言', priority: 60 },
+    { keywords: ['ruby', 'rails'], industry: '新創 SaaS', role: '後端工程師', reason: 'Ruby on Rails 是快速迭代新創的首選框架，MVP 開發需求旺盛', priority: 65 },
+    { keywords: ['rust'], industry: '系統軟體 / Web3', role: '系統工程師', reason: 'Rust 高效能與記憶體安全特性，適合底層系統與區塊鏈開發', priority: 72 },
+    { keywords: ['docker', 'kubernetes', 'k8s'], industry: 'DevOps / 雲端', role: 'DevOps 工程師 / SRE', reason: 'Container 技術是現代 DevOps 必備，各大雲端廠商及規模化新創均有需求', priority: 88 },
+    { keywords: ['aws', 'gcp', 'azure', 'terraform'], industry: '雲端架構', role: '雲端架構師 / Cloud Engineer', reason: '雲端平台經驗在各產業數位轉型需求下，人才嚴重缺口', priority: 85 },
+    { keywords: ['react', 'next.js', 'nextjs'], industry: 'B2B SaaS', role: '前端工程師', reason: 'React 生態在 SaaS 產品、數位媒體、B2B 平台需求量最大', priority: 80 },
+    { keywords: ['vue', 'nuxt'], industry: '台灣電商 / 新創', role: '前端工程師', reason: 'Vue.js 在台灣本土電商、新創公司廣泛使用，人才相對稀缺', priority: 75 },
+    { keywords: ['pytorch', 'tensorflow', 'keras', 'llm', 'ai/ml'], industry: 'AI / 生成式 AI', role: 'ML 工程師 / AI 應用開發', reason: 'AI 框架經驗在 AI 產品公司、研究院、GenAI 新創極度搶手', priority: 95 },
+    { keywords: ['spark', 'hadoop', 'kafka', 'databricks', 'flink'], industry: '大數據平台', role: '數據工程師 / Data Engineer', reason: '大數據處理技術在電商、廣告科技、金融數據平台需求穩定', priority: 75 },
+    { keywords: ['flutter', 'dart'], industry: 'App 開發（跨平台）', role: '跨平台 App 工程師', reason: 'Flutter 可一人覆蓋 iOS + Android，新創與中小型 App 公司需求旺盛', priority: 80 },
+    { keywords: ['swift', 'swiftui', 'ios'], industry: 'iOS App', role: 'iOS 工程師', reason: 'iOS 原生開發需求穩定，Fintech App 與消費品牌 App 尤為搶手', priority: 78 },
+    { keywords: ['kotlin', 'android'], industry: 'Android App', role: 'Android 工程師', reason: 'Android 原生開發在東南亞市場及本土 App 公司需求持續', priority: 72 },
+    { keywords: ['solidity', 'ethereum', 'web3', 'blockchain'], industry: 'Web3 / 區塊鏈', role: '智能合約工程師 / DeFi 開發', reason: 'Web3 技能稀缺，區塊鏈協議、DeFi 專案、GameFi 均有強烈需求', priority: 88 },
+    { keywords: ['security', 'pentest', 'cybersecurity', 'owasp'], industry: '資安', role: '資安工程師 / 滲透測試工程師', reason: '資安人才極度稀缺，金融業、政府機構、上市企業均有高度需求', priority: 92 },
+    { keywords: ['redis', 'memcached'], industry: '高效能後端系統', role: '後端工程師', reason: '快取與高併發架構經驗，適合電商大促、即時通訊等高流量場景', priority: 68 },
+    { keywords: ['elasticsearch', 'opensearch'], industry: '搜尋 / 數據平台', role: '搜尋工程師 / 後端工程師', reason: 'Elasticsearch 廣泛應用於全文搜尋、日誌分析、BI 平台', priority: 65 },
+  ];
+
+  const matched: (ExternalJobSuggestion & { priority: number })[] = [];
+  for (const rule of rules) {
+    const triggeredOrig = skillsArr.filter(s =>
+      rule.keywords.some(kw => s.toLowerCase().includes(kw) || kw.includes(s.toLowerCase()))
+    );
+    const triggeredNorm = rule.keywords.filter(kw =>
+      normalized.some(s => s.includes(kw) || kw.includes(s))
+    );
+    if (triggeredNorm.length > 0) {
+      matched.push({
+        industry: rule.industry,
+        role: rule.role,
+        reason: rule.reason,
+        triggered_skills: (triggeredOrig.length > 0 ? triggeredOrig : [triggeredNorm[0]]).slice(0, 3),
+        confidence: triggeredNorm.length >= 2 ? 'high' : 'medium',
+        priority: rule.priority,
+      });
+    }
+  }
+
+  matched.sort((a, b) => b.priority - a.priority);
+  const seen = new Set<string>();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  return matched.filter(s => { if (seen.has(s.industry)) return false; seen.add(s.industry); return true; })
+    .slice(0, 5)
+    .map(({ priority: _p, ...rest }) => rest);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface CandidateModalProps {
   candidate: Candidate;
@@ -32,13 +92,10 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [newNoteText, setNewNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [localNotes, setLocalNotes] = useState(candidate.notes || '');
-  // 目標職缺
+  // 目標職缺（使用獨立 target_job_id 欄位，不再存在 notes）
   const [editingTargetJob, setEditingTargetJob] = useState(false);
-  const [targetJobInput, setTargetJobInput] = useState(() => {
-    const notes = candidate.notes || '';
-    const m = notes.match(/目標職缺：(.+?)(?:\s*\||\s*$)/);
-    return m ? m[1].trim() : '';
-  });
+  const [targetJobId, setTargetJobId] = useState<number | null>(candidate.targetJobId ?? null);
+  const [targetJobInput, setTargetJobInput] = useState(candidate.targetJobLabel ?? '');
   const [savingTargetJob, setSavingTargetJob] = useState(false);
   const [editingLinkedin, setEditingLinkedin] = useState(false);
   const [editingGithub, setEditingGithub] = useState(false);
@@ -59,6 +116,14 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [editSkills, setEditSkills] = useState(
     Array.isArray(candidate.skills) ? candidate.skills.join('、') : (candidate.skills || ''));
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
+
+  // PDF 履歷匯入
+  const [showImport, setShowImport] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importParsed, setImportParsed] = useState<any | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSelected, setImportSelected] = useState<Set<string>>(new Set());
+  const [applyingImport, setApplyingImport] = useState(false);
 
   // 工作經歷本地狀態（支援新增/編輯/刪除）
   const [workItems, setWorkItems] = useState<any[]>(() => {
@@ -84,7 +149,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [savingWork, setSavingWork] = useState(false);
 
   // 教育背景本地狀態（支援新增/編輯/刪除）
-  const [eduItems, setEduItems] = useState<any[]>(() => candidate.educationJson || []);
+  const [eduItems, setEduItems] = useState<any[]>(() => Array.isArray(candidate.educationJson) ? candidate.educationJson : []);
   const [addingEdu, setAddingEdu] = useState(false);
   const [editingEduIdx, setEditingEduIdx] = useState<number | null>(null);
   const [eduForm, setEduForm] = useState({ school: '', degree: '', major: '', start: '', end: '' });
@@ -272,28 +337,16 @@ Step1ne Recruitment`;
   };
 
   // 儲存目標職缺（更新 notes 中的目標職缺欄位）
-  const handleSaveTargetJob = async () => {
+  const handleSaveTargetJob = async (jobId: number | null, jobLabel: string) => {
     setSavingTargetJob(true);
     try {
-      const currentNotes = localNotes;
-      const newValue = targetJobInput.trim();
-      let newNotes: string;
-      if (/目標職缺：/.test(currentNotes)) {
-        // 替換現有值
-        newNotes = currentNotes.replace(/目標職缺：.+?(?=\s*\||$)/, `目標職缺：${newValue}`);
-      } else {
-        // 在 notes 前加入
-        newNotes = newValue
-          ? (currentNotes ? `目標職缺：${newValue} | ${currentNotes}` : `目標職缺：${newValue}`)
-          : currentNotes;
-      }
       await apiPatch(`/api/candidates/${candidate.id}`, {
-        notes: newNotes,
+        target_job_id: jobId,
         actor: currentUserName || 'system',
       });
-      setLocalNotes(newNotes);
+      setTargetJobId(jobId);
+      setTargetJobInput(jobLabel);
       setEditingTargetJob(false);
-      onCandidateUpdate?.(candidate.id, { notes: newNotes });
     } catch (err) {
       alert('❌ 儲存目標職缺失敗，請稍後再試');
     } finally {
@@ -356,6 +409,81 @@ Step1ne Recruitment`;
       alert('❌ 儲存 GitHub 失敗，請稍後再試');
     } finally {
       setSavingGithub(false);
+    }
+  };
+
+  // PDF 履歷匯入處理
+  const IMPORT_FIELD_LABELS: Record<string, string> = {
+    name: '姓名', position: '職稱', location: '地點', years: '年資',
+    skills: '技能', education: '學歷', linkedinUrl: 'LinkedIn URL',
+    notes: '個人簡介', workHistory: '工作經歷', educationJson: '學歷詳情',
+  };
+  const IMPORT_FIELDS = Object.keys(IMPORT_FIELD_LABELS);
+
+  const handleImportPDF = async (file: File) => {
+    setImportLoading(true);
+    setImportError(null);
+    setImportParsed(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const resp = await fetch(getApiUrl('/api/resume/parse'), { method: 'POST', body: formData });
+      const json = await resp.json();
+      if (!json.success) throw new Error(json.error || '解析失敗');
+      setImportParsed(json.parsed);
+      // 預設全選有值的欄位
+      const defaultSelected = new Set(
+        IMPORT_FIELDS.filter(f => {
+          const v = json.parsed[f];
+          if (v === null || v === undefined) return false;
+          if (Array.isArray(v)) return v.length > 0;
+          if (typeof v === 'string') return v.trim().length > 0;
+          return true;
+        })
+      );
+      setImportSelected(defaultSelected);
+    } catch (e: any) {
+      setImportError(e.message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleApplyImport = async () => {
+    if (!importParsed) return;
+    setApplyingImport(true);
+    try {
+      const updates: any = { actor: currentUserName || 'system' };
+      for (const field of importSelected) {
+        const v = importParsed[field];
+        if (v === null || v === undefined) continue;
+        if (field === 'skills') {
+          updates.skills = Array.isArray(v) ? v.join('、') : v;
+        } else if (field === 'workHistory') {
+          updates.work_history = JSON.stringify(v);
+        } else if (field === 'educationJson') {
+          updates.education_details = JSON.stringify(v);
+        } else if (field === 'linkedinUrl') {
+          updates.linkedin_url = v;
+        } else {
+          updates[field] = v;
+        }
+      }
+      await apiPatch(`/api/candidates/${candidate.id}`, updates);
+      onCandidateUpdate?.(candidate.id, {
+        ...(importSelected.has('name') && { name: importParsed.name }),
+        ...(importSelected.has('position') && { position: importParsed.position }),
+        ...(importSelected.has('location') && { location: importParsed.location }),
+        ...(importSelected.has('years') && { years: importParsed.years }),
+        ...(importSelected.has('skills') && { skills: importParsed.skills }),
+      });
+      setShowImport(false);
+      setImportParsed(null);
+      alert('✅ 已成功套用 PDF 解析資料！');
+    } catch (e: any) {
+      alert('❌ 套用失敗：' + e.message);
+    } finally {
+      setApplyingImport(false);
     }
   };
 
@@ -723,16 +851,15 @@ Step1ne Recruitment`;
                         {targetJobInput || '未指定'}
                       </span>
                     )}
-                    {editingTargetJob && targetJobInput && (
-                      <span className="ml-2 text-xs text-amber-700 font-medium truncate max-w-[140px]">已選：{targetJobInput}</span>
-                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {editingTargetJob ? (
                       <>
-                        <button onClick={handleSaveTargetJob} disabled={savingTargetJob} className="text-xs px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-60">
-                          {savingTargetJob ? '儲存中...' : '儲存'}
-                        </button>
+                        {targetJobId && (
+                          <button onClick={() => handleSaveTargetJob(null, '')} disabled={savingTargetJob} className="text-xs px-2 py-1 border border-red-200 rounded text-red-500 hover:bg-red-50 disabled:opacity-60">
+                            清除
+                          </button>
+                        )}
                         <button onClick={() => { setEditingTargetJob(false); setTargetJobSearch(''); }} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
                       </>
                     ) : (
@@ -759,16 +886,20 @@ Step1ne Recruitment`;
                       ) : (
                         jobs
                           .filter(j => !targetJobSearch || `${j.position_name} ${j.client_company}`.toLowerCase().includes(targetJobSearch.toLowerCase()))
-                          .map(j => (
-                            <button
-                              key={j.id}
-                              onClick={() => setTargetJobInput(j.position_name)}
-                              className={`w-full text-left px-3 py-2 text-sm hover:bg-amber-50 transition-colors border-b border-gray-50 last:border-0 ${targetJobInput === j.position_name ? 'bg-amber-100 text-amber-700' : 'text-gray-700'}`}
-                            >
-                              <div className="font-medium">{j.position_name}</div>
-                              {j.client_company && <div className="text-xs text-gray-500 mt-0.5">{j.client_company}</div>}
-                            </button>
-                          ))
+                          .map(j => {
+                            const label = `${j.position_name}${j.client_company ? ` (${j.client_company})` : ''}`;
+                            return (
+                              <button
+                                key={j.id}
+                                onClick={() => handleSaveTargetJob(j.id, label)}
+                                disabled={savingTargetJob}
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-amber-50 transition-colors border-b border-gray-50 last:border-0 disabled:opacity-60 ${targetJobId === j.id ? 'bg-amber-100 text-amber-700' : 'text-gray-700'}`}
+                              >
+                                <div className="font-medium">{j.position_name}</div>
+                                {j.client_company && <div className="text-xs text-gray-500 mt-0.5">{j.client_company}</div>}
+                              </button>
+                            );
+                          })
                       )}
                     </div>
                   </div>
@@ -780,9 +911,17 @@ Step1ne Recruitment`;
                 <div className="flex items-center justify-between p-3 border-b border-gray-100">
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">基本資料</span>
                   {!editingBasicInfo ? (
-                    <button onClick={() => setEditingBasicInfo(true)} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">
-                      ✏️ 編輯
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => { setShowImport(v => !v); setImportParsed(null); setImportError(null); }}
+                        className="text-xs px-2 py-1 border border-blue-200 rounded text-blue-600 hover:bg-blue-50"
+                      >
+                        📄 匯入履歷
+                      </button>
+                      <button onClick={() => setEditingBasicInfo(true)} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">
+                        ✏️ 編輯
+                      </button>
+                    </div>
                   ) : (
                     <div className="flex gap-2">
                       <button onClick={handleSaveBasicInfo} disabled={savingBasicInfo} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">
@@ -861,7 +1000,114 @@ Step1ne Recruitment`;
                   </div>
                 )}
               </div>
-              
+
+              {/* PDF 履歷匯入面板 */}
+              {showImport && (
+                <div className="border border-blue-200 rounded-lg bg-blue-50/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-blue-700">📄 匯入 LinkedIn PDF 履歷</span>
+                    <button onClick={() => { setShowImport(false); setImportParsed(null); setImportError(null); }} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+                  </div>
+
+                  {/* 檔案選擇 */}
+                  {!importParsed && !importLoading && (
+                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-blue-300 rounded-lg p-6 cursor-pointer hover:bg-blue-50 transition-colors">
+                      <span className="text-3xl mb-2">📂</span>
+                      <span className="text-sm text-blue-600 font-medium">點擊選擇 LinkedIn PDF 檔案</span>
+                      <span className="text-xs text-gray-400 mt-1">最大 10 MB</span>
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f) handleImportPDF(f);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  )}
+
+                  {/* 載入中 */}
+                  {importLoading && (
+                    <div className="flex items-center justify-center gap-2 py-6 text-blue-600">
+                      <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                      <span className="text-sm">解析 PDF 中...</span>
+                    </div>
+                  )}
+
+                  {/* 錯誤 */}
+                  {importError && (
+                    <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
+                      ❌ {importError}
+                      <button onClick={() => setImportError(null)} className="ml-3 text-xs underline">重試</button>
+                    </div>
+                  )}
+
+                  {/* 解析結果預覽 */}
+                  {importParsed && !importLoading && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">
+                          信心分數：<span className="font-semibold text-blue-600">{Math.round((importParsed._meta?.confidence || 0) * 100)}%</span>
+                          &nbsp;·&nbsp;{importParsed._meta?.parseMethod || 'rule-based'}
+                        </span>
+                        <button
+                          onClick={() => { setImportParsed(null); setImportError(null); }}
+                          className="text-xs text-gray-400 hover:text-gray-600 underline"
+                        >重新選擇</button>
+                      </div>
+
+                      {/* 欄位勾選表格 */}
+                      <div className="border border-gray-200 rounded-lg overflow-hidden text-xs bg-white divide-y divide-gray-100">
+                        <div className="grid grid-cols-[1.5rem_5rem_1fr] gap-2 px-3 py-2 bg-gray-50 font-semibold text-gray-500">
+                          <span></span><span>欄位</span><span>解析值</span>
+                        </div>
+                        {IMPORT_FIELDS.map(field => {
+                          const val = importParsed[field];
+                          if (val === null || val === undefined) return null;
+                          const displayVal = Array.isArray(val)
+                            ? (field === 'workHistory'
+                                ? `${val.length} 筆工作經歷`
+                                : field === 'educationJson'
+                                  ? `${val.length} 筆學歷`
+                                  : val.join('、'))
+                            : String(val);
+                          if (!displayVal || displayVal === '0') return null;
+                          return (
+                            <label key={field} className="grid grid-cols-[1.5rem_5rem_1fr] gap-2 px-3 py-2 items-start cursor-pointer hover:bg-blue-50/40">
+                              <input
+                                type="checkbox"
+                                checked={importSelected.has(field)}
+                                onChange={e => {
+                                  const next = new Set(importSelected);
+                                  e.target.checked ? next.add(field) : next.delete(field);
+                                  setImportSelected(next);
+                                }}
+                                className="mt-0.5"
+                              />
+                              <span className="text-gray-500 font-medium">{IMPORT_FIELD_LABELS[field]}</span>
+                              <span className="text-gray-800 break-all">{displayVal}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex items-center gap-2 justify-end">
+                        <span className="text-xs text-gray-400">已選 {importSelected.size} 個欄位</span>
+                        <button
+                          onClick={handleApplyImport}
+                          disabled={applyingImport || importSelected.size === 0}
+                          className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {applyingImport ? '套用中...' : '套用選取欄位'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 外部連結：LinkedIn / GitHub / Google Drive（始終顯示，可編輯） */}
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">外部連結</h3>
@@ -1676,14 +1922,14 @@ Step1ne Recruitment`;
                               <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: barWidth }} />
                             </div>
                             {/* 技能標籤 */}
-                            {(entry.matched_skills.length > 0 || entry.missing_skills.length > 0) && (
+                            {((Array.isArray(entry.matched_skills) && entry.matched_skills.length > 0) || (Array.isArray(entry.missing_skills) && entry.missing_skills.length > 0)) && (
                               <div className="flex flex-wrap gap-1 mt-1">
-                                {entry.matched_skills.slice(0, 5).map((s, i) => (
+                                {(Array.isArray(entry.matched_skills) ? entry.matched_skills : []).slice(0, 5).map((s, i) => (
                                   <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                                     <CheckCircle2 className="w-2 h-2" />{s}
                                   </span>
                                 ))}
-                                {entry.missing_skills.slice(0, 3).map((s, i) => (
+                                {(Array.isArray(entry.missing_skills) ? entry.missing_skills : []).slice(0, 3).map((s, i) => (
                                   <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-rose-50 text-rose-600 border border-rose-200">
                                     <AlertCircle className="w-2 h-2" />{s}
                                   </span>
@@ -1714,6 +1960,46 @@ Step1ne Recruitment`;
                     </button>
                   )}
                 </div>
+
+                {/* ━━━━━ Section 1.5: 系統外職缺建議 ━━━━━ */}
+                {(() => {
+                  const candidateSkillsRaw = enrichedCandidate.skills;
+                  const externalSuggestions = generateExternalSuggestions(candidateSkillsRaw || []);
+                  if (externalSuggestions.length === 0) return null;
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Globe className="w-4 h-4 text-orange-500" />
+                        <h3 className="text-sm font-bold text-slate-700">系統外職缺建議</h3>
+                        <span className="text-[10px] text-slate-400">根據技能背景推斷</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mb-3">以下為人選技能可開拓的外部市場職缺方向，供顧問擴展配對範圍參考：</p>
+                      <div className="space-y-2">
+                        {externalSuggestions.map((s, i) => (
+                          <div key={i} className="border border-orange-100 rounded-xl p-3 bg-gradient-to-br from-orange-50/40 to-amber-50/20 hover:border-orange-200 hover:bg-orange-50/60 transition-colors">
+                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                <span className="text-[9px] font-bold text-orange-700 bg-orange-100 border border-orange-200 px-1.5 py-0.5 rounded shrink-0">{s.industry}</span>
+                                <span className="text-xs font-semibold text-slate-800">{s.role}</span>
+                              </div>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${s.confidence === 'high' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-700 bg-amber-50 border-amber-200'}`}>
+                                {s.confidence === 'high' ? '高匹配' : '中匹配'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-relaxed mb-2">{s.reason}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {s.triggered_skills.map((skill, j) => (
+                                <span key={j} className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/80 text-slate-600 border border-slate-200">
+                                  {skill}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 分隔線 */}
                 <div className="border-t border-dashed border-slate-200" />
@@ -1779,7 +2065,7 @@ Step1ne Recruitment`;
                       </div>
 
                       {/* 優勢亮點 */}
-                      {ai.strengths?.length > 0 && (
+                      {Array.isArray(ai.strengths) && ai.strengths.length > 0 && (
                         <div>
                           <h4 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-2">
                             <Star className="w-3 h-3 text-amber-500" /> 優勢亮點
@@ -1796,7 +2082,7 @@ Step1ne Recruitment`;
                       )}
 
                       {/* 技能缺口 */}
-                      {ai.missing_skills?.length > 0 && (
+                      {Array.isArray(ai.missing_skills) && ai.missing_skills.length > 0 && (
                         <div>
                           <h4 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-2">
                             <AlertCircle className="w-3 h-3 text-rose-500" /> 技能缺口
@@ -1823,7 +2109,7 @@ Step1ne Recruitment`;
                       )}
 
                       {/* 建議顧問詢問 */}
-                      {ai.probing_questions?.length > 0 && (
+                      {Array.isArray(ai.probing_questions) && ai.probing_questions.length > 0 && (
                         <div>
                           <h4 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-2">
                             <HelpCircle className="w-3 h-3 text-blue-500" /> 建議顧問詢問

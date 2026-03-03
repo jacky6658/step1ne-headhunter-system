@@ -20,6 +20,7 @@ import { PipelinePage } from './pages/PipelinePage';
 import { SystemLogPage } from './pages/SystemLogPage';
 import { BDClientsPage } from './pages/BDClientsPage';
 import { BotSchedulerPage } from './pages/BotSchedulerPage';
+import ResumeImportPage from './pages/ResumeImportPage';
 import { Menu, X as XIcon } from 'lucide-react';
 import { API_BASE_URL } from './constants';
 
@@ -129,6 +130,7 @@ const App: React.FC = () => {
       case 'pipeline': return <PipelinePage userProfile={profile} />;
       // Bot 排程設定（key=uid 確保換用戶時強制重新掛載，避免 state 跨用戶污染）
       case 'bot-scheduler': return <BotSchedulerPage key={profile.uid} userProfile={profile} />;
+      case 'resume-import': return <ResumeImportPage />;
       // 操作日誌
       case 'system-log': return <SystemLogPage userProfile={profile} />;
       case 'members': 
