@@ -16,6 +16,22 @@ const DATABASE_URL = process.env.DATABASE_URL ||
 
 const pool = new Pool({ connectionString: DATABASE_URL });
 
+/**
+ * 清洗 URL param 中的 id：移除 AI Bot 可能帶來的多餘 JSON 引號
+ * e.g. '"184"' → '184'，'\"184\"' → '184'
+ * 使用 router.param() 讓所有路由自動套用，無需逐一修改。
+ */
+function sanitizeId(rawId) {
+  if (rawId == null) return rawId;
+  return String(rawId).replace(/^["']+|["']+$/g, '').trim();
+}
+
+// 全局 id 參數清洗：所有 :id 路由在進入 handler 前自動去除多餘引號
+router.param('id', (req, _res, next, value) => {
+  req.params.id = sanitizeId(value);
+  next();
+});
+
 // 確保 progress_tracking 欄位存在
 pool.query(`
   ALTER TABLE candidates_pipeline
