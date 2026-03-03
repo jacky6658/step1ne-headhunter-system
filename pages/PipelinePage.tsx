@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Candidate, CandidateStatus, ProgressEvent, UserProfile } from '../types';
 import { getCandidates, clearCache } from '../services/candidateService';
 import { CandidateModal } from '../components/CandidateModal';
-import { apiPut } from '../config/api';
+import { apiPut, getApiUrl } from '../config/api';
 import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2, Linkedin, Github, Star } from 'lucide-react';
 
 interface PipelinePageProps {
@@ -252,7 +252,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }
 
     try {
-      const response = await fetch(`https://backendstep1ne.zeabur.app/api/candidates/${candidateId}/github-stats`);
+      const response = await fetch(getApiUrl(`/candidates/${candidateId}/github-stats`));
       const result = await response.json();
       
       if (result.success) {
@@ -520,7 +520,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }
 
     try {
-      const response = await fetch(`https://backendstep1ne.zeabur.app/api/candidates/${candidateId}`, {
+      const response = await fetch(getApiUrl(`/candidates/${candidateId}`), {
         method: 'DELETE',
       });
 

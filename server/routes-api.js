@@ -791,7 +791,7 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
     const { id } = req.params;
     const { status, by } = req.body;
 
-    const validStatuses = ['未開始', '已聯繫', '已面試', 'Offer', '已上職', '婉拒', '其他'];
+    const validStatuses = ['未開始', 'AI推薦', '已聯繫', '已面試', 'Offer', '已上職', '婉拒', '備選人才', '其他'];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -869,7 +869,7 @@ router.patch('/candidates/batch-status', async (req, res) => {
   try {
     const { ids, status, actor, note } = req.body;
 
-    const validStatuses = ['未開始', '已聯繫', '已面試', 'Offer', '已上職', '婉拒', '其他'];
+    const validStatuses = ['未開始', 'AI推薦', '已聯繫', '已面試', 'Offer', '已上職', '婉拒', '備選人才', '其他'];
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ success: false, error: '缺少 ids 陣列' });
