@@ -1491,6 +1491,78 @@ router.get('/jobs', async (req, res) => {
 });
 
 /**
+ * GET /api/jobs/priority-ranking
+ * 取得職缺優先級排序（TOP 10）
+ * 
+ * Query 參數：
+ * - limit: 返回數量（默認 10）
+ * - status: 職缺狀態篩選（默認 "招募中,開放中"）
+ */
+router.get('/jobs/priority-ranking', async (req, res) => {
+  try {
+    const { calculateJobPriority } = require('./jobPriorityService');
+    
+    const limit = parseInt(req.query.limit) || 10;
+    const statusFilter = req.query.status || '招募中,開放中';
+    const statusList = statusFilter.split(',').map(s => s.trim());
+    
+    // 查詢符合狀態的職缺
+    const client = await pool.connect();
+    const placeholders = statusList.map((_, i) => `$${i + 1}`).join(',');
+    const result = await client.query(
+      `SELECT * FROM jobs_pipeline WHERE job_status IN (${placeholders}) ORDER BY id`,
+      statusList
+    );
+    client.release();
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          total: 0,
+          jobs: [],
+          summary: {
+            p0_count: 0,
+            p1_count: 0,
+            p2_count: 0,
+            p3_count: 0
+          }
+        }
+      });
+    }
+    
+    // 計算優先級
+    const rankedJobs = await calculateJobPriority(result.rows, pool);
+    
+    // 統計分布
+    const summary = {
+      p0_count: rankedJobs.filter(j => j.priority === 'P0').length,
+      p1_count: rankedJobs.filter(j => j.priority === 'P1').length,
+      p2_count: rankedJobs.filter(j => j.priority === 'P2').length,
+      p3_count: rankedJobs.filter(j => j.priority === 'P3').length,
+      total_commission: rankedJobs.slice(0, limit).reduce((sum, j) => sum + (j.est_commission || 0), 0).toFixed(1)
+    };
+    
+    res.json({
+      success: true,
+      data: {
+        total: result.rows.length,
+        jobs: rankedJobs.slice(0, limit),
+        summary
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ 職缺優先級排序失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/jobs/:id
  * 獲取單一職缺
  */
@@ -3049,68 +3121,4 @@ router.get('/candidates/:id/github-stats', async (req, res) => {
  * - limit: 返回數量（默認 10）
  * - status: 職缺狀態篩選（默認 "招募中,開放中"）
  */
-router.get('/jobs/priority-ranking', async (req, res) => {
-  try {
-    const { calculateJobPriority } = require('./jobPriorityService');
-    
-    const limit = parseInt(req.query.limit) || 10;
-    const statusFilter = req.query.status || '招募中,開放中';
-    const statusList = statusFilter.split(',').map(s => s.trim());
-    
-    // 查詢符合狀態的職缺
-    const client = await pool.connect();
-    const placeholders = statusList.map((_, i) => `$${i + 1}`).join(',');
-    const result = await client.query(
-      `SELECT * FROM jobs_pipeline WHERE job_status IN (${placeholders}) ORDER BY id`,
-      statusList
-    );
-    client.release();
-    
-    if (result.rows.length === 0) {
-      return res.json({
-        success: true,
-        data: {
-          total: 0,
-          jobs: [],
-          summary: {
-            p0_count: 0,
-            p1_count: 0,
-            p2_count: 0,
-            p3_count: 0
-          }
-        }
-      });
-    }
-    
-    // 計算優先級
-    const rankedJobs = await calculateJobPriority(result.rows, pool);
-    
-    // 統計分布
-    const summary = {
-      p0_count: rankedJobs.filter(j => j.priority === 'P0').length,
-      p1_count: rankedJobs.filter(j => j.priority === 'P1').length,
-      p2_count: rankedJobs.filter(j => j.priority === 'P2').length,
-      p3_count: rankedJobs.filter(j => j.priority === 'P3').length,
-      total_commission: rankedJobs.slice(0, limit).reduce((sum, j) => sum + (j.est_commission || 0), 0).toFixed(1)
-    };
-    
-    res.json({
-      success: true,
-      data: {
-        total: result.rows.length,
-        jobs: rankedJobs.slice(0, limit),
-        summary
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ 職缺優先級排序失敗:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
 module.exports = router;
