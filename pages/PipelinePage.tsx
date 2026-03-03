@@ -84,7 +84,7 @@ function mapEventToStage(event?: string): PipelineStageKey {
   return 'other';
 }
 
-function mapStatusToStage(status: CandidateStatus): PipelineStageKey {
+function mapStatusToStage(status: CandidateStatus | string): PipelineStageKey {
   switch (status) {
     case CandidateStatus.AI_RECOMMENDED:
       return 'ai_recommended';
@@ -100,6 +100,10 @@ function mapStatusToStage(status: CandidateStatus): PipelineStageKey {
       return 'rejected';
     case CandidateStatus.OTHER:
       return 'other';
+    // 歷史遺留狀態：歸入「未開始」欄
+    case '待聯繫':
+    case '待審核':
+      return 'not_started';
     default:
       return 'not_started';
   }

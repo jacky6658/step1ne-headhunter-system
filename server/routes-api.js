@@ -126,6 +126,19 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS github_analysis_cache JSONB;
 `).catch(err => console.warn('github_analysis_cache migration:', err.message));
 
+// 一次性資料清理：將歷史遺留的「待聯繫」「待審核」狀態統一轉為「未開始」，顧問設為「待指派」
+pool.query(`
+  UPDATE candidates_pipeline
+  SET status = '未開始',
+      recruiter = '待指派',
+      updated_at = NOW()
+  WHERE status IN ('待聯繫', '待審核')
+`).then(r => {
+  if (r.rowCount > 0) {
+    console.log(`✅ 歷史狀態清理：${r.rowCount} 位「待聯繫/待審核」候選人已轉為「未開始/待指派」`);
+  }
+}).catch(err => console.warn('legacy status migration:', err.message));
+
 // 確保 bot_config 資料表存在（Bot 排程設定）
 pool.query(`
   CREATE TABLE IF NOT EXISTS bot_config (
