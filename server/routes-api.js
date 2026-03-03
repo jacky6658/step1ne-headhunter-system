@@ -661,6 +661,15 @@ router.patch('/candidates/:id', async (req, res) => {
     // 支援 notes 與 remarks 兩種欄位名稱（AIbot 相容性）
     const notes = req.body.notes !== undefined ? req.body.notes : req.body.remarks;
     const email = req.body.email;
+    // 人工編輯欄位
+    const phone = req.body.phone;
+    const location = req.body.location;
+    const position = req.body.position !== undefined ? req.body.position : req.body.current_position;
+    const years = req.body.years !== undefined ? req.body.years : req.body.years_experience;
+    const skills = req.body.skills;
+    const education = req.body.education;
+    const work_history = req.body.work_history;
+    const education_details = req.body.education_details;
     const actor = req.body.actor || req.body.by || '';
     const isAIBot = /aibot|bot$/i.test(actor);
 
@@ -709,6 +718,38 @@ router.patch('/candidates/:id', async (req, res) => {
     if (email !== undefined) {
       setClauses.push(`email = $${idx++}`);
       values.push(email);
+    }
+    if (phone !== undefined) {
+      setClauses.push(`phone = $${idx++}`);
+      values.push(phone);
+    }
+    if (location !== undefined) {
+      setClauses.push(`location = $${idx++}`);
+      values.push(location);
+    }
+    if (position !== undefined) {
+      setClauses.push(`current_position = $${idx++}`);
+      values.push(position);
+    }
+    if (years !== undefined) {
+      setClauses.push(`years_experience = $${idx++}`);
+      values.push(String(years));
+    }
+    if (skills !== undefined) {
+      setClauses.push(`skills = $${idx++}`);
+      values.push(Array.isArray(skills) ? skills.join('、') : skills);
+    }
+    if (education !== undefined) {
+      setClauses.push(`education = $${idx++}`);
+      values.push(education);
+    }
+    if (work_history !== undefined) {
+      setClauses.push(`work_history = $${idx++}`);
+      values.push(JSON.stringify(work_history));
+    }
+    if (education_details !== undefined) {
+      setClauses.push(`education_details = $${idx++}`);
+      values.push(JSON.stringify(education_details));
     }
     // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析
     let resolvedAiMatch = ai_match_result;

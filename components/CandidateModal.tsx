@@ -48,6 +48,48 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [savingGithub, setSavingGithub] = useState(false);
   const [enrichedCandidate, setEnrichedCandidate] = useState(candidate);
 
+  // 基本資料編輯
+  const [editingBasicInfo, setEditingBasicInfo] = useState(false);
+  const [editName, setEditName] = useState(candidate.name);
+  const [editPosition, setEditPosition] = useState(candidate.position || '');
+  const [editLocation, setEditLocation] = useState(candidate.location || '');
+  const [editPhone, setEditPhone] = useState(candidate.phone || '');
+  const [editEmail, setEditEmail] = useState(candidate.email || '');
+  const [editYears, setEditYears] = useState(String(candidate.years || ''));
+  const [editSkills, setEditSkills] = useState(
+    Array.isArray(candidate.skills) ? candidate.skills.join('、') : (candidate.skills || ''));
+  const [savingBasicInfo, setSavingBasicInfo] = useState(false);
+
+  // 工作經歷本地狀態（支援新增/編輯/刪除）
+  const [workItems, setWorkItems] = useState<any[]>(() => {
+    const raw = candidate.workHistory;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+      try { const p = JSON.parse(raw); if (Array.isArray(p)) return p; } catch {}
+      return raw.split(';').map((job: string) => {
+        const t = job.trim(); if (!t) return null;
+        const m = t.match(/^(.+?)\s+(\d+年?)?\(([^)]+)\):\s*(.+)$/);
+        if (m) return { company: m[1].trim(), title: m[4].trim(), start: '', end: '', duration_months: 0, description: m[4].trim() };
+        const s = t.match(/^(.+?):\s*(.+)$/);
+        if (s) return { company: s[1].trim(), title: s[2].trim(), start: '', end: '', duration_months: 0 };
+        return null;
+      }).filter(Boolean);
+    }
+    return [];
+  });
+  const [addingWork, setAddingWork] = useState(false);
+  const [editingWorkIdx, setEditingWorkIdx] = useState<number | null>(null);
+  const [workForm, setWorkForm] = useState({ company: '', title: '', start: '', end: '', description: '' });
+  const [savingWork, setSavingWork] = useState(false);
+
+  // 教育背景本地狀態（支援新增/編輯/刪除）
+  const [eduItems, setEduItems] = useState<any[]>(() => candidate.educationJson || []);
+  const [addingEdu, setAddingEdu] = useState(false);
+  const [editingEduIdx, setEditingEduIdx] = useState<number | null>(null);
+  const [eduForm, setEduForm] = useState({ school: '', degree: '', major: '', start: '', end: '' });
+  const [savingEdu, setSavingEdu] = useState(false);
+
   // 負責顧問 / 目標職缺 下拉清單
   const [users, setUsers] = useState<string[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -290,6 +332,76 @@ Step1ne Recruitment`;
       alert('❌ 儲存 GitHub 失敗，請稍後再試');
     } finally {
       setSavingGithub(false);
+    }
+  };
+
+  // 儲存基本資料（name/position/location/phone/email/years/skills）
+  const handleSaveBasicInfo = async () => {
+    setSavingBasicInfo(true);
+    try {
+      const updates = {
+        name: editName.trim(),
+        position: editPosition.trim(),
+        location: editLocation.trim(),
+        phone: editPhone.trim(),
+        email: editEmail.trim(),
+        years: parseInt(editYears) || 0,
+        skills: editSkills.trim(),
+        actor: currentUserName || 'system',
+      };
+      await apiPatch(`/api/candidates/${candidate.id}`, updates);
+      onCandidateUpdate?.(candidate.id, {
+        name: updates.name,
+        position: updates.position,
+        location: updates.location,
+        phone: updates.phone,
+        email: updates.email,
+        years: updates.years,
+        skills: updates.skills,
+      });
+      setEditingBasicInfo(false);
+    } catch (err) {
+      alert('❌ 儲存基本資料失敗，請稍後再試');
+    } finally {
+      setSavingBasicInfo(false);
+    }
+  };
+
+  // 儲存工作經歷
+  const handleSaveWorkHistory = async (items: any[]) => {
+    setSavingWork(true);
+    try {
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        work_history: items,
+        actor: currentUserName || 'system',
+      });
+      setWorkItems(items);
+      onCandidateUpdate?.(candidate.id, { workHistory: items as any });
+    } catch (err) {
+      alert('❌ 儲存工作經歷失敗');
+    } finally {
+      setSavingWork(false);
+      setAddingWork(false);
+      setEditingWorkIdx(null);
+    }
+  };
+
+  // 儲存教育背景
+  const handleSaveEducation = async (items: any[]) => {
+    setSavingEdu(true);
+    try {
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        education_details: items,
+        actor: currentUserName || 'system',
+      });
+      setEduItems(items);
+      onCandidateUpdate?.(candidate.id, { educationJson: items as any });
+    } catch (err) {
+      alert('❌ 儲存教育背景失敗');
+    } finally {
+      setSavingEdu(false);
+      setAddingEdu(false);
+      setEditingEduIdx(null);
     }
   };
 
@@ -639,100 +751,91 @@ Step1ne Recruitment`;
                 )}
               </div>
 
-              {/* Contact Info - 智能分離電話 + Email */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* 電話號碼 */}
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Phone className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <div className="text-xs text-gray-500">電話</div>
-                    <div className="font-medium text-sm">
-                      {(() => {
-                        // 嘗試從 phone 欄位分離出電話號碼
-                        const phoneStr = candidate.phone || '';
-                        const emailStr = candidate.email || '';
-                        
-                        // 如果 phone 包含 / 或 @，可能是混合格式
-                        if (phoneStr.includes('/')) {
-                          const parts = phoneStr.split('/');
-                          const phoneNum = parts[0].trim();
-                          return phoneNum || '未提供';
-                        }
-                        
-                        // 如果 phone 是 LinkedIn/GitHub 格式，返回 N/A
-                        if (phoneStr.toLowerCase().includes('linkedin') || phoneStr.toLowerCase().includes('github')) {
-                          return '未提供';
-                        }
-                        
-                        // 檢查是否是電話號碼格式（含數字）
-                        if (/\d/.test(phoneStr)) {
-                          return phoneStr;
-                        }
-                        
-                        return '未提供';
-                      })()}
+              {/* 基本資料卡片（可編輯） */}
+              <div className="bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between p-3 border-b border-gray-100">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">基本資料</span>
+                  {!editingBasicInfo ? (
+                    <button onClick={() => setEditingBasicInfo(true)} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">
+                      ✏️ 編輯
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button onClick={handleSaveBasicInfo} disabled={savingBasicInfo} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">
+                        {savingBasicInfo ? '儲存中...' : '儲存'}
+                      </button>
+                      <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                    </div>
+                  )}
+                </div>
+                {editingBasicInfo ? (
+                  <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">姓名</label>
+                      <input value={editName} onChange={e => setEditName(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">職位 / 背景</label>
+                      <input value={editPosition} onChange={e => setEditPosition(e.target.value)} placeholder="例：資深工程師" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">地點</label>
+                      <input value={editLocation} onChange={e => setEditLocation(e.target.value)} placeholder="例：台北市" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">年資</label>
+                      <input value={editYears} onChange={e => setEditYears(e.target.value)} type="number" min="0" placeholder="0" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">電話</label>
+                      <input value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="例：0912-345-678" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Email</label>
+                      <input value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="example@email.com" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-gray-500 mb-1">核心技能（以逗號或頓號分隔）</label>
+                      <input value={editSkills} onChange={e => setEditSkills(e.target.value)} placeholder="例：React、TypeScript、Node.js" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                   </div>
-                </div>
-                
-                {/* Email */}
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Mail className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <div className="text-xs text-gray-500">Email / 聯絡</div>
-                    <div className="font-medium text-sm break-all">
-                      {(() => {
-                        const phoneStr = candidate.phone || '';
-                        const emailStr = candidate.email || '';
-                        
-                        // 優先檢查 email 欄位
-                        if (emailStr && emailStr.includes('@')) {
-                          return (
-                            <a href={`mailto:${emailStr}`} className="text-blue-600 hover:underline">
-                              {emailStr}
-                            </a>
-                          );
-                        }
-                        
-                        // 從 phone 欄位分離 email（包含 / 的格式）
-                        if (phoneStr.includes('/')) {
-                          const parts = phoneStr.split('/');
-                          const email = parts.slice(1).join('/').trim();
-                          if (email && email.includes('@')) {
-                            return (
-                              <a href={`mailto:${email}`} className="text-blue-600 hover:underline">
-                                {email}
-                              </a>
-                            );
-                          }
-                        }
-                        
-                        // 檢查 LinkedIn
-                        if (phoneStr.toLowerCase().includes('linkedin')) {
-                          const username = phoneStr.replace(/^(LinkedIn|linkedin):\s*/i, '').trim();
-                          const linkedinUrl = username.startsWith('http') 
-                            ? username 
-                            : `https://www.linkedin.com/in/${username}`;
-                          return (
-                            <a 
-                              href={linkedinUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-                              </svg>
-                              LinkedIn
-                            </a>
-                          );
-                        }
-                        
-                        return emailStr || '未提供';
-                      })()}
+                ) : (
+                  <div className="p-3 grid grid-cols-2 gap-x-4 gap-y-2">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">地點</span>
+                      <span className="text-sm font-medium text-gray-800 truncate">{candidate.location || '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">年資</span>
+                      <span className="text-sm font-medium text-gray-800">{candidate.years > 0 ? `${candidate.years} 年` : '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">電話</span>
+                      <span className="text-sm font-medium text-gray-800 truncate">{editPhone || '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">Email</span>
+                      {editEmail ? (
+                        <a href={`mailto:${editEmail}`} className="text-sm font-medium text-blue-600 hover:underline truncate">{editEmail}</a>
+                      ) : (
+                        <span className="text-sm font-medium text-gray-400">—</span>
+                      )}
+                    </div>
+                    <div className="col-span-2 flex items-start gap-2 pt-1 border-t border-gray-100">
+                      <Award className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                      <span className="text-xs text-gray-500 shrink-0">技能</span>
+                      <div className="flex flex-wrap gap-1">
+                        {editSkills ? editSkills.split(/[、,，]/).filter(Boolean).map((s, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs">{s.trim()}</span>
+                        )) : <span className="text-xs text-gray-400">—</span>}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
               
               {/* 外部連結：LinkedIn / GitHub / Google Drive（始終顯示，可編輯） */}
@@ -889,102 +992,264 @@ Step1ne Recruitment`;
                 </div>
               </div>
               
-              {/* Skills */}
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <Award className="w-5 h-5 text-blue-600" />
-                  核心技能
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {(Array.isArray(candidate.skills) 
-                    ? candidate.skills 
-                    : candidate.skills.split(/[、,，]/)
-                  ).map((skill, i) => (
-                    <span 
-                      key={i}
-                      className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm"
-                    >
-                      {skill.trim()}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              
               {/* Work History */}
               <div>
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Briefcase className="w-5 h-5 text-blue-600" />
-                  💼 工作經歷
-                </h3>
-                {workHistory.length > 0 ? (
-                  <>
-                    <div className="text-xs text-gray-500 mb-3">
-                      顯示前 {Math.min(3, workHistory.length)} 段工作經歷
-                    </div>
-                    <div className="space-y-4">
-                      {workHistory.slice(0, 3).map((job: any, i: number) => (
-                        <div key={i} className="border-l-4 border-blue-400 pl-4 py-2 bg-blue-50/30 rounded-r-lg">
-                          <div className="flex items-center gap-2 mb-1">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            <div className="font-semibold text-gray-900 text-base">{job.company}</div>
-                          </div>
-                          
-                          {job.period && (
-                            <div className="text-sm text-gray-600 mb-2 flex items-center gap-2">
-                              <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                              {job.duration && <span className="font-medium">{job.duration}</span>}
-                              <span>({job.period})</span>
-                            </div>
-                          )}
-                          
-                          {job.description && (
-                            <div className="text-sm text-gray-700 leading-relaxed mt-2 bg-white/50 p-2 rounded">
-                              {job.description}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {workHistory.length > 3 && (
-                      <div className="text-xs text-gray-400 mt-3 text-center">
-                        還有 {workHistory.length - 3} 段工作經歷未顯示
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-blue-600" />
+                    工作經歷
+                  </h3>
+                  <button
+                    onClick={() => { setWorkForm({ company: '', title: '', start: '', end: '', description: '' }); setAddingWork(true); setEditingWorkIdx(null); }}
+                    className="text-xs px-2 py-1 border border-blue-200 rounded text-blue-600 hover:bg-blue-50"
+                  >
+                    + 新增
+                  </button>
+                </div>
+                {/* 新增工作經歷表單 */}
+                {addingWork && editingWorkIdx === null && (
+                  <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">公司名稱 *</label>
+                        <input value={workForm.company} onChange={e => setWorkForm(p => ({...p, company: e.target.value}))} placeholder="例：台積電" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" autoFocus />
                       </div>
-                    )}
-                  </>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">職稱 *</label>
+                        <input value={workForm.title} onChange={e => setWorkForm(p => ({...p, title: e.target.value}))} placeholder="例：資深工程師" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">開始時間</label>
+                        <input value={workForm.start} onChange={e => setWorkForm(p => ({...p, start: e.target.value}))} placeholder="例：2020-01" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">結束時間</label>
+                        <input value={workForm.end} onChange={e => setWorkForm(p => ({...p, end: e.target.value}))} placeholder="例：2023-06 或 至今" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">工作描述（選填）</label>
+                      <textarea value={workForm.description} onChange={e => setWorkForm(p => ({...p, description: e.target.value}))} rows={2} placeholder="主要負責..." className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        disabled={savingWork || !workForm.company.trim()}
+                        onClick={() => {
+                          if (!workForm.company.trim()) return;
+                          const newItem = { company: workForm.company.trim(), title: workForm.title.trim(), start: workForm.start.trim(), end: workForm.end.trim(), duration_months: 0, description: workForm.description.trim() };
+                          handleSaveWorkHistory([...workItems, newItem]);
+                        }}
+                        className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
+                      >
+                        {savingWork ? '儲存中...' : '新增'}
+                      </button>
+                      <button onClick={() => setAddingWork(false)} className="text-xs px-3 py-1.5 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                    </div>
+                  </div>
+                )}
+                {workItems.length > 0 ? (
+                  <div className="space-y-3">
+                    {workItems.map((job: any, i: number) => (
+                      <div key={i} className="border-l-4 border-blue-400 pl-4 py-2 bg-blue-50/30 rounded-r-lg relative">
+                        {editingWorkIdx === i ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">公司名稱</label>
+                                <input value={workForm.company} onChange={e => setWorkForm(p => ({...p, company: e.target.value}))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" autoFocus />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">職稱</label>
+                                <input value={workForm.title} onChange={e => setWorkForm(p => ({...p, title: e.target.value}))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">開始</label>
+                                <input value={workForm.start} onChange={e => setWorkForm(p => ({...p, start: e.target.value}))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">結束</label>
+                                <input value={workForm.end} onChange={e => setWorkForm(p => ({...p, end: e.target.value}))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                              </div>
+                            </div>
+                            <textarea value={workForm.description} onChange={e => setWorkForm(p => ({...p, description: e.target.value}))} rows={2} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none" />
+                            <div className="flex gap-2">
+                              <button
+                                disabled={savingWork}
+                                onClick={() => {
+                                  const updated = workItems.map((item, idx) => idx === i ? { ...item, company: workForm.company.trim(), title: workForm.title.trim(), start: workForm.start.trim(), end: workForm.end.trim(), description: workForm.description.trim() } : item);
+                                  handleSaveWorkHistory(updated);
+                                }}
+                                className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
+                              >
+                                {savingWork ? '儲存中...' : '儲存'}
+                              </button>
+                              <button onClick={() => setEditingWorkIdx(null)} className="text-xs px-3 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-gray-900 text-sm">{job.company}</div>
+                                {job.title && <div className="text-sm text-blue-600">{job.title}</div>}
+                                {(job.start || job.end) && (
+                                  <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                                    <Calendar className="w-3 h-3" />
+                                    {job.start}{job.start && job.end ? ' – ' : ''}{job.end}
+                                  </div>
+                                )}
+                                {job.description && (
+                                  <div className="text-xs text-gray-600 mt-1 leading-relaxed">{job.description}</div>
+                                )}
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                <button
+                                  onClick={() => { setWorkForm({ company: job.company || '', title: job.title || '', start: job.start || '', end: job.end || '', description: job.description || '' }); setEditingWorkIdx(i); setAddingWork(false); }}
+                                  className="text-xs px-1.5 py-0.5 border border-gray-200 rounded text-gray-500 hover:bg-white"
+                                >編輯</button>
+                                <button
+                                  onClick={() => { if (confirm('確認刪除此工作經歷？')) handleSaveWorkHistory(workItems.filter((_, idx) => idx !== i)); }}
+                                  className="text-xs px-1.5 py-0.5 border border-red-200 rounded text-red-500 hover:bg-red-50"
+                                >刪除</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <div className="p-4 bg-gray-50 rounded-lg text-center text-gray-500 text-sm">
-                    暫無工作經歷資料
+                  <div className="p-4 bg-gray-50 rounded-lg text-center">
+                    <Briefcase className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm text-gray-400">尚無工作經歷</p>
+                    <button onClick={() => { setWorkForm({ company: '', title: '', start: '', end: '', description: '' }); setAddingWork(true); }} className="mt-2 text-xs text-blue-600 hover:underline">+ 手動新增</button>
                   </div>
                 )}
               </div>
               
               {/* Education */}
               <div>
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Award className="w-5 h-5 text-blue-600" />
-                  教育背景
-                </h3>
-                {education.length > 0 ? (
-                  <div className="space-y-2">
-                    {education.map((edu: any, i: number) => (
-                      <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                        <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <Award className="w-5 h-5 text-blue-600" />
+                    教育背景
+                  </h3>
+                  <button
+                    onClick={() => { setEduForm({ school: '', degree: '', major: '', start: '', end: '' }); setAddingEdu(true); setEditingEduIdx(null); }}
+                    className="text-xs px-2 py-1 border border-blue-200 rounded text-blue-600 hover:bg-blue-50"
+                  >
+                    + 新增
+                  </button>
+                </div>
+                {/* 新增教育背景表單 */}
+                {addingEdu && editingEduIdx === null && (
+                  <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">學校名稱 *</label>
+                        <input value={eduForm.school} onChange={e => setEduForm(p => ({...p, school: e.target.value}))} placeholder="例：台灣大學" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" autoFocus />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">學位</label>
+                        <input value={eduForm.degree} onChange={e => setEduForm(p => ({...p, degree: e.target.value}))} placeholder="例：碩士、學士" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">科系</label>
+                        <input value={eduForm.major} onChange={e => setEduForm(p => ({...p, major: e.target.value}))} placeholder="例：資訊工程學系" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div className="flex gap-2">
                         <div className="flex-1">
-                          <div className="font-medium text-gray-900">{edu.school}</div>
-                          <div className="text-sm text-gray-600">
-                            {edu.degree} - {edu.major}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {edu.startYear} ~ {edu.endYear}
-                          </div>
+                          <label className="block text-xs text-gray-500 mb-1">入學年</label>
+                          <input value={eduForm.start} onChange={e => setEduForm(p => ({...p, start: e.target.value}))} placeholder="2018" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                         </div>
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-500 mb-1">畢業年</label>
+                          <input value={eduForm.end} onChange={e => setEduForm(p => ({...p, end: e.target.value}))} placeholder="2022" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        disabled={savingEdu || !eduForm.school.trim()}
+                        onClick={() => {
+                          if (!eduForm.school.trim()) return;
+                          const newItem = { school: eduForm.school.trim(), degree: eduForm.degree.trim(), major: eduForm.major.trim(), startYear: eduForm.start.trim(), endYear: eduForm.end.trim(), start: eduForm.start.trim(), end: eduForm.end.trim() };
+                          handleSaveEducation([...eduItems, newItem]);
+                        }}
+                        className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
+                      >
+                        {savingEdu ? '儲存中...' : '新增'}
+                      </button>
+                      <button onClick={() => setAddingEdu(false)} className="text-xs px-3 py-1.5 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                    </div>
+                  </div>
+                )}
+                {eduItems.length > 0 ? (
+                  <div className="space-y-2">
+                    {eduItems.map((edu: any, i: number) => (
+                      <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        {editingEduIdx === i ? (
+                          <div className="flex-1 space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">學校</label>
+                                <input value={eduForm.school} onChange={e => setEduForm(p => ({...p, school: e.target.value}))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" autoFocus />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">學位</label>
+                                <input value={eduForm.degree} onChange={e => setEduForm(p => ({...p, degree: e.target.value}))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">科系</label>
+                                <input value={eduForm.major} onChange={e => setEduForm(p => ({...p, major: e.target.value}))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                              </div>
+                              <div className="flex gap-2">
+                                <input value={eduForm.start} onChange={e => setEduForm(p => ({...p, start: e.target.value}))} placeholder="入學年" className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                <input value={eduForm.end} onChange={e => setEduForm(p => ({...p, end: e.target.value}))} placeholder="畢業年" className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                disabled={savingEdu}
+                                onClick={() => {
+                                  const updated = eduItems.map((item, idx) => idx === i ? { ...item, school: eduForm.school.trim(), degree: eduForm.degree.trim(), major: eduForm.major.trim(), startYear: eduForm.start.trim(), endYear: eduForm.end.trim(), start: eduForm.start.trim(), end: eduForm.end.trim() } : item);
+                                  handleSaveEducation(updated);
+                                }}
+                                className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
+                              >
+                                {savingEdu ? '儲存中...' : '儲存'}
+                              </button>
+                              <button onClick={() => setEditingEduIdx(null)} className="text-xs px-3 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <Calendar className="w-5 h-5 text-gray-400 mt-0.5 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-900">{edu.school}</div>
+                              <div className="text-sm text-gray-600">{edu.degree}{edu.degree && edu.major ? ' — ' : ''}{edu.major}</div>
+                              <div className="text-xs text-gray-500 mt-0.5">{edu.startYear || edu.start}{(edu.startYear || edu.start) && (edu.endYear || edu.end) ? ' ~ ' : ''}{edu.endYear || edu.end}</div>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <button
+                                onClick={() => { setEduForm({ school: edu.school||'', degree: edu.degree||'', major: edu.major||'', start: edu.startYear||edu.start||'', end: edu.endYear||edu.end||'' }); setEditingEduIdx(i); setAddingEdu(false); }}
+                                className="text-xs px-1.5 py-0.5 border border-gray-200 rounded text-gray-500 hover:bg-white"
+                              >編輯</button>
+                              <button
+                                onClick={() => { if (confirm('確認刪除此教育背景？')) handleSaveEducation(eduItems.filter((_, idx) => idx !== i)); }}
+                                className="text-xs px-1.5 py-0.5 border border-red-200 rounded text-red-500 hover:bg-red-50"
+                              >刪除</button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 bg-gray-50 rounded-lg text-center text-gray-500 text-sm">
-                    暫無教育背景資料
+                  <div className="p-4 bg-gray-50 rounded-lg text-center">
+                    <Award className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm text-gray-400">尚無教育背景資料</p>
+                    <button onClick={() => { setEduForm({ school: '', degree: '', major: '', start: '', end: '' }); setAddingEdu(true); }} className="mt-2 text-xs text-blue-600 hover:underline">+ 手動新增</button>
                   </div>
                 )}
               </div>
