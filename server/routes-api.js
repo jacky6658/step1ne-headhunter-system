@@ -3136,6 +3136,107 @@ router.get('/github/analyze/:username', async (req, res) => {
 });
 
 /**
+ * GET /api/candidates/:id/job-rankings
+ * 將候選人與系統所有職缺做技能比對，依分數排序回傳推薦列表
+ */
+router.get('/candidates/:id/job-rankings', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. 抓候選人資料
+    const candRes = await pool.query(
+      `SELECT id, name, skills, notes AS bio, source
+       FROM candidates_pipeline WHERE id = $1`,
+      [id]
+    );
+    if (candRes.rows.length === 0) return res.status(404).json({ error: '候選人不存在' });
+    const candidate = candRes.rows[0];
+
+    // 統一 skills 格式
+    if (typeof candidate.skills === 'string') {
+      try { candidate.skills = JSON.parse(candidate.skills); } catch { candidate.skills = []; }
+    }
+    if (!Array.isArray(candidate.skills)) candidate.skills = [];
+
+    // 2. 抓所有職缺
+    const jobsRes = await pool.query(
+      `SELECT id, position_name, client_company, department,
+              key_skills, experience_required, special_conditions,
+              salary_range, job_status
+       FROM jobs_pipeline
+       ORDER BY created_at DESC LIMIT 200`
+    );
+
+    // 3. 對每個職缺做技能比對（與 talentSourceService.scoreCandidate 同邏輯）
+    function rankAgainstJob(cand, job) {
+      const rawSkills = [job.key_skills, job.experience_required, job.special_conditions]
+        .filter(Boolean).join(',');
+      const requiredSkills = rawSkills
+        .split(/[,、\n\/；;]/)
+        .map(s => s.trim().toLowerCase())
+        .filter(s => s.length > 1 && s.length < 30);
+
+      const candidateSkills = (cand.skills || []).map(s => (s || '').toLowerCase());
+      const candidateBio = (cand.bio || '').toLowerCase();
+
+      const matched = requiredSkills.filter(req =>
+        candidateSkills.some(cs => cs.includes(req) || req.includes(cs)) ||
+        candidateBio.includes(req)
+      );
+
+      const skillScore = requiredSkills.length > 0
+        ? Math.round((matched.length / requiredSkills.length) * 100)
+        : 50;
+
+      // 個人資料品質基礎分（依來源給予基準分）
+      let profileScore = 40;
+      const src = (cand.source || '').toLowerCase();
+      if (src === 'github') profileScore = 65;
+      else if (src === 'linkedin') profileScore = 62;
+      else if (src === 'gmail 進件' || src === 'gmail') profileScore = 55;
+
+      const totalScore = Math.round(skillScore * 0.6 + profileScore * 0.4);
+      const missingSkills = requiredSkills.filter(r => !matched.includes(r));
+
+      let recommendation;
+      if (totalScore >= 80) recommendation = '強力推薦';
+      else if (totalScore >= 65) recommendation = '推薦';
+      else if (totalScore >= 50) recommendation = '觀望';
+      else recommendation = '不推薦';
+
+      return {
+        job_id: job.id,
+        job_title: job.position_name,
+        company: job.client_company || '',
+        department: job.department || '',
+        salary_range: job.salary_range || '',
+        job_status: job.job_status || '',
+        match_score: totalScore,
+        skill_score: skillScore,
+        matched_skills: matched.slice(0, 10),
+        missing_skills: missingSkills.slice(0, 10),
+        required_skills_count: requiredSkills.length,
+        recommendation,
+      };
+    }
+
+    const rankings = jobsRes.rows
+      .map(job => rankAgainstJob(candidate, job))
+      .sort((a, b) => b.match_score - a.match_score);
+
+    res.json({
+      candidate_id: id,
+      candidate_name: candidate.name,
+      total_jobs: rankings.length,
+      rankings,
+    });
+  } catch (error) {
+    console.error('❌ GET /candidates/:id/job-rankings error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/candidates/:id/github-stats
  * 獲取候選人的 GitHub 快速統計 v2（支援 ?jobId= 查詢參數 + DB 快取）
  */

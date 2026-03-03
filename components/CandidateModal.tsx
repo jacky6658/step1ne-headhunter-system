@@ -1,6 +1,6 @@
 // Step1ne Headhunter System - 候選人詳情 Modal
 import React, { useState } from 'react';
-import { Candidate, CandidateStatus, AiMatchResult } from '../types';
+import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry } from '../types';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
 import { apiPatch, apiGet, getApiUrl } from '../config/api';
 import {
@@ -90,6 +90,12 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [eduForm, setEduForm] = useState({ school: '', degree: '', major: '', start: '', end: '' });
   const [savingEdu, setSavingEdu] = useState(false);
 
+  // 職缺匹配排名
+  const [jobRankings, setJobRankings] = useState<JobRankingEntry[]>([]);
+  const [loadingRankings, setLoadingRankings] = useState(false);
+  const [rankingsLoaded, setRankingsLoaded] = useState(false);
+  const [showAllRankings, setShowAllRankings] = useState(false);
+
   // 負責顧問 / 目標職缺 下拉清單
   const [users, setUsers] = useState<string[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -127,6 +133,24 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
     };
     fetchLatest();
   }, [candidate.id, candidate]);
+
+  // 職缺匹配排名：切換到 ai_match tab 時才載入（懶加載）
+  const fetchJobRankings = React.useCallback(async () => {
+    if (rankingsLoaded || loadingRankings) return;
+    setLoadingRankings(true);
+    try {
+      const res = await fetch(getApiUrl(`/candidates/${candidate.id}/job-rankings`));
+      if (res.ok) {
+        const data = await res.json();
+        setJobRankings(data.rankings || []);
+      }
+    } catch (e) {
+      console.error('fetchJobRankings failed:', e);
+    } finally {
+      setLoadingRankings(false);
+      setRankingsLoaded(true);
+    }
+  }, [candidate.id, rankingsLoaded, loadingRankings]);
 
   // 預載入顧問清單與職缺清單
   React.useEffect(() => {
@@ -593,7 +617,7 @@ Step1ne Recruitment`;
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('ai_match')}
+              onClick={() => { setActiveTab('ai_match'); fetchJobRankings(); }}
               className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all ${
                 activeTab === 'ai_match'
                   ? 'text-violet-600 border-b-2 border-violet-600 bg-white'
@@ -1579,207 +1603,257 @@ Step1ne Recruitment`;
           )}
 
           {activeTab === 'ai_match' && (() => {
-            // 後端已轉換格式，直接使用
             const ai = (enrichedCandidate.aiMatchResult || (enrichedCandidate as any).ai_match_result) as AiMatchResult | null | undefined;
 
             const recConfig: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
-              '強力推薦': { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: <ThumbsUp className="w-4 h-4" /> },
-              '推薦':     { color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200',       icon: <ThumbsUp className="w-4 h-4" /> },
-              '觀望':     { color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200',     icon: <HelpCircle className="w-4 h-4" /> },
-              '不推薦':   { color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',       icon: <ThumbsDown className="w-4 h-4" /> },
+              '強力推薦': { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: <ThumbsUp className="w-3 h-3" /> },
+              '推薦':     { color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200',       icon: <ThumbsUp className="w-3 h-3" /> },
+              '觀望':     { color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200',     icon: <HelpCircle className="w-3 h-3" /> },
+              '不推薦':   { color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',       icon: <ThumbsDown className="w-3 h-3" /> },
             };
 
-            if (!ai) {
-              return (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-16 h-16 rounded-full bg-violet-50 flex items-center justify-center mb-4">
-                    <Bot className="w-8 h-8 text-violet-300" />
-                  </div>
-                  <p className="text-slate-600 font-semibold">尚未進行 AI 匹配評分</p>
-                  <p className="text-slate-400 text-sm mt-2 max-w-xs">
-                    請透過職缺管理的「AI 配對」功能，或由 AIbot 呼叫評分 API，結果將顯示在此
-                  </p>
-                  <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-left max-w-sm w-full">
-                    <p className="text-xs font-semibold text-slate-600 mb-2">AIbot 寫入欄位：</p>
-                    <code className="text-xs text-violet-700 break-all">
-                      PATCH /api/candidates/{'{id}'}<br/>
-                      {'{ "ai_match_result": { ... } }'}
-                    </code>
-                  </div>
-                </div>
-              );
-            }
-
-            const rec = recConfig[ai.recommendation] || recConfig['觀望'];
-            const scoreColor =
-              ai.score >= 85 ? 'text-emerald-600' :
-              ai.score >= 70 ? 'text-blue-600' :
-              ai.score >= 55 ? 'text-amber-600' : 'text-rose-600';
-            const scoreRing =
-              ai.score >= 85 ? 'border-emerald-400' :
-              ai.score >= 70 ? 'border-blue-400' :
-              ai.score >= 55 ? 'border-amber-400' : 'border-rose-400';
+            const visibleRankings = showAllRankings ? jobRankings : jobRankings.slice(0, 5);
 
             return (
-              <div className="space-y-4 sm:space-y-5">
-                {/* 頂部：分數 + 推薦等級 + 對應職缺 */}
-                <div className="flex flex-col gap-3 sm:gap-4 items-start sm:items-center">
-                  {/* 分數環 */}
-                  <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 ${scoreRing} flex flex-col items-center justify-center shrink-0 bg-white shadow-sm`}>
-                    <span className={`text-2xl sm:text-3xl font-black ${scoreColor}`}>{ai.score}</span>
-                    <span className="text-[8px] sm:text-[10px] text-slate-400 font-medium">/ 100</span>
+              <div className="space-y-5">
+
+                {/* ━━━━━ Section 1: 職缺匹配推薦 ━━━━━ */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Target className="w-4 h-4 text-violet-500" />
+                    <h3 className="text-sm font-bold text-slate-700">職缺匹配推薦</h3>
+                    {!loadingRankings && jobRankings.length > 0 && (
+                      <span className="text-[10px] text-slate-400 font-medium">共 {jobRankings.length} 個職缺</span>
+                    )}
                   </div>
 
-                  <div className="flex-1 w-full sm:w-auto space-y-2">
-                    {/* 推薦等級 */}
-                    <div className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border font-bold text-xs sm:text-sm ${rec.bg} ${rec.color}`}>
-                      {rec.icon}
-                      {ai.recommendation}
+                  {loadingRankings && (
+                    <div className="flex items-center gap-2 text-sm text-slate-400 py-6 justify-center">
+                      <div className="w-4 h-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+                      分析系統職缺中...
                     </div>
+                  )}
 
-                    {/* 對應職缺 */}
-                    {ai.job_title && (
-                      <div className="flex items-start sm:items-center gap-2 text-xs sm:text-sm text-slate-600">
-                        <Target className="w-3 h-3 sm:w-4 sm:h-4 text-violet-500 shrink-0 mt-0.5 sm:mt-0" />
-                        <div className="break-words">
-                          <span>對應職缺：</span>
-                          <span className="font-semibold text-slate-800 block sm:inline sm:ml-1">
-                            {ai.job_title}
-                            {ai.job_id && <span className="text-slate-400 font-normal sm:ml-1"> #{ai.job_id}</span>}
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                  {!loadingRankings && rankingsLoaded && jobRankings.length === 0 && (
+                    <div className="text-center py-6 text-slate-400 text-sm">
+                      目前系統無可用職缺
+                    </div>
+                  )}
 
-                    {/* 評分時間 */}
-                    <div className="text-[10px] sm:text-xs text-slate-400 break-words">
-                      由 <span className="font-medium text-violet-600">{ai.evaluated_by}</span> 評分
-                      {ai.evaluated_at && (
-                        <span className="block sm:inline"> · {new Date(ai.evaluated_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                  {!loadingRankings && jobRankings.length > 0 && (
+                    <div className="space-y-2">
+                      {visibleRankings.map((entry, idx) => {
+                        const rec = recConfig[entry.recommendation] || recConfig['觀望'];
+                        const barWidth = `${entry.match_score}%`;
+                        const barColor =
+                          entry.match_score >= 80 ? 'bg-emerald-400' :
+                          entry.match_score >= 65 ? 'bg-blue-400' :
+                          entry.match_score >= 50 ? 'bg-amber-400' : 'bg-slate-300';
+                        const scoreText =
+                          entry.match_score >= 80 ? 'text-emerald-700' :
+                          entry.match_score >= 65 ? 'text-blue-700' :
+                          entry.match_score >= 50 ? 'text-amber-700' : 'text-slate-500';
+                        return (
+                          <div key={entry.job_id} className="border border-slate-200 rounded-xl p-3 bg-white hover:border-violet-200 hover:bg-violet-50/30 transition-colors">
+                            {/* 標題列 */}
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex items-start gap-2 min-w-0">
+                                <span className="text-[10px] font-bold text-slate-400 shrink-0 mt-0.5">#{idx + 1}</span>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold text-slate-800 break-words leading-tight">{entry.job_title}</p>
+                                  {entry.company && <p className="text-[10px] text-slate-500 mt-0.5">{entry.company}{entry.department ? ` · ${entry.department}` : ''}</p>}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className={`text-base font-black ${scoreText}`}>{entry.match_score}</span>
+                                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[9px] font-bold ${rec.bg} ${rec.color}`}>
+                                  {rec.icon}{entry.recommendation}
+                                </span>
+                              </div>
+                            </div>
+                            {/* 分數條 */}
+                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-2">
+                              <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: barWidth }} />
+                            </div>
+                            {/* 技能標籤 */}
+                            {(entry.matched_skills.length > 0 || entry.missing_skills.length > 0) && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {entry.matched_skills.slice(0, 5).map((s, i) => (
+                                  <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <CheckCircle2 className="w-2 h-2" />{s}
+                                  </span>
+                                ))}
+                                {entry.missing_skills.slice(0, 3).map((s, i) => (
+                                  <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-rose-50 text-rose-600 border border-rose-200">
+                                    <AlertCircle className="w-2 h-2" />{s}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {jobRankings.length > 5 && (
+                        <button
+                          onClick={() => setShowAllRankings(!showAllRankings)}
+                          className="w-full py-2 text-xs text-violet-600 hover:text-violet-800 font-medium border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+                        >
+                          {showAllRankings ? '收起' : `查看全部 ${jobRankings.length} 個職缺 ↓`}
+                        </button>
                       )}
                     </div>
-                  </div>
+                  )}
+
+                  {!rankingsLoaded && !loadingRankings && (
+                    <button
+                      onClick={fetchJobRankings}
+                      className="w-full py-3 text-sm text-violet-600 hover:text-violet-800 font-medium border border-violet-200 rounded-xl hover:bg-violet-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      開始分析職缺匹配
+                    </button>
+                  )}
                 </div>
 
-                {/* 技能符合度 */}
-                {(ai.matched_skills?.length > 0 || ai.missing_skills?.length > 0) && (
-                  <div className="space-y-2">
-                    <h4 className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">技能符合度</h4>
-                    {ai.matched_skills?.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {ai.matched_skills.map((s, i) => (
-                          <span key={i} className="inline-flex items-center gap-0.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 break-words">
-                            <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" /> <span>{s}</span>
-                          </span>
-                        ))}
-                      </div>
+                {/* 分隔線 */}
+                <div className="border-t border-dashed border-slate-200" />
+
+                {/* ━━━━━ Section 2: 人選分析報告 ━━━━━ */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Bot className="w-4 h-4 text-violet-500" />
+                    <h3 className="text-sm font-bold text-slate-700">人選分析報告</h3>
+                    {ai && (
+                      <span className="text-[10px] text-slate-400">
+                        由 <span className="text-violet-600 font-medium">{ai.evaluated_by}</span> 評分
+                      </span>
                     )}
-                    {ai.missing_skills?.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {ai.missing_skills.map((s, i) => (
-                          <span key={i} className="inline-flex items-center gap-0.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-medium bg-rose-50 text-rose-600 border border-rose-200">
-                            <AlertCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" /> <span>{s}</span>
-                          </span>
-                        ))}
+                  </div>
+
+                  {!ai ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      <Bot className="w-8 h-8 text-slate-300 mb-2" />
+                      <p className="text-slate-500 text-sm font-medium">尚未有 AI 深度分析報告</p>
+                      <p className="text-slate-400 text-xs mt-1">請由 AIbot 呼叫評分 API 寫入結果</p>
+                      <code className="mt-3 text-[10px] text-violet-600 bg-violet-50 px-3 py-1.5 rounded-lg border border-violet-100">
+                        PATCH /api/candidates/{'{id}'} · ai_match_result
+                      </code>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* 分數 + 推薦等級 */}
+                      <div className="flex items-center gap-4">
+                        {(() => {
+                          const sc = ai.score >= 85 ? 'text-emerald-600 border-emerald-400' :
+                                     ai.score >= 70 ? 'text-blue-600 border-blue-400' :
+                                     ai.score >= 55 ? 'text-amber-600 border-amber-400' : 'text-rose-600 border-rose-400';
+                          const [scoreColor, ringColor] = sc.split(' ');
+                          return (
+                            <div className={`w-16 h-16 rounded-full border-4 ${ringColor} flex flex-col items-center justify-center shrink-0 bg-white shadow-sm`}>
+                              <span className={`text-xl font-black ${scoreColor}`}>{ai.score}</span>
+                              <span className="text-[8px] text-slate-400">/100</span>
+                            </div>
+                          );
+                        })()}
+                        <div className="space-y-1.5">
+                          {(() => {
+                            const rec = recConfig[ai.recommendation] || recConfig['觀望'];
+                            return (
+                              <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border font-bold text-xs ${rec.bg} ${rec.color}`}>
+                                {rec.icon}{ai.recommendation}
+                              </div>
+                            );
+                          })()}
+                          {ai.job_title && (
+                            <p className="text-xs text-slate-500">
+                              針對職缺：<span className="font-medium text-slate-700">{ai.job_title}</span>
+                              {ai.job_id && <span className="text-slate-400 ml-1">#{ai.job_id}</span>}
+                            </p>
+                          )}
+                          {ai.evaluated_at && (
+                            <p className="text-[10px] text-slate-400">
+                              {new Date(ai.evaluated_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    <div className="flex gap-2 sm:gap-3 text-[10px] sm:text-[11px] text-slate-400 mt-1">
-                      <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />符合</span>
-                      <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-rose-400 inline-block" />缺少</span>
-                    </div>
-                  </div>
-                )}
 
-                {/* 優勢亮點 */}
-                {ai.strengths?.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                      <Star className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500 shrink-0" /> 優勢亮點
-                    </h4>
-                    <ul className="space-y-1">
-                      {ai.strengths.map((s, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-slate-700">
-                          <span className="mt-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0 text-amber-600 text-[8px] sm:text-[10px] font-bold flex-none">{i + 1}</span>
-                          <span className="break-words">{s}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* 面谈重点 */}
-                {ai.probing_questions?.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                      <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500 shrink-0" /> 面谈重点
-                    </h4>
-                    <div className="space-y-1.5">
-                      {ai.probing_questions.map((q, i) => (
-                        <div key={i} className="flex items-start gap-2 p-2 sm:p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-xs sm:text-sm text-blue-800">
-                          <span className="shrink-0 font-bold text-blue-400 text-[10px] sm:text-sm min-w-5 sm:min-w-6">Q{i + 1}</span>
-                          <span className="break-words">{q}</span>
+                      {/* 優勢亮點 */}
+                      {ai.strengths?.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-2">
+                            <Star className="w-3 h-3 text-amber-500" /> 優勢亮點
+                          </h4>
+                          <ul className="space-y-1">
+                            {ai.strengths.map((s, i) => (
+                              <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
+                                <span className="mt-0.5 w-4 h-4 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0 text-amber-600 text-[8px] font-bold">{i + 1}</span>
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      )}
 
-                {/* 待確認 */}
-                {ai.missing_skills?.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-rose-500 shrink-0" /> 待確認
-                    </h4>
-                    <ul className="space-y-1">
-                      {ai.missing_skills.map((item, i) => (
-                        <li key={i} className="text-xs sm:text-sm text-slate-700 flex items-start gap-2 p-2 bg-rose-50 border border-rose-100 rounded">
-                          <span className="text-rose-400 mt-0.5 shrink-0">▪</span>
-                          <span className="break-words">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* 薪資符合度 */}
-                {ai.salary_fit && (
-                  <div className="p-2 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-700 flex items-start gap-2">
-                    <span className="text-base shrink-0">💰</span>
-                    <div>
-                      <span className="text-[10px] sm:text-xs font-semibold text-slate-500 block mb-0.5">薪資符合度</span>
-                      <span className="break-words">{ai.salary_fit}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* 建議詢問問題（顧問用） */}
-                {ai.probing_questions?.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                      <HelpCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500 shrink-0" /> 建議顧問詢問
-                    </h4>
-                    <div className="space-y-1.5">
-                      {ai.probing_questions.map((q, i) => (
-                        <div key={i} className="flex items-start gap-2 p-2 sm:p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-xs sm:text-sm text-blue-800">
-                          <span className="shrink-0 font-bold text-blue-400 text-[10px] sm:text-sm min-w-5 sm:min-w-6">Q{i + 1}</span>
-                          <span className="break-words">{q}</span>
+                      {/* 技能缺口 */}
+                      {ai.missing_skills?.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-2">
+                            <AlertCircle className="w-3 h-3 text-rose-500" /> 技能缺口
+                          </h4>
+                          <div className="flex flex-wrap gap-1">
+                            {ai.missing_skills.map((s, i) => (
+                              <span key={i} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-600 border border-rose-200">
+                                <AlertCircle className="w-2.5 h-2.5 shrink-0" />{s}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      )}
 
-                {/* AI 完整結論 */}
-                {ai.conclusion && (
-                  <div className="space-y-2">
-                    <h4 className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                      <Bot className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-violet-500 shrink-0" /> AI 完整結論
-                    </h4>
-                    <div className="p-2.5 sm:p-4 bg-violet-50 border border-violet-100 rounded-xl text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
-                      {ai.conclusion}
+                      {/* 薪資符合度 */}
+                      {ai.salary_fit && (
+                        <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 flex items-start gap-2">
+                          <span className="text-base shrink-0">💰</span>
+                          <div>
+                            <span className="text-[10px] font-semibold text-slate-500 block mb-0.5">薪資符合度</span>
+                            {ai.salary_fit}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 建議顧問詢問 */}
+                      {ai.probing_questions?.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-2">
+                            <HelpCircle className="w-3 h-3 text-blue-500" /> 建議顧問詢問
+                          </h4>
+                          <div className="space-y-1.5">
+                            {ai.probing_questions.map((q, i) => (
+                              <div key={i} className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
+                                <span className="shrink-0 font-bold text-blue-400 min-w-[20px]">Q{i + 1}</span>
+                                {q}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* AI 完整結論 */}
+                      {ai.conclusion && (
+                        <div>
+                          <h4 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-2">
+                            <Bot className="w-3 h-3 text-violet-500" /> AI 完整結論
+                          </h4>
+                          <div className="p-3 sm:p-4 bg-violet-50 border border-violet-100 rounded-xl text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
+                            {ai.conclusion}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+
               </div>
             );
           })()}

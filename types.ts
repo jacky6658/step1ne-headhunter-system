@@ -319,6 +319,21 @@ export interface AiMatchResult {
   evaluated_by: string;             // AIBot-xxx
 }
 
+export interface JobRankingEntry {
+  job_id: number;
+  job_title: string;
+  company: string;
+  department: string;
+  salary_range: string;
+  job_status: string;
+  match_score: number;           // 0-100 加權總分
+  skill_score: number;           // 技能比對分數
+  matched_skills: string[];      // 符合的技能
+  missing_skills: string[];      // 缺口技能
+  required_skills_count: number; // 職缺要求技能總數
+  recommendation: '強力推薦' | '推薦' | '觀望' | '不推薦';
+}
+
 // 候選人
 // 進度追蹤事件
 export interface ProgressEvent {
