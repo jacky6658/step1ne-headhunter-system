@@ -76,7 +76,7 @@ app.use(cors({
   origin: function(origin, callback) {
     // 允許沒有 origin 的請求（如 curl, mobile apps）
     // 允許所有 localhost 開發 port
-    if (!origin || allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
       callback(null, true);
     } else {
       console.warn(`CORS 拒絕: ${origin}`);
