@@ -135,6 +135,7 @@ export const CANDIDATE_STATUS_CONFIG = {
 
 // Kanban 看板欄位順序
 export const KANBAN_COLUMNS = [
+  CandidateStatus.NOT_STARTED,
   CandidateStatus.AI_RECOMMENDED,
   CandidateStatus.CONTACTED,
   CandidateStatus.INTERVIEWED,
@@ -142,7 +143,6 @@ export const KANBAN_COLUMNS = [
   CandidateStatus.ONBOARDED,
   CandidateStatus.REJECTED,
   CandidateStatus.OTHER,
-  CandidateStatus.NOT_STARTED,
 ];
 
 // 候選人來源配置

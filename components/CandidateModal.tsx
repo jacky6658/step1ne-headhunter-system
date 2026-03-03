@@ -111,11 +111,14 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   
   // 進度事件 → 候選人狀態映射（與 Pipeline 階段一致）
   const eventToStatus: Record<string, string> = {
-    '已聯繫': '已聯繫',
-    '已面試': '已面試',
-    'Offer':  'Offer',
-    '已上職': '已上職',
-    '婉拒':   '婉拒',
+    '未開始':  '未開始',
+    'AI推薦':  'AI推薦',
+    '已聯繫':  '已聯繫',
+    '已面試':  '已面試',
+    'Offer':   'Offer',
+    '已上職':  '已上職',
+    '婉拒':    '婉拒',
+    '備選人才': '備選人才',
   };
 
   // 確認新增進度
@@ -1154,7 +1157,7 @@ Step1ne Recruitment`;
               <div className="border-t border-gray-200 pt-4">
                 <div className="text-xs text-gray-500 mb-2">快速新增進度</div>
                 <div className="grid grid-cols-3 gap-2">
-                  {['已聯繫', '已面試', 'Offer', '已上職', '婉拒', '其他'].map(eventType => (
+                  {['未開始', 'AI推薦', '已聯繫', '已面試', 'Offer', '已上職', '婉拒', '備選人才'].map(eventType => (
                     <button
                       key={eventType}
                       className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-400 transition-colors"
