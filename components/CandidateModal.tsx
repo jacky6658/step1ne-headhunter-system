@@ -1503,28 +1503,48 @@ Step1ne Recruitment`;
                 </h3>
                 {localNotes ? (
                   <div className="space-y-2">
-                    {localNotes.split('\n').filter(line => line.trim()).map((line, i) => {
-                      // 嘗試解析 [時間] 作者：內容 格式
-                      const match = line.match(/^\[(.+?)\]\s*(.+?)：(.+)$/);
-                      if (match) {
-                        const [, time, author, content] = match;
-                        return (
-                          <div key={i} className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-semibold text-yellow-800">{author}</span>
-                              <span className="text-xs text-gray-400">{time}</span>
+                    {(() => {
+                      // 智慧分組：帶時間戳格式的行各自一張卡，其餘連續行合併成一張
+                      type Block =
+                        | { type: 'timestamped'; time: string; author: string; content: string }
+                        | { type: 'text'; content: string };
+                      const blocks: Block[] = [];
+                      const lines = localNotes.split('\n');
+                      let textBuf: string[] = [];
+                      const flushText = () => {
+                        const content = textBuf.join('\n').trim();
+                        if (content) blocks.push({ type: 'text', content });
+                        textBuf = [];
+                      };
+                      for (const line of lines) {
+                        const m = line.match(/^\[(.+?)\]\s*(.+?)：(.+)$/);
+                        if (m) {
+                          flushText();
+                          blocks.push({ type: 'timestamped', time: m[1], author: m[2], content: m[3] });
+                        } else {
+                          textBuf.push(line);
+                        }
+                      }
+                      flushText();
+                      return blocks.map((block, i) => {
+                        if (block.type === 'timestamped') {
+                          return (
+                            <div key={i} className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-semibold text-yellow-800">{block.author}</span>
+                                <span className="text-xs text-gray-400">{block.time}</span>
+                              </div>
+                              <p className="text-sm text-gray-800 whitespace-pre-wrap">{block.content}</p>
                             </div>
-                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{content}</p>
+                          );
+                        }
+                        return (
+                          <div key={i} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{block.content}</p>
                           </div>
                         );
-                      }
-                      // 未格式化的行直接顯示
-                      return (
-                        <div key={i} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                          <p className="text-sm text-gray-800 whitespace-pre-wrap">{line}</p>
-                        </div>
-                      );
-                    })}
+                      });
+                    })()}
                   </div>
                 ) : (
                   <div className="text-center py-6 text-gray-400">
