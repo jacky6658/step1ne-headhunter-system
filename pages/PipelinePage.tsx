@@ -369,8 +369,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     const q = searchQuery.trim().toLowerCase();
     return candidatesWithStage.filter(item => {
       const consultant = item.candidate.consultant || '未指派';
-      // 未指派的候選人：只有明確選擇「未指派」篩選時才顯示，預設不出現在追蹤表
-      if (consultant === '未指派' && consultantFilter !== '未指派') return false;
+      // 未指派/待指派候選人：只有明確選擇對應篩選時才顯示，預設不出現在追蹤表
+      const isUnassigned = consultant === '未指派' || consultant === '待指派';
+      if (isUnassigned && consultantFilter !== consultant) return false;
       const consultantMatched = consultantFilter === 'all' || consultant === consultantFilter;
       const jobMatched = jobFilter === 'all' || item.allTargetJobs.includes(jobFilter);
       // LinkedIn 筛选
