@@ -240,6 +240,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [linkedinFilter, setLinkedinFilter] = useState<'all' | 'has' | 'no'>('all');
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState<'all' | 'complete' | 'partial' | 'critical'>('all');
+  const [apiJobs, setApiJobs] = useState<Array<{ id: number; position_name: string; client_company: string }>>([]);
   const [githubStatsCache, setGithubStatsCache] = useState<Record<string, GithubStats | null>>({});
   // 婉拒確認 Modal
   const [rejectionModal, setRejectionModal] = useState<{
@@ -287,6 +288,13 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       loadCandidates();
     }
   }, [userProfile]);
+
+  useEffect(() => {
+    fetch(getApiUrl('/jobs'))
+      .then(r => r.json())
+      .then(d => { if (d.success && d.data) setApiJobs(d.data); })
+      .catch(() => {});
+  }, []);
 
   const candidatesWithStage = useMemo<PipelineItem[]>(() => {
     return candidates.map(candidate => {
@@ -656,55 +664,6 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="sm:col-span-2 lg:col-span-2">
-            <label className="text-xs text-slate-500">搜尋人選</label>
-            <div className="relative mt-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="輸入姓名、職位、顧問或職缺關鍵字..."
-                className="w-full rounded-lg border border-slate-200 pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-slate-500">顧問篩選</label>
-            <select
-              value={consultantFilter}
-              onChange={(e) => setConsultantFilter(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="all">全部顧問</option>
-              {consultantOptions.map(name => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-slate-500">職缺篩選</label>
-            <select
-              value={jobFilter}
-              onChange={(e) => setJobFilter(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="all">全部職缺</option>
-              {jobOptions.map(job => (
-                <option key={job} value={job}>{job}</option>
-              ))}
-            </select>
-          </div>
-        </div>
 
         <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
@@ -734,49 +693,57 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           {/* 搜尋 */}
-          <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="快速搜尋姓名..."
-              className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              placeholder="搜尋姓名、職缺關鍵字..."
+              className="w-full rounded-lg border border-slate-200 pl-8 pr-7 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
 
-          {/* 職缺快捷 Pill */}
-          <button
-            onClick={() => setJobFilter('all')}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              jobFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          {/* 顧問篩選 */}
+          <select
+            value={consultantFilter}
+            onChange={e => setConsultantFilter(e.target.value)}
+            className={`rounded-lg border py-1.5 pl-3 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors ${
+              consultantFilter !== 'all'
+                ? 'border-indigo-400 bg-indigo-50 text-indigo-700 font-medium'
+                : 'border-slate-200 bg-white text-slate-600'
             }`}
           >
-            全部職缺
-          </button>
-          {jobOptions.filter(j => j && j !== '未指定').slice(0, 8).map(job => {
-            const shortJob = job.length > 10 ? job.slice(0, 10) + '…' : job;
-            return (
-              <button
-                key={job}
-                onClick={() => setJobFilter(job === jobFilter ? 'all' : job)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  jobFilter === job ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                title={job}
-              >
-                {shortJob}
-              </button>
-            );
-          })}
+            <option value="all">👤 全部顧問</option>
+            {consultantOptions.map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
 
-          {/* 顧問快捷 */}
-          {consultantFilter !== 'all' && (
-            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-green-100 text-green-700 font-medium">
-              👤 {consultantFilter}
-              <button onClick={() => setConsultantFilter('all')} className="ml-1 hover:text-green-900">✕</button>
-            </span>
-          )}
+          {/* 職缺篩選 */}
+          <select
+            value={jobFilter}
+            onChange={e => setJobFilter(e.target.value)}
+            className={`rounded-lg border py-1.5 pl-3 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors max-w-[240px] ${
+              jobFilter !== 'all'
+                ? 'border-indigo-400 bg-indigo-50 text-indigo-700 font-medium'
+                : 'border-slate-200 bg-white text-slate-600'
+            }`}
+          >
+            <option value="all">💼 全部職缺</option>
+            {apiJobs.map(job => {
+              const label = `${job.position_name}${job.client_company ? ` (${job.client_company})` : ''}`;
+              return <option key={job.id} value={label}>{label}</option>;
+            })}
+          </select>
 
           {/* LinkedIn 篩選標籤 */}
           {linkedinFilter !== 'all' && (

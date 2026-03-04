@@ -132,6 +132,18 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS target_job_id INTEGER REFERENCES jobs_pipeline(id) ON DELETE SET NULL
 `).catch(err => console.warn('target_job_id migration:', err.message));
 
+// 一次性資料清理：target_job_id 指向不存在職缺的候選人 → 清為 NULL（顯示「未指定」）
+pool.query(`
+  UPDATE candidates_pipeline
+  SET target_job_id = NULL
+  WHERE target_job_id IS NOT NULL
+    AND target_job_id NOT IN (SELECT id FROM jobs_pipeline)
+`).then(r => {
+  if (r.rowCount > 0) {
+    console.log(`✅ 孤立職缺清理：${r.rowCount} 位候選人的 target_job_id 已重設為 NULL（職缺不存在）`);
+  }
+}).catch(err => console.warn('orphan target_job_id cleanup:', err.message));
+
 // 一次性資料清理：將歷史遺留的「待聯繫」「待審核」狀態統一轉為「未開始」，顧問設為「待指派」
 pool.query(`
   UPDATE candidates_pipeline
