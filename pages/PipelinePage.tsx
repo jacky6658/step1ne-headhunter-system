@@ -237,6 +237,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
 
   const [consultantFilter, setConsultantFilter] = useState<string>('all');
   const [jobFilter, setJobFilter] = useState<string>('all');
+  const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [linkedinFilter, setLinkedinFilter] = useState<'all' | 'has' | 'no'>('all');
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState<'all' | 'complete' | 'partial' | 'critical'>('all');
@@ -387,6 +388,13 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       if (isUnassigned && consultantFilter !== consultant) return false;
       const consultantMatched = consultantFilter === 'all' || consultant === consultantFilter;
       const jobMatched = jobFilter === 'all' || item.allTargetJobs.includes(jobFilter);
+      const companyMatched = companyFilter === 'all' || (() => {
+        if (item.candidate.targetJobId) {
+          const job = apiJobs.find(j => j.id === item.candidate.targetJobId);
+          if (job) return job.client_company === companyFilter;
+        }
+        return (item.candidate.targetJobLabel || '').includes(companyFilter);
+      })();
       // LinkedIn 筛选
       const hasLinkedin = !!(item.candidate as any).linkedinUrl && (item.candidate as any).linkedinUrl.trim() !== '';
       const linkedinMatched = linkedinFilter === 'all' ||
@@ -404,9 +412,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         ...item.allTargetJobs,
         item.latestProgress?.note,
       ].some(val => (val || '').toLowerCase().includes(q));
-      return consultantMatched && jobMatched && linkedinMatched && completenessMatched && roleMatched && searchMatched;
+      return consultantMatched && jobMatched && companyMatched && linkedinMatched && completenessMatched && roleMatched && searchMatched;
     });
-  }, [candidatesWithStage, consultantFilter, jobFilter, linkedinFilter, dataCompletenessFilter, searchQuery, userProfile]);
+  }, [candidatesWithStage, consultantFilter, jobFilter, companyFilter, linkedinFilter, dataCompletenessFilter, searchQuery, userProfile, apiJobs]);
 
   const grouped = useMemo(() => {
     const result: Record<PipelineStageKey, PipelineItem[]> = {
@@ -445,7 +453,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     return result;
   }, [candidatesWithStage]);
 
-  const isFiltering = searchQuery.trim() !== '' || jobFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all' || dataCompletenessFilter !== 'all';
+  const isFiltering = searchQuery.trim() !== '' || jobFilter !== 'all' || companyFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all' || dataCompletenessFilter !== 'all';
   
   // 计算每个阶段的 LinkedIn 统计（仅 AI 推荐阶段）
   const linkedinStats = useMemo(() => {
@@ -728,7 +736,26 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
             ))}
           </select>
 
-          {/* 職缺篩選 */}
+          {/* 客戶公司篩選 */}
+          {(() => {
+            const companyOptions = [...new Set(apiJobs.map(j => j.client_company).filter(Boolean))].sort();
+            return (
+              <select
+                value={companyFilter}
+                onChange={e => { setCompanyFilter(e.target.value); setJobFilter('all'); }}
+                className={`rounded-lg border py-1.5 pl-3 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors max-w-[200px] ${
+                  companyFilter !== 'all'
+                    ? 'border-indigo-400 bg-indigo-50 text-indigo-700 font-medium'
+                    : 'border-slate-200 bg-white text-slate-600'
+                }`}
+              >
+                <option value="all">🏢 全部公司</option>
+                {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            );
+          })()}
+
+          {/* 職缺篩選（選公司後只顯示該公司職缺）*/}
           <select
             value={jobFilter}
             onChange={e => setJobFilter(e.target.value)}
@@ -739,10 +766,12 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
             }`}
           >
             <option value="all">💼 全部職缺</option>
-            {apiJobs.map(job => {
-              const label = `${job.position_name}${job.client_company ? ` (${job.client_company})` : ''}`;
-              return <option key={job.id} value={label}>{label}</option>;
-            })}
+            {apiJobs
+              .filter(job => companyFilter === 'all' || job.client_company === companyFilter)
+              .map(job => {
+                const label = `${job.position_name}${job.client_company ? ` (${job.client_company})` : ''}`;
+                return <option key={job.id} value={label}>{label}</option>;
+              })}
           </select>
 
           {/* LinkedIn 篩選標籤 */}
@@ -770,9 +799,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
           )}
 
           {/* 清除全部 */}
-          {(searchQuery || jobFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all' || dataCompletenessFilter !== 'all') && (
+          {(searchQuery || jobFilter !== 'all' || companyFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all' || dataCompletenessFilter !== 'all') && (
             <button
-              onClick={() => { setSearchQuery(''); setJobFilter('all'); setConsultantFilter('all'); setLinkedinFilter('all'); setDataCompletenessFilter('all'); }}
+              onClick={() => { setSearchQuery(''); setJobFilter('all'); setCompanyFilter('all'); setConsultantFilter('all'); setLinkedinFilter('all'); setDataCompletenessFilter('all'); }}
               className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-gray-500 hover:bg-gray-100 transition-colors"
             >
               <X className="w-3 h-3" /> 清除
