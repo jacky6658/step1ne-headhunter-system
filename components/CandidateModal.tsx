@@ -7,7 +7,7 @@ import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
   CheckCircle2, AlertCircle, Bot, Star, ThumbsUp, ThumbsDown,
-  HelpCircle, Sparkles, Target, Globe
+  HelpCircle, Sparkles, Target, Globe, Trash2
 } from 'lucide-react';
 
 // ── 系統外職缺建議：rule-based 技能→產業/職缺對照 ──────────────────────────
@@ -375,6 +375,21 @@ Step1ne Recruitment`;
       alert('❌ 儲存備註失敗，請稍後再試');
     } finally {
       setSavingNote(false);
+    }
+  };
+
+  // 刪除指定備註區塊（依行號範圍）
+  const handleDeleteNoteBlock = async (lineStart: number, lineEnd: number) => {
+    if (!confirm('確定要刪除這則備註嗎？')) return;
+    const lines = localNotes.split('\n');
+    const newLines = [...lines.slice(0, lineStart), ...lines.slice(lineEnd + 1)];
+    const newNotes = newLines.join('\n').trim().replace(/\n{3,}/g, '\n\n');
+    const author = currentUserName || JSON.parse(localStorage.getItem('step1ne-user') || '{}').name || '顧問';
+    try {
+      await apiPatch(`/api/candidates/${candidate.id}`, { notes: newNotes, actor: author });
+      setLocalNotes(newNotes);
+    } catch {
+      alert('❌ 刪除備註失敗，請稍後再試');
     }
   };
 
@@ -1776,40 +1791,60 @@ Step1ne Recruitment`;
                     {(() => {
                       // 智慧分組：帶時間戳格式的行各自一張卡，其餘連續行合併成一張
                       type Block =
-                        | { type: 'timestamped'; time: string; author: string; content: string }
-                        | { type: 'text'; content: string };
+                        | { type: 'timestamped'; time: string; author: string; content: string; lineStart: number; lineEnd: number }
+                        | { type: 'text'; content: string; lineStart: number; lineEnd: number };
                       const blocks: Block[] = [];
                       const lines = localNotes.split('\n');
                       let textBuf: string[] = [];
-                      const flushText = () => {
+                      let textBufStart = 0;
+                      const flushText = (endIdx: number) => {
                         const content = textBuf.join('\n').trim();
-                        if (content) blocks.push({ type: 'text', content });
+                        if (content) blocks.push({ type: 'text', content, lineStart: textBufStart, lineEnd: endIdx - 1 });
                         textBuf = [];
                       };
-                      for (const line of lines) {
+                      for (let li = 0; li < lines.length; li++) {
+                        const line = lines[li];
                         const m = line.match(/^\[(.+?)\]\s*(.+?)：(.+)$/);
                         if (m) {
-                          flushText();
-                          blocks.push({ type: 'timestamped', time: m[1], author: m[2], content: m[3] });
+                          flushText(li);
+                          blocks.push({ type: 'timestamped', time: m[1], author: m[2], content: m[3], lineStart: li, lineEnd: li });
+                          textBufStart = li + 1;
                         } else {
+                          if (textBuf.length === 0) textBufStart = li;
                           textBuf.push(line);
                         }
                       }
-                      flushText();
+                      flushText(lines.length);
                       return blocks.map((block, i) => {
                         if (block.type === 'timestamped') {
                           return (
-                            <div key={i} className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-semibold text-yellow-800">{block.author}</span>
-                                <span className="text-xs text-gray-400">{block.time}</span>
+                            <div key={i} className="group relative p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-semibold text-yellow-800">{block.author}</span>
+                                  <span className="text-xs text-gray-400">{block.time}</span>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteNoteBlock(block.lineStart, block.lineEnd)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+                                  title="刪除此備註"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                               <p className="text-sm text-gray-800 whitespace-pre-wrap">{block.content}</p>
                             </div>
                           );
                         }
                         return (
-                          <div key={i} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                          <div key={i} className="group relative p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <button
+                              onClick={() => handleDeleteNoteBlock(block.lineStart, block.lineEnd)}
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+                              title="刪除此備註"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                             <p className="text-sm text-gray-800 whitespace-pre-wrap">{block.content}</p>
                           </div>
                         );

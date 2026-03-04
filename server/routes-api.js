@@ -132,6 +132,25 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS target_job_id INTEGER REFERENCES jobs_pipeline(id) ON DELETE SET NULL
 `).catch(err => console.warn('target_job_id migration:', err.message));
 
+// 一次性補寫：notes 裡有「目標職缺：XXX」但 target_job_id 為 NULL 的候選人
+// 嘗試反查 jobs_pipeline，找到匹配的職缺後補寫 target_job_id
+pool.query(`
+  UPDATE candidates_pipeline c
+  SET target_job_id = j.id
+  FROM jobs_pipeline j
+  WHERE c.target_job_id IS NULL
+    AND c.notes LIKE '%目標職缺：%'
+    AND (
+      c.notes LIKE '%' || j.position_name || ' (' || j.client_company || ')%'
+      OR c.notes LIKE '%目標職缺：' || j.position_name || ' |%'
+      OR c.notes LIKE '%目標職缺：' || j.position_name
+    )
+`).then(r => {
+  if (r.rowCount > 0) {
+    console.log(\`✅ target_job_id 反查補寫：\${r.rowCount} 位候選人的目標職缺已從 notes 回填 target_job_id\`);
+  }
+}).catch(err => console.warn('target_job_id backfill from notes:', err.message));
+
 // 一次性補寫：status 已更新但 progressTracking 最新一筆 event 不符的候選人，補一筆 progressTracking
 // 確保卡片欄位以 progressTracking 優先的前端邏輯能正確反映目前狀態
 pool.query(`

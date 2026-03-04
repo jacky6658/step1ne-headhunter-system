@@ -179,26 +179,14 @@ function getIdleDays(dateString?: string, now: Date = new Date()): number {
 }
 
 function parseTargetJob(candidate: Candidate): string {
-  // 優先使用獨立欄位（新架構）
-  if (candidate.targetJobLabel) return candidate.targetJobLabel;
-  // 備援：舊資料從 notes 解析
-  const notes = candidate.notes || '';
-  const botMatch = notes.match(/目標職缺：(.+?)(?:\s*\||\s*$)/m);
-  if (botMatch) return botMatch[1].trim();
-  const legacyMatch = notes.match(/應徵：(.+?)\s*\((.+?)\)/);
-  if (legacyMatch) return `${legacyMatch[1]} (${legacyMatch[2]})`;
-  return '未指定';
+  // 只使用獨立欄位（target_job_id → targetJobLabel），舊 notes 格式由 SQL migration 已回填
+  return candidate.targetJobLabel || '未指定';
 }
 
-// 解析所有目標職缺（同一候選人可能因多個 Job 上傳而有多筆記錄）
+// 解析所有目標職缺（篩選用）
 function parseAllTargetJobs(candidate: Candidate): string[] {
-  // 優先使用獨立欄位（新架構）
   if (candidate.targetJobLabel) return [candidate.targetJobLabel];
-  // 備援：舊資料從 notes 解析
-  const notes = candidate.notes || '';
-  const matches = [...notes.matchAll(/目標職缺：(.+?)(?:\s*\||\s*$)/gm)];
-  if (matches.length === 0) return ['未指定'];
-  return [...new Set(matches.map(m => m[1].trim()))];
+  return ['未指定'];
 }
 
 function getIdleBadgeClass(idleDays: number): string {
