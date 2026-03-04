@@ -725,9 +725,12 @@ router.patch('/candidates/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Candidate not found' });
     }
     const { status, progressTracking, recruiter, talent_level, name,
-            stability_score, linkedin_url, github_url, ai_match_result } = req.body;
+            stability_score, ai_match_result } = req.body;
     // 支援 notes 與 remarks 兩種欄位名稱（AIbot 相容性）
     const notes = req.body.notes !== undefined ? req.body.notes : req.body.remarks;
+    // 支援 snake_case 與 camelCase 兩種格式（AIbot 相容性）
+    const linkedin_url = req.body.linkedin_url !== undefined ? req.body.linkedin_url : req.body.linkedinUrl;
+    const github_url   = req.body.github_url   !== undefined ? req.body.github_url   : req.body.githubUrl;
     const email = req.body.email;
     // 人工編輯欄位
     const phone = req.body.phone;
