@@ -39,6 +39,32 @@ export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
 }
 
 /**
+ * 取得候選人並附帶 total 總筆數（供 PipelinePage 顯示「共 N 位」）
+ * 不改動 getCandidates() 向後相容，保留為獨立函式
+ */
+export async function getCandidatesWithMeta(userProfile?: any): Promise<{
+  candidates: Candidate[];
+  total: number;
+  hasMore: boolean;
+}> {
+  const result = await apiGet<{
+    success: boolean;
+    data: any[];
+    total: number;
+    hasMore: boolean;
+  }>('/candidates?limit=1000');
+  const candidates = (result.data || []).map((c: any) => ({
+    ...c,
+    aiMatchResult: c.ai_match_result || c.aiMatchResult || null
+  }));
+  return {
+    candidates,
+    total: result.total ?? candidates.length,
+    hasMore: result.hasMore ?? false,
+  };
+}
+
+/**
  * 搜尋候選人
  */
 export async function searchCandidates(query: string): Promise<Candidate[]> {

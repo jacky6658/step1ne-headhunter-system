@@ -1,13 +1,13 @@
 // Step1ne Headhunter System - 候選人詳情 Modal
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion } from '../types';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
-import { apiPatch, apiGet, getApiUrl } from '../config/api';
+import { apiPatch, apiGet, apiPost, apiDelete, getApiUrl } from '../config/api';
 import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
   CheckCircle2, AlertCircle, Bot, Star, ThumbsUp, ThumbsDown,
-  HelpCircle, Sparkles, Target, Globe
+  HelpCircle, Sparkles, Target, Globe, Trash2
 } from 'lucide-react';
 
 // ── 系統外職缺建議：rule-based 技能→產業/職缺對照 ──────────────────────────
@@ -105,6 +105,21 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [savingGithub, setSavingGithub] = useState(false);
   const [enrichedCandidate, setEnrichedCandidate] = useState(candidate);
 
+  // 結構化備註（candidate_notes 表）— 與舊有 notes TEXT 並存
+  interface StructuredNote {
+    id: number;
+    candidate_id: number;
+    content: string;
+    note_type: string;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+  }
+  const [structuredNotes, setStructuredNotes] = useState<StructuredNote[]>([]);
+  const [addingStructuredNote, setAddingStructuredNote] = useState(false);
+  const [newStructuredNoteText, setNewStructuredNoteText] = useState('');
+  const [savingStructuredNote, setSavingStructuredNote] = useState(false);
+
   // 基本資料編輯
   const [editingBasicInfo, setEditingBasicInfo] = useState(false);
   const [editName, setEditName] = useState(candidate.name);
@@ -176,6 +191,13 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
       document.body.style.overflow = 'unset';
     };
   }, []);
+
+  // 載入結構化備註（candidate_notes 表）
+  useEffect(() => {
+    apiGet<{ success: boolean; data: StructuredNote[] }>(`/api/candidates/${candidate.id}/notes`)
+      .then(r => setStructuredNotes(r.data || []))
+      .catch(() => {}); // 靜默失敗，不影響主流程
+  }, [candidate.id]);
   
   // 重新 fetch 候選人資料以獲得最新的 aiMatchResult
   React.useEffect(() => {
@@ -375,6 +397,51 @@ Step1ne Recruitment`;
       alert('❌ 儲存備註失敗，請稍後再試');
     } finally {
       setSavingNote(false);
+    }
+  };
+
+  // 刪除指定備註區塊（依行號範圍）
+  const handleDeleteNoteBlock = async (lineStart: number, lineEnd: number) => {
+    if (!confirm('確定要刪除這則備註嗎？')) return;
+    const lines = localNotes.split('\n');
+    const newLines = [...lines.slice(0, lineStart), ...lines.slice(lineEnd + 1)];
+    const newNotes = newLines.join('\n').trim().replace(/\n{3,}/g, '\n\n');
+    const author = currentUserName || JSON.parse(localStorage.getItem('step1ne-user') || '{}').name || '顧問';
+    try {
+      await apiPatch(`/api/candidates/${candidate.id}`, { notes: newNotes, actor: author });
+      setLocalNotes(newNotes);
+    } catch {
+      alert('❌ 刪除備註失敗，請稍後再試');
+    }
+  };
+
+  // 新增結構化備註（candidate_notes 表）
+  const handleAddStructuredNote = async () => {
+    if (!newStructuredNoteText.trim()) return;
+    setSavingStructuredNote(true);
+    try {
+      const r = await apiPost<{ success: boolean; data: StructuredNote }>(
+        `/api/candidates/${candidate.id}/notes`,
+        { content: newStructuredNoteText.trim(), created_by: currentUserName || 'system' }
+      );
+      setStructuredNotes(prev => [...prev, r.data]);
+      setNewStructuredNoteText('');
+      setAddingStructuredNote(false);
+    } catch {
+      alert('❌ 新增備註失敗，請稍後再試');
+    } finally {
+      setSavingStructuredNote(false);
+    }
+  };
+
+  // 刪除結構化備註（candidate_notes 表）
+  const handleDeleteStructuredNote = async (noteId: number) => {
+    if (!confirm('確定要刪除這則備註嗎？')) return;
+    try {
+      await apiDelete(`/api/candidates/${candidate.id}/notes/${noteId}`);
+      setStructuredNotes(prev => prev.filter(n => n.id !== noteId));
+    } catch {
+      alert('❌ 刪除備註失敗，請稍後再試');
     }
   };
 
@@ -1776,40 +1843,60 @@ Step1ne Recruitment`;
                     {(() => {
                       // 智慧分組：帶時間戳格式的行各自一張卡，其餘連續行合併成一張
                       type Block =
-                        | { type: 'timestamped'; time: string; author: string; content: string }
-                        | { type: 'text'; content: string };
+                        | { type: 'timestamped'; time: string; author: string; content: string; lineStart: number; lineEnd: number }
+                        | { type: 'text'; content: string; lineStart: number; lineEnd: number };
                       const blocks: Block[] = [];
                       const lines = localNotes.split('\n');
                       let textBuf: string[] = [];
-                      const flushText = () => {
+                      let textBufStart = 0;
+                      const flushText = (endIdx: number) => {
                         const content = textBuf.join('\n').trim();
-                        if (content) blocks.push({ type: 'text', content });
+                        if (content) blocks.push({ type: 'text', content, lineStart: textBufStart, lineEnd: endIdx - 1 });
                         textBuf = [];
                       };
-                      for (const line of lines) {
+                      for (let li = 0; li < lines.length; li++) {
+                        const line = lines[li];
                         const m = line.match(/^\[(.+?)\]\s*(.+?)：(.+)$/);
                         if (m) {
-                          flushText();
-                          blocks.push({ type: 'timestamped', time: m[1], author: m[2], content: m[3] });
+                          flushText(li);
+                          blocks.push({ type: 'timestamped', time: m[1], author: m[2], content: m[3], lineStart: li, lineEnd: li });
+                          textBufStart = li + 1;
                         } else {
+                          if (textBuf.length === 0) textBufStart = li;
                           textBuf.push(line);
                         }
                       }
-                      flushText();
+                      flushText(lines.length);
                       return blocks.map((block, i) => {
                         if (block.type === 'timestamped') {
                           return (
-                            <div key={i} className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-semibold text-yellow-800">{block.author}</span>
-                                <span className="text-xs text-gray-400">{block.time}</span>
+                            <div key={i} className="group relative p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-semibold text-yellow-800">{block.author}</span>
+                                  <span className="text-xs text-gray-400">{block.time}</span>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteNoteBlock(block.lineStart, block.lineEnd)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+                                  title="刪除此備註"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                               <p className="text-sm text-gray-800 whitespace-pre-wrap">{block.content}</p>
                             </div>
                           );
                         }
                         return (
-                          <div key={i} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                          <div key={i} className="group relative p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <button
+                              onClick={() => handleDeleteNoteBlock(block.lineStart, block.lineEnd)}
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+                              title="刪除此備註"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                             <p className="text-sm text-gray-800 whitespace-pre-wrap">{block.content}</p>
                           </div>
                         );
@@ -1844,6 +1931,76 @@ Step1ne Recruitment`;
                     {savingNote ? '儲存中...' : '儲存備註'}
                   </button>
                 </div>
+              </div>
+
+              {/* 結構化備註區塊（candidate_notes 表，新增的手動備註） */}
+              {(structuredNotes.length > 0 || addingStructuredNote) && (
+                <div className="border-t border-blue-100 pt-4">
+                  <h3 className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4" />
+                    手動備註（獨立儲存）
+                  </h3>
+                  <div className="space-y-2">
+                    {structuredNotes.map(note => (
+                      <div key={note.id} className="group relative p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-blue-800">{note.created_by}</span>
+                            <span className="text-xs text-gray-400">
+                              {new Date(note.created_at).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteStructuredNote(note.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+                            title="刪除此備註"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 新增結構化備註按鈕 */}
+              <div className="border-t border-blue-100 pt-3">
+                {!addingStructuredNote ? (
+                  <button
+                    onClick={() => setAddingStructuredNote(true)}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                  >
+                    + 新增獨立備註（存入資料庫獨立欄位）
+                  </button>
+                ) : (
+                  <div>
+                    <textarea
+                      value={newStructuredNoteText}
+                      onChange={(e) => setNewStructuredNoteText(e.target.value)}
+                      placeholder="輸入備註內容..."
+                      className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-2 mt-2">
+                      <button
+                        onClick={() => { setAddingStructuredNote(false); setNewStructuredNoteText(''); }}
+                        className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={handleAddStructuredNote}
+                        disabled={!newStructuredNoteText.trim() || savingStructuredNote}
+                        className="px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                      >
+                        {savingStructuredNote ? '儲存中...' : '儲存'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

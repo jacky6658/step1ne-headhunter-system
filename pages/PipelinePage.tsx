@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Candidate, CandidateStatus, ProgressEvent, UserProfile } from '../types';
-import { getCandidates, clearCache } from '../services/candidateService';
+import { getCandidatesWithMeta, clearCache } from '../services/candidateService';
 import { CandidateModal } from '../components/CandidateModal';
 import { apiPut, getApiUrl } from '../config/api';
 import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2, Linkedin, Github, Star } from 'lucide-react';
@@ -179,26 +179,14 @@ function getIdleDays(dateString?: string, now: Date = new Date()): number {
 }
 
 function parseTargetJob(candidate: Candidate): string {
-  // 優先使用獨立欄位（新架構）
-  if (candidate.targetJobLabel) return candidate.targetJobLabel;
-  // 備援：舊資料從 notes 解析
-  const notes = candidate.notes || '';
-  const botMatch = notes.match(/目標職缺：(.+?)(?:\s*\||\s*$)/m);
-  if (botMatch) return botMatch[1].trim();
-  const legacyMatch = notes.match(/應徵：(.+?)\s*\((.+?)\)/);
-  if (legacyMatch) return `${legacyMatch[1]} (${legacyMatch[2]})`;
-  return '未指定';
+  // 只使用獨立欄位（target_job_id → targetJobLabel），舊 notes 格式由 SQL migration 已回填
+  return candidate.targetJobLabel || '未指定';
 }
 
-// 解析所有目標職缺（同一候選人可能因多個 Job 上傳而有多筆記錄）
+// 解析所有目標職缺（篩選用）
 function parseAllTargetJobs(candidate: Candidate): string[] {
-  // 優先使用獨立欄位（新架構）
   if (candidate.targetJobLabel) return [candidate.targetJobLabel];
-  // 備援：舊資料從 notes 解析
-  const notes = candidate.notes || '';
-  const matches = [...notes.matchAll(/目標職缺：(.+?)(?:\s*\||\s*$)/gm)];
-  if (matches.length === 0) return ['未指定'];
-  return [...new Set(matches.map(m => m[1].trim()))];
+  return ['未指定'];
 }
 
 function getIdleBadgeClass(idleDays: number): string {
@@ -228,6 +216,7 @@ function isSlaOverdue(stage: PipelineStageKey, idleDays: number): boolean {
 
 export function PipelinePage({ userProfile }: PipelinePageProps) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [totalCandidateCount, setTotalCandidateCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
@@ -237,10 +226,13 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
 
   const [consultantFilter, setConsultantFilter] = useState<string>('all');
   const [jobFilter, setJobFilter] = useState<string>('all');
+  const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [linkedinFilter, setLinkedinFilter] = useState<'all' | 'has' | 'no'>('all');
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState<'all' | 'complete' | 'partial' | 'critical'>('all');
+  const [apiJobs, setApiJobs] = useState<Array<{ id: number; position_name: string; client_company: string }>>([]);
   const [githubStatsCache, setGithubStatsCache] = useState<Record<string, GithubStats | null>>({});
+  // 婉拒確認 Modal
   const [rejectionModal, setRejectionModal] = useState<{
     candidateId: string;
     candidateName: string;
@@ -251,8 +243,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   const loadCandidates = async () => {
     setLoading(true);
     try {
-      const data = await getCandidates(userProfile);
+      const { candidates: data, total } = await getCandidatesWithMeta(userProfile);
       setCandidates(data);
+      setTotalCandidateCount(total);
     } catch (error) {
       console.error('載入顧問人選追蹤表失敗:', error);
     } finally {
@@ -286,6 +279,13 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       loadCandidates();
     }
   }, [userProfile]);
+
+  useEffect(() => {
+    fetch(getApiUrl('/jobs'))
+      .then(r => r.json())
+      .then(d => { if (d.success && d.data) setApiJobs(d.data); })
+      .catch(() => {});
+  }, []);
 
   const candidatesWithStage = useMemo<PipelineItem[]>(() => {
     return candidates.map(candidate => {
@@ -327,8 +327,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     setRefreshing(true);
     try {
       clearCache();
-      const data = await getCandidates(userProfile);
+      const { candidates: data, total } = await getCandidatesWithMeta(userProfile);
       setCandidates(data);
+      setTotalCandidateCount(total);
       setToastMessage('✅ 顧問人選追蹤表已更新到最新資料');
     } catch (error) {
       console.error('重新整理顧問人選追蹤表失敗:', error);
@@ -378,6 +379,13 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       if (isUnassigned && consultantFilter !== consultant) return false;
       const consultantMatched = consultantFilter === 'all' || consultant === consultantFilter;
       const jobMatched = jobFilter === 'all' || item.allTargetJobs.includes(jobFilter);
+      const companyMatched = companyFilter === 'all' || (() => {
+        if (item.candidate.targetJobId) {
+          const job = apiJobs.find(j => j.id === item.candidate.targetJobId);
+          if (job) return job.client_company === companyFilter;
+        }
+        return (item.candidate.targetJobLabel || '').includes(companyFilter);
+      })();
       // LinkedIn 筛选
       const hasLinkedin = !!(item.candidate as any).linkedinUrl && (item.candidate as any).linkedinUrl.trim() !== '';
       const linkedinMatched = linkedinFilter === 'all' ||
@@ -395,9 +403,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         ...item.allTargetJobs,
         item.latestProgress?.note,
       ].some(val => (val || '').toLowerCase().includes(q));
-      return consultantMatched && jobMatched && linkedinMatched && completenessMatched && roleMatched && searchMatched;
+      return consultantMatched && jobMatched && companyMatched && linkedinMatched && completenessMatched && roleMatched && searchMatched;
     });
-  }, [candidatesWithStage, consultantFilter, jobFilter, linkedinFilter, dataCompletenessFilter, searchQuery, userProfile]);
+  }, [candidatesWithStage, consultantFilter, jobFilter, companyFilter, linkedinFilter, dataCompletenessFilter, searchQuery, userProfile, apiJobs]);
 
   const grouped = useMemo(() => {
     const result: Record<PipelineStageKey, PipelineItem[]> = {
@@ -436,7 +444,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     return result;
   }, [candidatesWithStage]);
 
-  const isFiltering = searchQuery.trim() !== '' || jobFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all' || dataCompletenessFilter !== 'all';
+  const isFiltering = searchQuery.trim() !== '' || jobFilter !== 'all' || companyFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all' || dataCompletenessFilter !== 'all';
   
   // 计算每个阶段的 LinkedIn 统计（仅 AI 推荐阶段）
   const linkedinStats = useMemo(() => {
@@ -476,56 +484,41 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     e.preventDefault();
   };
 
-  const applyStageChange = async (candidateId: string, stage: PipelineStageKey, reason?: string) => {
-    const targetCandidate = candidates.find(c => c.id === candidateId);
-    if (!targetCandidate) return;
-
+  /** 實際執行 Pipeline 狀態更新（拖拉或確認婉拒後呼叫） */
+  const applyStageChange = async (
+    candidate: Candidate,
+    stage: PipelineStageKey,
+    rejectionNote?: string
+  ) => {
     const userName = userProfile.displayName || 'System';
     const newStatus = stageToStatus(stage);
+    const eventNote = rejectionNote ? `婉拒原因：${rejectionNote}` : undefined;
     const newEvent: ProgressEvent = {
       date: new Date().toISOString().split('T')[0],
-      event: stageToEvent(stage),
+      event: eventNote || stageToEvent(stage),
       by: userName,
-      ...(reason ? { note: reason } : {}),
     };
-    const updatedProgress = [...(targetCandidate.progressTracking || []), newEvent];
+    const updatedProgress = [...(candidate.progressTracking || []), newEvent];
 
     try {
-      await apiPut(`/api/candidates/${targetCandidate.id}/pipeline-status`, {
+      await apiPut(`/api/candidates/${candidate.id}/pipeline-status`, {
         status: newStatus,
         by: userName,
-        ...(reason ? { note: reason } : {}),
+        ...(rejectionNote ? { notes: `${candidate.notes ? candidate.notes + '\n' : ''}婉拒原因：${rejectionNote}` } : {}),
       });
 
       setCandidates(prev =>
         prev.map(c =>
-          c.id === targetCandidate.id
-            ? {
-                ...c,
-                status: newStatus,
-                progressTracking: updatedProgress,
-                updatedAt: new Date().toISOString(),
-              }
+          c.id === candidate.id
+            ? { ...c, status: newStatus, progressTracking: updatedProgress, updatedAt: new Date().toISOString() }
             : c
         )
       );
-      setToastMessage(`✅ ${targetCandidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」`);
+      setToastMessage(`✅ ${candidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」`);
     } catch (error) {
       console.error('❌ 更新 Pipeline 失敗:', error);
       alert('❌ 更新失敗，請稍後再試');
     }
-  };
-
-  const handleRejectionConfirm = async () => {
-    if (!rejectionModal) return;
-    if (!rejectionReason.trim()) {
-      alert('請填寫婉拒原因');
-      return;
-    }
-    await applyStageChange(rejectionModal.candidateId, rejectionModal.targetStage, rejectionReason.trim());
-    setRejectionModal(null);
-    setRejectionReason('');
-    setDraggingCandidateId(null);
   };
 
   const handleDropToStage = async (stage: PipelineStageKey) => {
@@ -542,19 +535,30 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       return;
     }
 
-    // 婉拒需強制填寫原因，開啟 modal 後暫停流程
+    // 移入婉拒欄：必須填寫婉拒原因，開啟 Modal
     if (stage === 'rejected') {
       setRejectionModal({
-        candidateId: draggingCandidateId,
+        candidateId: targetCandidate.id,
         candidateName: targetCandidate.name,
         targetStage: stage,
       });
       setRejectionReason('');
-      return; // draggingCandidateId 保留，待 confirm 後清除
+      setDraggingCandidateId(null);
+      return;
     }
 
-    await applyStageChange(draggingCandidateId, stage);
     setDraggingCandidateId(null);
+    await applyStageChange(targetCandidate, stage);
+  };
+
+  /** 婉拒 Modal 確認送出 */
+  const handleRejectionConfirm = async () => {
+    if (!rejectionModal || !rejectionReason.trim()) return;
+    const candidate = candidates.find(c => c.id === rejectionModal.candidateId);
+    if (!candidate) return;
+    await applyStageChange(candidate, rejectionModal.targetStage, rejectionReason.trim());
+    setRejectionModal(null);
+    setRejectionReason('');
   };
 
   const handleDeleteCandidate = async (candidateId: string, candidateName: string, e: React.MouseEvent) => {
@@ -631,7 +635,14 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
               <BarChart3 className="w-6 h-6 text-indigo-600" />
               顧問人選追蹤表
             </h2>
-            <p className="text-slate-500 mt-1">依最新進度事件自動分欄，追蹤顧問負責候選人的招募流程</p>
+            <p className="text-slate-500 mt-1">
+              依最新進度事件自動分欄，追蹤顧問負責候選人的招募流程
+              {totalCandidateCount > 0 && (
+                <span className="ml-2 text-slate-400 text-sm font-normal">
+                  （共 {totalCandidateCount} 位候選人）
+                </span>
+              )}
+            </p>
             {userProfile.role !== 'ADMIN' && (
               <p className="text-sm text-blue-600 mt-2 flex items-center gap-1">
                 <Shield className="w-4 h-4" />
@@ -659,55 +670,6 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="sm:col-span-2 lg:col-span-2">
-            <label className="text-xs text-slate-500">搜尋人選</label>
-            <div className="relative mt-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="輸入姓名、職位、顧問或職缺關鍵字..."
-                className="w-full rounded-lg border border-slate-200 pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-slate-500">顧問篩選</label>
-            <select
-              value={consultantFilter}
-              onChange={(e) => setConsultantFilter(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="all">全部顧問</option>
-              {consultantOptions.map(name => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-slate-500">職缺篩選</label>
-            <select
-              value={jobFilter}
-              onChange={(e) => setJobFilter(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="all">全部職缺</option>
-              {jobOptions.map(job => (
-                <option key={job} value={job}>{job}</option>
-              ))}
-            </select>
-          </div>
-        </div>
 
         <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
@@ -737,49 +699,78 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           {/* 搜尋 */}
-          <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="快速搜尋姓名..."
-              className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              placeholder="搜尋姓名、職缺關鍵字..."
+              className="w-full rounded-lg border border-slate-200 pl-8 pr-7 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
 
-          {/* 職缺快捷 Pill */}
-          <button
-            onClick={() => setJobFilter('all')}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              jobFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          {/* 顧問篩選 */}
+          <select
+            value={consultantFilter}
+            onChange={e => setConsultantFilter(e.target.value)}
+            className={`rounded-lg border py-1.5 pl-3 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors ${
+              consultantFilter !== 'all'
+                ? 'border-indigo-400 bg-indigo-50 text-indigo-700 font-medium'
+                : 'border-slate-200 bg-white text-slate-600'
             }`}
           >
-            全部職缺
-          </button>
-          {jobOptions.filter(j => j && j !== '未指定').slice(0, 8).map(job => {
-            const shortJob = job.length > 10 ? job.slice(0, 10) + '…' : job;
-            return (
-              <button
-                key={job}
-                onClick={() => setJobFilter(job === jobFilter ? 'all' : job)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  jobFilter === job ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                title={job}
-              >
-                {shortJob}
-              </button>
-            );
-          })}
+            <option value="all">👤 全部顧問</option>
+            {consultantOptions.map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
 
-          {/* 顧問快捷 */}
-          {consultantFilter !== 'all' && (
-            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-green-100 text-green-700 font-medium">
-              👤 {consultantFilter}
-              <button onClick={() => setConsultantFilter('all')} className="ml-1 hover:text-green-900">✕</button>
-            </span>
-          )}
+          {/* 客戶公司篩選 */}
+          {(() => {
+            const companyOptions = [...new Set(apiJobs.map(j => j.client_company).filter(Boolean))].sort();
+            return (
+              <select
+                value={companyFilter}
+                onChange={e => { setCompanyFilter(e.target.value); setJobFilter('all'); }}
+                className={`rounded-lg border py-1.5 pl-3 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors max-w-[200px] ${
+                  companyFilter !== 'all'
+                    ? 'border-indigo-400 bg-indigo-50 text-indigo-700 font-medium'
+                    : 'border-slate-200 bg-white text-slate-600'
+                }`}
+              >
+                <option value="all">🏢 全部公司</option>
+                {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            );
+          })()}
+
+          {/* 職缺篩選（選公司後只顯示該公司職缺）*/}
+          <select
+            value={jobFilter}
+            onChange={e => setJobFilter(e.target.value)}
+            className={`rounded-lg border py-1.5 pl-3 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors max-w-[240px] ${
+              jobFilter !== 'all'
+                ? 'border-indigo-400 bg-indigo-50 text-indigo-700 font-medium'
+                : 'border-slate-200 bg-white text-slate-600'
+            }`}
+          >
+            <option value="all">💼 全部職缺</option>
+            {apiJobs
+              .filter(job => companyFilter === 'all' || job.client_company === companyFilter)
+              .map(job => {
+                const label = `${job.position_name}${job.client_company ? ` (${job.client_company})` : ''}`;
+                return <option key={job.id} value={label}>{label}</option>;
+              })}
+          </select>
 
           {/* LinkedIn 篩選標籤 */}
           {linkedinFilter !== 'all' && (
@@ -806,9 +797,9 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
           )}
 
           {/* 清除全部 */}
-          {(searchQuery || jobFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all' || dataCompletenessFilter !== 'all') && (
+          {(searchQuery || jobFilter !== 'all' || companyFilter !== 'all' || consultantFilter !== 'all' || linkedinFilter !== 'all' || dataCompletenessFilter !== 'all') && (
             <button
-              onClick={() => { setSearchQuery(''); setJobFilter('all'); setConsultantFilter('all'); setLinkedinFilter('all'); setDataCompletenessFilter('all'); }}
+              onClick={() => { setSearchQuery(''); setJobFilter('all'); setCompanyFilter('all'); setConsultantFilter('all'); setLinkedinFilter('all'); setDataCompletenessFilter('all'); }}
               className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-gray-500 hover:bg-gray-100 transition-colors"
             >
               <X className="w-3 h-3" /> 清除
@@ -1157,35 +1148,37 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         </div>
       )}
 
+      {/* 婉拒確認 Modal */}
       {rejectionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">婉拒候選人</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-black text-slate-900 mb-1 flex items-center gap-2">
+              <span className="text-rose-500">婉拒</span> 確認
+            </h3>
             <p className="text-sm text-slate-500 mb-4">
-              請填寫婉拒「<span className="font-medium text-slate-700">{rejectionModal.candidateName}</span>」的原因（必填）
+              將 <span className="font-semibold text-slate-800">{rejectionModal.candidateName}</span> 移入婉拒，請填寫婉拒原因（必填）
             </p>
             <textarea
               autoFocus
               value={rejectionReason}
               onChange={e => setRejectionReason(e.target.value)}
-              placeholder="例：技術棧不符、薪資期望過高、無法配合到職時間…"
-              className="w-full h-28 border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-rose-400"
+              placeholder="例：薪資期望過高、技術不符、候選人主動婉拒..."
+              className="w-full border border-slate-300 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-rose-400 min-h-[96px]"
             />
-            <div className="flex justify-end gap-3 mt-4">
+            {rejectionReason.trim() === '' && (
+              <p className="text-xs text-rose-500 mt-1">* 婉拒原因不可空白</p>
+            )}
+            <div className="flex gap-2 mt-4 justify-end">
               <button
-                onClick={() => {
-                  setRejectionModal(null);
-                  setRejectionReason('');
-                  setDraggingCandidateId(null);
-                }}
-                className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors"
+                onClick={() => { setRejectionModal(null); setRejectionReason(''); }}
+                className="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 取消
               </button>
               <button
                 onClick={handleRejectionConfirm}
                 disabled={!rejectionReason.trim()}
-                className="px-4 py-2 text-sm rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 確認婉拒
               </button>
