@@ -147,7 +147,7 @@ pool.query(`
     )
 `).then(r => {
   if (r.rowCount > 0) {
-    console.log(\`✅ target_job_id 反查補寫：\${r.rowCount} 位候選人的目標職缺已從 notes 回填 target_job_id\`);
+    console.log(`✅ target_job_id 反查補寫：${r.rowCount} 位候選人的目標職缺已從 notes 回填 target_job_id`);
   }
 }).catch(err => console.warn('target_job_id backfill from notes:', err.message));
 
