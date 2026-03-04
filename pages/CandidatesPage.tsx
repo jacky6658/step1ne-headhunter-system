@@ -124,7 +124,12 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
       const todayTW = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' }); // YYYY-MM-DD
       filtered = filtered.filter(c => {
         const dateStr = (c as any).auto_sourced_at || c.createdAt || '';
-        return dateStr.slice(0, 10) === todayTW;
+        if (!dateStr) return false;
+        // 若是 UTC 格式（含 Z 或 +00:00），轉成台灣時區再比較
+        const localDate = (dateStr.endsWith('Z') || dateStr.includes('+00:00'))
+          ? new Date(dateStr).toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' })
+          : dateStr.slice(0, 10);
+        return localDate === todayTW;
       });
     }
     
