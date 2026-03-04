@@ -698,13 +698,14 @@ router.patch('/candidates/:id', async (req, res) => {
 
     const client = await pool.connect();
 
-    // AI bot 更新 status 時，預先抓目前的 progress_tracking（稍後自動附加紀錄）
-    let existingProgressForAI = null;
-    if (status !== undefined && progressTracking === undefined && isAIBot) {
+    // 任何人更新 status 時（未同時傳入 progressTracking），預先抓目前的 progress_tracking 以自動附加紀錄
+    // 防護：不管是 AIBot 還是顧問或外部系統，只改 status 不補 progressTracking 會導致卡片不移動
+    let existingProgressForStatus = null;
+    if (status !== undefined && progressTracking === undefined) {
       const pData = await client.query(
         'SELECT progress_tracking FROM candidates_pipeline WHERE id = $1', [id]
       );
-      existingProgressForAI = pData.rows[0]?.progress_tracking || [];
+      existingProgressForStatus = pData.rows[0]?.progress_tracking || [];
     }
 
     const setClauses = [];
@@ -847,13 +848,17 @@ router.patch('/candidates/:id', async (req, res) => {
       values.push(JSON.stringify(resolvedAiMatch));
     }
 
-    // AI bot 更新 status → 自動附加 progressTracking 條目，讓「進度追蹤」tab 可見
-    if (existingProgressForAI !== null) {
+    // 自動附加 progressTracking 條目（任何 status 更新都觸發，讓卡片欄位正確移動）
+    if (existingProgressForStatus !== null) {
       const today = new Date().toISOString().split('T')[0];
-      const scoreNote = resolvedAiMatch?.score != null ? `AI評分 ${resolvedAiMatch.score}分` : 'AI自動評分';
-      const autoEntry = { date: today, event: status, by: actor, note: scoreNote };
+      const autoEntry = {
+        date: today,
+        event: status,
+        by: actor || 'system',
+        ...(resolvedAiMatch?.score != null ? { note: `AI評分 ${resolvedAiMatch.score}分` } : {}),
+      };
       setClauses.push(`progress_tracking = $${idx++}`);
-      values.push(JSON.stringify([...existingProgressForAI, autoEntry]));
+      values.push(JSON.stringify([...existingProgressForStatus, autoEntry]));
     }
 
     if (setClauses.length === 0) {
