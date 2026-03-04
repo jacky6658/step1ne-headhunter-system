@@ -132,6 +132,33 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS target_job_id INTEGER REFERENCES jobs_pipeline(id) ON DELETE SET NULL
 `).catch(err => console.warn('target_job_id migration:', err.message));
 
+// 一次性補寫：status 已更新但 progressTracking 最新一筆 event 不符的候選人，補一筆 progressTracking
+// 確保卡片欄位以 progressTracking 優先的前端邏輯能正確反映目前狀態
+pool.query(`
+  UPDATE candidates_pipeline
+  SET
+    progress_tracking = COALESCE(progress_tracking, '[]'::jsonb) ||
+      jsonb_build_array(jsonb_build_object(
+        'date', to_char(COALESCE(updated_at, NOW()), 'YYYY-MM-DD'),
+        'event', status,
+        'by',   'system-migration'
+      )),
+    updated_at = NOW()
+  WHERE status NOT IN ('未開始')
+    AND (
+      progress_tracking IS NULL
+      OR progress_tracking = '[]'::jsonb
+      OR (
+        jsonb_array_length(progress_tracking) > 0
+        AND progress_tracking->-1->>'event' != status
+      )
+    )
+`).then(r => {
+  if (r.rowCount > 0) {
+    console.log(`✅ progressTracking 補寫：${r.rowCount} 位候選人已補寫狀態紀錄，卡片將移至正確欄位`);
+  }
+}).catch(err => console.warn('progressTracking backfill:', err.message));
+
 // 一次性資料清理：target_job_id 指向不存在職缺的候選人 → 清為 NULL（顯示「未指定」）
 pool.query(`
   UPDATE candidates_pipeline
