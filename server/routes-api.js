@@ -134,6 +134,15 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS github_analysis_cache JSONB;
 `).catch(err => console.warn('github_analysis_cache migration:', err.message));
 
+// 擴充 VARCHAR(100) 欄位，避免爬蟲匯入資料超長
+pool.query(`
+  ALTER TABLE candidates_pipeline ALTER COLUMN location TYPE VARCHAR(255);
+  ALTER TABLE candidates_pipeline ALTER COLUMN education TYPE VARCHAR(255);
+  ALTER TABLE candidates_pipeline ALTER COLUMN source TYPE VARCHAR(255);
+  ALTER TABLE candidates_pipeline ALTER COLUMN recruiter TYPE VARCHAR(255);
+  ALTER TABLE candidates_pipeline ALTER COLUMN personality_type TYPE VARCHAR(255);
+`).catch(err => console.warn('column resize migration:', err.message));
+
 // 目標職缺欄位：改為直接 FK 對應 jobs_pipeline（不再存在 notes 文字內）
 pool.query(`
   ALTER TABLE candidates_pipeline
@@ -1306,11 +1315,11 @@ router.post('/candidates', async (req, res) => {
         WHERE id = $23
         RETURNING id, name, contact_link, current_position, status`,
         [
-          c.phone || '', c.contact_link || '', c.location || '',
-          c.current_position || '', String(c.years_experience || ''),
-          c.skills || '', c.education || '', c.source || '',
+          c.phone || '', c.contact_link || '', (c.location || '').slice(0, 255),
+          (c.current_position || '').slice(0, 255), String(c.years_experience || ''),
+          c.skills || '', (c.education || '').slice(0, 255), (c.source || '').slice(0, 255),
           c.notes || '', String(c.stability_score || ''),
-          c.personality_type || '', String(c.job_changes || ''),
+          (c.personality_type || '').slice(0, 255), String(c.job_changes || ''),
           String(c.avg_tenure_months || ''), String(c.recent_gap_months || ''),
           c.work_history ? JSON.stringify(c.work_history) : null,
           c.education_details ? JSON.stringify(c.education_details) : null,
@@ -1336,10 +1345,10 @@ router.post('/candidates', async (req, res) => {
         [
           c.name.trim(), c.phone || '', c.email || '',
           c.linkedin_url || '', c.github_url || '', c.contact_link || '',
-          c.location || '', c.current_position || '', String(c.years_experience || '0'),
-          c.skills || '', c.education || '', c.source || 'GitHub',
-          c.status || '未開始', c.recruiter || 'Jacky', c.notes || '',
-          String(c.stability_score || '0'), c.personality_type || '',
+          (c.location || '').slice(0, 255), (c.current_position || '').slice(0, 255), String(c.years_experience || '0'),
+          c.skills || '', (c.education || '').slice(0, 255), (c.source || 'GitHub').slice(0, 255),
+          c.status || '未開始', (c.recruiter || 'Jacky').slice(0, 255), c.notes || '',
+          String(c.stability_score || '0'), (c.personality_type || '').slice(0, 255),
           String(c.job_changes || '0'), String(c.avg_tenure_months || '0'),
           String(c.recent_gap_months || '0'),
           c.work_history ? JSON.stringify(c.work_history) : null,
