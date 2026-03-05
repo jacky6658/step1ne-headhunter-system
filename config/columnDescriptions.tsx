@@ -80,10 +80,10 @@ export const COLUMN_DESCRIPTIONS = {
     description: '候選人在招募流程中的當前狀態。點擊候選人可在看板中拖放更新狀態。',
     examples: [
       '待聯繫 - 剛匯入履歷池',
-      '已聯繫 - 電話/Email 已聯繫',
-      '面試中 - 安排或進行面試',
+      '聯繫階段 - 電話/Email 已聯繫',
+      '面試階段 - 安排或進行面試',
       'Offer - 已發 Offer',
-      '已上職 - 成功推薦上職'
+      'on board - 成功推薦上職'
     ]
   },
   

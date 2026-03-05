@@ -21,14 +21,17 @@ function getDriveFolderByStatus(status) {
   // 狀態對應表
   const statusMap = {
     '待聯繫': 'pending',
+    '聯繫階段': 'pending',
     '已聯繫': 'pending',
     '面試中': 'interviewed',
+    '面試階段': 'interviewed',
     'Offer': 'interviewed',
+    'on board': 'hired',
     '已上職': 'hired',
     '婉拒': 'rejected',
     '不適合': 'rejected'
   };
-  
+
   const folderKey = statusMap[status] || 'pending';
   return DRIVE_FOLDERS[folderKey];
 }
@@ -118,9 +121,12 @@ async function uploadResumeToGoogleDrive(filePath, candidateId, candidateName, s
 function getDriveFolderKeyByStatus(status) {
   const statusMap = {
     '待聯繫': 'pending',
+    '聯繫階段': 'pending',
     '已聯繫': 'pending',
     '面試中': 'interviewed',
+    '面試階段': 'interviewed',
     'Offer': 'interviewed',
+    'on board': 'hired',
     '已上職': 'hired',
     '婉拒': 'rejected',
     '不適合': 'rejected'

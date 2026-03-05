@@ -240,10 +240,10 @@ export interface ProfitRecord {
 export enum CandidateStatus {
   NOT_STARTED = '未開始',
   AI_RECOMMENDED = 'AI推薦',
-  CONTACTED = '已聯繫',
-  INTERVIEWED = '已面試',
+  CONTACTED = '聯繫階段',
+  INTERVIEWED = '面試階段',
   OFFER = 'Offer',
-  ONBOARDED = '已上職',
+  ONBOARDED = 'on board',
   REJECTED = '婉拒',
   OTHER = '備選人才'
 }
@@ -347,7 +347,7 @@ export interface ExternalJobSuggestion {
 // 進度追蹤事件
 export interface ProgressEvent {
   date: string;  // YYYY-MM-DD
-  event: string;  // 已聯繫、已面試、Offer、已上職、婉拒、其他
+  event: string;  // 聯繫階段、面試階段、Offer、on board、婉拒、其他
   by: string;     // 負責顧問
   note?: string;  // 額外備註
 }

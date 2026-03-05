@@ -115,6 +115,10 @@ app.use((req, res, next) => {
 // 完整的 API 路由（候選人 + 職缺）
 app.use('/api', apiRouter);
 
+// 爬蟲整合 API 路由（proxy + 效益指標）
+const crawlerRouter = require('./routes-crawler');
+app.use('/api/crawler', crawlerRouter);
+
 // 根路由
 app.get('/', (req, res) => {
   res.json({

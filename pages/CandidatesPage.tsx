@@ -526,10 +526,10 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             const activeColors: Record<string, string> = {
               '未開始': 'bg-slate-500 text-white',
               'AI推薦': 'bg-violet-600 text-white',
-              '已聯繫': 'bg-blue-600 text-white',
-              '已面試': 'bg-indigo-600 text-white',
+              '聯繫階段': 'bg-blue-600 text-white',
+              '面試階段': 'bg-indigo-600 text-white',
               'Offer': 'bg-amber-500 text-white',
-              '已上職': 'bg-green-600 text-white',
+              'on board': 'bg-green-600 text-white',
               '婉拒': 'bg-rose-500 text-white',
               '備選人才': 'bg-purple-600 text-white',
             };

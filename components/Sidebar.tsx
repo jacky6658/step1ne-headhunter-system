@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Role, UserProfile } from '../types';
-import { LayoutGrid, ClipboardList, CheckSquare, History, Users, Download, Database, LogOut, X, BarChart3, BookOpen, ScrollText, Target, Bot, Upload } from 'lucide-react';
+import { LayoutGrid, ClipboardList, CheckSquare, History, Users, Download, Database, LogOut, X, BarChart3, BookOpen, ScrollText, Target, Bot, Upload, Activity } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -35,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     // Bot 排程
     { id: 'bot-scheduler', label: '🤖 Bot 排程設定', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'resume-import', label: '📄 履歷批量匯入', icon: Upload, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    { id: 'crawler-dashboard', label: '🕷️ 爬蟲整合儀表板', icon: Activity, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 工具
     { id: 'system-log', label: '📋 操作日誌', icon: ScrollText, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'help', label: '📖 使用說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },

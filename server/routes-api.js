@@ -96,6 +96,14 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS brave_api_key VARCHAR(500)
 `).catch(err => console.warn('brave_api_key migration:', err.message));
 
+// 狀態名稱遷移：已聯繫→聯繫階段、已面試→面試階段、已上職→on board
+pool.query(`
+  UPDATE candidates_pipeline SET status = '聯繫階段' WHERE status = '已聯繫';
+  UPDATE candidates_pipeline SET status = '面試階段' WHERE status = '已面試';
+  UPDATE candidates_pipeline SET status = 'on board' WHERE status = '已上職';
+`).then(r => console.log('✅ 狀態名稱遷移完成'))
+  .catch(err => console.warn('status name migration:', err.message));
+
 // 確保 job_description 欄位存在（職缺完整 JD）
 pool.query(`
   ALTER TABLE jobs_pipeline
@@ -951,7 +959,7 @@ router.patch('/candidates/:id', async (req, res) => {
  * 給 AIbot 及外部系統使用
  *
  * Body: {
- *   status: '未開始' | '已聯繫' | '已面試' | 'Offer' | '已上職' | '婉拒' | '其他',
+ *   status: '未開始' | '聯繫階段' | '面試階段' | 'Offer' | 'on board' | '婉拒' | '其他',
  *   by: '操作者名稱（顧問名或 AIbot）'
  * }
  */
@@ -960,7 +968,7 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
     const { id } = req.params;
     const { status, by } = req.body;
 
-    const validStatuses = ['未開始', 'AI推薦', '已聯繫', '已面試', 'Offer', '已上職', '婉拒', '備選人才', '其他'];
+    const validStatuses = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才', '其他'];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -1029,7 +1037,7 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
  * Body：
  * {
  *   "ids": [123, 124, 125],          // 候選人 ID 陣列
- *   "status": "已面試",               // 目標狀態
+ *   "status": "面試階段",               // 目標狀態
  *   "actor": "Jacky-aibot",           // 操作者（可選，預設 AIbot）
  *   "note": "批量完成初篩面試"         // 備註（可選，附加到進度記錄）
  * }
@@ -1038,7 +1046,7 @@ router.patch('/candidates/batch-status', async (req, res) => {
   try {
     const { ids, status, actor, note } = req.body;
 
-    const validStatuses = ['未開始', 'AI推薦', '已聯繫', '已面試', 'Offer', '已上職', '婉拒', '備選人才', '其他'];
+    const validStatuses = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才', '其他'];
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ success: false, error: '缺少 ids 陣列' });
@@ -1383,6 +1391,9 @@ router.post('/candidates', async (req, res) => {
  * - 新人選：建立新紀錄
  * Body: { candidates: [ { name, contact_link, ... }, ... ] }
  */
+// 引入共用匯入函數
+const { processBulkImport } = require('./crawlerImportService');
+
 router.post('/candidates/bulk', async (req, res) => {
   try {
     const { candidates, actor } = req.body;  // actor: AIbot 或顧問名稱，例如 "AIbot-Phoebe"
@@ -1401,130 +1412,7 @@ router.post('/candidates/bulk', async (req, res) => {
       });
     }
 
-    const client = await pool.connect();
-
-    // 取得所有現有候選人（用 name 比對）
-    const existing = await client.query('SELECT id, name FROM candidates_pipeline');
-    const existingMap = new Map();
-    for (const row of existing.rows) {
-      const key = (row.name || '').trim().toLowerCase();
-      if (key) existingMap.set(key, row.id);
-    }
-
-    const results = { created: [], updated: [], skipped: [], failed: [] };
-
-    for (const c of candidates) {
-      try {
-        if (!c.name) {
-          results.failed.push({ name: '(empty)', error: 'Name is required' });
-          continue;
-        }
-
-        const nameKey = c.name.trim().toLowerCase();
-
-        if (existingMap.has(nameKey)) {
-          // 既有人選 → 只補充空欄位
-          const existingId = existingMap.get(nameKey);
-          const result = await client.query(
-            `UPDATE candidates_pipeline SET
-              phone = COALESCE(NULLIF(phone, ''), $1),
-              contact_link = COALESCE(NULLIF(contact_link, ''), $2),
-              location = COALESCE(NULLIF(location, ''), $3),
-              current_position = COALESCE(NULLIF(current_position, ''), $4),
-              years_experience = COALESCE(NULLIF(years_experience, ''), NULLIF(years_experience, '0'), $5),
-              skills = COALESCE(NULLIF(skills, ''), $6),
-              education = COALESCE(NULLIF(education, ''), $7),
-              source = COALESCE(NULLIF(source, ''), $8),
-              notes = CASE WHEN $9 = '' THEN notes ELSE CONCAT(notes, CASE WHEN notes != '' THEN E'\n' ELSE '' END, $9) END,
-              stability_score = COALESCE(NULLIF(stability_score, ''), NULLIF(stability_score, '0'), $10),
-              personality_type = COALESCE(NULLIF(personality_type, ''), $11),
-              job_changes = COALESCE(NULLIF(job_changes, ''), NULLIF(job_changes, '0'), $12),
-              avg_tenure_months = COALESCE(NULLIF(avg_tenure_months, ''), NULLIF(avg_tenure_months, '0'), $13),
-              recent_gap_months = COALESCE(NULLIF(recent_gap_months, ''), NULLIF(recent_gap_months, '0'), $14),
-              work_history = COALESCE(work_history, $15),
-              education_details = COALESCE(education_details, $16),
-              leaving_reason = COALESCE(NULLIF(leaving_reason, ''), $17),
-              talent_level = COALESCE(NULLIF(talent_level, ''), $18),
-              email = COALESCE(NULLIF(email, ''), $19),
-              linkedin_url = COALESCE(NULLIF(linkedin_url, ''), $20),
-              github_url = COALESCE(NULLIF(github_url, ''), $21),
-              updated_at = NOW()
-            WHERE id = $22
-            RETURNING id, name, contact_link, current_position, status`,
-            [
-              c.phone || '',
-              c.contact_link || '',
-              c.location || '',
-              c.current_position || '',
-              String(c.years_experience || ''),
-              c.skills || '',
-              c.education || '',
-              c.source || '',
-              c.notes || '',
-              String(c.stability_score || ''),
-              c.personality_type || '',
-              String(c.job_changes || ''),
-              String(c.avg_tenure_months || ''),
-              String(c.recent_gap_months || ''),
-              c.work_history ? JSON.stringify(c.work_history) : null,
-              c.education_details ? JSON.stringify(c.education_details) : null,
-              c.leaving_reason || '',
-              c.talent_level || '',
-              c.email || '',
-              c.linkedin_url || '',
-              c.github_url || '',
-              existingId
-            ]
-          );
-          results.updated.push(result.rows[0]);
-        } else {
-          // 新人選 → 建立
-          const result = await client.query(
-            `INSERT INTO candidates_pipeline
-             (name, phone, email, linkedin_url, github_url, contact_link,
-              location, current_position, years_experience,
-              skills, education, source, status, recruiter, notes,
-              stability_score, personality_type, job_changes, avg_tenure_months,
-              recent_gap_months, work_history, education_details, leaving_reason,
-              talent_level, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW(),NOW())
-             RETURNING id, name, contact_link, current_position, status`,
-            [
-              c.name.trim(),
-              c.phone || '',
-              c.email || '',
-              c.linkedin_url || '',
-              c.github_url || '',
-              c.contact_link || '',
-              c.location || '',
-              c.current_position || '',
-              String(c.years_experience || '0'),
-              c.skills || '',
-              c.education || '',
-              c.source || 'OpenClaw AI',
-              c.status || '未開始',
-              c.recruiter || 'Jacky',
-              c.notes || '',
-              String(c.stability_score || '0'),
-              c.personality_type || '',
-              String(c.job_changes || '0'),
-              String(c.avg_tenure_months || '0'),
-              String(c.recent_gap_months || '0'),
-              c.work_history ? JSON.stringify(c.work_history) : null,
-              c.education_details ? JSON.stringify(c.education_details) : null,
-              c.leaving_reason || '',
-              c.talent_level || ''
-            ]
-          );
-          existingMap.set(nameKey, result.rows[0].id);
-          results.created.push(result.rows[0]);
-        }
-      } catch (err) {
-        results.failed.push({ name: c.name || '(unknown)', error: err.message });
-      }
-    }
-
-    client.release();
+    const results = await processBulkImport(pool, candidates, actor || 'system');
 
     // 非同步觸發 SQL → Sheets 同步（不阻塞回應）
     syncSQLToSheets(results.created.concat(results.updated)).catch(err =>

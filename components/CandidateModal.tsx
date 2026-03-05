@@ -245,10 +245,10 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const eventToStatus: Record<string, string> = {
     '未開始':  '未開始',
     'AI推薦':  'AI推薦',
-    '已聯繫':  '已聯繫',
-    '已面試':  '已面試',
+    '聯繫階段':  '聯繫階段',
+    '面試階段':  '面試階段',
     'Offer':   'Offer',
-    '已上職':  '已上職',
+    'on board':  'on board',
     '婉拒':    '婉拒',
     '備選人才': '備選人才',
   };
@@ -1666,10 +1666,10 @@ Step1ne Recruitment`;
                   {candidate.progressTracking.map((event: any, i: number) => {
                     const isLast = i === candidate.progressTracking!.length - 1;
                     const eventColors: Record<string, {bg: string, text: string, icon: string}> = {
-                      '已聯繫': {bg: 'bg-blue-100', text: 'text-blue-600', icon: '📞'},
-                      '已面試': {bg: 'bg-purple-100', text: 'text-purple-600', icon: '💼'},
+                      '聯繫階段': {bg: 'bg-blue-100', text: 'text-blue-600', icon: '📞'},
+                      '面試階段': {bg: 'bg-purple-100', text: 'text-purple-600', icon: '💼'},
                       'Offer': {bg: 'bg-green-100', text: 'text-green-600', icon: '📝'},
-                      '已上職': {bg: 'bg-emerald-100', text: 'text-emerald-600', icon: '🎉'},
+                      'on board': {bg: 'bg-emerald-100', text: 'text-emerald-600', icon: '🎉'},
                       '婉拒': {bg: 'bg-red-100', text: 'text-red-600', icon: '❌'},
                       '其他': {bg: 'bg-gray-100', text: 'text-gray-600', icon: '📌'}
                     };
@@ -1709,7 +1709,7 @@ Step1ne Recruitment`;
               <div className="border-t border-gray-200 pt-4">
                 <div className="text-xs text-gray-500 mb-2">快速新增進度</div>
                 <div className="grid grid-cols-3 gap-2">
-                  {['未開始', 'AI推薦', '已聯繫', '已面試', 'Offer', '已上職', '婉拒', '備選人才'].map(eventType => (
+                  {['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才'].map(eventType => (
                     <button
                       key={eventType}
                       className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-400 transition-colors"

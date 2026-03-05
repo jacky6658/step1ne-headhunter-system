@@ -62,10 +62,10 @@ const PIPELINE_STAGES: Array<{ key: PipelineStageKey; title: string; color: stri
   { key: 'today_new',       title: '今日新增', color: 'text-teal-700',   bg: 'bg-teal-100',   locked: true },
   { key: 'not_started',     title: '未開始',   color: 'text-slate-700',  bg: 'bg-slate-100' },
   { key: 'ai_recommended',  title: 'AI推薦',   color: 'text-violet-700', bg: 'bg-violet-100' },
-  { key: 'contacted',       title: '已聯繫',   color: 'text-blue-700',   bg: 'bg-blue-100' },
-  { key: 'interviewed',     title: '已面試',   color: 'text-indigo-700', bg: 'bg-indigo-100' },
+  { key: 'contacted',       title: '聯繫階段', color: 'text-blue-700',   bg: 'bg-blue-100' },
+  { key: 'interviewed',     title: '面試階段', color: 'text-indigo-700', bg: 'bg-indigo-100' },
   { key: 'offer',           title: 'Offer',    color: 'text-amber-700',  bg: 'bg-amber-100' },
-  { key: 'onboarded',       title: '已上職',   color: 'text-green-700',  bg: 'bg-green-100' },
+  { key: 'onboarded',       title: 'on board', color: 'text-green-700',  bg: 'bg-green-100' },
   { key: 'rejected',        title: '婉拒',     color: 'text-rose-700',   bg: 'bg-rose-100' },
   { key: 'other',           title: '備選人才', color: 'text-purple-700', bg: 'bg-purple-100' },
 ];
@@ -76,10 +76,10 @@ function mapEventToStage(event?: string): PipelineStageKey {
 
   if (e.includes('AI推薦')) return 'ai_recommended';
   if (e.includes('未開始')) return 'not_started';
-  if (e.includes('已聯繫')) return 'contacted';
-  if (e.includes('已面試') || e.includes('面試')) return 'interviewed';
+  if (e.includes('聯繫階段') || e.includes('已聯繫')) return 'contacted';
+  if (e.includes('面試階段') || e.includes('已面試') || e.includes('面試')) return 'interviewed';
   if (e.toLowerCase().includes('offer')) return 'offer';
-  if (e.includes('已上職') || e.includes('到職')) return 'onboarded';
+  if (e.includes('on board') || e.includes('已上職') || e.includes('到職')) return 'onboarded';
   if (e.includes('婉拒') || e.includes('拒絕')) return 'rejected';
   return 'other';
 }
@@ -141,13 +141,13 @@ function stageToEvent(stage: PipelineStageKey): string {
     case 'not_started':
       return '未開始';
     case 'contacted':
-      return '已聯繫';
+      return '聯繫階段';
     case 'interviewed':
-      return '已面試';
+      return '面試階段';
     case 'offer':
       return 'Offer';
     case 'onboarded':
-      return '已上職';
+      return 'on board';
     case 'rejected':
       return '婉拒';
     case 'other':
@@ -679,7 +679,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
             <p className="text-lg font-black text-orange-700">{slaOverdueCount}</p>
           </div>
           <div className="rounded-xl bg-green-50 border border-green-100 p-3">
-            <p className="text-xs text-green-600">已上職</p>
+            <p className="text-xs text-green-600">on board</p>
             <p className="text-lg font-black text-green-700">{grouped.onboarded.length}</p>
           </div>
         </div>

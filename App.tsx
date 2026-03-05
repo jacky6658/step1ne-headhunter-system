@@ -21,6 +21,7 @@ import { SystemLogPage } from './pages/SystemLogPage';
 import { BDClientsPage } from './pages/BDClientsPage';
 import { BotSchedulerPage } from './pages/BotSchedulerPage';
 import ResumeImportPage from './pages/ResumeImportPage';
+import { CrawlerDashboardPage } from './pages/CrawlerDashboardPage';
 import { Menu, X as XIcon } from 'lucide-react';
 import { API_BASE_URL } from './constants';
 
@@ -131,6 +132,7 @@ const App: React.FC = () => {
       // Bot 排程設定（key=uid 確保換用戶時強制重新掛載，避免 state 跨用戶污染）
       case 'bot-scheduler': return <BotSchedulerPage key={profile.uid} userProfile={profile} />;
       case 'resume-import': return <ResumeImportPage />;
+      case 'crawler-dashboard': return <CrawlerDashboardPage userProfile={profile} />;
       // 操作日誌
       case 'system-log': return <SystemLogPage userProfile={profile} />;
       case 'members': 
@@ -214,7 +216,8 @@ const App: React.FC = () => {
                activeTab === 'pipeline' ? '顧問人選追蹤表' :
                activeTab === 'ai-matching' ? 'AI 配對推薦' :
                activeTab === 'system-log' ? '操作日誌' :
-               activeTab === 'bot-scheduler' ? 'Bot 排程設定' : 'Step1ne 獵頭系統'}
+               activeTab === 'bot-scheduler' ? 'Bot 排程設定' :
+               activeTab === 'crawler-dashboard' ? '爬蟲整合儀表板' : 'Step1ne 獵頭系統'}
             </h1>
                 <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mt-0.5 hidden sm:block">Collaborative Workspace</p>
           </div>

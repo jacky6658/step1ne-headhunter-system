@@ -90,14 +90,14 @@ export const CANDIDATE_STATUS_CONFIG = {
     borderColor: 'border-violet-300'
   },
   [CandidateStatus.CONTACTED]: {
-    label: '已聯繫',
+    label: '聯繫階段',
     color: 'blue',
     bgColor: 'bg-blue-100',
     textColor: 'text-blue-700',
     borderColor: 'border-blue-300'
   },
   [CandidateStatus.INTERVIEWED]: {
-    label: '已面試',
+    label: '面試階段',
     color: 'indigo',
     bgColor: 'bg-indigo-100',
     textColor: 'text-indigo-700',
@@ -111,7 +111,7 @@ export const CANDIDATE_STATUS_CONFIG = {
     borderColor: 'border-amber-300'
   },
   [CandidateStatus.ONBOARDED]: {
-    label: '已上職',
+    label: 'on board',
     color: 'green',
     bgColor: 'bg-green-100',
     textColor: 'text-green-700',

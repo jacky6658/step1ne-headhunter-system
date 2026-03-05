@@ -584,7 +584,7 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
                 <p className="text-xs text-slate-600 mt-1">新候選人，等待初步評估</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <span className="font-black text-blue-700">已聯繫</span>
+                <span className="font-black text-blue-700">聯繫階段</span>
                 <p className="text-xs text-slate-600 mt-1">已與候選人建立聯繫</p>
               </div>
               <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
@@ -787,11 +787,11 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                 <p className="font-semibold text-green-700 text-sm mb-2">🔄 顧問人選追蹤表 — 狀態更新</p>
                 <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside ml-1">
-                  <li>更新候選人進度：未開始 → 已聯繫 → 已面試 → Offer → 已上職</li>
+                  <li>更新候選人進度：未開始 → 聯繫階段 → 面試階段 → Offer → on board</li>
                   <li>標記候選人為「婉拒」並記錄原因</li>
                   <li>自動記錄操作時間與操作者到日誌</li>
                 </ul>
-                <p className="text-xs text-green-600 mt-2 italic">例：「幫我把 #123 的狀態改為已面試」</p>
+                <p className="text-xs text-green-600 mt-2 italic">例：「幫我把 #123 的狀態改為面試階段」</p>
               </div>
 
               {/* 備註紀錄 */}
