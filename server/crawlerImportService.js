@@ -24,7 +24,7 @@ function mapCrawlerCandidate(raw) {
   if (raw.client_name) notesParts.push(`客戶: ${raw.client_name}`);
   if (raw.job_title) notesParts.push(`職缺: ${raw.job_title}`);
 
-  return {
+  const mapped = {
     name: (raw.name || '').trim(),
     email: raw.email || '',
     linkedin_url: raw.linkedin_url || '',
@@ -37,6 +37,13 @@ function mapCrawlerCandidate(raw) {
     notes: notesParts.join('\n'),
     status: '未開始',
   };
+
+  // 爬蟲任務的 step1ne_job_id → 系統的 target_job_id
+  if (raw.step1ne_job_id) {
+    mapped.target_job_id = Number(raw.step1ne_job_id);
+  }
+
+  return mapped;
 }
 
 /**
@@ -108,9 +115,10 @@ async function processBulkImport(pool, candidates, actor) {
               email = COALESCE(NULLIF(email, ''), $19),
               linkedin_url = COALESCE(NULLIF(linkedin_url, ''), $20),
               github_url = COALESCE(NULLIF(github_url, ''), $21),
+              target_job_id = COALESCE(target_job_id, $23),
               updated_at = NOW()
             WHERE id = $22
-            RETURNING id, name, contact_link, current_position, status`,
+            RETURNING id, name, contact_link, current_position, status, target_job_id`,
             [
               c.phone || '',
               c.contact_link || '',
@@ -133,7 +141,8 @@ async function processBulkImport(pool, candidates, actor) {
               c.email || '',
               c.linkedin_url || '',
               c.github_url || '',
-              existingId
+              existingId,
+              c.target_job_id || null
             ]
           );
           results.updated.push(result.rows[0]);
@@ -146,9 +155,9 @@ async function processBulkImport(pool, candidates, actor) {
               skills, education, source, status, recruiter, notes,
               stability_score, personality_type, job_changes, avg_tenure_months,
               recent_gap_months, work_history, education_details, leaving_reason,
-              talent_level, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW(),NOW())
-             RETURNING id, name, contact_link, current_position, status`,
+              talent_level, target_job_id, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,NOW(),NOW())
+             RETURNING id, name, contact_link, current_position, status, target_job_id`,
             [
               c.name.trim(),
               c.phone || '',
@@ -173,7 +182,8 @@ async function processBulkImport(pool, candidates, actor) {
               c.work_history ? JSON.stringify(c.work_history) : null,
               c.education_details ? JSON.stringify(c.education_details) : null,
               c.leaving_reason || '',
-              c.talent_level || ''
+              c.talent_level || '',
+              c.target_job_id || null
             ]
           );
           existingMap.set(nameKey, result.rows[0].id);
