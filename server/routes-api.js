@@ -543,6 +543,23 @@ router.get('/candidates/:id', async (req, res) => {
       targetJobLabel: row.target_job_label
         ? `${row.target_job_label}${row.target_job_company ? ` (${row.target_job_company})` : ''}`
         : null,
+      // JSONB / 詳細欄位
+      workHistory: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      quitReasons: row.leaving_reason || '',
+      educationJson: (() => { const v = row.education_details; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      discProfile: row.personality_type || '',
+      progressTracking: row.progress_tracking || [],
+      talentLevel: row.talent_level || '',
+
+      // 向後相容：保留 DB 字段名
+      work_history: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      leaving_reason: row.leaving_reason || '',
+      stability_score: row.stability_score || '',
+      education_details: (() => { const v = row.education_details; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      personality_type: row.personality_type || '',
+      talent_level: row.talent_level || '',
+      progress_tracking: row.progress_tracking || [],
+
       aiMatchResult: row.ai_match_result ? (() => {
         // 支援新舊格式，直接傳遞完整的 ai_match_result 物件
         const am = row.ai_match_result;

@@ -478,7 +478,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
       <div className="bg-white rounded-lg shadow mb-6">
         {/* 第一行：搜尋 + 下拉篩選 */}
         <div className="p-4 pb-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* 搜尋 */}
             <div className="relative sm:col-span-2 lg:col-span-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -512,18 +512,6 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
               <option value="all">🎯 全部職缺</option>
               {jobs.map(j => (
                 <option key={j.id} value={j.id.toString()}>{j.label}</option>
-              ))}
-            </select>
-
-            {/* 來源篩選 */}
-            <select
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50"
-            >
-              <option value="all">📂 全部來源</option>
-              {Object.entries(SOURCE_CONFIG).map(([key, config]) => (
-                <option key={key} value={key}>{config.icon} {config.label}</option>
               ))}
             </select>
 
