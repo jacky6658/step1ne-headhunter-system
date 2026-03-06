@@ -4,11 +4,9 @@
  * 將爬蟲格式的候選人資料映射為 Step1ne candidates_pipeline 格式
  */
 
-const SOURCE_MAP = {
-  'linkedin': 'LinkedIn',
-  'github': 'GitHub',
-  'li+ocr': 'LinkedIn',
-};
+// 爬蟲匯入的候選人統一標記來源為「爬蟲匯入」，
+// 方便顧問在候選人總表透過來源篩選快速辨識
+const CRAWLER_SOURCE = '爬蟲匯入';
 
 /**
  * 將單筆爬蟲候選人映射為 Step1ne 系統格式
@@ -33,7 +31,7 @@ function mapCrawlerCandidate(raw) {
     current_position: raw.title || '',
     skills: Array.isArray(raw.skills) ? raw.skills.join('、') : (raw.skills || ''),
     talent_level: raw.grade || '',
-    source: SOURCE_MAP[(raw.source || '').toLowerCase()] || raw.source || 'LinkedIn',
+    source: CRAWLER_SOURCE,
     notes: notesParts.join('\n'),
     status: '未開始',
   };
@@ -42,6 +40,19 @@ function mapCrawlerCandidate(raw) {
   if (raw.step1ne_job_id) {
     mapped.target_job_id = Number(raw.step1ne_job_id);
   }
+
+  // ── 深度分析充實資料 (Perplexity/Jina enrichment) ──
+  if (raw.work_history) mapped.work_history = raw.work_history;
+  if (raw.education_details) mapped.education_details = raw.education_details;
+  if (raw.years_experience) mapped.years_experience = String(raw.years_experience);
+  if (raw.stability_score) mapped.stability_score = String(raw.stability_score);
+  if (raw.job_changes) mapped.job_changes = String(raw.job_changes);
+  if (raw.avg_tenure_months) mapped.avg_tenure_months = String(raw.avg_tenure_months);
+  if (raw.recent_gap_months) mapped.recent_gap_months = String(raw.recent_gap_months);
+  if (raw.education) mapped.education = raw.education;
+  if (raw.leaving_reason) mapped.leaving_reason = raw.leaving_reason;
+  if (raw.personality_type) mapped.personality_type = raw.personality_type;
+  if (raw.ai_match_result) mapped.ai_match_result = raw.ai_match_result;
 
   return mapped;
 }
@@ -101,7 +112,7 @@ async function processBulkImport(pool, candidates, actor) {
               years_experience = COALESCE(NULLIF(years_experience, ''), NULLIF(years_experience, '0'), $5),
               skills = COALESCE(NULLIF(skills, ''), $6),
               education = COALESCE(NULLIF(education, ''), $7),
-              source = COALESCE(NULLIF(source, ''), $8),
+              source = CASE WHEN $8 = '爬蟲匯入' THEN $8 ELSE COALESCE(NULLIF(source, ''), $8) END,
               notes = CASE WHEN $9 = '' THEN notes ELSE CONCAT(notes, CASE WHEN notes != '' THEN E'\n' ELSE '' END, $9) END,
               stability_score = COALESCE(NULLIF(stability_score, ''), NULLIF(stability_score, '0'), $10),
               personality_type = COALESCE(NULLIF(personality_type, ''), $11),
@@ -170,7 +181,7 @@ async function processBulkImport(pool, candidates, actor) {
               String(c.years_experience || '0'),
               c.skills || '',
               c.education || '',
-              c.source || 'Crawler',
+              c.source || CRAWLER_SOURCE,
               c.status || '未開始',
               c.recruiter || actor || 'Crawler',
               c.notes || '',

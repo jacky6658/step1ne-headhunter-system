@@ -1893,7 +1893,7 @@ Step1ne Recruitment`;
               '不推薦':   { color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',       icon: <ThumbsDown className="w-3 h-3" /> },
             };
 
-            const visibleRankings = showAllRankings ? jobRankings : jobRankings.slice(0, 5);
+            const visibleRankings = jobRankings.slice(0, 5); // v2: 後端已只回傳 Top 5
 
             return (
               <div className="space-y-5">
@@ -1902,9 +1902,9 @@ Step1ne Recruitment`;
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Target className="w-4 h-4 text-violet-500" />
-                    <h3 className="text-sm font-bold text-slate-700">職缺匹配推薦</h3>
+                    <h3 className="text-sm font-bold text-slate-700">Top 5 職缺匹配</h3>
                     {!loadingRankings && jobRankings.length > 0 && (
-                      <span className="text-[10px] text-slate-400 font-medium">共 {jobRankings.length} 個職缺</span>
+                      <span className="text-[10px] text-slate-400 font-medium">最匹配 {jobRankings.length} 個</span>
                     )}
                   </div>
 
@@ -1974,14 +1974,7 @@ Step1ne Recruitment`;
                           </div>
                         );
                       })}
-                      {jobRankings.length > 5 && (
-                        <button
-                          onClick={() => setShowAllRankings(!showAllRankings)}
-                          className="w-full py-2 text-xs text-violet-600 hover:text-violet-800 font-medium border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
-                        >
-                          {showAllRankings ? '收起' : `查看全部 ${jobRankings.length} 個職缺 ↓`}
-                        </button>
-                      )}
+                      {/* v2: 後端已只回傳 Top 5，不需展開按鈕 */}
                     </div>
                   )}
 

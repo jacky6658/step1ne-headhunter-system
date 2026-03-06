@@ -7,7 +7,7 @@ import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
 import { ColumnTooltip } from '../components/ColumnTooltip';
 import { COLUMN_DESCRIPTIONS } from '../config/columnDescriptions';
-import { apiPost, apiPatch } from '../config/api';
+import { apiPost, apiPatch, getApiUrl } from '../config/api';
 
 interface CandidatesPageProps {
   userProfile: UserProfile;
@@ -23,6 +23,8 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [consultantFilter, setConsultantFilter] = useState<string>('all');
+  const [jobFilter, setJobFilter] = useState<string>('all');
+  const [jobs, setJobs] = useState<{id: number, label: string}[]>([]);
   const [todayOnly, setTodayOnly] = useState<boolean>(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -38,10 +40,26 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
     }
   }, [userProfile]);
   
+  // 載入職缺列表（供篩選用）
+  useEffect(() => {
+    fetch(getApiUrl('/jobs'))
+      .then(r => r.json())
+      .then(data => {
+        const list = (data.data || data || [])
+          .filter((j: any) => j.job_status !== '已關閉')
+          .map((j: any) => ({
+            id: j.id,
+            label: `${j.position_name}${j.client_company ? ` (${j.client_company})` : ''}`
+          }));
+        setJobs(list);
+      })
+      .catch(() => {});
+  }, []);
+
   // 套用篩選
   useEffect(() => {
     applyFilters();
-  }, [candidates, searchQuery, statusFilter, sourceFilter, consultantFilter, todayOnly]);
+  }, [candidates, searchQuery, statusFilter, sourceFilter, consultantFilter, jobFilter, todayOnly]);
   
   // 自動重新整理（每 30 秒）- 雙向同步模式
   useEffect(() => {
@@ -117,6 +135,13 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
     // 顧問篩選
     if (consultantFilter !== 'all') {
       filtered = filtered.filter(c => c.consultant === consultantFilter);
+    }
+
+    // 職缺篩選（用 targetJobId 比對）
+    if (jobFilter !== 'all') {
+      filtered = filtered.filter(c =>
+        (c as any).targetJobId?.toString() === jobFilter
+      );
     }
 
     // 今日新增篩選（台北時間 YYYY-MM-DD）
@@ -450,141 +475,177 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
       </div>
       
       {/* 篩選區 */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {/* 搜尋 */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜尋姓名、Email、技能..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+      <div className="bg-white rounded-lg shadow mb-6">
+        {/* 第一行：搜尋 + 下拉篩選 */}
+        <div className="p-4 pb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* 搜尋 */}
+            <div className="relative sm:col-span-2 lg:col-span-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="搜尋姓名、Email、技能..."
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+              />
+            </div>
+
+            {/* 狀態篩選 */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50"
+            >
+              <option value="all">📋 全部狀態</option>
+              {Object.entries(CANDIDATE_STATUS_CONFIG).map(([key, config]) => (
+                <option key={key} value={key}>{config.label}</option>
+              ))}
+            </select>
+
+            {/* 職缺篩選 */}
+            <select
+              value={jobFilter}
+              onChange={(e) => setJobFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50"
+            >
+              <option value="all">🎯 全部職缺</option>
+              {jobs.map(j => (
+                <option key={j.id} value={j.id.toString()}>{j.label}</option>
+              ))}
+            </select>
+
+            {/* 顧問篩選 */}
+            <select
+              value={consultantFilter}
+              onChange={(e) => setConsultantFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50"
+            >
+              <option value="all">👤 全部顧問</option>
+              <option value="Jacky">Jacky</option>
+              <option value="Phoebe">Phoebe</option>
+              <option value="Crawler-WebUI">🤖 Crawler-WebUI</option>
+            </select>
           </div>
-          
-          {/* 狀態篩選 */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">全部狀態</option>
-            {Object.entries(CANDIDATE_STATUS_CONFIG).map(([key, config]) => (
-              <option key={key} value={key}>{config.label}</option>
-            ))}
-          </select>
-          
-          {/* 來源篩選 */}
-          <select
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">全部來源</option>
-            {Object.entries(SOURCE_CONFIG).map(([key, config]) => (
-              <option key={key} value={key}>{config.label}</option>
-            ))}
-          </select>
-          
-          {/* 顧問篩選 */}
-          <select
-            value={consultantFilter}
-            onChange={(e) => setConsultantFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">全部顧問</option>
-            <option value="Jacky">Jacky</option>
-            <option value="Phoebe">Phoebe</option>
-          </select>
         </div>
 
-        {/* 狀態快捷篩選按鈕 */}
-        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
-          {/* 全部 */}
-          <button
-            onClick={() => { setStatusFilter('all'); setTodayOnly(false); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              statusFilter === 'all' && !todayOnly
-                ? 'bg-gray-700 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            全部
-            <span className={`rounded-full px-1.5 text-xs ${statusFilter === 'all' && !todayOnly ? 'bg-white bg-opacity-30' : 'bg-gray-300 text-gray-700'}`}>
-              {candidates.length}
-            </span>
-          </button>
-
-          {/* 各狀態按鈕 */}
-          {Object.entries(CANDIDATE_STATUS_CONFIG).map(([key, config]) => {
-            const count = candidates.filter(c => c.status === key).length;
-            if (count === 0) return null;
-            const isActive = statusFilter === key && !todayOnly;
-            // 顏色對應
-            const activeColors: Record<string, string> = {
-              '未開始': 'bg-slate-500 text-white',
-              'AI推薦': 'bg-violet-600 text-white',
-              '聯繫階段': 'bg-blue-600 text-white',
-              '面試階段': 'bg-indigo-600 text-white',
-              'Offer': 'bg-amber-500 text-white',
-              'on board': 'bg-green-600 text-white',
-              '婉拒': 'bg-rose-500 text-white',
-              '備選人才': 'bg-purple-600 text-white',
-            };
-            return (
-              <button
-                key={key}
-                onClick={() => { setStatusFilter(key); setTodayOnly(false); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  isActive
-                    ? (activeColors[key] || 'bg-gray-700 text-white') + ' shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {config.label}
-                <span className={`rounded-full px-1.5 text-xs ${isActive ? 'bg-white bg-opacity-30' : 'bg-gray-300 text-gray-700'}`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-
-          {/* 今日新增 */}
-          <button
-            onClick={() => { setTodayOnly(!todayOnly); setStatusFilter('all'); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              todayOnly
-                ? 'bg-green-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            今日新增
-            {todayOnly && (
-              <span className="ml-1 bg-white bg-opacity-30 rounded-full px-1.5 text-xs">
-                {filteredCandidates.length}
-              </span>
-            )}
-          </button>
-
-          {/* 清除篩選 */}
-          {(searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || todayOnly) && (
+        {/* 第二行：快捷篩選標籤 */}
+        <div className="px-4 pb-3 pt-0">
+          <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-gray-100">
+            {/* 狀態標籤組 */}
+            <span className="text-[10px] text-gray-400 font-medium uppercase mr-1">狀態</span>
             <button
-              onClick={() => {
-                setSearchQuery('');
-                setStatusFilter('all');
-                setSourceFilter('all');
-                setConsultantFilter('all');
-                setTodayOnly(false);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+              onClick={() => { setStatusFilter('all'); setTodayOnly(false); }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                statusFilter === 'all' && !todayOnly
+                  ? 'bg-gray-700 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
             >
-              <X className="w-3.5 h-3.5" />
-              清除
+              全部
+              <span className={`rounded-full px-1.5 text-[10px] ${statusFilter === 'all' && !todayOnly ? 'bg-white bg-opacity-30' : 'bg-gray-300 text-gray-700'}`}>
+                {candidates.length}
+              </span>
             </button>
-          )}
+
+            {Object.entries(CANDIDATE_STATUS_CONFIG).map(([key, config]) => {
+              const count = candidates.filter(c => c.status === key).length;
+              if (count === 0) return null;
+              const isActive = statusFilter === key && !todayOnly;
+              const activeColors: Record<string, string> = {
+                '未開始': 'bg-slate-500 text-white',
+                'AI推薦': 'bg-violet-600 text-white',
+                '聯繫階段': 'bg-blue-600 text-white',
+                '面試階段': 'bg-indigo-600 text-white',
+                'Offer': 'bg-amber-500 text-white',
+                'on board': 'bg-green-600 text-white',
+                '婉拒': 'bg-rose-500 text-white',
+                '備選人才': 'bg-purple-600 text-white',
+              };
+              return (
+                <button
+                  key={key}
+                  onClick={() => { setStatusFilter(key); setTodayOnly(false); }}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    isActive
+                      ? (activeColors[key] || 'bg-gray-700 text-white') + ' shadow-sm'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {config.label}
+                  <span className={`rounded-full px-1.5 text-[10px] ${isActive ? 'bg-white bg-opacity-30' : 'bg-gray-300 text-gray-700'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* 分隔線 */}
+            <div className="h-4 w-px bg-gray-200 mx-1.5" />
+
+            {/* 來源標籤組 */}
+            <span className="text-[10px] text-gray-400 font-medium uppercase mr-1">來源</span>
+            {Object.entries(SOURCE_CONFIG).map(([key, config]) => {
+              const count = candidates.filter(c => c.source === key).length;
+              if (count === 0) return null;
+              const isActive = sourceFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSourceFilter(isActive ? 'all' : key)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    isActive
+                      ? 'bg-teal-600 text-white shadow-sm'
+                      : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  {config.icon} {config.label}
+                  <span className={`rounded-full px-1.5 text-[10px] ${isActive ? 'bg-white bg-opacity-30' : 'bg-gray-200 text-gray-600'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* 分隔線 */}
+            <div className="h-4 w-px bg-gray-200 mx-1.5" />
+
+            {/* 今日新增 */}
+            <button
+              onClick={() => { setTodayOnly(!todayOnly); setStatusFilter('all'); }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                todayOnly
+                  ? 'bg-green-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <Sparkles className="w-3 h-3" />
+              今日新增
+              {todayOnly && (
+                <span className="bg-white bg-opacity-30 rounded-full px-1.5 text-[10px]">
+                  {filteredCandidates.length}
+                </span>
+              )}
+            </button>
+
+            {/* 清除篩選 */}
+            {(searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || jobFilter !== 'all' || todayOnly) && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('all');
+                  setSourceFilter('all');
+                  setConsultantFilter('all');
+                  setJobFilter('all');
+                  setTodayOnly(false);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
+              >
+                <X className="w-3 h-3" />
+                清除篩選
+              </button>
+            )}
+          </div>
         </div>
       </div>
       
@@ -595,7 +656,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             <Users className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">沒有候選人</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || todayOnly
+              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || jobFilter !== 'all' || todayOnly
                 ? (todayOnly && filteredCandidates.length === 0 ? '今日尚無自動匯入的候選人' : '請調整篩選條件')
                 : '開始新增候選人吧！'}
             </p>
@@ -622,6 +683,11 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                     {statusConfig.label}
                   </span>
                 </div>
+                {(candidate as any).targetJobLabel && (
+                  <div className="text-xs text-indigo-600 mb-1">
+                    🎯 {(candidate as any).targetJobLabel}
+                  </div>
+                )}
                 <div className="text-xs text-gray-500 mb-3">
                   顧問：{candidate.consultant || '-'} · {candidate.years > 0 ? `${candidate.years} 年` : '年資未知'}
                 </div>
@@ -734,6 +800,11 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                   <ColumnTooltip {...COLUMN_DESCRIPTIONS.position} />
                 </div>
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '160px' }}>
+                <div className="flex items-center">
+                  🎯 目標職缺
+                </div>
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '80px' }}>
                 <div className="flex items-center">
                   年資
@@ -841,7 +912,20 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                     <div className="text-sm text-gray-900">{candidate.position}</div>
                     <div className="text-sm text-gray-500">{candidate.location}</div>
                   </td>
-                  
+
+                  {/* 目標職缺 */}
+                  <td className="px-6 py-4">
+                    {(candidate as any).targetJobLabel ? (
+                      <div className="text-sm">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-medium text-xs leading-relaxed">
+                          🎯 {(candidate as any).targetJobLabel}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">未指定</span>
+                    )}
+                  </td>
+
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
                       {candidate.years > 0 ? `${candidate.years} 年` : <span className="text-gray-400">-</span>}
@@ -1012,7 +1096,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             <Users className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">沒有候選人</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || todayOnly
+              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || jobFilter !== 'all' || todayOnly
                 ? (todayOnly && filteredCandidates.length === 0 ? '今日尚無自動匯入的候選人' : '請調整篩選條件')
                 : '開始新增候選人吧！'}
             </p>

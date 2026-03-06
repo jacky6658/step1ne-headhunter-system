@@ -256,6 +256,7 @@ export enum CandidateSource {
   REFERRAL = '推薦',
   HEADHUNT = '主動開發',
   JOB_BOARD = '人力銀行',
+  CRAWLER = '爬蟲匯入',
   OTHER = '其他'
 }
 
@@ -327,11 +328,16 @@ export interface JobRankingEntry {
   salary_range: string;
   job_status: string;
   match_score: number;           // 0-100 加權總分
-  skill_score: number;           // 技能比對分數
+  skill_score: number;           // 技能比對分數（35%）
+  experience_score: number;      // 年資匹配分（25%）
+  industry_score: number;        // 產業+職能匹配分（20%）
+  education_score: number;       // 學歷匹配分（10%）
+  profile_score: number;         // 資料完整度分（10%）
   matched_skills: string[];      // 符合的技能
   missing_skills: string[];      // 缺口技能
   required_skills_count: number; // 職缺要求技能總數
   recommendation: '強力推薦' | '推薦' | '觀望' | '不推薦';
+  cached?: boolean;              // 是否來自快取
 }
 
 // 系統外職缺建議（rule-based，前端生成）

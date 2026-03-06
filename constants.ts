@@ -177,6 +177,11 @@ export const SOURCE_CONFIG = {
     icon: '📋',
     color: 'yellow'
   },
+  [CandidateSource.CRAWLER]: {
+    label: '爬蟲匯入',
+    icon: '🤖',
+    color: 'teal'
+  },
   [CandidateSource.OTHER]: {
     label: '其他',
     icon: '📁',

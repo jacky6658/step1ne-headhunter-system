@@ -2,7 +2,6 @@
  * routes-api.js - 完整 API 路由（candidates + jobs）
  * 整合 SQL 資料層
  */
-
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
@@ -10,6 +9,7 @@ const https = require('https');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
+const { enrichCandidate, saveEnrichment } = require('./perplexityService');
 
 const DATABASE_URL = process.env.DATABASE_URL || 
   'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur';
@@ -78,6 +78,15 @@ pool.query(`
   )
 `).catch(err => console.warn('user_contacts migration:', err.message));
 
+// 確保 candidate_job_rankings_cache 資料表存在（職缺匹配推薦 v2 快取）
+pool.query(`
+  CREATE TABLE IF NOT EXISTS candidate_job_rankings_cache (
+    candidate_id INTEGER NOT NULL PRIMARY KEY,
+    rankings JSONB NOT NULL,
+    computed_at TIMESTAMP DEFAULT NOW()
+  )
+`).catch(err => console.warn('candidate_job_rankings_cache migration:', err.message));
+
 // 確保 github_token 欄位存在
 pool.query(`
   ALTER TABLE user_contacts
@@ -133,6 +142,15 @@ pool.query(`
 pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS github_analysis_cache JSONB;
 `).catch(err => console.warn('github_analysis_cache migration:', err.message));
+
+// 擴充 VARCHAR(100) 欄位，避免爬蟲匯入資料超長
+pool.query(`
+  ALTER TABLE candidates_pipeline ALTER COLUMN location TYPE VARCHAR(255);
+  ALTER TABLE candidates_pipeline ALTER COLUMN education TYPE VARCHAR(255);
+  ALTER TABLE candidates_pipeline ALTER COLUMN source TYPE VARCHAR(255);
+  ALTER TABLE candidates_pipeline ALTER COLUMN recruiter TYPE VARCHAR(255);
+  ALTER TABLE candidates_pipeline ALTER COLUMN personality_type TYPE VARCHAR(255);
+`).catch(err => console.warn('column resize migration:', err.message));
 
 // 目標職缺欄位：改為直接 FK 對應 jobs_pipeline（不再存在 notes 文字內）
 pool.query(`
@@ -525,6 +543,23 @@ router.get('/candidates/:id', async (req, res) => {
       targetJobLabel: row.target_job_label
         ? `${row.target_job_label}${row.target_job_company ? ` (${row.target_job_company})` : ''}`
         : null,
+      // JSONB / 詳細欄位
+      workHistory: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      quitReasons: row.leaving_reason || '',
+      educationJson: (() => { const v = row.education_details; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      discProfile: row.personality_type || '',
+      progressTracking: row.progress_tracking || [],
+      talentLevel: row.talent_level || '',
+
+      // 向後相容：保留 DB 字段名
+      work_history: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      leaving_reason: row.leaving_reason || '',
+      stability_score: row.stability_score || '',
+      education_details: (() => { const v = row.education_details; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      personality_type: row.personality_type || '',
+      talent_level: row.talent_level || '',
+      progress_tracking: row.progress_tracking || [],
+
       aiMatchResult: row.ai_match_result ? (() => {
         // 支援新舊格式，直接傳遞完整的 ai_match_result 物件
         const am = row.ai_match_result;
@@ -627,6 +662,9 @@ router.put('/candidates/:id', async (req, res) => {
       candidateName: result.rows[0].name,
       detail: { status, notes: notes?.substring(0, 100), aiMatchResult: matchResult ? '已更新' : undefined }
     });
+
+    // 清除該候選人的職缺匹配快取
+    pool.query('DELETE FROM candidate_job_rankings_cache WHERE candidate_id = $1', [id]).catch(() => {});
 
     res.json({
       success: true,
@@ -945,6 +983,9 @@ router.patch('/candidates/:id', async (req, res) => {
       candidateName: result.rows[0].name,
       detail: { fields: Object.keys(req.body).filter(k => k !== 'actor') }
     });
+
+    // 清除該候選人的職缺匹配快取
+    pool.query('DELETE FROM candidate_job_rankings_cache WHERE candidate_id = $1', [id]).catch(() => {});
 
     res.json({ success: true, data: result.rows[0], message: 'Candidate patched successfully' });
   } catch (error) {
@@ -1306,11 +1347,11 @@ router.post('/candidates', async (req, res) => {
         WHERE id = $23
         RETURNING id, name, contact_link, current_position, status`,
         [
-          c.phone || '', c.contact_link || '', c.location || '',
-          c.current_position || '', String(c.years_experience || ''),
-          c.skills || '', c.education || '', c.source || '',
+          c.phone || '', c.contact_link || '', (c.location || '').slice(0, 255),
+          (c.current_position || '').slice(0, 255), String(c.years_experience || ''),
+          c.skills || '', (c.education || '').slice(0, 255), (c.source || '').slice(0, 255),
           c.notes || '', String(c.stability_score || ''),
-          c.personality_type || '', String(c.job_changes || ''),
+          (c.personality_type || '').slice(0, 255), String(c.job_changes || ''),
           String(c.avg_tenure_months || ''), String(c.recent_gap_months || ''),
           c.work_history ? JSON.stringify(c.work_history) : null,
           c.education_details ? JSON.stringify(c.education_details) : null,
@@ -1336,10 +1377,10 @@ router.post('/candidates', async (req, res) => {
         [
           c.name.trim(), c.phone || '', c.email || '',
           c.linkedin_url || '', c.github_url || '', c.contact_link || '',
-          c.location || '', c.current_position || '', String(c.years_experience || '0'),
-          c.skills || '', c.education || '', c.source || 'GitHub',
-          c.status || '未開始', c.recruiter || 'Jacky', c.notes || '',
-          String(c.stability_score || '0'), c.personality_type || '',
+          (c.location || '').slice(0, 255), (c.current_position || '').slice(0, 255), String(c.years_experience || '0'),
+          c.skills || '', (c.education || '').slice(0, 255), (c.source || 'GitHub').slice(0, 255),
+          c.status || '未開始', (c.recruiter || 'Jacky').slice(0, 255), c.notes || '',
+          String(c.stability_score || '0'), (c.personality_type || '').slice(0, 255),
           String(c.job_changes || '0'), String(c.avg_tenure_months || '0'),
           String(c.recent_gap_months || '0'),
           c.work_history ? JSON.stringify(c.work_history) : null,
@@ -1677,6 +1718,9 @@ router.put('/jobs/:id', async (req, res) => {
 
     client.release();
 
+    // 職缺更新 → 清除所有候選人的匹配快取（需重新比對）
+    pool.query('DELETE FROM candidate_job_rankings_cache').catch(() => {});
+
     res.json({
       success: true,
       data: result.rows[0],
@@ -1867,6 +1911,9 @@ router.post('/jobs', async (req, res) => {
     );
 
     dbClient.release();
+
+    // 新職缺 → 清除所有候選人的匹配快取（需重新比對）
+    pool.query('DELETE FROM candidate_job_rankings_cache').catch(() => {});
 
     res.status(201).json({
       success: true,
@@ -3108,100 +3155,358 @@ router.get('/github/analyze/:username', async (req, res) => {
   }
 });
 
+// ============================================================
+// 職缺匹配推薦 v2：5 維度評分 + 中英文同義詞 + 快取
+// ============================================================
+
+/** 中英文技能同義詞對照表 — 用於跨語言技能比對 */
+const SKILL_SYNONYMS = {
+  // 財會
+  'ifrs': ['國際財務報導準則', '國際會計準則', 'international financial reporting standards'],
+  'gaap': ['一般公認會計原則', 'us gaap', 'tw gaap', '美國會計準則', '會計準則'],
+  'consolidation': ['合併報表', '合併報告', '合併財報', 'consolidated financial statements'],
+  'audit': ['審計', '稽核', '查核', 'auditing', '外部稽核', '內部稽核'],
+  'tax': ['稅務', '稅法', 'taxation', '稅務規劃', 'tax planning'],
+  'ipo': ['首次公開發行', '上市', 'initial public offering', '股票上市'],
+  'm&a': ['併購', '合併收購', 'mergers and acquisitions', 'merger', 'acquisition'],
+  'due diligence': ['盡職調查', 'dd', '盡調'],
+  'transfer pricing': ['移轉訂價', '轉讓定價', 'tp'],
+  'budgeting': ['預算編制', '預算管理', 'budget', '預算'],
+  'forecasting': ['財務預測', '預測', 'financial forecasting'],
+  'cost accounting': ['成本會計', '成本分析', 'cost analysis'],
+  'treasury': ['資金管理', '財務管理', 'cash management', '資金調度'],
+  'compliance': ['法規遵循', '合規', '法遵', 'regulatory compliance'],
+  'internal control': ['內部控制', '內控', 'ic', 'internal audit'],
+  'financial analysis': ['財務分析', '財報分析', 'financial reporting'],
+  'accounts payable': ['應付帳款', 'ap'],
+  'accounts receivable': ['應收帳款', 'ar'],
+  'general ledger': ['總帳', 'gl', '總分類帳'],
+  'cpa': ['會計師', '註冊會計師', 'certified public accountant'],
+  'cfa': ['特許金融分析師', 'chartered financial analyst'],
+  'erp': ['企業資源規劃', 'sap', 'oracle erp', 'sap erp', 'sap fico', 'oracle'],
+  'lean': ['精實管理', '精益管理', 'lean management', 'lean manufacturing'],
+  'sox': ['沙賓法案', 'sarbanes-oxley', '薩班斯'],
+  // 科技
+  'python': ['python3', 'python 3'],
+  'javascript': ['js', 'node.js', 'nodejs', 'node', 'ecmascript'],
+  'typescript': ['ts'],
+  'react': ['react.js', 'reactjs', 'react native'],
+  'vue': ['vue.js', 'vuejs'],
+  'angular': ['angularjs', 'angular.js'],
+  'java': ['jvm', 'spring', 'spring boot'],
+  'c#': ['csharp', 'c sharp', '.net', 'dotnet'],
+  'sql': ['mysql', 'postgresql', 'postgres', 'mssql', 'sql server', 'oracle db'],
+  'nosql': ['mongodb', 'redis', 'cassandra', 'dynamodb'],
+  'aws': ['amazon web services', 'ec2', 's3', 'lambda', '亞馬遜雲端'],
+  'azure': ['microsoft azure', '微軟雲端'],
+  'gcp': ['google cloud', 'google cloud platform', 'google 雲端'],
+  'docker': ['container', 'containerization', '容器化'],
+  'kubernetes': ['k8s', '容器編排'],
+  'ci/cd': ['cicd', 'continuous integration', 'continuous deployment', '持續整合', '持續部署'],
+  'machine learning': ['機器學習', 'ml', 'deep learning', '深度學習', 'ai', '人工智慧'],
+  'data analysis': ['數據分析', '資料分析', 'data analytics', 'data science', '資料科學'],
+  'devops': ['dev ops', '開發維運'],
+  'api': ['api design', 'restful', 'rest api', 'graphql'],
+  'microservices': ['微服務', 'micro services'],
+  // 管理 & 軟技能
+  'project management': ['專案管理', 'pm', 'pmp', '項目管理'],
+  'agile': ['敏捷', 'scrum', 'kanban', '敏捷開發'],
+  'leadership': ['領導力', '團隊管理', 'team management', 'team lead', '帶領團隊'],
+  'communication': ['溝通能力', '表達能力', '溝通協調'],
+  'negotiation': ['談判', '商務談判', '議價'],
+  'strategic planning': ['策略規劃', '戰略規劃', 'business strategy'],
+  'stakeholder management': ['利害關係人管理', '利益相關者管理'],
+  'cross functional': ['跨部門', '跨功能', 'cross-functional'],
+  'presentation': ['簡報能力', '提案能力', 'public speaking'],
+  // 人資
+  'recruitment': ['招募', '徵才', 'talent acquisition', '人才招募'],
+  'compensation': ['薪酬', '薪資', 'comp & ben', 'c&b', '薪酬福利'],
+  'performance management': ['績效管理', 'performance review', 'kpi'],
+  'employee relations': ['員工關係', 'er', '勞資關係'],
+  'hrbp': ['人力資源業務夥伴', 'hr business partner'],
+  // 業務 & 行銷
+  'b2b': ['企業對企業', 'business to business', '企業銷售'],
+  'b2c': ['企業對消費者', 'business to consumer'],
+  'crm': ['客戶關係管理', 'customer relationship management', 'salesforce'],
+  'digital marketing': ['數位行銷', '網路行銷', 'online marketing'],
+  'seo': ['搜尋引擎優化', 'search engine optimization'],
+  'content marketing': ['內容行銷', 'content strategy'],
+  'brand management': ['品牌管理', 'branding', '品牌經營'],
+  'supply chain': ['供應鏈', '供應鏈管理', 'scm', 'logistics', '物流'],
+  'procurement': ['採購', '採購管理', 'sourcing', '供應商管理'],
+  // 語言
+  'english': ['英文', '英語', '英文能力'],
+  'japanese': ['日文', '日語', '日本語'],
+  'mandarin': ['中文', '國語', '華語', 'chinese'],
+  'korean': ['韓文', '韓語'],
+};
+
+/** 展開同義詞比對：candidateSkill 和 requiredSkill 是否語意相同 */
+function expandedMatch(candidateSkill, requiredSkill) {
+  if (candidateSkill.includes(requiredSkill) || requiredSkill.includes(candidateSkill)) return true;
+  for (const [key, synonyms] of Object.entries(SKILL_SYNONYMS)) {
+    const group = [key, ...synonyms].map(s => s.toLowerCase());
+    const reqInGroup = group.some(g => g.includes(requiredSkill) || requiredSkill.includes(g));
+    const candInGroup = group.some(g => g.includes(candidateSkill) || candidateSkill.includes(g));
+    if (reqInGroup && candInGroup) return true;
+  }
+  return false;
+}
+
+/** 統一 skills 格式（JSON 陣列或逗號/頓號分隔字串）*/
+function normalizeSkills(skills) {
+  if (!skills) return [];
+  if (Array.isArray(skills)) return skills;
+  if (typeof skills === 'string') {
+    try {
+      const parsed = JSON.parse(skills);
+      if (Array.isArray(parsed)) return parsed;
+      return [skills];
+    } catch {
+      return skills.split(/[,、;；]/).map(s => s.trim()).filter(s => s.length > 0);
+    }
+  }
+  return [];
+}
+
+/** 解析 work_history JSONB（可能是字串或陣列）*/
+function parseWorkHistory(wh) {
+  if (!wh) return [];
+  if (Array.isArray(wh)) return wh;
+  if (typeof wh === 'string') { try { const p = JSON.parse(wh); return Array.isArray(p) ? p : []; } catch { return []; } }
+  return [];
+}
+
+/** 從 experience_required 文字提取年資數字 */
+function parseExperienceRequired(text) {
+  if (!text) return 0;
+  const rangeMatch = text.match(/(\d+)\s*[-~～至到]\s*(\d+)/);
+  if (rangeMatch) return (parseInt(rangeMatch[1]) + parseInt(rangeMatch[2])) / 2;
+  const singleMatch = text.match(/(\d+)/);
+  return singleMatch ? parseInt(singleMatch[1]) : 0;
+}
+
+/** v2 技能匹配分（含同義詞）*/
+function calcSkillScore(cand, job) {
+  const rawSkills = [job.key_skills, job.special_conditions].filter(Boolean).join(',');
+  const requiredSkills = rawSkills
+    .split(/[,、\n\/；;]/)
+    .map(s => s.trim().toLowerCase())
+    .filter(s => s.length > 1 && s.length < 40);
+
+  const candidateSkills = (cand.skills || []).map(s => (s || '').toLowerCase());
+  const candidateBio = (cand.bio || '').toLowerCase();
+
+  const matched = requiredSkills.filter(req =>
+    candidateSkills.some(cs => expandedMatch(cs, req)) ||
+    candidateBio.includes(req)
+  );
+
+  const score = requiredSkills.length > 0
+    ? Math.round((matched.length / requiredSkills.length) * 100)
+    : 50;
+
+  return { score, matched, missing: requiredSkills.filter(r => !matched.includes(r)), requiredCount: requiredSkills.length };
+}
+
+/** v2 年資匹配分 */
+function calcExperienceScore(cand, job) {
+  const candYears = parseFloat(cand.years_experience) || 0;
+  const reqYears = parseExperienceRequired(job.experience_required);
+  if (reqYears === 0) return 60;
+  if (candYears === 0) return 40;
+  const ratio = candYears / reqYears;
+  if (ratio >= 1.5) return 90;
+  if (ratio >= 1.0) return 100;
+  if (ratio >= 0.7) return 70;
+  if (ratio >= 0.5) return 50;
+  return 30;
+}
+
+/** v2 產業+職能匹配分（from work_history）*/
+function calcIndustryScore(cand, job) {
+  const workHistory = parseWorkHistory(cand.work_history);
+  const jobIndustry = (job.industry_background || '').toLowerCase();
+  const jobTitle = (job.position_name || '').toLowerCase();
+  let score = 40;
+
+  const historyText = workHistory.map(w =>
+    [w.title, w.company, w.description].filter(Boolean).join(' ')
+  ).join(' ').toLowerCase();
+
+  // 也加入 bio/notes 做補充
+  const fullText = historyText + ' ' + (cand.bio || '').toLowerCase();
+
+  if (jobIndustry && fullText) {
+    const industryKeywords = jobIndustry.split(/[,、;；\/\s]/).filter(s => s.length > 1);
+    const industryHits = industryKeywords.filter(k => fullText.includes(k));
+    if (industryHits.length > 0) score += Math.min(30, industryHits.length * 15);
+  }
+
+  if (jobTitle && workHistory.length > 0) {
+    const titleKeywords = jobTitle.split(/[\s\/,、]/).filter(s => s.length > 1);
+    const titleHits = titleKeywords.filter(k =>
+      workHistory.some(w => (w.title || '').toLowerCase().includes(k))
+    );
+    if (titleHits.length > 0) score += Math.min(30, titleHits.length * 10);
+  }
+
+  return Math.min(100, score);
+}
+
+/** v2 學歷匹配分 */
+function calcEducationScore(cand, job) {
+  const eduRequired = (job.education_required || '').toLowerCase();
+  const candEdu = (cand.education || '').toLowerCase();
+  if (!eduRequired || eduRequired.includes('不拘') || eduRequired.includes('不限')) return 70;
+
+  const levels = { '博士': 5, 'phd': 5, 'doctorate': 5, '碩士': 4, 'master': 4, 'mba': 4, 'emba': 4,
+                   '大學': 3, '學士': 3, 'bachelor': 3, 'university': 3, '專科': 2, '高中': 1, '高職': 1 };
+  const getLevel = (text) => { for (const [k, v] of Object.entries(levels)) { if (text.includes(k)) return v; } return 0; };
+
+  const reqLevel = getLevel(eduRequired);
+  const candLevel = getLevel(candEdu);
+  if (candLevel === 0) return 50;
+  if (candLevel >= reqLevel) return 100;
+  if (candLevel === reqLevel - 1) return 70;
+  return 40;
+}
+
+/** v2 資料完整度分 */
+function calcProfileScore(cand) {
+  let score = 30;
+  if (cand.skills && cand.skills.length > 0) score += 15;
+  if (parseWorkHistory(cand.work_history).length > 0) score += 20;
+  if (cand.education) score += 10;
+  if (cand.years_experience) score += 10;
+  if (cand.linkedin_url) score += 10;
+  if (cand.github_url) score += 5;
+  return Math.min(100, score);
+}
+
+/** v2 綜合評分：5 維度加權 */
+function rankAgainstJobV2(cand, job) {
+  const skill = calcSkillScore(cand, job);
+  const experienceScore = calcExperienceScore(cand, job);
+  const industryScore = calcIndustryScore(cand, job);
+  const educationScore = calcEducationScore(cand, job);
+  const profileScore = calcProfileScore(cand);
+
+  const totalScore = Math.round(
+    skill.score * 0.35 +
+    experienceScore * 0.25 +
+    industryScore * 0.20 +
+    educationScore * 0.10 +
+    profileScore * 0.10
+  );
+
+  let recommendation;
+  if (totalScore >= 80) recommendation = '強力推薦';
+  else if (totalScore >= 65) recommendation = '推薦';
+  else if (totalScore >= 50) recommendation = '觀望';
+  else recommendation = '不推薦';
+
+  return {
+    job_id: job.id,
+    job_title: job.position_name,
+    company: job.client_company || '',
+    department: job.department || '',
+    salary_range: job.salary_range || '',
+    job_status: job.job_status || '',
+    match_score: totalScore,
+    skill_score: skill.score,
+    experience_score: experienceScore,
+    industry_score: industryScore,
+    education_score: educationScore,
+    profile_score: profileScore,
+    matched_skills: skill.matched.slice(0, 10),
+    missing_skills: skill.missing.slice(0, 10),
+    required_skills_count: skill.requiredCount,
+    recommendation,
+  };
+}
+
 /**
  * GET /api/candidates/:id/job-rankings
- * 將候選人與系統所有職缺做技能比對，依分數排序回傳推薦列表
+ * v2：5 維度評分 + 中英文同義詞 + Top 5 + 快取
+ * 支援 ?force=1 強制重算
  */
 router.get('/candidates/:id/job-rankings', async (req, res) => {
   try {
     const { id } = req.params;
+    const forceRecalc = req.query.force === '1' || req.query.force === 'true';
 
-    // 1. 抓候選人資料
+    // 1. 檢查快取（除非強制重算）
+    if (!forceRecalc) {
+      try {
+        const cacheRes = await pool.query(
+          'SELECT rankings, computed_at FROM candidate_job_rankings_cache WHERE candidate_id = $1',
+          [id]
+        );
+        if (cacheRes.rows.length > 0) {
+          const cached = cacheRes.rows[0];
+          return res.json({
+            candidate_id: id,
+            total_jobs: cached.rankings.length,
+            rankings: cached.rankings,
+            cached: true,
+            computed_at: cached.computed_at,
+          });
+        }
+      } catch (cacheErr) {
+        console.warn('Cache read failed, will recalculate:', cacheErr.message);
+      }
+    }
+
+    // 2. 抓候選人完整資料
     const candRes = await pool.query(
-      `SELECT id, name, skills, notes AS bio, source
+      `SELECT id, name, skills, notes AS bio, source,
+              work_history, education, education_details,
+              years_experience, location, current_position,
+              linkedin_url, github_url
        FROM candidates_pipeline WHERE id = $1`,
       [id]
     );
     if (candRes.rows.length === 0) return res.status(404).json({ error: '候選人不存在' });
     const candidate = candRes.rows[0];
+    candidate.skills = normalizeSkills(candidate.skills);
 
-    // 統一 skills 格式
-    if (typeof candidate.skills === 'string') {
-      try { candidate.skills = JSON.parse(candidate.skills); } catch { candidate.skills = []; }
-    }
-    if (!Array.isArray(candidate.skills)) candidate.skills = [];
-
-    // 2. 抓所有職缺
+    // 3. 抓所有非關閉職缺
     const jobsRes = await pool.query(
       `SELECT id, position_name, client_company, department,
               key_skills, experience_required, special_conditions,
-              salary_range, job_status
+              salary_range, job_status,
+              industry_background, education_required, language_required, location
        FROM jobs_pipeline
+       WHERE job_status IS NULL OR job_status != '已關閉'
        ORDER BY created_at DESC LIMIT 200`
     );
 
-    // 3. 對每個職缺做技能比對（與 talentSourceService.scoreCandidate 同邏輯）
-    function rankAgainstJob(cand, job) {
-      const rawSkills = [job.key_skills, job.experience_required, job.special_conditions]
-        .filter(Boolean).join(',');
-      const requiredSkills = rawSkills
-        .split(/[,、\n\/；;]/)
-        .map(s => s.trim().toLowerCase())
-        .filter(s => s.length > 1 && s.length < 30);
-
-      const candidateSkills = (cand.skills || []).map(s => (s || '').toLowerCase());
-      const candidateBio = (cand.bio || '').toLowerCase();
-
-      const matched = requiredSkills.filter(req =>
-        candidateSkills.some(cs => cs.includes(req) || req.includes(cs)) ||
-        candidateBio.includes(req)
-      );
-
-      const skillScore = requiredSkills.length > 0
-        ? Math.round((matched.length / requiredSkills.length) * 100)
-        : 50;
-
-      // 個人資料品質基礎分（依來源給予基準分）
-      let profileScore = 40;
-      const src = (cand.source || '').toLowerCase();
-      if (src === 'github') profileScore = 65;
-      else if (src === 'linkedin') profileScore = 62;
-      else if (src === 'gmail 進件' || src === 'gmail') profileScore = 55;
-
-      const totalScore = Math.round(skillScore * 0.6 + profileScore * 0.4);
-      const missingSkills = requiredSkills.filter(r => !matched.includes(r));
-
-      let recommendation;
-      if (totalScore >= 80) recommendation = '強力推薦';
-      else if (totalScore >= 65) recommendation = '推薦';
-      else if (totalScore >= 50) recommendation = '觀望';
-      else recommendation = '不推薦';
-
-      return {
-        job_id: job.id,
-        job_title: job.position_name,
-        company: job.client_company || '',
-        department: job.department || '',
-        salary_range: job.salary_range || '',
-        job_status: job.job_status || '',
-        match_score: totalScore,
-        skill_score: skillScore,
-        matched_skills: matched.slice(0, 10),
-        missing_skills: missingSkills.slice(0, 10),
-        required_skills_count: requiredSkills.length,
-        recommendation,
-      };
-    }
-
-    const rankings = jobsRes.rows
-      .map(job => rankAgainstJob(candidate, job))
+    // 4. 對每個職缺做 5 維度評分，排序取 Top 5
+    const allRankings = jobsRes.rows
+      .map(job => rankAgainstJobV2(candidate, job))
       .sort((a, b) => b.match_score - a.match_score);
+
+    const top5 = allRankings.slice(0, 5);
+
+    // 5. 存入快取
+    try {
+      await pool.query(
+        `INSERT INTO candidate_job_rankings_cache (candidate_id, rankings, computed_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (candidate_id) DO UPDATE SET rankings = $2, computed_at = NOW()`,
+        [id, JSON.stringify(top5)]
+      );
+    } catch (cacheErr) {
+      console.warn('Cache write failed:', cacheErr.message);
+    }
 
     res.json({
       candidate_id: id,
       candidate_name: candidate.name,
-      total_jobs: rankings.length,
-      rankings,
+      total_jobs: top5.length,
+      rankings: top5,
+      cached: false,
     });
   } catch (error) {
     console.error('❌ GET /candidates/:id/job-rankings error:', error.message);
@@ -3579,6 +3884,127 @@ router.post('/resume/batch-parse', (req, res) => {
       total: req.files.length,
       results,
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════
+// Perplexity AI 深度分析
+// ═══════════════════════════════════════════════════
+
+/**
+ * POST /api/candidates/:id/enrich
+ * 使用 Perplexity AI 搜尋候選人公開資料，充實人選卡片
+ * Body: { actor: "Jacky" }
+ */
+router.post('/candidates/:id/enrich', async (req, res) => {
+  const { id } = req.params;
+  const actor = req.body.actor || 'System';
+
+  try {
+    // 1. 取得候選人現有資料
+    const candidateResult = await pool.query(
+      `SELECT id, name, current_position, linkedin_url, github_url, location, skills, email
+       FROM candidates_pipeline WHERE id = $1`,
+      [id]
+    );
+
+    if (candidateResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '找不到候選人' });
+    }
+
+    const candidate = candidateResult.rows[0];
+    console.log(`🔍 開始 Perplexity 深度分析: #${id} ${candidate.name}`);
+
+    // 2. 呼叫 Perplexity 分析
+    const enrichResult = await enrichCandidate(candidate);
+
+    if (!enrichResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: enrichResult.error,
+        message: `Perplexity 分析失敗: ${enrichResult.error}`,
+      });
+    }
+
+    // 3. 寫入資料庫
+    const updated = await saveEnrichment(pool, Number(id), enrichResult.data, actor);
+
+    console.log(`✅ Perplexity 分析完成: #${id} ${candidate.name}`);
+    res.json({
+      success: true,
+      message: `候選人 ${candidate.name} 的深度分析已完成`,
+      candidate_id: Number(id),
+      enriched_fields: Object.entries(enrichResult.data)
+        .filter(([_, v]) => v != null)
+        .map(([k]) => k),
+      data: enrichResult.data,
+      updated: updated,
+    });
+  } catch (error) {
+    console.error(`❌ POST /candidates/${id}/enrich error:`, error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/candidates/enrich-batch
+ * 批量深度分析（最多 10 筆）
+ * Body: { ids: [1212, 1213], actor: "Jacky" }
+ */
+router.post('/candidates/enrich-batch', async (req, res) => {
+  const { ids, actor } = req.body;
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ success: false, error: '請提供 ids 陣列' });
+  }
+
+  if (ids.length > 10) {
+    return res.status(400).json({ success: false, error: '單次最多 10 筆' });
+  }
+
+  const results = { success: [], failed: [] };
+
+  for (const id of ids) {
+    try {
+      const candidateResult = await pool.query(
+        `SELECT id, name, current_position, linkedin_url, github_url, location, skills, email
+         FROM candidates_pipeline WHERE id = $1`,
+        [id]
+      );
+
+      if (candidateResult.rows.length === 0) {
+        results.failed.push({ id, error: '找不到候選人' });
+        continue;
+      }
+
+      const candidate = candidateResult.rows[0];
+      console.log(`🔍 批量分析: #${id} ${candidate.name}`);
+
+      const enrichResult = await enrichCandidate(candidate);
+
+      if (!enrichResult.success) {
+        results.failed.push({ id, name: candidate.name, error: enrichResult.error });
+        continue;
+      }
+
+      await saveEnrichment(pool, Number(id), enrichResult.data, actor || 'System');
+      results.success.push({
+        id: Number(id),
+        name: candidate.name,
+        fields: Object.entries(enrichResult.data).filter(([_, v]) => v != null).map(([k]) => k),
+      });
+
+      // 避免 API rate limit，每筆間隔 1 秒
+      await new Promise(r => setTimeout(r, 1000));
+    } catch (err) {
+      results.failed.push({ id, error: err.message });
+    }
+  }
+
+  res.json({
+    success: true,
+    message: `批量分析完成：成功 ${results.success.length} 筆，失敗 ${results.failed.length} 筆`,
+    ...results,
   });
 });
 

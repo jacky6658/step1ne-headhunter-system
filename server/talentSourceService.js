@@ -38,47 +38,120 @@ function validateScripts() {
 }
 
 // ============================================================
-// 評分邏輯（Node.js，直接對比職缺要求）
+// 評分邏輯 v2（5 維度 + 中英文同義詞）
 // ============================================================
 
+/** 中英文技能同義詞對照表（與 routes-api.js 同步） */
+const SKILL_SYNONYMS = {
+  'ifrs': ['國際財務報導準則', '國際會計準則'], 'gaap': ['一般公認會計原則', 'us gaap', 'tw gaap'],
+  'consolidation': ['合併報表', '合併報告', '合併財報'], 'audit': ['審計', '稽核', '查核', 'auditing'],
+  'tax': ['稅務', '稅法', 'taxation'], 'ipo': ['首次公開發行', '上市'],
+  'm&a': ['併購', '合併收購', 'mergers and acquisitions'], 'due diligence': ['盡職調查', 'dd'],
+  'erp': ['企業資源規劃', 'sap', 'oracle erp'], 'compliance': ['法規遵循', '合規', '法遵'],
+  'internal control': ['內部控制', '內控', 'ic'], 'financial analysis': ['財務分析', '財報分析'],
+  'python': ['python3'], 'javascript': ['js', 'node.js', 'nodejs'],
+  'react': ['react.js', 'reactjs'], 'typescript': ['ts'],
+  'sql': ['mysql', 'postgresql', 'postgres'], 'aws': ['amazon web services'],
+  'docker': ['container', '容器化'], 'kubernetes': ['k8s'],
+  'machine learning': ['機器學習', 'ml', 'deep learning', '深度學習'],
+  'data analysis': ['數據分析', '資料分析', 'data analytics'],
+  'project management': ['專案管理', 'pm', 'pmp'], 'agile': ['敏捷', 'scrum', 'kanban'],
+  'leadership': ['領導力', '團隊管理', 'team management'],
+  'supply chain': ['供應鏈', '供應鏈管理', 'scm'], 'procurement': ['採購', '採購管理'],
+};
+
+function expandedMatch(candidateSkill, requiredSkill) {
+  if (candidateSkill.includes(requiredSkill) || requiredSkill.includes(candidateSkill)) return true;
+  for (const [key, synonyms] of Object.entries(SKILL_SYNONYMS)) {
+    const group = [key, ...synonyms].map(s => s.toLowerCase());
+    const reqInGroup = group.some(g => g.includes(requiredSkill) || requiredSkill.includes(g));
+    const candInGroup = group.some(g => g.includes(candidateSkill) || candidateSkill.includes(g));
+    if (reqInGroup && candInGroup) return true;
+  }
+  return false;
+}
+
+function normalizeSkills(skills) {
+  if (!skills) return [];
+  if (Array.isArray(skills)) return skills;
+  if (typeof skills === 'string') {
+    try { const p = JSON.parse(skills); if (Array.isArray(p)) return p; return [skills]; }
+    catch { return skills.split(/[,、;；]/).map(s => s.trim()).filter(s => s.length > 0); }
+  }
+  return [];
+}
+
+function parseExperienceRequired(text) {
+  if (!text) return 0;
+  const rm = text.match(/(\d+)\s*[-~～至到]\s*(\d+)/);
+  if (rm) return (parseInt(rm[1]) + parseInt(rm[2])) / 2;
+  const sm = text.match(/(\d+)/);
+  return sm ? parseInt(sm[1]) : 0;
+}
+
 function scoreCandidate(candidate, job, githubAnalysis) {
-  const rawSkills = [job.key_skills, job.experience_required, job.special_conditions]
-    .filter(Boolean).join(',');
-  const requiredSkills = rawSkills
-    .split(/[,、\n\/；;]/)
-    .map(s => s.trim().toLowerCase())
-    .filter(s => s.length > 1 && s.length < 30);
-
-  const candidateSkills = (candidate.skills || []).map(s => (s || '').toLowerCase());
+  // 技能分（35%）
+  const rawSkills = [job.key_skills, job.special_conditions].filter(Boolean).join(',');
+  const requiredSkills = rawSkills.split(/[,、\n\/；;]/).map(s => s.trim().toLowerCase()).filter(s => s.length > 1 && s.length < 40);
+  const candidateSkills = normalizeSkills(candidate.skills).map(s => (s || '').toLowerCase());
   const candidateBio = (candidate.bio || '').toLowerCase();
+  const matched = requiredSkills.filter(req => candidateSkills.some(cs => expandedMatch(cs, req)) || candidateBio.includes(req));
+  const skillScore = requiredSkills.length > 0 ? Math.round((matched.length / requiredSkills.length) * 100) : 50;
 
-  // 技能比對（60%）
-  const matched = requiredSkills.filter(req =>
-    candidateSkills.some(cs => cs.includes(req) || req.includes(cs)) ||
-    candidateBio.includes(req)
-  );
-  const skillScore = requiredSkills.length > 0
-    ? Math.round((matched.length / requiredSkills.length) * 100)
-    : 50;
+  // 年資分（25%）
+  const candYears = parseFloat(candidate.years_experience) || 0;
+  const reqYears = parseExperienceRequired(job.experience_required);
+  let experienceScore = 60;
+  if (reqYears > 0 && candYears > 0) {
+    const ratio = candYears / reqYears;
+    if (ratio >= 1.5) experienceScore = 90;
+    else if (ratio >= 1.0) experienceScore = 100;
+    else if (ratio >= 0.7) experienceScore = 70;
+    else if (ratio >= 0.5) experienceScore = 50;
+    else experienceScore = 30;
+  } else if (candYears === 0) experienceScore = 40;
 
-  // 個人資料品質（40%）— v2: 如果有 GitHub 深度分析，用 v2 總分
+  // 資料品質分（10%）— 保留 GitHub 深度分析加持
   let profileScore = 40;
   if (githubAnalysis && githubAnalysis.totalScore != null) {
-    // v2: 使用 GitHub 4 維度加權總分
     profileScore = githubAnalysis.totalScore;
-  } else if (candidate.source === 'github') {
-    // v1 fallback: 原有粗略邏輯
-    const repos = candidate.public_repos || 0;
-    const followers = candidate.followers || 0;
-    if (repos > 30 || followers > 100) profileScore = 95;
-    else if (repos > 15 || followers > 30) profileScore = 80;
-    else if (repos > 5) profileScore = 65;
-    else profileScore = 45;
-  } else if (candidate.source === 'linkedin') {
-    profileScore = 62;
+  } else {
+    let s = 30;
+    if (candidateSkills.length > 0) s += 15;
+    if (candidate.education) s += 10;
+    if (candYears > 0) s += 10;
+    if ((candidate.source || '').toLowerCase().includes('github')) s += 20;
+    else if ((candidate.source || '').toLowerCase().includes('linkedin')) s += 15;
+    profileScore = Math.min(100, s);
   }
 
-  const totalScore = Math.round(skillScore * 0.6 + profileScore * 0.4);
+  // 產業分（20%）
+  let industryScore = 40;
+  const jobTitle = (job.position_name || '').toLowerCase();
+  const currentPos = (candidate.current_position || candidate.title || '').toLowerCase();
+  if (currentPos && jobTitle) {
+    const titleWords = jobTitle.split(/[\s\/,、]/).filter(s => s.length > 1);
+    const hits = titleWords.filter(k => currentPos.includes(k));
+    if (hits.length > 0) industryScore += Math.min(40, hits.length * 15);
+  }
+  industryScore = Math.min(100, industryScore);
+
+  // 學歷分（10%）
+  let educationScore = 60;
+  const eduReq = (job.education_required || '').toLowerCase();
+  const candEdu = (candidate.education || '').toLowerCase();
+  if (eduReq && !eduReq.includes('不拘') && !eduReq.includes('不限')) {
+    const levels = { '博士': 5, 'phd': 5, '碩士': 4, 'master': 4, 'mba': 4, '大學': 3, '學士': 3, 'bachelor': 3, '專科': 2 };
+    const getLevel = (t) => { for (const [k, v] of Object.entries(levels)) { if (t.includes(k)) return v; } return 0; };
+    const rL = getLevel(eduReq), cL = getLevel(candEdu);
+    if (cL === 0) educationScore = 50;
+    else if (cL >= rL) educationScore = 100;
+    else if (cL === rL - 1) educationScore = 70;
+    else educationScore = 40;
+  }
+
+  // 加權總分
+  const totalScore = Math.round(skillScore * 0.35 + experienceScore * 0.25 + industryScore * 0.20 + educationScore * 0.10 + profileScore * 0.10);
 
   let grade;
   if (totalScore >= 90) grade = 'S';
@@ -90,9 +163,8 @@ function scoreCandidate(candidate, job, githubAnalysis) {
   const missingSkills = requiredSkills.filter(r => !matched.includes(r));
 
   return {
-    totalScore, skillScore, profileScore, grade,
+    totalScore, skillScore, profileScore, experienceScore, industryScore, educationScore, grade,
     matchedSkills: matched, missingSkills,
-    // v2: 附加 GitHub 分析細節（如有）
     githubBreakdown: githubAnalysis ? {
       skillMatch: githubAnalysis.skillMatch?.score,
       projectQuality: githubAnalysis.projectQuality?.score,
