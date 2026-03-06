@@ -621,4 +621,29 @@ router.get('/import-status', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/crawler/fix-source
+ * 一次性修復：把 recruiter 含 'Crawler' 的候選人 source 設為「爬蟲匯入」
+ */
+router.post('/fix-source', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE candidates_pipeline
+       SET source = '爬蟲匯入', updated_at = NOW()
+       WHERE LOWER(recruiter) LIKE '%crawler%'
+         AND source != '爬蟲匯入'
+       RETURNING id, name, source`
+    );
+    res.json({
+      success: true,
+      message: `已更新 ${result.rowCount} 筆候選人的來源為「爬蟲匯入」`,
+      updated: result.rowCount,
+      candidates: result.rows
+    });
+  } catch (error) {
+    console.error('❌ POST /crawler/fix-source error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
