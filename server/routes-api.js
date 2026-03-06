@@ -3134,9 +3134,18 @@ router.get('/candidates/:id/job-rankings', async (req, res) => {
     if (candRes.rows.length === 0) return res.status(404).json({ error: '候選人不存在' });
     const candidate = candRes.rows[0];
 
-    // 統一 skills 格式
+    // 統一 skills 格式（支援 JSON 陣列或逗號/頓號分隔字串）
     if (typeof candidate.skills === 'string') {
-      try { candidate.skills = JSON.parse(candidate.skills); } catch { candidate.skills = []; }
+      try {
+        const parsed = JSON.parse(candidate.skills);
+        candidate.skills = Array.isArray(parsed) ? parsed : [candidate.skills];
+      } catch {
+        // 非 JSON — 用逗號、頓號、分號拆分
+        candidate.skills = candidate.skills
+          .split(/[,、;；]/)
+          .map(s => s.trim())
+          .filter(s => s.length > 0);
+      }
     }
     if (!Array.isArray(candidate.skills)) candidate.skills = [];
 
@@ -3170,12 +3179,12 @@ router.get('/candidates/:id/job-rankings', async (req, res) => {
         ? Math.round((matched.length / requiredSkills.length) * 100)
         : 50;
 
-      // 個人資料品質基礎分（依來源給予基準分）
+      // 個人資料品質基礎分（依來源給予基準分 — 用 includes 模糊比對）
       let profileScore = 40;
       const src = (cand.source || '').toLowerCase();
-      if (src === 'github') profileScore = 65;
-      else if (src === 'linkedin') profileScore = 62;
-      else if (src === 'gmail 進件' || src === 'gmail') profileScore = 55;
+      if (src.includes('github')) profileScore = 65;
+      else if (src.includes('linkedin')) profileScore = 62;
+      else if (src.includes('gmail')) profileScore = 55;
 
       const totalScore = Math.round(skillScore * 0.6 + profileScore * 0.4);
       const missingSkills = requiredSkills.filter(r => !matched.includes(r));

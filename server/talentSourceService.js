@@ -49,7 +49,19 @@ function scoreCandidate(candidate, job, githubAnalysis) {
     .map(s => s.trim().toLowerCase())
     .filter(s => s.length > 1 && s.length < 30);
 
-  const candidateSkills = (candidate.skills || []).map(s => (s || '').toLowerCase());
+  // 統一 skills 格式（支援 JSON 陣列或逗號/頓號分隔字串）
+  let normalizedSkills = candidate.skills || [];
+  if (typeof normalizedSkills === 'string') {
+    try {
+      const parsed = JSON.parse(normalizedSkills);
+      normalizedSkills = Array.isArray(parsed) ? parsed : [normalizedSkills];
+    } catch {
+      normalizedSkills = normalizedSkills.split(/[,、;；]/).map(s => s.trim()).filter(s => s.length > 0);
+    }
+  }
+  if (!Array.isArray(normalizedSkills)) normalizedSkills = [];
+
+  const candidateSkills = normalizedSkills.map(s => (s || '').toLowerCase());
   const candidateBio = (candidate.bio || '').toLowerCase();
 
   // 技能比對（60%）
@@ -66,7 +78,7 @@ function scoreCandidate(candidate, job, githubAnalysis) {
   if (githubAnalysis && githubAnalysis.totalScore != null) {
     // v2: 使用 GitHub 4 維度加權總分
     profileScore = githubAnalysis.totalScore;
-  } else if (candidate.source === 'github') {
+  } else if ((candidate.source || '').toLowerCase().includes('github')) {
     // v1 fallback: 原有粗略邏輯
     const repos = candidate.public_repos || 0;
     const followers = candidate.followers || 0;
@@ -74,7 +86,7 @@ function scoreCandidate(candidate, job, githubAnalysis) {
     else if (repos > 15 || followers > 30) profileScore = 80;
     else if (repos > 5) profileScore = 65;
     else profileScore = 45;
-  } else if (candidate.source === 'linkedin') {
+  } else if ((candidate.source || '').toLowerCase().includes('linkedin')) {
     profileScore = 62;
   }
 
