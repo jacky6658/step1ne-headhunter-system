@@ -256,6 +256,7 @@ export enum CandidateSource {
   REFERRAL = '推薦',
   HEADHUNT = '主動開發',
   JOB_BOARD = '人力銀行',
+  CRAWLER = '爬蟲匯入',
   OTHER = '其他'
 }
 

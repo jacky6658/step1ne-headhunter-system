@@ -7,7 +7,7 @@ import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
 import { ColumnTooltip } from '../components/ColumnTooltip';
 import { COLUMN_DESCRIPTIONS } from '../config/columnDescriptions';
-import { apiPost, apiPatch } from '../config/api';
+import { apiPost, apiPatch, getApiUrl } from '../config/api';
 
 interface CandidatesPageProps {
   userProfile: UserProfile;
@@ -23,6 +23,8 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [consultantFilter, setConsultantFilter] = useState<string>('all');
+  const [jobFilter, setJobFilter] = useState<string>('all');
+  const [jobs, setJobs] = useState<{id: number, label: string}[]>([]);
   const [todayOnly, setTodayOnly] = useState<boolean>(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -38,10 +40,26 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
     }
   }, [userProfile]);
   
+  // 載入職缺列表（供篩選用）
+  useEffect(() => {
+    fetch(getApiUrl('/jobs'))
+      .then(r => r.json())
+      .then(data => {
+        const list = (data.data || data || [])
+          .filter((j: any) => j.job_status !== '已關閉')
+          .map((j: any) => ({
+            id: j.id,
+            label: `${j.position_name}${j.client_company ? ` (${j.client_company})` : ''}`
+          }));
+        setJobs(list);
+      })
+      .catch(() => {});
+  }, []);
+
   // 套用篩選
   useEffect(() => {
     applyFilters();
-  }, [candidates, searchQuery, statusFilter, sourceFilter, consultantFilter, todayOnly]);
+  }, [candidates, searchQuery, statusFilter, sourceFilter, consultantFilter, jobFilter, todayOnly]);
   
   // 自動重新整理（每 30 秒）- 雙向同步模式
   useEffect(() => {
@@ -117,6 +135,13 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
     // 顧問篩選
     if (consultantFilter !== 'all') {
       filtered = filtered.filter(c => c.consultant === consultantFilter);
+    }
+
+    // 職缺篩選（用 targetJobId 比對）
+    if (jobFilter !== 'all') {
+      filtered = filtered.filter(c =>
+        (c as any).targetJobId?.toString() === jobFilter
+      );
     }
 
     // 今日新增篩選（台北時間 YYYY-MM-DD）
@@ -476,18 +501,18 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             ))}
           </select>
           
-          {/* 來源篩選 */}
+          {/* 職缺篩選 */}
           <select
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value)}
+            value={jobFilter}
+            onChange={(e) => setJobFilter(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">全部來源</option>
-            {Object.entries(SOURCE_CONFIG).map(([key, config]) => (
-              <option key={key} value={key}>{config.label}</option>
+            <option value="all">全部職缺</option>
+            {jobs.map(j => (
+              <option key={j.id} value={j.id.toString()}>{j.label}</option>
             ))}
           </select>
-          
+
           {/* 顧問篩選 */}
           <select
             value={consultantFilter}
@@ -497,6 +522,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             <option value="all">全部顧問</option>
             <option value="Jacky">Jacky</option>
             <option value="Phoebe">Phoebe</option>
+            <option value="Crawler-WebUI">Crawler-WebUI</option>
           </select>
         </div>
 
@@ -551,7 +577,32 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             );
           })}
 
+          {/* 來源快捷篩選 */}
+          <div className="h-5 w-px bg-gray-300 mx-1" />
+          {Object.entries(SOURCE_CONFIG).map(([key, config]) => {
+            const count = candidates.filter(c => c.source === key).length;
+            if (count === 0) return null;
+            const isActive = sourceFilter === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setSourceFilter(isActive ? 'all' : key)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                  isActive
+                    ? 'bg-teal-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {config.icon} {config.label}
+                <span className={`rounded-full px-1.5 text-[10px] ${isActive ? 'bg-white bg-opacity-30' : 'bg-gray-300 text-gray-600'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+
           {/* 今日新增 */}
+          <div className="h-5 w-px bg-gray-300 mx-1" />
           <button
             onClick={() => { setTodayOnly(!todayOnly); setStatusFilter('all'); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
@@ -570,13 +621,14 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
           </button>
 
           {/* 清除篩選 */}
-          {(searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || todayOnly) && (
+          {(searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || jobFilter !== 'all' || todayOnly) && (
             <button
               onClick={() => {
                 setSearchQuery('');
                 setStatusFilter('all');
                 setSourceFilter('all');
                 setConsultantFilter('all');
+                setJobFilter('all');
                 setTodayOnly(false);
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100"
@@ -595,7 +647,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             <Users className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">沒有候選人</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || todayOnly
+              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || jobFilter !== 'all' || todayOnly
                 ? (todayOnly && filteredCandidates.length === 0 ? '今日尚無自動匯入的候選人' : '請調整篩選條件')
                 : '開始新增候選人吧！'}
             </p>
@@ -1012,7 +1064,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             <Users className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">沒有候選人</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || todayOnly
+              {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || consultantFilter !== 'all' || jobFilter !== 'all' || todayOnly
                 ? (todayOnly && filteredCandidates.length === 0 ? '今日尚無自動匯入的候選人' : '請調整篩選條件')
                 : '開始新增候選人吧！'}
             </p>
