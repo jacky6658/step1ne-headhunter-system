@@ -43,6 +43,19 @@ function mapCrawlerCandidate(raw) {
     mapped.target_job_id = Number(raw.step1ne_job_id);
   }
 
+  // ── 深度分析充實資料 (Perplexity/Jina enrichment) ──
+  if (raw.work_history) mapped.work_history = raw.work_history;
+  if (raw.education_details) mapped.education_details = raw.education_details;
+  if (raw.years_experience) mapped.years_experience = String(raw.years_experience);
+  if (raw.stability_score) mapped.stability_score = String(raw.stability_score);
+  if (raw.job_changes) mapped.job_changes = String(raw.job_changes);
+  if (raw.avg_tenure_months) mapped.avg_tenure_months = String(raw.avg_tenure_months);
+  if (raw.recent_gap_months) mapped.recent_gap_months = String(raw.recent_gap_months);
+  if (raw.education) mapped.education = raw.education;
+  if (raw.leaving_reason) mapped.leaving_reason = raw.leaving_reason;
+  if (raw.personality_type) mapped.personality_type = raw.personality_type;
+  if (raw.ai_match_result) mapped.ai_match_result = raw.ai_match_result;
+
   return mapped;
 }
 
