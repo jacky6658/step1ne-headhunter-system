@@ -9,6 +9,7 @@ const https = require('https');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
+const { enrichCandidate, saveEnrichment } = require('./perplexityService');
 
 const DATABASE_URL = process.env.DATABASE_URL || 
   'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur';
@@ -3866,6 +3867,127 @@ router.post('/resume/batch-parse', (req, res) => {
       total: req.files.length,
       results,
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════
+// Perplexity AI 深度分析
+// ═══════════════════════════════════════════════════
+
+/**
+ * POST /api/candidates/:id/enrich
+ * 使用 Perplexity AI 搜尋候選人公開資料，充實人選卡片
+ * Body: { actor: "Jacky" }
+ */
+router.post('/candidates/:id/enrich', async (req, res) => {
+  const { id } = req.params;
+  const actor = req.body.actor || 'System';
+
+  try {
+    // 1. 取得候選人現有資料
+    const candidateResult = await pool.query(
+      `SELECT id, name, current_position, linkedin_url, github_url, location, skills, email
+       FROM candidates_pipeline WHERE id = $1`,
+      [id]
+    );
+
+    if (candidateResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '找不到候選人' });
+    }
+
+    const candidate = candidateResult.rows[0];
+    console.log(`🔍 開始 Perplexity 深度分析: #${id} ${candidate.name}`);
+
+    // 2. 呼叫 Perplexity 分析
+    const enrichResult = await enrichCandidate(candidate);
+
+    if (!enrichResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: enrichResult.error,
+        message: `Perplexity 分析失敗: ${enrichResult.error}`,
+      });
+    }
+
+    // 3. 寫入資料庫
+    const updated = await saveEnrichment(pool, Number(id), enrichResult.data, actor);
+
+    console.log(`✅ Perplexity 分析完成: #${id} ${candidate.name}`);
+    res.json({
+      success: true,
+      message: `候選人 ${candidate.name} 的深度分析已完成`,
+      candidate_id: Number(id),
+      enriched_fields: Object.entries(enrichResult.data)
+        .filter(([_, v]) => v != null)
+        .map(([k]) => k),
+      data: enrichResult.data,
+      updated: updated,
+    });
+  } catch (error) {
+    console.error(`❌ POST /candidates/${id}/enrich error:`, error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/candidates/enrich-batch
+ * 批量深度分析（最多 10 筆）
+ * Body: { ids: [1212, 1213], actor: "Jacky" }
+ */
+router.post('/candidates/enrich-batch', async (req, res) => {
+  const { ids, actor } = req.body;
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ success: false, error: '請提供 ids 陣列' });
+  }
+
+  if (ids.length > 10) {
+    return res.status(400).json({ success: false, error: '單次最多 10 筆' });
+  }
+
+  const results = { success: [], failed: [] };
+
+  for (const id of ids) {
+    try {
+      const candidateResult = await pool.query(
+        `SELECT id, name, current_position, linkedin_url, github_url, location, skills, email
+         FROM candidates_pipeline WHERE id = $1`,
+        [id]
+      );
+
+      if (candidateResult.rows.length === 0) {
+        results.failed.push({ id, error: '找不到候選人' });
+        continue;
+      }
+
+      const candidate = candidateResult.rows[0];
+      console.log(`🔍 批量分析: #${id} ${candidate.name}`);
+
+      const enrichResult = await enrichCandidate(candidate);
+
+      if (!enrichResult.success) {
+        results.failed.push({ id, name: candidate.name, error: enrichResult.error });
+        continue;
+      }
+
+      await saveEnrichment(pool, Number(id), enrichResult.data, actor || 'System');
+      results.success.push({
+        id: Number(id),
+        name: candidate.name,
+        fields: Object.entries(enrichResult.data).filter(([_, v]) => v != null).map(([k]) => k),
+      });
+
+      // 避免 API rate limit，每筆間隔 1 秒
+      await new Promise(r => setTimeout(r, 1000));
+    } catch (err) {
+      results.failed.push({ id, error: err.message });
+    }
+  }
+
+  res.json({
+    success: true,
+    message: `批量分析完成：成功 ${results.success.length} 筆，失敗 ${results.failed.length} 筆`,
+    ...results,
   });
 });
 
