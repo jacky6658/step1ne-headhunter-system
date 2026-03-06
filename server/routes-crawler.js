@@ -17,6 +17,9 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 // 爬蟲 API 位址（環境變數或預設本地）
 const CRAWLER_URL = process.env.CRAWLER_API_URL || 'http://localhost:5000';
 
+// Google Sheet Fallback（爬蟲離線時使用）
+const sheetFallback = require('./crawlerSheetService');
+
 // ══════════════════════════════════════════════
 // 自動建表 Migration
 // ══════════════════════════════════════════════
@@ -122,23 +125,91 @@ function proxyDelete(crawlerPath) {
 }
 
 // ══════════════════════════════════════════════
-// Proxy 路由（轉發到爬蟲 :5000）
+// Proxy 路由（轉發到爬蟲 :5000，離線時 fallback Google Sheet）
 // ══════════════════════════════════════════════
 
-// Health
-router.get('/health', proxyGet('/health'));
-
-// Dashboard stats
-router.get('/stats', proxyGet('/dashboard/stats'));
-
-// Candidates
-router.get('/candidates', proxyGet('/candidates'));
-router.get('/candidates/:id', (req, res) => {
-  proxyGet(`/candidates/${req.params.id}`)(req, res);
+// Health — 爬蟲離線時回傳 Sheet fallback 狀態
+router.get('/health', async (req, res) => {
+  try {
+    const data = await proxyCrawler('GET', '/health');
+    if (data.crawler_offline) {
+      return res.json(sheetFallback.getHealthResponse());
+    }
+    res.json(data);
+  } catch (e) {
+    res.json(sheetFallback.getHealthResponse());
+  }
 });
 
-// Tasks
-router.get('/tasks', proxyGet('/tasks'));
+// Dashboard stats — 離線或無資料時從 Google Sheet 計算
+router.get('/stats', async (req, res) => {
+  try {
+    const data = await proxyCrawler('GET', '/dashboard/stats');
+    // 離線或 Flask 回傳 0 筆候選人 → fallback
+    if (data.crawler_offline || (data.total_candidates === 0 && !data.error)) {
+      const stats = await sheetFallback.getStatsResponse();
+      return res.json(stats);
+    }
+    res.json(data);
+  } catch (e) {
+    try {
+      const stats = await sheetFallback.getStatsResponse();
+      res.json(stats);
+    } catch (fallbackErr) {
+      res.status(500).json({ success: false, error: fallbackErr.message });
+    }
+  }
+});
+
+// Candidates — 離線或無資料時從 Google Sheet 讀取
+router.get('/candidates', async (req, res) => {
+  try {
+    const qs = new URLSearchParams(req.query).toString();
+    const fullPath = qs ? `/candidates?${qs}` : '/candidates';
+    const data = await proxyCrawler('GET', fullPath);
+    // 離線或 Flask 回傳 0 筆 → fallback
+    if (data.crawler_offline || (data.total === 0 && Array.isArray(data.data) && data.data.length === 0)) {
+      const sheetData = await sheetFallback.getCandidatesResponse(req.query);
+      return res.json(sheetData);
+    }
+    res.json(data);
+  } catch (e) {
+    try {
+      const sheetData = await sheetFallback.getCandidatesResponse(req.query);
+      res.json(sheetData);
+    } catch (fallbackErr) {
+      res.status(500).json({ success: false, error: fallbackErr.message });
+    }
+  }
+});
+
+// Candidates by ID — 離線時從 Google Sheet 查找
+router.get('/candidates/:id', async (req, res) => {
+  try {
+    const data = await proxyCrawler('GET', `/candidates/${req.params.id}`);
+    if (data.crawler_offline) {
+      const { candidates } = await sheetFallback.getAllCandidates();
+      const found = candidates.find(c => c.id === req.params.id);
+      return res.json(found || { error: '找不到此候選人' });
+    }
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Tasks — 離線時回傳空陣列
+router.get('/tasks', async (req, res) => {
+  try {
+    const data = await proxyCrawler('GET', '/tasks');
+    if (data.crawler_offline) {
+      return res.json({ data: [], total: 0, source: 'offline' });
+    }
+    res.json(data);
+  } catch (e) {
+    res.json({ data: [], total: 0, source: 'offline' });
+  }
+});
 router.post('/tasks', proxyPost('/tasks'));
 router.post('/tasks/:id/run', (req, res) => {
   proxyPost(`/tasks/${req.params.id}/run`)(req, res);
@@ -159,8 +230,22 @@ router.delete('/tasks/:id', (req, res) => {
   proxyDelete(`/tasks/${req.params.id}`)(req, res);
 });
 
-// Scoring
-router.post('/score/candidates', proxyPost('/score/candidates'));
+// Scoring — 離線時無法評分，回傳提示
+router.post('/score/candidates', async (req, res) => {
+  try {
+    const data = await proxyCrawler('POST', '/score/candidates', req.body);
+    if (data.crawler_offline) {
+      return res.json({
+        success: false,
+        error: '爬蟲服務離線，無法重新評分。評分資料已從 Google Sheet 載入。',
+        crawler_offline: true,
+      });
+    }
+    res.json(data);
+  } catch (e) {
+    res.json({ success: false, error: '爬蟲服務離線', crawler_offline: true });
+  }
+});
 router.get('/score/detail/:id', (req, res) => {
   proxyGet(`/score/detail/${req.params.id}`)(req, res);
 });
@@ -168,11 +253,33 @@ router.get('/score/detail/:id', (req, res) => {
 // Keywords
 router.post('/keywords/generate', proxyPost('/keywords/generate'));
 
-// Clients
-router.get('/clients', proxyGet('/clients'));
+// Clients — 離線時從 Google Sheet 讀取
+router.get('/clients', async (req, res) => {
+  try {
+    const data = await proxyCrawler('GET', '/clients');
+    if (data.crawler_offline) {
+      const clients = await sheetFallback.getClientsResponse();
+      return res.json(clients);
+    }
+    res.json(data);
+  } catch (e) {
+    try {
+      const clients = await sheetFallback.getClientsResponse();
+      res.json(clients);
+    } catch (fallbackErr) {
+      res.json([]);
+    }
+  }
+});
 
 // System jobs (from Step1ne via crawler)
 router.get('/system/jobs', proxyGet('/system/jobs'));
+
+// 手動清除 Sheet 快取
+router.post('/sheet-cache/clear', (req, res) => {
+  sheetFallback.clearCache();
+  res.json({ success: true, message: 'Google Sheet 快取已清除' });
+});
 
 // ══════════════════════════════════════════════
 // 本地路由（PostgreSQL）
@@ -210,9 +317,19 @@ router.post('/config', async (req, res) => {
 // --- 效益指標快照 ---
 router.post('/metrics/snapshot', async (req, res) => {
   try {
-    // 1. 從爬蟲取得數據
-    const crawlerStats = await proxyCrawler('GET', '/dashboard/stats');
-    const crawlerData = crawlerStats.crawler_offline ? {} : crawlerStats;
+    // 1. 從爬蟲取得數據（離線時從 Google Sheet fallback）
+    let crawlerStats = await proxyCrawler('GET', '/dashboard/stats');
+    let crawlerData;
+    if (crawlerStats.crawler_offline) {
+      try {
+        crawlerData = await sheetFallback.getStatsResponse();
+        console.log('📊 Metrics snapshot using Google Sheet fallback');
+      } catch {
+        crawlerData = {};
+      }
+    } else {
+      crawlerData = crawlerStats;
+    }
 
     // 2. 從系統 DB 取得 pipeline 數據
     const pipelineResult = await pool.query(`
