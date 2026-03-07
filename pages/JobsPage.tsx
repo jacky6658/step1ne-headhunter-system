@@ -35,6 +35,9 @@ interface Job {
   talent_profile: string;
   search_primary: string;
   search_secondary: string;
+  target_companies: string;    // 逗號分隔，目標公司（從這些公司挖人）
+  title_variants: string;      // 逗號分隔，職稱變體
+  exclusion_keywords: string;  // 逗號分隔，排除關鍵字
   welfare_tags: string;      // 逗號分隔，福利標籤
   welfare_detail: string;    // 詳細福利說明
   work_hours: string;        // 上班時段
@@ -73,6 +76,12 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
   const [secondaryTags, setSecondaryTags] = useState<string[]>([]);
   const [primaryTagInput, setPrimaryTagInput] = useState('');
   const [secondaryTagInput, setSecondaryTagInput] = useState('');
+  const [targetCompaniesTags, setTargetCompaniesTags] = useState<string[]>([]);
+  const [titleVariantsTags, setTitleVariantsTags] = useState<string[]>([]);
+  const [exclusionKeywordsTags, setExclusionKeywordsTags] = useState<string[]>([]);
+  const [targetCompaniesInput, setTargetCompaniesInput] = useState('');
+  const [titleVariantsInput, setTitleVariantsInput] = useState('');
+  const [exclusionKeywordsInput, setExclusionKeywordsInput] = useState('');
   const [savingSearch, setSavingSearch] = useState(false);
   const primaryInputRef = useRef<HTMLInputElement>(null);
   const secondaryInputRef = useRef<HTMLInputElement>(null);
@@ -169,8 +178,14 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     setTalentProfileDraft(job.talent_profile || '');
     setPrimaryTags(parseTags(job.search_primary));
     setSecondaryTags(parseTags(job.search_secondary));
+    setTargetCompaniesTags(parseTags(job.target_companies));
+    setTitleVariantsTags(parseTags(job.title_variants));
+    setExclusionKeywordsTags(parseTags(job.exclusion_keywords));
     setPrimaryTagInput('');
     setSecondaryTagInput('');
+    setTargetCompaniesInput('');
+    setTitleVariantsInput('');
+    setExclusionKeywordsInput('');
   };
 
   const addTag = (
@@ -190,11 +205,17 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     try {
       const search_primary   = primaryTags.join(',');
       const search_secondary = secondaryTags.join(',');
+      const target_companies  = targetCompaniesTags.join(',');
+      const title_variants    = titleVariantsTags.join(',');
+      const exclusion_keywords = exclusionKeywordsTags.join(',');
       await apiPut(`/api/jobs/${selectedJob.id}`, {
         company_profile: companyProfileDraft,
         talent_profile:  talentProfileDraft,
         search_primary,
         search_secondary,
+        target_companies,
+        title_variants,
+        exclusion_keywords,
       });
       setSelectedJob(prev => prev ? {
         ...prev,
@@ -202,6 +223,9 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
         talent_profile:  talentProfileDraft,
         search_primary,
         search_secondary,
+        target_companies,
+        title_variants,
+        exclusion_keywords,
       } : null);
       setEditingSearch(false);
     } catch {
@@ -1027,7 +1051,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                       className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
                     >
                       <Edit3 size={12} />
-                      {(selectedJob.search_primary || selectedJob.search_secondary || selectedJob.company_profile || selectedJob.talent_profile) ? '編輯' : '設定'}
+                      {(selectedJob.search_primary || selectedJob.search_secondary || selectedJob.company_profile || selectedJob.talent_profile || selectedJob.target_companies || selectedJob.title_variants || selectedJob.exclusion_keywords) ? '編輯' : '設定'}
                     </button>
                   ) : (
                     <div className="flex items-center gap-2">
@@ -1059,7 +1083,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                         value={companyProfileDraft}
                         onChange={e => setCompanyProfileDraft(e.target.value)}
                         rows={3}
-                        placeholder="例：台灣獨角獸 SaaS 公司，專攻 B2B 電商解決方案，目前 Series B，工程團隊 80 人..."
+                        placeholder={"【公司類型】產業 / 發展階段 / 員工人數\n【文化風格】工作節奏、決策方式、扁平或階層式\n【技術環境】目前使用的工具和技術棧\n【團隊結構】直屬團隊大小和組成\n\n例：台灣 SaaS 獨角獸，B2B 電商，Series B，工程團隊 80 人，偏扁平管理..."}
                         className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
                       />
                     </div>
@@ -1071,7 +1095,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                         value={talentProfileDraft}
                         onChange={e => setTalentProfileDraft(e.target.value)}
                         rows={3}
-                        placeholder="例：有新創或高成長環境背景，主導過大型系統重構，重視工程品質..."
+                        placeholder={"【背景要求】X年以上 [領域] 經驗，目前職級 [資深/主管]\n【硬性條件】國籍/工作許可、語言能力、必備證照\n【加分條件】管理經驗、特定技術深度\n【來自公司】希望從哪類公司找人\n\n例：5年+ 後端經驗，有新創或高成長環境背景，主導過系統重構..."}
                         className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
                       />
                     </div>
@@ -1149,8 +1173,116 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                         </button>
                       </div>
                     </div>
+
+                    {/* 職稱變體 */}
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">
+                        職稱變體 <span className="text-slate-400">（候選人可能使用的其他職稱，AI 會自動生成，也可手動新增）</span>
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {titleVariantsTags.map((tag, idx) => (
+                          <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-violet-100 text-violet-800 text-xs rounded-full">
+                            {tag}
+                            <button onClick={() => setTitleVariantsTags(titleVariantsTags.filter((_, i) => i !== idx))} className="text-violet-400 hover:text-violet-700 leading-none">×</button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={titleVariantsInput}
+                          onChange={e => setTitleVariantsInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ',') {
+                              e.preventDefault();
+                              addTag(titleVariantsInput, titleVariantsTags, setTitleVariantsTags, setTitleVariantsInput);
+                            }
+                          }}
+                          placeholder="例：BIM Coordinator, VDC Engineer, Revit Specialist"
+                          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                        />
+                        <button
+                          onClick={() => addTag(titleVariantsInput, titleVariantsTags, setTitleVariantsTags, setTitleVariantsInput)}
+                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 目標公司 */}
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">
+                        目標公司 <span className="text-slate-400">（從這些公司定向搜尋人才，AI 會自動推薦，也可手動新增）</span>
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {targetCompaniesTags.map((tag, idx) => (
+                          <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 text-xs rounded-full">
+                            {tag}
+                            <button onClick={() => setTargetCompaniesTags(targetCompaniesTags.filter((_, i) => i !== idx))} className="text-amber-400 hover:text-amber-700 leading-none">×</button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={targetCompaniesInput}
+                          onChange={e => setTargetCompaniesInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ',') {
+                              e.preventDefault();
+                              addTag(targetCompaniesInput, targetCompaniesTags, setTargetCompaniesTags, setTargetCompaniesInput);
+                            }
+                          }}
+                          placeholder="例：AECOM, Arup, 衛武資訊, 麗明營造"
+                          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                        <button
+                          onClick={() => addTag(targetCompaniesInput, targetCompaniesTags, setTargetCompaniesTags, setTargetCompaniesInput)}
+                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 排除關鍵字 */}
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">
+                        排除關鍵字 <span className="text-slate-400">（搜尋時排除含這些詞的結果，預設排除 student/intern/professor）</span>
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {exclusionKeywordsTags.map((tag, idx) => (
+                          <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full">
+                            {tag}
+                            <button onClick={() => setExclusionKeywordsTags(exclusionKeywordsTags.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-700 leading-none">×</button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={exclusionKeywordsInput}
+                          onChange={e => setExclusionKeywordsInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ',') {
+                              e.preventDefault();
+                              addTag(exclusionKeywordsInput, exclusionKeywordsTags, setExclusionKeywordsTags, setExclusionKeywordsInput);
+                            }
+                          }}
+                          placeholder="例：sales, marketing, HR, recruiter"
+                          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                        />
+                        <button
+                          onClick={() => addTag(exclusionKeywordsInput, exclusionKeywordsTags, setExclusionKeywordsTags, setExclusionKeywordsInput)}
+                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                ) : (selectedJob.search_primary || selectedJob.search_secondary) ? (
+                ) : (selectedJob.search_primary || selectedJob.search_secondary || selectedJob.target_companies || selectedJob.title_variants || selectedJob.exclusion_keywords) ? (
                   <div className="space-y-2 text-sm">
                     {selectedJob.search_primary && (
                       <div>
@@ -1168,6 +1300,36 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           {parseTags(selectedJob.search_secondary).map((t, i) => (
                             <span key={i} className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-xs rounded-full">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedJob.title_variants && (
+                      <div>
+                        <span className="text-xs text-slate-400">職稱變體</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {parseTags(selectedJob.title_variants).map((t, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-violet-100 text-violet-800 text-xs rounded-full">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedJob.target_companies && (
+                      <div>
+                        <span className="text-xs text-slate-400">目標公司</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {parseTags(selectedJob.target_companies).map((t, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-amber-100 text-amber-800 text-xs rounded-full">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedJob.exclusion_keywords && (
+                      <div>
+                        <span className="text-xs text-slate-400">排除關鍵字</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {parseTags(selectedJob.exclusion_keywords).map((t, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full">{t}</span>
                           ))}
                         </div>
                       </div>

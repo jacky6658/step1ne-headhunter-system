@@ -46,8 +46,13 @@ function mapCrawlerCandidate(raw) {
   }
 
   // ── 深度分析充實資料 (Perplexity/Jina enrichment) ──
-  if (raw.work_history) mapped.work_history = raw.work_history;
-  if (raw.education_details) mapped.education_details = raw.education_details;
+  // 只傳遞非空陣列（避免空陣列覆蓋已有資料）
+  if (Array.isArray(raw.work_history) && raw.work_history.length > 0) {
+    mapped.work_history = raw.work_history;
+  }
+  if (Array.isArray(raw.education_details) && raw.education_details.length > 0) {
+    mapped.education_details = raw.education_details;
+  }
   if (raw.years_experience) mapped.years_experience = String(raw.years_experience);
   if (raw.stability_score) mapped.stability_score = String(raw.stability_score);
   if (raw.job_changes) mapped.job_changes = String(raw.job_changes);
@@ -131,8 +136,8 @@ async function processBulkImport(pool, candidates, actor) {
               job_changes = COALESCE(NULLIF(job_changes, ''), NULLIF(job_changes, '0'), $12),
               avg_tenure_months = COALESCE(NULLIF(avg_tenure_months, ''), NULLIF(avg_tenure_months, '0'), $13),
               recent_gap_months = COALESCE(NULLIF(recent_gap_months, ''), NULLIF(recent_gap_months, '0'), $14),
-              work_history = CASE WHEN $15::jsonb IS NOT NULL THEN $15::jsonb ELSE work_history END,
-              education_details = CASE WHEN $16::jsonb IS NOT NULL THEN $16::jsonb ELSE education_details END,
+              work_history = CASE WHEN $15::jsonb IS NOT NULL AND jsonb_array_length($15::jsonb) > 0 THEN $15::jsonb ELSE work_history END,
+              education_details = CASE WHEN $16::jsonb IS NOT NULL AND jsonb_array_length($16::jsonb) > 0 THEN $16::jsonb ELSE education_details END,
               leaving_reason = COALESCE(NULLIF(leaving_reason, ''), $17),
               talent_level = CASE WHEN $18 != '' THEN $18 ELSE COALESCE(NULLIF(talent_level, ''), $18) END,
               email = COALESCE(NULLIF(email, ''), $19),
@@ -181,7 +186,7 @@ async function processBulkImport(pool, candidates, actor) {
               stability_score, personality_type, job_changes, avg_tenure_months,
               recent_gap_months, work_history, education_details, leaving_reason,
               talent_level, target_job_id, ai_match_result, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,NOW(),NOW())
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25,$26::jsonb,NOW(),NOW())
              RETURNING id, name, contact_link, current_position, status, target_job_id`,
             [
               c.name.trim(),
@@ -216,7 +221,8 @@ async function processBulkImport(pool, candidates, actor) {
           results.created.push(result.rows[0]);
         }
       } catch (err) {
-        results.failed.push({ name: c.name || '(unknown)', error: err.message });
+        console.error(`❌ Import failed for "${c.name}": ${err.message}${err.code ? ` (${err.code})` : ''}${err.detail ? ` - ${err.detail}` : ''}`);
+        results.failed.push({ name: c.name || '(unknown)', error: err.message, code: err.code || '' });
       }
     }
 

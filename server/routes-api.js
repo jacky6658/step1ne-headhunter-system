@@ -52,6 +52,14 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS ai_match_result JSONB
 `).catch(err => console.warn('ai_match_result migration:', err.message));
 
+// 確保職缺卡片搜尋欄位存在（爬蟲多維度搜尋用）
+pool.query(`
+  ALTER TABLE jobs_pipeline
+  ADD COLUMN IF NOT EXISTS target_companies TEXT,
+  ADD COLUMN IF NOT EXISTS title_variants TEXT,
+  ADD COLUMN IF NOT EXISTS exclusion_keywords TEXT
+`).catch(err => console.warn('jobs search fields migration:', err.message));
+
 // 確保 system_logs 資料表存在
 pool.query(`
   CREATE TABLE IF NOT EXISTS system_logs (
@@ -1648,6 +1656,7 @@ router.put('/jobs/:id', async (req, res) => {
       interview_process,
       job_status, consultant_notes, job_description,
       company_profile, talent_profile, search_primary, search_secondary,
+      target_companies, title_variants, exclusion_keywords,
       welfare_tags, welfare_detail, work_hours, vacation_policy,
       remote_work, business_trip, job_url,
     } = req.body;
@@ -1677,6 +1686,7 @@ router.put('/jobs/:id', async (req, res) => {
            special_conditions = $26, industry_background = $27, team_size = $28,
            key_challenges = $29, attractive_points = $30, recruitment_difficulty = $31,
            interview_process = $32,
+           target_companies = $33, title_variants = $34, exclusion_keywords = $35,
            last_updated = NOW()
        WHERE id = $16
        RETURNING *`,
@@ -1713,6 +1723,9 @@ router.put('/jobs/:id', async (req, res) => {
         attractive_points    !== undefined ? attractive_points    : existing.attractive_points,
         recruitment_difficulty !== undefined ? recruitment_difficulty : existing.recruitment_difficulty,
         interview_process    !== undefined ? interview_process    : existing.interview_process,
+        target_companies     !== undefined ? target_companies     : existing.target_companies,
+        title_variants       !== undefined ? title_variants       : existing.title_variants,
+        exclusion_keywords   !== undefined ? exclusion_keywords   : existing.exclusion_keywords,
       ]
     );
 
