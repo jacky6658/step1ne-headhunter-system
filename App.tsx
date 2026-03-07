@@ -32,6 +32,12 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('candidates');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    // 從 localStorage 讀取收合狀態，預設展開
+    try {
+      return localStorage.getItem('step1ne_sidebar_collapsed') === 'true';
+    } catch { return false; }
+  });
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -186,13 +192,19 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        profile={profile} 
-        onLogout={handleLogout} 
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        profile={profile}
+        onLogout={handleLogout}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => {
+          const next = !sidebarCollapsed;
+          setSidebarCollapsed(next);
+          try { localStorage.setItem('step1ne_sidebar_collapsed', String(next)); } catch {}
+        }}
       />
       <main className="flex-1 flex flex-col overflow-hidden sm:ml-0">
         <header className="h-auto bg-white/80 backdrop-blur-md border-b border-gray-100 flex flex-col shadow-sm z-30">
