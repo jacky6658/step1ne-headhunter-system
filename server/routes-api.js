@@ -373,13 +373,17 @@ router.get('/candidates', async (req, res) => {
     const client = await pool.connect();
 
     // 支援查詢參數篩選
-    const { status, limit, created_today } = req.query;
+    const { status, source, limit, created_today } = req.query;
     const conditions = [];
     const params = [];
 
     if (status) {
       params.push(status);
       conditions.push(`c.status = $${params.length}`);
+    }
+    if (source) {
+      params.push(source);
+      conditions.push(`c.source = $${params.length}`);
     }
     if (created_today === 'true') {
       conditions.push(`DATE(c.created_at AT TIME ZONE 'Asia/Taipei') = DATE(NOW() AT TIME ZONE 'Asia/Taipei')`);
