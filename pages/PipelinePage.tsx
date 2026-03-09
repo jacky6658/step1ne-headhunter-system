@@ -74,6 +74,7 @@ function mapEventToStage(event?: string): PipelineStageKey {
   const e = (event || '').trim();
   if (!e) return 'not_started';
 
+  if (e.includes('爬蟲初篩')) return 'not_started';  // 初篩不顯示在追蹤表，fallback 到未開始
   if (e.includes('AI推薦')) return 'ai_recommended';
   if (e.includes('未開始')) return 'not_started';
   if (e.includes('聯繫階段') || e.includes('已聯繫')) return 'contacted';

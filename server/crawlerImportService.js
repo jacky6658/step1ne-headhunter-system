@@ -33,11 +33,7 @@ function mapCrawlerCandidate(raw) {
     talent_level: raw.grade || '',
     source: CRAWLER_SOURCE,
     notes: notesParts.join('\n'),
-    status: (() => {
-      const aiGrade = (raw.ai_grade || raw.grade || '').toUpperCase();
-      // B 級以上 → AI推薦，讓顧問優先處理高品質人選
-      return (aiGrade === 'A' || aiGrade === 'A+' || aiGrade === 'S' || aiGrade === 'B') ? 'AI推薦' : '未開始';
-    })(),
+    status: raw.status || '爬蟲初篩',
   };
 
   // 爬蟲任務的 step1ne_job_id → 系統的 target_job_id
@@ -196,8 +192,8 @@ async function processBulkImport(pool, candidates, actor) {
               c.skills || '',
               c.education || '',
               c.source || CRAWLER_SOURCE,
-              c.status || '未開始',
-              c.recruiter || actor || 'Crawler',
+              c.status || '爬蟲初篩',
+              c.recruiter || '待指派',
               c.notes || '',
               String(c.stability_score || '0'),
               c.personality_type || '',

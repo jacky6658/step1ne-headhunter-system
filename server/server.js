@@ -85,7 +85,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-OpenClaw-Key']
 }));
 
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -118,6 +118,10 @@ app.use('/api', apiRouter);
 // 爬蟲整合 API 路由（proxy + 效益指標）
 const crawlerRouter = require('./routes-crawler');
 app.use('/api/crawler', crawlerRouter);
+
+// OpenClaw 批量 API 路由（本地 AI 工具讀寫候選人）
+const openclawRouter = require('./routes-openclaw');
+app.use('/api/openclaw', openclawRouter);
 
 // 根路由
 app.get('/', (req, res) => {
