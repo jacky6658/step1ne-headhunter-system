@@ -2712,7 +2712,7 @@ router.post('/clients', async (req, res) => {
 router.patch('/clients/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const fields = ['industry','company_size','website','bd_status','bd_source',
+    const fields = ['company_name','industry','company_size','website','bd_status','bd_source',
       'contact_name','contact_title','contact_email','contact_phone','contact_linkedin',
       'consultant','contract_type','fee_percentage','contract_start','contract_end','notes',
       'url_104','url_1111'];
@@ -2802,6 +2802,32 @@ router.get('/clients/:id/contacts', async (req, res) => {
     db.release();
     res.json({ success: true, data: result.rows });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/** DELETE /api/clients/:id - 刪除客戶 */
+router.delete('/clients/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await pool.connect();
+    const cur = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
+    if (!cur.rows.length) { db.release(); return res.status(404).json({ success: false, error: 'Client not found' }); }
+    const clientName = cur.rows[0].company_name;
+    // 先刪除關聯的聯絡記錄
+    await db.query('DELETE FROM bd_contacts WHERE client_id = $1', [id]);
+    // 刪除客戶
+    await db.query('DELETE FROM clients WHERE id = $1', [id]);
+    // 寫入 system_logs
+    await db.query(
+      `INSERT INTO system_logs (action, actor, actor_type, candidate_id, candidate_name, detail)
+       VALUES ('CLIENT_DELETED', $1, 'USER', $2, $3, $4)`,
+      [req.body.actor || 'system', id, clientName, JSON.stringify({ company_name: clientName })]
+    ).catch(() => {});
+    db.release();
+    res.json({ success: true, message: `客戶「${clientName}」已刪除` });
+  } catch (error) {
+    console.error('❌ DELETE /clients/:id error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
