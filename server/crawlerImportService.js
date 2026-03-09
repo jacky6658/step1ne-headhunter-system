@@ -33,7 +33,7 @@ function mapCrawlerCandidate(raw) {
     talent_level: raw.grade || '',
     source: CRAWLER_SOURCE,
     notes: notesParts.join('\n'),
-    status: '未開始',
+    status: raw.status || '爬蟲初篩',
   };
 
   // 爬蟲任務的 step1ne_job_id → 系統的 target_job_id
@@ -53,6 +53,14 @@ function mapCrawlerCandidate(raw) {
   if (raw.leaving_reason) mapped.leaving_reason = raw.leaving_reason;
   if (raw.personality_type) mapped.personality_type = raw.personality_type;
   if (raw.ai_match_result) mapped.ai_match_result = raw.ai_match_result;
+
+  // AI 評等（覆蓋關鍵字評等）
+  if (raw.ai_grade) mapped.talent_level = raw.ai_grade;
+
+  // AI 分析報告 → 附加到 notes
+  if (raw.ai_report) {
+    mapped.notes = (mapped.notes ? mapped.notes + '\n\n' : '') + raw.ai_report;
+  }
 
   return mapped;
 }
@@ -101,7 +109,7 @@ async function processBulkImport(pool, candidates, actor) {
         const nameKey = c.name.trim().toLowerCase();
 
         if (existingMap.has(nameKey)) {
-          // 既有人選 → 只補充空欄位
+          // 既有人選 → 補充空欄位 + 覆寫 enrichment/AI 資料
           const existingId = existingMap.get(nameKey);
           const result = await client.query(
             `UPDATE candidates_pipeline SET
@@ -119,14 +127,15 @@ async function processBulkImport(pool, candidates, actor) {
               job_changes = COALESCE(NULLIF(job_changes, ''), NULLIF(job_changes, '0'), $12),
               avg_tenure_months = COALESCE(NULLIF(avg_tenure_months, ''), NULLIF(avg_tenure_months, '0'), $13),
               recent_gap_months = COALESCE(NULLIF(recent_gap_months, ''), NULLIF(recent_gap_months, '0'), $14),
-              work_history = COALESCE(work_history, $15),
-              education_details = COALESCE(education_details, $16),
+              work_history = CASE WHEN $15::jsonb IS NOT NULL THEN $15::jsonb ELSE work_history END,
+              education_details = CASE WHEN $16::jsonb IS NOT NULL THEN $16::jsonb ELSE education_details END,
               leaving_reason = COALESCE(NULLIF(leaving_reason, ''), $17),
-              talent_level = COALESCE(NULLIF(talent_level, ''), $18),
+              talent_level = CASE WHEN $18 != '' THEN $18 ELSE COALESCE(NULLIF(talent_level, ''), $18) END,
               email = COALESCE(NULLIF(email, ''), $19),
               linkedin_url = COALESCE(NULLIF(linkedin_url, ''), $20),
               github_url = COALESCE(NULLIF(github_url, ''), $21),
               target_job_id = COALESCE(target_job_id, $23),
+              ai_match_result = CASE WHEN $24::jsonb IS NOT NULL THEN $24::jsonb ELSE ai_match_result END,
               updated_at = NOW()
             WHERE id = $22
             RETURNING id, name, contact_link, current_position, status, target_job_id`,
@@ -153,7 +162,8 @@ async function processBulkImport(pool, candidates, actor) {
               c.linkedin_url || '',
               c.github_url || '',
               existingId,
-              c.target_job_id || null
+              c.target_job_id || null,
+              c.ai_match_result ? (typeof c.ai_match_result === 'string' ? c.ai_match_result : JSON.stringify(c.ai_match_result)) : null
             ]
           );
           results.updated.push(result.rows[0]);
@@ -166,8 +176,8 @@ async function processBulkImport(pool, candidates, actor) {
               skills, education, source, status, recruiter, notes,
               stability_score, personality_type, job_changes, avg_tenure_months,
               recent_gap_months, work_history, education_details, leaving_reason,
-              talent_level, target_job_id, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,NOW(),NOW())
+              talent_level, target_job_id, ai_match_result, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,NOW(),NOW())
              RETURNING id, name, contact_link, current_position, status, target_job_id`,
             [
               c.name.trim(),
@@ -182,8 +192,8 @@ async function processBulkImport(pool, candidates, actor) {
               c.skills || '',
               c.education || '',
               c.source || CRAWLER_SOURCE,
-              c.status || '未開始',
-              c.recruiter || actor || 'Crawler',
+              c.status || '爬蟲初篩',
+              c.recruiter || '待指派',
               c.notes || '',
               String(c.stability_score || '0'),
               c.personality_type || '',
@@ -194,7 +204,8 @@ async function processBulkImport(pool, candidates, actor) {
               c.education_details ? JSON.stringify(c.education_details) : null,
               c.leaving_reason || '',
               c.talent_level || '',
-              c.target_job_id || null
+              c.target_job_id || null,
+              c.ai_match_result ? (typeof c.ai_match_result === 'string' ? c.ai_match_result : JSON.stringify(c.ai_match_result)) : null
             ]
           );
           existingMap.set(nameKey, result.rows[0].id);

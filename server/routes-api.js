@@ -52,6 +52,15 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS ai_match_result JSONB
 `).catch(err => console.warn('ai_match_result migration:', err.message));
 
+// 確保 OpenClaw 分析欄位存在
+pool.query(`
+  ALTER TABLE candidates_pipeline
+  ADD COLUMN IF NOT EXISTS ai_score INTEGER,
+  ADD COLUMN IF NOT EXISTS ai_grade VARCHAR(10),
+  ADD COLUMN IF NOT EXISTS ai_report TEXT,
+  ADD COLUMN IF NOT EXISTS ai_recommendation VARCHAR(50)
+`).catch(err => console.warn('openclaw columns migration:', err.message));
+
 // 確保 system_logs 資料表存在
 pool.query(`
   CREATE TABLE IF NOT EXISTS system_logs (
@@ -1009,7 +1018,7 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
     const { id } = req.params;
     const { status, by } = req.body;
 
-    const validStatuses = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才', '其他'];
+    const validStatuses = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才', '其他', '爬蟲初篩'];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -1087,7 +1096,7 @@ router.patch('/candidates/batch-status', async (req, res) => {
   try {
     const { ids, status, actor, note } = req.body;
 
-    const validStatuses = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才', '其他'];
+    const validStatuses = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才', '其他', '爬蟲初篩'];
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ success: false, error: '缺少 ids 陣列' });

@@ -130,6 +130,13 @@ export const CANDIDATE_STATUS_CONFIG = {
     bgColor: 'bg-purple-100',
     textColor: 'text-purple-700',
     borderColor: 'border-purple-300'
+  },
+  [CandidateStatus.CRAWLER_SCREENED]: {
+    label: '爬蟲初篩',
+    color: 'cyan',
+    bgColor: 'bg-cyan-100',
+    textColor: 'text-cyan-700',
+    borderColor: 'border-cyan-300'
   }
 };
 
