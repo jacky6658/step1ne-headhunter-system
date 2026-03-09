@@ -1,8 +1,8 @@
 // Step1ne 獵頭系統 - BD 客戶開發頁面
 import React, { useState, useEffect } from 'react';
 import { Client, BDContact, BDStatus, BD_STATUS_CONFIG, UserProfile } from '../types';
-import { apiGet, apiPost, apiPatch } from '../config/api';
-import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3 } from 'lucide-react';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../config/api';
+import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3, Trash2, Pencil, Check } from 'lucide-react';
 
 interface BDClientsPageProps {
   userProfile: UserProfile;
@@ -42,6 +42,9 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
   const [saveLoading, setSaveLoading] = useState(false);
   const [draggedClientId, setDraggedClientId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<BDStatus | null>(null);
+  const [renamingTitle, setRenamingTitle] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => { loadClients(); }, []);
 
@@ -111,6 +114,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
   const handleStartEdit = () => {
     if (!selectedClient) return;
     setEditForm({
+      company_name: selectedClient.company_name || '',
       industry: selectedClient.industry || '',
       company_size: selectedClient.company_size || '',
       website: selectedClient.website || '',
@@ -157,6 +161,41 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
       }
     } catch (e) { alert('❌ 新增失敗'); }
     finally { setContactLoading(false); }
+  };
+
+  const handleDeleteClient = async (client: Client) => {
+    const confirmed = window.confirm(`⚠️ 確定要刪除客戶「${client.company_name}」嗎？\n\n此操作將同時刪除該客戶的所有聯絡記錄，且無法復原。`);
+    if (!confirmed) return;
+    setDeleteLoading(true);
+    try {
+      const result = await apiDelete<any>(`/clients/${client.id}`);
+      if (result.success) {
+        setClients(prev => prev.filter(c => c.id !== client.id));
+        setSelectedClient(null);
+      }
+    } catch (e) { alert('❌ 刪除失敗：' + (e as Error).message); }
+    finally { setDeleteLoading(false); }
+  };
+
+  const handleStartRename = () => {
+    if (!selectedClient) return;
+    setRenameValue(selectedClient.company_name);
+    setRenamingTitle(true);
+  };
+
+  const handleSaveRename = async () => {
+    if (!selectedClient || !renameValue.trim()) { alert('公司名稱不能為空'); return; }
+    setSaveLoading(true);
+    try {
+      const result = await apiPatch<any>(`/clients/${selectedClient.id}`, { company_name: renameValue.trim() });
+      if (result.success) {
+        const updated = { ...selectedClient, company_name: renameValue.trim() };
+        setSelectedClient(updated);
+        setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
+        setRenamingTitle(false);
+      }
+    } catch (e) { alert('❌ 重命名失敗'); }
+    finally { setSaveLoading(false); }
   };
 
   const getClientsByStatus = (status: BDStatus) => clients.filter(c => c.bd_status === status);
@@ -287,9 +326,33 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 sm:p-6 flex-shrink-0">
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-lg sm:text-xl font-bold truncate">{selectedClient.company_name}</h2>
+                  {renamingTitle ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={e => setRenameValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveRename(); if (e.key === 'Escape') setRenamingTitle(false); }}
+                        className="text-lg font-bold bg-white/20 border border-white/40 rounded-lg px-3 py-1 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 w-full"
+                        placeholder="公司名稱"
+                      />
+                      <button onClick={handleSaveRename} disabled={saveLoading} className="p-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition flex-shrink-0" title="儲存">
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => setRenamingTitle(false)} className="p-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition flex-shrink-0" title="取消">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 group">
+                      <h2 className="text-lg sm:text-xl font-bold truncate">{selectedClient.company_name}</h2>
+                      <button onClick={handleStartRename} className="p-1 rounded-lg bg-white/0 hover:bg-white/20 transition opacity-0 group-hover:opacity-100" title="重新命名">
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                   {selectedClient.industry && <p className="text-indigo-200 text-sm mt-0.5">{selectedClient.industry}</p>}
-                  <div className="mt-3">
+                  <div className="mt-3 flex items-center gap-2">
                     <select
                       value={selectedClient.bd_status}
                       onChange={e => handleStatusChange(selectedClient, e.target.value as BDStatus)}
@@ -299,9 +362,19 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
                     </select>
                   </div>
                 </div>
-                <button onClick={() => setSelectedClient(null)} className="text-white/80 hover:text-white p-1 ml-2">
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1 ml-2">
+                  <button
+                    onClick={() => handleDeleteClient(selectedClient)}
+                    disabled={deleteLoading}
+                    className="p-1.5 text-white/60 hover:text-red-300 hover:bg-white/10 rounded-lg transition"
+                    title="刪除客戶"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => { setSelectedClient(null); setRenamingTitle(false); }} className="text-white/80 hover:text-white p-1">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
 
