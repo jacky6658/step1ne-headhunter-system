@@ -668,17 +668,13 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
               const pct = stats.total > 0 ? (stage.value / stats.total) * 100 : 0;
               return (
                 <div key={stage.label} className="flex items-center gap-3">
+                  <div className="w-8 text-right text-sm font-black text-slate-900 tabular-nums shrink-0">{stage.value}</div>
                   <div className="w-20 sm:w-24 text-right text-xs font-bold text-slate-500 shrink-0">{stage.label}</div>
-                  <div className="flex-1 bg-slate-100 rounded-full h-7 overflow-hidden relative">
+                  <div className="flex-1 bg-slate-100 rounded-full h-7 overflow-hidden">
                     <div
-                      className={`${stage.color} h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2`}
+                      className={`${stage.color} h-full rounded-full transition-all duration-700`}
                       style={{ width: `${Math.max(pct, 1)}%` }}
-                    >
-                      {pct > 5 && <span className="text-[11px] font-bold text-white">{stage.value}</span>}
-                    </div>
-                    {pct <= 5 && stage.value > 0 && (
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-500">{stage.value}</span>
-                    )}
+                    />
                   </div>
                   <div className="w-14 text-right text-xs font-mono text-slate-400 shrink-0">{pct.toFixed(1)}%</div>
                 </div>
@@ -689,17 +685,13 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
               const pct = stats.total > 0 ? (stage.value / stats.total) * 100 : 0;
               return (
                 <div key={stage.label} className="flex items-center gap-3 opacity-70">
+                  <div className="w-8 text-right text-sm font-black text-slate-600 tabular-nums shrink-0">{stage.value}</div>
                   <div className="w-20 sm:w-24 text-right text-xs font-bold text-slate-400 shrink-0">{stage.label}</div>
-                  <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden relative">
+                  <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden">
                     <div
-                      className={`${stage.color} h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2`}
+                      className={`${stage.color} h-full rounded-full transition-all duration-700`}
                       style={{ width: `${Math.max(pct, 1)}%` }}
-                    >
-                      {pct > 5 && <span className="text-[10px] font-bold text-white">{stage.value}</span>}
-                    </div>
-                    {pct <= 5 && stage.value > 0 && (
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">{stage.value}</span>
-                    )}
+                    />
                   </div>
                   <div className="w-14 text-right text-xs font-mono text-slate-300 shrink-0">{pct.toFixed(1)}%</div>
                 </div>
