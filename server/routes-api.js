@@ -569,6 +569,7 @@ router.get('/candidates/:id', async (req, res) => {
       discProfile: row.personality_type || '',
       progressTracking: row.progress_tracking || [],
       talentLevel: row.talent_level || '',
+      interviewRound: row.interview_round || null,
 
       // 向後相容：保留 DB 字段名
       work_history: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
