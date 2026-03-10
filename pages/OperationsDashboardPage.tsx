@@ -27,6 +27,7 @@ interface Candidate {
   workHistory?: any[];
   consultant?: string;
   createdAt?: string;
+  interviewRound?: number | null;
 }
 
 interface Job {
@@ -94,6 +95,8 @@ function normalizeSource(src: string): string {
 
 function normalizeStatus(st: string): string {
   if (st === '已連繫' || st === '已聯繫') return '聯繫階段';
+  if (st === '已面試') return '面試階段';
+  if (st === '客戶婉拒') return '面試沒過';
   return st;
 }
 
@@ -379,7 +382,7 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
     let notContactable = 0;
 
     // Pipeline funnel
-    const pipeline = { crawlerScreened: 0, notStarted: 0, aiRecommended: 0, contacted: 0, interview: 0, offer: 0, onboard: 0, rejected: 0, notRecommended: 0, talentPool: 0, backup: 0 };
+    const pipeline = { crawlerScreened: 0, notStarted: 0, aiRecommended: 0, contacted: 0, interview: 0, interview1: 0, interview2: 0, interview3: 0, offer: 0, onboard: 0, rejected: 0, notRecommended: 0, talentPool: 0, backup: 0, interviewFailed: 0 };
 
     // Monthly-weekly import stats: { '2026-02': { w1: 0, w2: 0, w3: 0, w4: 0, w5: 0 }, ... }
     const monthlyWeekly: Record<string, Record<string, number>> = {};
@@ -410,13 +413,20 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
         case '未開始': pipeline.notStarted++; break;
         case 'AI推薦': pipeline.aiRecommended++; break;
         case '聯繫階段': pipeline.contacted++; break;
-        case '面試階段': pipeline.interview++; break;
+        case '面試階段':
+          pipeline.interview++;
+          if (c.interviewRound === 1) pipeline.interview1++;
+          else if (c.interviewRound === 2) pipeline.interview2++;
+          else if (c.interviewRound === 3) pipeline.interview3++;
+          else pipeline.interview1++; // 未設定預設第一階段
+          break;
         case 'Offer': pipeline.offer++; break;
         case 'on board': pipeline.onboard++; break;
         case '婉拒': pipeline.rejected++; break;
         case '不推薦': pipeline.notRecommended++; break;
         case '人才庫': pipeline.talentPool++; break;
         case '備選人才': pipeline.backup++; break;
+        case '面試沒過': pipeline.interviewFailed++; break;
       }
 
       // Monthly-weekly import
@@ -488,7 +498,9 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
     { label: 'AI推薦', value: stats.pipeline.aiRecommended, color: 'bg-emerald-400' },
     { label: '備選人才', value: stats.pipeline.backup, color: 'bg-amber-400' },
     { label: '聯繫階段', value: stats.pipeline.contacted, color: 'bg-blue-400' },
-    { label: '面試階段', value: stats.pipeline.interview, color: 'bg-purple-400' },
+    { label: '第一階段面試', value: stats.pipeline.interview1, color: 'bg-purple-400' },
+    { label: '第二階段面試', value: stats.pipeline.interview2, color: 'bg-purple-500' },
+    { label: '第三階段面試', value: stats.pipeline.interview3, color: 'bg-purple-600' },
     { label: 'Offer', value: stats.pipeline.offer, color: 'bg-green-500' },
     { label: 'On Board', value: stats.pipeline.onboard, color: 'bg-indigo-500' },
   ];
@@ -497,6 +509,7 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
     { label: '人才庫', value: stats.pipeline.talentPool, color: 'bg-cyan-400' },
     { label: '不推薦', value: stats.pipeline.notRecommended, color: 'bg-rose-400' },
     { label: '婉拒', value: stats.pipeline.rejected, color: 'bg-red-400' },
+    { label: '面試沒過', value: stats.pipeline.interviewFailed, color: 'bg-orange-500' },
   ];
 
   // Current month for bar chart
@@ -695,85 +708,39 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
           </div>
         </div>
 
-        {/* Two columns: Source + Status */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Source Distribution */}
-          <div className="bg-white rounded-2xl border border-slate-100 p-5 sm:p-6 shadow-sm">
-            <h3 className="text-sm font-black text-slate-700 uppercase tracking-wide mb-4 flex items-center gap-2">
-              <Globe size={16} className="text-blue-400" />
-              來源分佈
-            </h3>
-            <HBar
-              items={stats.bySource.map(([label, value]) => ({
-                label,
-                value,
-                color: label === 'LinkedIn' ? 'bg-blue-500' :
-                       label === 'GitHub' ? 'bg-slate-700' :
-                       label === '爬蟲匯入' ? 'bg-orange-400' :
-                       label === 'Gmail' ? 'bg-red-400' :
-                       label === '主動投遞' ? 'bg-emerald-400' : 'bg-slate-400',
-              }))}
-              total={stats.total}
-            />
-            <div className="mt-4 space-y-2">
-              {stats.bySource.map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {SOURCE_ICONS[label] || <Eye size={14} className="text-slate-400" />}
-                    <span className="font-medium text-slate-700">{label}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-black text-slate-900">{value}</span>
-                    <span className="text-xs text-slate-400 w-12 text-right font-mono">
-                      {((value / stats.total) * 100).toFixed(1)}%
-                    </span>
-                  </div>
+        {/* Source Distribution */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 sm:p-6 shadow-sm">
+          <h3 className="text-sm font-black text-slate-700 uppercase tracking-wide mb-4 flex items-center gap-2">
+            <Globe size={16} className="text-blue-400" />
+            來源分佈
+          </h3>
+          <HBar
+            items={stats.bySource.map(([label, value]) => ({
+              label,
+              value,
+              color: label === 'LinkedIn' ? 'bg-blue-500' :
+                     label === 'GitHub' ? 'bg-slate-700' :
+                     label === '爬蟲匯入' ? 'bg-orange-400' :
+                     label === 'Gmail' ? 'bg-red-400' :
+                     label === '主動投遞' ? 'bg-emerald-400' : 'bg-slate-400',
+            }))}
+            total={stats.total}
+          />
+          <div className="mt-4 space-y-2">
+            {stats.bySource.map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  {SOURCE_ICONS[label] || <Eye size={14} className="text-slate-400" />}
+                  <span className="font-medium text-slate-700">{label}</span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Status Distribution */}
-          <div className="bg-white rounded-2xl border border-slate-100 p-5 sm:p-6 shadow-sm">
-            <h3 className="text-sm font-black text-slate-700 uppercase tracking-wide mb-4 flex items-center gap-2">
-              <CheckCircle size={16} className="text-emerald-400" />
-              狀態分佈
-            </h3>
-            <div className="space-y-2">
-              {stats.byStatus.map(([label, value]) => {
-                const colors = STATUS_COLORS[label] || { bg: 'bg-slate-50', text: 'text-slate-600', ring: 'ring-slate-200' };
-                const pct = ((value / stats.total) * 100).toFixed(1);
-                return (
-                  <div key={label} className="flex items-center gap-3">
-                    <div className="w-20 text-right shrink-0">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ring-1 ${colors.bg} ${colors.text} ${colors.ring}`}>
-                        {label}
-                      </span>
-                    </div>
-                    <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          label === '聯繫階段' ? 'bg-blue-400' :
-                          label === '面試階段' ? 'bg-purple-400' :
-                          label === 'AI推薦' ? 'bg-emerald-400' :
-                          label === '備選人才' ? 'bg-amber-400' :
-                          label === '未開始' ? 'bg-slate-300' :
-                          label === '爬蟲初篩' ? 'bg-orange-300' :
-                          label === '婉拒' ? 'bg-red-300' :
-                          label === '不推薦' ? 'bg-rose-300' :
-                          label === '人才庫' ? 'bg-cyan-300' : 'bg-slate-300'
-                        }`}
-                        style={{ width: `${Math.max(parseFloat(pct), 1)}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm font-black text-slate-900 w-10 text-right">{value}</span>
-                      <span className="text-xs text-slate-400 font-mono w-12 text-right">{pct}%</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-black text-slate-900">{value}</span>
+                  <span className="text-xs text-slate-400 w-12 text-right font-mono">
+                    {((value / stats.total) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

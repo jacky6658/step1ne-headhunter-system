@@ -152,6 +152,11 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS github_analysis_cache JSONB;
 `).catch(err => console.warn('github_analysis_cache migration:', err.message));
 
+// 確保 interview_round 欄位存在（面試關卡 1/2/3）
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS interview_round INTEGER;
+`).catch(err => console.warn('interview_round migration:', err.message));
+
 // 擴充 VARCHAR(100) 欄位，避免爬蟲匯入資料超長
 pool.query(`
   ALTER TABLE candidates_pipeline ALTER COLUMN location TYPE VARCHAR(255);
@@ -400,7 +405,7 @@ router.get('/candidates', async (req, res) => {
         c.skills, c.education, c.source, c.work_history, c.leaving_reason,
         c.stability_score, c.education_details, c.personality_type,
         c.status, c.recruiter, c.notes, c.talent_level, c.progress_tracking,
-        c.created_at, c.updated_at, c.ai_match_result, c.target_job_id,
+        c.created_at, c.updated_at, c.ai_match_result, c.target_job_id, c.interview_round,
         j.position_name AS target_job_label, j.client_company AS target_job_company
       FROM candidates_pipeline c
       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
@@ -483,6 +488,7 @@ router.get('/candidates', async (req, res) => {
       targetJobLabel: row.target_job_label
         ? `${row.target_job_label}${row.target_job_company ? ` (${row.target_job_company})` : ''}`
         : null,
+      interviewRound: row.interview_round || null,
     }));
 
     client.release();
@@ -801,6 +807,7 @@ router.patch('/candidates/:id', async (req, res) => {
     const work_history = req.body.work_history;
     const education_details = req.body.education_details;
     const target_job_id = req.body.target_job_id !== undefined ? req.body.target_job_id : undefined;
+    const interview_round = req.body.interview_round !== undefined ? req.body.interview_round : req.body.interviewRound;
     const actor = req.body.actor || req.body.by || '';
     const isAIBot = /aibot|bot$|openclaw|yuqi|ai$/i.test(actor);
 
@@ -895,6 +902,10 @@ router.patch('/candidates/:id', async (req, res) => {
     if (target_job_id !== undefined) {
       setClauses.push(`target_job_id = $${idx++}`);
       values.push(target_job_id === null ? null : Number(target_job_id));
+    }
+    if (interview_round !== undefined) {
+      setClauses.push(`interview_round = $${idx++}`);
+      values.push(interview_round === null ? null : Number(interview_round));
     }
     // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析
     let resolvedAiMatch = ai_match_result;
