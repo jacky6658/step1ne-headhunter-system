@@ -13,7 +13,7 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: process.env.VITE_PROXY_TARGET || 'http://localhost:3001',
+        target: process.env.VITE_PROXY_TARGET || 'https://backendstep1ne.zeabur.app',
         changeOrigin: true,
         secure: false,
       },

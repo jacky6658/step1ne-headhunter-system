@@ -446,7 +446,7 @@ router.get('/candidates', async (req, res) => {
       education: row.education || '',
       source: row.source || '其他', // CandidateSource enum
       status: row.status || '未開始', // CandidateStatus enum
-      consultant: row.recruiter || 'Jacky',
+      consultant: row.recruiter || '待指派',
       notes: row.notes || '',
       stabilityScore: isNaN(parseInt(row.stability_score)) ? 0 : parseInt(row.stability_score),
       createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
@@ -498,7 +498,7 @@ router.get('/candidates', async (req, res) => {
       stability_score: row.stability_score || '',
       education_details: (() => { const v = row.education_details; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       personality_type: row.personality_type || '',
-      recruiter: row.recruiter || 'Jacky',
+      recruiter: row.recruiter || '待指派',
       talent_level: row.talent_level || '',
       targetJobId: row.target_job_id || null,
       targetJobLabel: row.target_job_label
@@ -1526,7 +1526,7 @@ router.post('/candidates', async (req, res) => {
           c.linkedin_url || '', c.github_url || '', c.contact_link || '',
           (c.location || '').slice(0, 255), (c.current_position || '').slice(0, 255), String(c.years_experience || '0'),
           c.skills || '', (c.education || '').slice(0, 255), (c.source || 'GitHub').slice(0, 255),
-          c.status || '未開始', (c.recruiter || 'Jacky').slice(0, 255), c.notes || '',
+          c.status || '未開始', (c.recruiter || '待指派').slice(0, 255), c.notes || '',
           String(c.stability_score || '0'), (c.personality_type || '').slice(0, 255),
           String(c.job_changes || '0'), String(c.avg_tenure_months || '0'),
           String(c.recent_gap_months || '0'),

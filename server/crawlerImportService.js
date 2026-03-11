@@ -237,7 +237,7 @@ async function processBulkImport(pool, candidates, actor) {
               c.education || '',
               c.source || CRAWLER_SOURCE,
               c.status || '爬蟲初篩',
-              c.recruiter || actor || '待指派',
+              '待指派',
               c.notes || '',
               String(c.stability_score || '0'),
               c.personality_type || '',
