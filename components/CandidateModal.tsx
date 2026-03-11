@@ -456,8 +456,11 @@ Step1ne Recruitment`;
 
   // PDF 履歷匯入處理
   const IMPORT_FIELD_LABELS: Record<string, string> = {
-    name: '姓名', position: '職稱', location: '地點', years: '年資',
+    name: '姓名', position: '職稱', location: '地點',
+    phone: '電話', email: 'Email', age: '年齡', years: '年資',
     skills: '技能', education: '學歷', linkedinUrl: 'LinkedIn URL',
+    industry: '產業', languages: '語言能力', certifications: '證照',
+    expectedSalary: '期望薪資', noticePeriod: '到職時間', jobSearchStatus: '求職狀態',
     notes: '個人簡介', workHistory: '工作經歷', educationJson: '學歷詳情',
   };
   const IMPORT_FIELDS = Object.keys(IMPORT_FIELD_LABELS);
@@ -495,29 +498,55 @@ Step1ne Recruitment`;
     if (!importParsed) return;
     setApplyingImport(true);
     try {
+      // camelCase → snake_case 對照表
+      const fieldMap: Record<string, string> = {
+        linkedinUrl: 'linkedin_url',
+        workHistory: 'work_history',
+        educationJson: 'education_details',
+        expectedSalary: 'expected_salary',
+        noticePeriod: 'notice_period',
+        jobSearchStatus: 'job_search_status',
+      };
       const updates: any = { actor: currentUserName || 'system' };
       for (const field of importSelected) {
         const v = importParsed[field];
         if (v === null || v === undefined) continue;
         if (field === 'skills') {
           updates.skills = Array.isArray(v) ? v.join('、') : v;
-        } else if (field === 'workHistory') {
-          updates.work_history = JSON.stringify(v);
-        } else if (field === 'educationJson') {
-          updates.education_details = JSON.stringify(v);
-        } else if (field === 'linkedinUrl') {
-          updates.linkedin_url = v;
+        } else if (field === 'workHistory' || field === 'educationJson') {
+          updates[fieldMap[field]] = JSON.stringify(v);
         } else {
-          updates[field] = v;
+          const key = fieldMap[field] || field;
+          updates[key] = v;
         }
       }
       await apiPatch(`/api/candidates/${candidate.id}`, updates);
+
+      // 更新本地 edit state
+      const p = importParsed;
+      if (importSelected.has('name') && p.name) setEditName(p.name);
+      if (importSelected.has('position') && p.position) setEditPosition(p.position);
+      if (importSelected.has('location') && p.location) setEditLocation(p.location);
+      if (importSelected.has('phone') && p.phone) setEditPhone(p.phone);
+      if (importSelected.has('email') && p.email) setEditEmail(p.email);
+      if (importSelected.has('age') && p.age) setEditAge(String(p.age));
+      if (importSelected.has('years') && p.years) setEditYears(String(p.years));
+      if (importSelected.has('skills') && p.skills) setEditSkills(Array.isArray(p.skills) ? p.skills.join('、') : p.skills);
+      if (importSelected.has('industry') && p.industry) setEditIndustry(p.industry);
+      if (importSelected.has('languages') && p.languages) setEditLanguages(p.languages);
+      if (importSelected.has('certifications') && p.certifications) setEditCertifications(p.certifications);
+      if (importSelected.has('expectedSalary') && p.expectedSalary) setEditExpectedSalary(p.expectedSalary);
+      if (importSelected.has('noticePeriod') && p.noticePeriod) setEditNoticePeriod(p.noticePeriod);
+      if (importSelected.has('jobSearchStatus') && p.jobSearchStatus) setEditJobSearchStatus(p.jobSearchStatus);
+
       onCandidateUpdate?.(candidate.id, {
-        ...(importSelected.has('name') && { name: importParsed.name }),
-        ...(importSelected.has('position') && { position: importParsed.position }),
-        ...(importSelected.has('location') && { location: importParsed.location }),
-        ...(importSelected.has('years') && { years: importParsed.years }),
-        ...(importSelected.has('skills') && { skills: importParsed.skills }),
+        ...(importSelected.has('name') && { name: p.name }),
+        ...(importSelected.has('position') && { position: p.position }),
+        ...(importSelected.has('location') && { location: p.location }),
+        ...(importSelected.has('years') && { years: p.years }),
+        ...(importSelected.has('skills') && { skills: p.skills }),
+        ...(importSelected.has('phone') && { phone: p.phone }),
+        ...(importSelected.has('email') && { email: p.email }),
       });
       setShowImport(false);
       setImportParsed(null);
@@ -1324,8 +1353,8 @@ Step1ne Recruitment`;
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-500">
-                          信心分數：<span className="font-semibold text-blue-600">{Math.round((importParsed._meta?.confidence || 0) * 100)}%</span>
-                          &nbsp;·&nbsp;{importParsed._meta?.parseMethod || 'rule-based'}
+                          來源：<span className="font-semibold text-blue-600">{importParsed.source || 'LinkedIn'}</span>
+                          &nbsp;·&nbsp;信心 {Math.round((importParsed._meta?.confidence || 0) * 100)}%
                         </span>
                         <button
                           onClick={() => { setImportParsed(null); setImportError(null); }}
