@@ -4282,7 +4282,7 @@ router.post('/candidates/backfill-computed', async (req, res) => {
       }
 
       // 年齡：null 時回填；force=true 時全部重新推估
-      const forceAge = req.body.force === true || req.query.force === 'true';
+      const forceAge = (req.body && req.body.force === true) || req.query.force === 'true';
       if (row.age == null || forceAge) {
         const estimated = estimateAgeFromEducation(row.education_details);
         if (estimated && estimated >= 18 && estimated <= 70) {
