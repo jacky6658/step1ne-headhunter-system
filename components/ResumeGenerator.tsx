@@ -249,8 +249,13 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   const workHistory = parseWorkHistory(candidate);
   const education = parseEducation(candidate);
   const summary = customSummary || generateSummary(candidate);
-  const years = candidate.years || 0;
   const position = candidate.position || '';
+
+  // 動態計算總年資（從工作經歷加總，比後端靜態值準確）
+  const totalMonthsFromHistory = workHistory.reduce((sum, w) => {
+    return sum + calcDurationMonths(w.start || '', w.end || 'present');
+  }, 0);
+  const years = totalMonthsFromHistory > 0 ? Math.round(totalMonthsFromHistory / 12) : (candidate.years || 0);
 
   // 匿名處理：只顯示英文名，沒有英文名就用 Candidate label
   const englishName = extractEnglishName(candidate.name || '');
@@ -262,6 +267,25 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
 
   // Skills grouped
   const skillsHTML = skills.map(s => `<span class="skill-tag">${s}</span>`).join('');
+
+  // 從 start/end 動態計算月數（不依賴後端靜態 duration_months）
+  const calcDurationMonths = (start: string, end: string): number => {
+    if (!start) return 0;
+    const parseDate = (s: string): Date | null => {
+      if (!s || s.toLowerCase() === 'present' || s === '至今') return new Date();
+      // 支援 "2025-03", "2025/03", "2025.03", "2025"
+      const parts = s.replace(/[\/\.]/g, '-').split('-');
+      const y = parseInt(parts[0]);
+      const m = parts[1] ? parseInt(parts[1]) - 1 : 0;
+      if (isNaN(y)) return null;
+      return new Date(y, m, 1);
+    };
+    const startDate = parseDate(start);
+    const endDate = parseDate(end);
+    if (!startDate || !endDate) return 0;
+    const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth());
+    return Math.max(0, months);
+  };
 
   // Work history — 公司名匿名化：用產業/規模描述取代真實公司名
   const anonymizeCompany = (company: string): string => {
@@ -297,8 +321,10 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     const startStr = w.start || '';
     const endStr = w.end || '至今';
     const period = startStr ? `${startStr} – ${endStr}` : '';
-    const durationStr = w.duration_months
-      ? `${Math.floor(w.duration_months / 12) > 0 ? Math.floor(w.duration_months / 12) + '年' : ''}${w.duration_months % 12 ? w.duration_months % 12 + '個月' : ''}`
+    // 動態計算月數，不用後端靜態的 duration_months
+    const months = calcDurationMonths(startStr, w.end || 'present');
+    const durationStr = months > 0
+      ? `${Math.floor(months / 12) > 0 ? Math.floor(months / 12) + '年' : ''}${months % 12 ? months % 12 + '個月' : ''}`
       : '';
     const timeDisplay = period
       ? `${period}${durationStr ? `（${durationStr}）` : ''}`
