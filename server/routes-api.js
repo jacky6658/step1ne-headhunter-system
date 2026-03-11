@@ -176,6 +176,11 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS age_estimated BOOLEAN DEFAULT true;
 `).catch(err => console.warn('age_estimated migration:', err.message));
 
+// 性別欄位
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS gender TEXT;
+`).catch(err => console.warn('gender migration:', err.message));
+
 // 目標職缺欄位：改為直接 FK 對應 jobs_pipeline（不再存在 notes 文字內）
 pool.query(`
   ALTER TABLE candidates_pipeline
@@ -514,6 +519,7 @@ router.get('/candidates', async (req, res) => {
       birthday: row.birthday || null,
       age: row.age != null ? parseInt(row.age) : estimateAgeFromEducation(row.education_details),
       ageEstimated: row.birthday ? false : (row.age == null), // 有生日 = 確定值
+      gender: row.gender || '',
       industry: row.industry || '',
       languages: row.languages || '',
       certifications: row.certifications || '',
@@ -606,6 +612,7 @@ router.get('/candidates/:id', async (req, res) => {
       birthday: row.birthday || null,
       age: row.age != null ? parseInt(row.age) : estimateAgeFromEducation(row.education_details),
       ageEstimated: row.birthday ? false : (row.age == null),
+      gender: row.gender || '',
       // JSONB / 詳細欄位
       workHistory: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       quitReasons: row.leaving_reason || '',
@@ -864,6 +871,7 @@ router.patch('/candidates/:id', async (req, res) => {
     const birthday = req.body.birthday;
     const age = req.body.age;
     const age_estimated = req.body.age_estimated !== undefined ? req.body.age_estimated : req.body.ageEstimated;
+    const gender = req.body.gender;
     const industry = req.body.industry;
     const languages = req.body.languages;
     const certifications = req.body.certifications;
@@ -991,6 +999,10 @@ router.patch('/candidates/:id', async (req, res) => {
     if (age_estimated !== undefined) {
       setClauses.push(`age_estimated = $${idx++}`);
       values.push(!!age_estimated);
+    }
+    if (gender !== undefined) {
+      setClauses.push(`gender = $${idx++}`);
+      values.push(gender);
     }
     if (industry !== undefined) {
       setClauses.push(`industry = $${idx++}`);

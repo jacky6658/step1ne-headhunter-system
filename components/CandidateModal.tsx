@@ -124,6 +124,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   // Phase 1 新增欄位
   const [editBirthday, setEditBirthday] = useState(candidate.birthday || '');
   const [editAge, setEditAge] = useState(String(candidate.age ?? ''));
+  const [editGender, setEditGender] = useState(candidate.gender || '');
   const [editIndustry, setEditIndustry] = useState(candidate.industry || '');
 
   // 從出生日期自動計算年齡
@@ -588,6 +589,7 @@ Step1ne Recruitment`;
         birthday: editBirthday || null,
         age: editBirthday ? calcAgeFromBirthday(editBirthday) : (editAge ? parseInt(editAge) : null),
         age_estimated: editBirthday ? false : (candidate.ageEstimated ?? true),
+        gender: editGender,
         industry: editIndustry.trim(),
         languages: editLanguages.trim(),
         certifications: editCertifications.trim(),
@@ -1113,6 +1115,15 @@ Step1ne Recruitment`;
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">年齡（無生日時手動填）</label>
                       <input value={editAge} onChange={e => setEditAge(e.target.value)} type="number" min="18" max="70" placeholder="例：32" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" disabled={!!editBirthday} />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">性別</label>
+                      <select value={editGender} onChange={e => setEditGender(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="">— 請選擇 —</option>
+                        <option value="男">男</option>
+                        <option value="女">女</option>
+                        <option value="其他">其他</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">產業</label>

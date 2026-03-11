@@ -451,6 +451,30 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   if (candidate.competingOffers) dealTerms.push(`競爭 Offer：${candidate.competingOffers}`);
   if (candidate.relationshipLevel) dealTerms.push(`顧問關係：${candidate.relationshipLevel}`);
 
+  // 基本資料區塊（放在摘要和核心技能之間）
+  const genderStr = candidate.gender || '';
+  const basicInfoItems: Array<{label: string; value: string}> = [];
+  if (position) basicInfoItems.push({ label: '現職', value: position });
+  if (years > 0) basicInfoItems.push({ label: '年資', value: `${years} 年` });
+  if (industry) basicInfoItems.push({ label: '產業', value: industry });
+  if (candidate.location) basicInfoItems.push({ label: '地點', value: candidate.location });
+  if (genderStr) basicInfoItems.push({ label: '性別', value: genderStr });
+  if (age) basicInfoItems.push({ label: '年齡', value: `${age} 歲` });
+  if (candidate.education) basicInfoItems.push({ label: '學歷', value: candidate.education.length > 40 ? candidate.education.substring(0, 40) + '…' : candidate.education });
+  if (languages) basicInfoItems.push({ label: '語言', value: languages });
+  if (certifications) basicInfoItems.push({ label: '證照', value: certifications });
+  if (currentSalary) basicInfoItems.push({ label: '目前薪資', value: currentSalary });
+  if (expectedSalary) basicInfoItems.push({ label: '期望薪資', value: expectedSalary });
+  if (noticePeriod) basicInfoItems.push({ label: '到職時間', value: noticePeriod });
+  if (hasManagement) basicInfoItems.push({ label: '管理經驗', value: `是${teamSize ? `（${teamSize}）` : ''}` });
+  if (candidate.jobSearchStatus) basicInfoItems.push({ label: '求職狀態', value: candidate.jobSearchStatus });
+  if (candidate.motivation) basicInfoItems.push({ label: '主要動機', value: candidate.motivation });
+  if (candidate.reasonForChange) basicInfoItems.push({ label: '轉職原因', value: candidate.reasonForChange });
+
+  const basicInfoHTML = basicInfoItems.map(item =>
+    `<div class="basic-info-item"><span class="basic-info-label">${item.label}</span><span class="basic-info-value">${item.value}</span></div>`
+  ).join('');
+
   // 顧問評估雷達圖
   const evalData: ConsultantEvaluation = candidate.consultantEvaluation || {};
   const autoScores = computeAutoScores({ candidate });
@@ -707,6 +731,34 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     font-size: 10pt;
   }
 
+  /* ─── Basic Info Grid ─── */
+  .basic-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 6px 16px;
+  }
+  .basic-info-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 10px;
+    background: #f8fafc;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    font-size: 9.5pt;
+  }
+  .basic-info-label {
+    color: #64748b;
+    font-size: 8.5pt;
+    white-space: nowrap;
+    min-width: 52px;
+  }
+  .basic-info-value {
+    font-weight: 600;
+    color: #1e293b;
+    word-break: break-all;
+  }
+
   /* ─── Footer ─── */
   .footer {
     margin-top: 24px;
@@ -847,6 +899,17 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     </div>
     <div class="summary-card">${summary}</div>
   </div>
+
+  <!-- Basic Info -->
+  ${basicInfoItems.length > 0 ? `
+  <div class="section">
+    <div class="section-title">
+      <span class="section-icon">📋</span>
+      基本資料
+    </div>
+    <div class="basic-info-grid">${basicInfoHTML}</div>
+  </div>
+  ` : ''}
 
   <!-- Skills -->
   ${skills.length > 0 ? `
