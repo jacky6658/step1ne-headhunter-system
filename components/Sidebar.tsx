@@ -20,23 +20,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
   const isAdmin = profile.role === Role.ADMIN;
 
   const menuItems = [
+    // 運營總覽
+    { id: 'ops-dashboard', label: '📊 運營儀表板', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 核心功能
     { id: 'candidates', label: '📋 候選人總表', icon: Users, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'candidate-kanban', label: '📊 候選人看板', icon: LayoutGrid, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
-    
+
     // 職缺與配對功能
     { id: 'jobs', label: '💼 職缺管理', icon: ClipboardList, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'ai-matching', label: '🤖 AI 配對推薦', icon: CheckSquare, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
-    
+
     // 未來功能
     { id: 'bd-clients', label: '🎯 BD 客戶開發', icon: Target, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'pipeline', label: '📈 顧問人選追蹤表', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
-    
+
     // 爬蟲 & AI
     { id: 'crawler-dashboard', label: '🕷️ 爬蟲整合儀表板', icon: Activity, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'ai-progress', label: '🤖 AI 工作進度', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 工具
-    { id: 'ops-dashboard', label: '📊 運營儀表板', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'system-log', label: '📋 操作日誌', icon: ScrollText, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'help', label: '📖 使用說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'migration', label: '🛠️ 資料維護', icon: Database, roles: [Role.ADMIN], disabled: false },

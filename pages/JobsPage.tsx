@@ -914,7 +914,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
 
               {selectedJob.recruitment_difficulty && (
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">招募難度</label>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">緊急程度</label>
                   <p className="text-sm text-slate-900 mt-1">{selectedJob.recruitment_difficulty}</p>
                 </div>
               )}

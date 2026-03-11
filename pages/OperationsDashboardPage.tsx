@@ -166,16 +166,58 @@ function StatCard({ icon, label, value, sub, color = 'bg-white' }: { icon: React
   );
 }
 
-// --- Urgent detection: 檢查職缺欄位是否包含「急缺」---
+// --- 緊急程度偵測 ---
+type UrgencyLevel = 'critical' | 'high' | 'medium' | 'low' | 'none';
+
+interface UrgencyInfo {
+  level: UrgencyLevel;
+  label: string;
+  color: string;        // badge bg
+  textColor: string;    // badge text
+  borderColor: string;  // card border
+  bgColor: string;      // card bg
+  pulse: boolean;
+}
+
+const URGENCY_CONFIG: Record<UrgencyLevel, Omit<UrgencyInfo, 'level'>> = {
+  critical: { label: '急缺', color: 'bg-red-500', textColor: 'text-white', borderColor: 'border-red-300', bgColor: 'bg-red-50/40', pulse: true },
+  high:     { label: '緊急', color: 'bg-orange-500', textColor: 'text-white', borderColor: 'border-orange-200', bgColor: 'bg-orange-50/30', pulse: false },
+  medium:   { label: '中等', color: 'bg-amber-400', textColor: 'text-amber-900', borderColor: 'border-amber-200', bgColor: 'bg-amber-50/20', pulse: false },
+  low:      { label: '一般', color: 'bg-slate-200', textColor: 'text-slate-600', borderColor: 'border-slate-100', bgColor: 'bg-white', pulse: false },
+  none:     { label: '', color: '', textColor: '', borderColor: 'border-slate-100', bgColor: 'bg-white', pulse: false },
+};
+
+function getJobUrgency(job: Job): UrgencyInfo {
+  const diff = (job.recruitment_difficulty || '').toLowerCase();
+  const allText = [job.consultant_notes, job.special_conditions, job.recruitment_difficulty, job.key_challenges, job.job_description].join(' ');
+
+  // 急缺 / critical
+  if (diff.includes('急缺') || /急缺/.test(allText)) {
+    return { level: 'critical', ...URGENCY_CONFIG.critical };
+  }
+  // 緊急 / high
+  if (diff.includes('緊急') || diff.includes('高') || diff.includes('urgent') || /儘速|盡速|立即/.test(allText)) {
+    return { level: 'high', ...URGENCY_CONFIG.high };
+  }
+  // 中等 / medium
+  if (diff.includes('中') || diff.includes('medium') || diff.includes('一般')) {
+    return { level: 'medium', ...URGENCY_CONFIG.medium };
+  }
+  // 低 / low
+  if (diff.includes('低') || diff.includes('low') || diff.includes('不急')) {
+    return { level: 'low', ...URGENCY_CONFIG.low };
+  }
+  // 有填寫但不符合以上 → 根據內容長度判斷（有填寫表示至少有注意）
+  if (diff.trim()) {
+    return { level: 'medium', ...URGENCY_CONFIG.medium };
+  }
+
+  return { level: 'none', ...URGENCY_CONFIG.none };
+}
+
 function isJobUrgent(job: Job): boolean {
-  const fields = [
-    job.consultant_notes,
-    job.special_conditions,
-    job.recruitment_difficulty,
-    job.key_challenges,
-    job.job_description,
-  ];
-  return fields.some(f => f && f.includes('急缺'));
+  const u = getJobUrgency(job);
+  return u.level === 'critical' || u.level === 'high';
 }
 
 // --- Detail Row ---
@@ -194,7 +236,8 @@ function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: strin
 
 // --- Job Detail Modal ---
 function JobDetailModal({ job, matchCount, onClose }: { job: Job; matchCount: number; onClose: () => void }) {
-  const isUrgent = isJobUrgent(job);
+  const urgency = getJobUrgency(job);
+  const isUrgent = urgency.level === 'critical' || urgency.level === 'high';
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
@@ -207,8 +250,8 @@ function JobDetailModal({ job, matchCount, onClose }: { job: Job; matchCount: nu
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-lg font-black text-slate-900">{job.position_name}</h3>
-                {isUrgent && (
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-red-500 text-white font-black animate-pulse">急缺</span>
+                {urgency.level !== 'none' && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded font-black ${urgency.color} ${urgency.textColor} ${urgency.pulse ? 'animate-pulse' : ''}`}>{urgency.label}</span>
                 )}
                 <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-green-50 text-green-700">招募中</span>
               </div>
@@ -275,7 +318,7 @@ function JobDetailModal({ job, matchCount, onClose }: { job: Job; matchCount: nu
           <DetailRow icon={<Globe size={14} className="text-cyan-500" />} label="語言要求" value={job.language_required} />
           <DetailRow icon={<Users size={14} className="text-amber-500" />} label="團隊規模" value={job.team_size} />
           <DetailRow icon={<Zap size={14} className="text-yellow-500" />} label="吸引力" value={job.attractive_points} />
-          <DetailRow icon={<AlertTriangle size={14} className="text-orange-500" />} label="招募難度" value={job.recruitment_difficulty} />
+          <DetailRow icon={<AlertTriangle size={14} className="text-orange-500" />} label="緊急程度" value={job.recruitment_difficulty} />
           <DetailRow icon={<MessageSquare size={14} className="text-green-500" />} label="面試流程" value={job.interview_process} />
           <DetailRow icon={<Eye size={14} className="text-slate-500" />} label="特殊條件" value={job.special_conditions} />
           <DetailRow icon={<Briefcase size={14} className="text-indigo-500" />} label="產業背景" value={job.industry_background} />
@@ -930,20 +973,18 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
             }).map(j => {
               const matched = stats.byJob.find(([label]) => label.includes(j.position_name));
               const matchCount = matched ? matched[1] : 0;
-              const isUrgent = isJobUrgent(j);
+              const urgency = getJobUrgency(j);
               return (
                 <div
                   key={j.id}
                   onClick={() => setSelectedJob({ job: j, matchCount })}
-                  className={`p-3 border rounded-xl transition-all cursor-pointer ${
-                    isUrgent ? 'border-red-200 bg-red-50/30 hover:border-red-300' : 'border-slate-100 hover:border-indigo-200 hover:shadow-md'
-                  }`}
+                  className={`p-3 border rounded-xl transition-all cursor-pointer ${urgency.borderColor} ${urgency.bgColor} hover:shadow-md`}
                 >
                   <div className="flex items-center gap-2">
                     <div className="text-sm font-bold text-slate-800 truncate flex-1">{j.position_name}</div>
-                    {isUrgent && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white font-black shrink-0 animate-pulse">
-                        急缺
+                    {urgency.level !== 'none' && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-black shrink-0 ${urgency.color} ${urgency.textColor} ${urgency.pulse ? 'animate-pulse' : ''}`}>
+                        {urgency.label}
                       </span>
                     )}
                   </div>
