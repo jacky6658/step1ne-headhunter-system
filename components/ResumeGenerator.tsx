@@ -2,8 +2,70 @@
 import React from 'react';
 import { Candidate } from '../types';
 
+import { RADAR_DIMENSIONS, computeAutoScores, computeOverallRating } from './RadarChart';
+import { ConsultantEvaluation } from '../types';
+
 // Step1ne logo (loaded from public path at runtime)
 const LOGO_URL = '/step1ne-logo.jpeg';
+
+/** 產生純 SVG 字串的雷達圖（用於 HTML 匿名履歷） */
+function generateRadarSVG(evaluation: ConsultantEvaluation, size = 180): string {
+  const cx = size / 2;
+  const cy = size / 2;
+  const maxR = size * 0.38;
+  const labelR = size * 0.48;
+  const dims = RADAR_DIMENSIONS;
+  const n = dims.length;
+  const angleStep = (Math.PI * 2) / n;
+  const startAngle = -Math.PI / 2;
+
+  const pt = (angle: number, r: number) => ({
+    x: +(cx + Math.cos(angle) * r).toFixed(1),
+    y: +(cy + Math.sin(angle) * r).toFixed(1),
+  });
+
+  // 網格
+  const gridSVG = [1, 2, 3, 4, 5].map(level => {
+    const r = (level / 5) * maxR;
+    const pts = Array.from({ length: n }, (_, i) => pt(startAngle + i * angleStep, r));
+    const d = `M${pts.map(p => `${p.x},${p.y}`).join('L')}Z`;
+    return `<path d="${d}" fill="none" stroke="${level === 5 ? '#cbd5e1' : '#e2e8f0'}" stroke-width="${level === 5 ? 1.5 : 0.8}"/>`;
+  }).join('');
+
+  // 軸線
+  const axisSVG = Array.from({ length: n }, (_, i) => {
+    const p = pt(startAngle + i * angleStep, maxR);
+    return `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="#e2e8f0" stroke-width="0.8"/>`;
+  }).join('');
+
+  // 數據多邊形
+  const dataPts = dims.map((d, i) => {
+    const v = (evaluation[d.key] as number) || 0;
+    const r = (Math.max(0, Math.min(5, v)) / 5) * maxR;
+    return pt(startAngle + i * angleStep, r);
+  });
+  const dataPath = `M${dataPts.map(p => `${p.x},${p.y}`).join('L')}Z`;
+
+  // 數據點
+  const dotsSVG = dataPts.map((p, i) => {
+    const v = (evaluation[dims[i].key] as number) || 0;
+    return v > 0 ? `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#10b981"/>` : '';
+  }).join('');
+
+  // 標籤
+  const labelsSVG = dims.map((d, i) => {
+    const p = pt(startAngle + i * angleStep, labelR);
+    const v = (evaluation[d.key] as number) || 0;
+    const anchor = p.x < cx - 5 ? 'end' : p.x > cx + 5 ? 'start' : 'middle';
+    return `<text x="${p.x}" y="${p.y}" text-anchor="${anchor}" dominant-baseline="central" font-size="9" fill="#475569">${d.shortLabel} ${v > 0 ? v : '-'}</text>`;
+  }).join('');
+
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+    ${gridSVG}${axisSVG}
+    <path d="${dataPath}" fill="rgba(16,185,129,0.2)" stroke="#10b981" stroke-width="2"/>
+    ${dotsSVG}${labelsSVG}
+  </svg>`;
+}
 
 interface ResumeGeneratorProps {
   candidate: Candidate;
@@ -291,6 +353,14 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   if (candidate.dealBreakers) dealTerms.push(`不適配條件：${candidate.dealBreakers}`);
   if (candidate.competingOffers) dealTerms.push(`競爭 Offer：${candidate.competingOffers}`);
   if (candidate.relationshipLevel) dealTerms.push(`顧問關係：${candidate.relationshipLevel}`);
+
+  // 顧問評估雷達圖
+  const evalData: ConsultantEvaluation = candidate.consultantEvaluation || {};
+  const autoScores = computeAutoScores({ candidate });
+  const mergedEval: ConsultantEvaluation = { ...autoScores, ...evalData };
+  const overallRating = computeOverallRating(mergedEval);
+  const hasEvalData = RADAR_DIMENSIONS.some(d => (mergedEval[d.key] as number) > 0);
+  const radarSVG = hasEvalData ? generateRadarSVG(mergedEval) : '';
 
   return `<!DOCTYPE html>
 <html lang="zh-TW">
@@ -583,6 +653,57 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     color: #1a202c;
   }
 
+  /* ─── Radar Chart ─── */
+  .radar-section {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 12px 0;
+  }
+  .radar-chart { flex-shrink: 0; }
+  .radar-scores {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
+  }
+  .radar-score-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 9.5pt;
+  }
+  .radar-score-label { color: #64748b; min-width: 56px; }
+  .radar-score-bar {
+    flex: 1;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .radar-score-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #0d9488);
+    border-radius: 3px;
+  }
+  .radar-score-val {
+    font-weight: 600;
+    color: #1e293b;
+    min-width: 18px;
+    text-align: right;
+  }
+  .radar-overall {
+    text-align: center;
+    margin-top: 6px;
+    padding: 6px 16px;
+    background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+    border-radius: 8px;
+    border: 1px solid #a7f3d0;
+    font-size: 10pt;
+    color: #065f46;
+    font-weight: 600;
+  }
+
   /* ─── Language pills ─── */
   .info-pill-dark {
     display: inline-block;
@@ -693,6 +814,32 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     </div>
     ${eduHTML}
   </div>
+
+  <!-- Radar Chart (optional) -->
+  ${hasEvalData ? `
+  <div class="section">
+    <div class="section-title">
+      <span class="section-icon">📊</span>
+      顧問評估
+    </div>
+    <div class="radar-section">
+      <div class="radar-chart">${radarSVG}</div>
+      <div>
+        <div class="radar-scores">
+          ${RADAR_DIMENSIONS.map(d => {
+            const v = (mergedEval[d.key] as number) || 0;
+            return `<div class="radar-score-item">
+              <span class="radar-score-label">${d.shortLabel}</span>
+              <div class="radar-score-bar"><div class="radar-score-fill" style="width:${(v / 5) * 100}%"></div></div>
+              <span class="radar-score-val">${v || '-'}</span>
+            </div>`;
+          }).join('')}
+        </div>
+        ${overallRating > 0 ? `<div class="radar-overall">綜合評分 ${overallRating} / 5</div>` : ''}
+      </div>
+    </div>
+  </div>
+  ` : ''}
 
   <!-- Deal Terms (optional) -->
   ${dealTerms.length > 0 ? `
