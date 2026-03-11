@@ -838,6 +838,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
         ${overallRating > 0 ? `<div class="radar-overall">綜合評分 ${overallRating} / 5</div>` : ''}
       </div>
     </div>
+    ${mergedEval.comment ? `<div style="margin-top:8px;padding:8px 12px;background:#f8fafc;border-left:3px solid #10b981;border-radius:4px;font-size:9.5pt;color:#475569;line-height:1.6;">💬 ${mergedEval.comment}</div>` : ''}
   </div>
   ` : ''}
 
