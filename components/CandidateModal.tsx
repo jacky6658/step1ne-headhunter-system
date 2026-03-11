@@ -84,6 +84,7 @@ interface CandidateModalProps {
 export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUserName, onAssignRecruiter, onCandidateUpdate }: CandidateModalProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes' | 'ai_summary' | 'ai_match'>('info');
   const [promptCopied, setPromptCopied] = useState(false);
+  const [matchPromptCopied, setMatchPromptCopied] = useState(false);
   const [showResume, setShowResume] = useState(false);
   const [addingProgress, setAddingProgress] = useState(false);
   const [newProgressEvent, setNewProgressEvent] = useState('');
@@ -2843,6 +2844,151 @@ ${c.aiMatchResult ? `### 系統已有 AI 評分
                           </div>
                         ))}
                       </div>
+                    </div>
+                  );
+                })()}
+
+                {/* ━━━━━ 複製 AI 匹配提示詞 ━━━━━ */}
+                {(() => {
+                  const c = enrichedCandidate;
+                  const latestWork = (c.workHistory || [])[0];
+                  const currentPos = latestWork
+                    ? `${latestWork.title || ''}${latestWork.company ? ` @ ${latestWork.company}` : ''}`
+                    : (c.position || '未填');
+                  const candidateSkills = Array.isArray(c.skills)
+                    ? c.skills.join('、')
+                    : (c.skills || '未填');
+                  const workHistoryText = (c.workHistory || []).map((w: any, i: number) =>
+                    `${i + 1}. ${w.company || ''} — ${w.title || ''} (${w.period || ''})${w.description ? '\n   ' + w.description : ''}`
+                  ).join('\n');
+
+                  const targetJobText = targetJobInput || '未指定目標職缺';
+
+                  const generateMatchPrompt = () => `你是一位擁有 10 年以上經驗的資深獵頭顧問 AI 助手，精通人才評估、職缺匹配與客戶溝通策略。
+
+## 任務
+請針對以下候選人與目標職缺，進行深度匹配分析並提供專業顧問建議。
+
+---
+
+## Step 1：獲取目標職缺完整資料
+${targetJobId ? `請呼叫以下 API 取得職缺詳細資訊：
+\`\`\`
+GET https://backendstep1ne.zeabur.app/api/jobs/${targetJobId}
+\`\`\`` : `⚠️ 目標職缺：${targetJobText}（未綁定系統職缺，請根據職缺名稱推斷需求）`}
+
+---
+
+## Step 2：候選人完整資料
+
+### 基本資訊
+- 現職：${currentPos}
+- 總年資：${c.years || '未填'} 年
+- 學歷：${c.education || '未填'}
+- 所在地：${c.location || '未填'}
+- 產業：${c.industry || '未填'}
+- 年齡：${c.age ? `${c.age} 歲` : '未填'}
+- 性別：${c.gender || '未填'}
+
+### 技能
+${candidateSkills}
+
+### 語言 & 證照
+- 語言能力：${c.languages || '未填'}
+- 證照：${c.certifications || '未填'}
+
+### 管理經驗
+- 有管理經驗：${c.managementExperience ? '是' : '否'}
+- 團隊規模：${c.teamSize || '未填'}
+
+### 薪資 & 到職
+- 目前薪資：${c.currentSalary || '未填'}
+- 期望薪資：${c.expectedSalary || '未填'}
+- 到職時間：${c.noticePeriod || '未填'}
+
+### 求職動機
+- 求職狀態：${c.jobSearchStatus || '未填'}
+- 轉職原因：${c.reasonForChange || '未填'}
+- 主要動機：${c.motivation || '未填'}
+- 不接受條件：${c.dealBreakers || '未填'}
+- 競爭 Offer：${c.competingOffers || '未填'}
+
+### 工作經歷
+${workHistoryText || '無資料'}
+
+### 穩定性分數
+- Stability Score：${c.stabilityScore || '未評估'}
+- 換工作次數：${c.jobChanges || 0} 次
+- 平均任期：${c.avgTenure || 0} 年
+
+---
+
+## Step 3：請完成以下分析（以繁體中文回覆）
+
+### 1️⃣ 匹配度總評（0-100 分）
+- 給出總分及各維度評分：技能匹配、經驗匹配、薪資匹配、文化適配、穩定性
+- 推薦等級：強力推薦 / 推薦 / 觀望 / 不推薦
+
+### 2️⃣ 核心優勢（Strengths）
+- 列出 3-5 項此人選相對於目標職缺的核心競爭力
+- 說明為什麼這些優勢對該職缺有價值
+
+### 3️⃣ 風險與劣勢（Risks & Gaps）
+- 列出 3-5 項潛在風險或能力缺口
+- 區分「硬傷」（可能導致不錄用）vs「可補足」（可透過培訓或時間補足）
+- 穩定性風險評估（離職頻率、任期模式）
+
+### 4️⃣ 薪資分析
+- 人選期望 vs 職缺預算是否匹配
+- 如有落差，建議的談判策略
+
+### 5️⃣ 建議顧問提問（Interview Questions）
+- 提供 5-8 個針對性問題，分為：
+  - 🔍 技能驗證題（驗證關鍵技能的實際深度）
+  - 💼 行為面試題（了解過去處理問題的方式）
+  - ❤️ 動機探索題（了解真實轉職原因與期望）
+  - ⚠️ 風險確認題（針對履歷中的疑點或風險）
+
+### 6️⃣ 推薦話術（Pitch to Client）
+- 如果要向用人主管推薦此人選，請撰寫一段 3-5 句的推薦話術
+- 用正面但誠實的語氣，突出核心賣點
+
+### 7️⃣ 顧問行動建議（Next Steps）
+- 接下來顧問應該做什麼？（安排面試 / 補充資料 / 先釐清疑點 / 暫不推薦等）
+- 如果推薦，建議的推薦順序和時間點`;
+
+                  const handleCopyMatchPrompt = () => {
+                    navigator.clipboard.writeText(generateMatchPrompt()).then(() => {
+                      setMatchPromptCopied(true);
+                      setTimeout(() => setMatchPromptCopied(false), 2500);
+                    });
+                  };
+
+                  return (
+                    <div className="pt-3">
+                      <button
+                        onClick={handleCopyMatchPrompt}
+                        className={`w-full py-3 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                          matchPromptCopied
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-700 hover:to-purple-700 shadow-md hover:shadow-lg'
+                        }`}
+                      >
+                        {matchPromptCopied ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            已複製！貼到 ChatGPT / Claude 即可分析
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            複製 AI 匹配分析提示詞
+                          </>
+                        )}
+                      </button>
+                      <p className="text-center text-[10px] text-slate-400 mt-2">
+                        針對目標職缺「{targetJobInput || '未指定'}」深度匹配分析 · 含優劣勢、面試問題、推薦話術
+                      </p>
                     </div>
                   );
                 })()}
