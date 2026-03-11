@@ -11,7 +11,6 @@ import HelpPage from './pages/HelpPage';
 import LoginPage from './pages/LoginPage';
 // 新增: 候選人管理頁面
 import { CandidatesPage } from './pages/CandidatesPage';
-import { CandidateKanbanPage } from './pages/CandidateKanbanPage';
 import { AIMatchingPage } from './pages/AIMatchingPage';
 import { JobsPage } from './pages/JobsPage';
 import { PipelinePage } from './pages/PipelinePage';
@@ -106,7 +105,6 @@ const App: React.FC = () => {
           setActiveTab('ai-matching');
         }}
       />;
-      case 'candidate-kanban': return <CandidateKanbanPage userProfile={profile} />;
       // 職缺管理
       case 'jobs': return <JobsPage 
         userProfile={profile} 
@@ -191,7 +189,6 @@ const App: React.FC = () => {
               <div className="flex flex-col min-w-0 flex-1">
                 <h1 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight truncate">
               {activeTab === 'candidates' ? 'Step1ne 候選人總表' : 
-               activeTab === 'candidate-kanban' ? 'Step1ne 候選人看板' :
                activeTab === 'help' ? '使用說明' :
                activeTab === 'jobs' ? '職缺管理' :
                activeTab === 'bd-clients' ? 'BD 客戶開發' :

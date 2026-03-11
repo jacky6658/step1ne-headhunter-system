@@ -50,7 +50,7 @@ curl https://backendstep1ne.zeabur.app/api/health
 • 更新 LinkedIn、GitHub、Email 聯絡連結
 
 🔄 顧問人選追蹤表 — 狀態更新
-• 更新候選人進度（已聯繫 / 已面試 / Offer / 已上職 / 婉拒）
+• 更新候選人進度（聯繫階段 / 面試階段 / Offer / on board / 婉拒）
 • 自動記錄操作時間與操作者（actor 必須填入 {顧問名稱}-aibot）
 
 📝 備註紀錄
@@ -267,14 +267,16 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
 ### 取得所有候選人
 
 ```
-GET /api/candidates
+GET /api/candidates?limit=2000
 ```
+
+> ⚠️ **重要：請務必帶 `?limit=2000`**，否則預設只回傳前 1000 筆，會漏掉較新的候選人。
 
 **支援查詢參數（Query Parameters）：**
 
 | 參數 | 類型 | 說明 | 範例 |
 |------|------|------|------|
-| `limit` | 整數 | 最多回傳筆數（預設 1000，最大 2000） | `?limit=500` |
+| `limit` | 整數 | 最多回傳筆數（預設 1000，**建議帶 2000 以取得全部**） | `?limit=2000` |
 | `created_today` | `true` | 只回傳今日（台北時間）建立的候選人 | `?created_today=true` |
 
 **回應範例：**
@@ -326,7 +328,7 @@ GET /api/candidates?created_today=true
 import requests
 from datetime import datetime
 
-resp = requests.get('https://backendstep1ne.zeabur.app/api/candidates?limit=1000')
+resp = requests.get('https://backendstep1ne.zeabur.app/api/candidates?limit=2000')
 all_cands = resp.json()['data']
 
 today = datetime.now().strftime('%Y-%m-%d')  # 台北時間今天日期
@@ -432,7 +434,7 @@ PUT /api/candidates/:id/pipeline-status
 
 ```json
 {
-  "status": "已面試",
+  "status": "面試階段",
   "by": "Phoebe-aibot"
 }
 ```
@@ -447,11 +449,14 @@ PUT /api/candidates/:id/pipeline-status
 | 值 | 說明 |
 |----|------|
 | `未開始` | 剛匯入，尚未聯繫 |
-| `已聯繫` | 已初步聯繫候選人 |
-| `已面試` | 已完成面試 |
+| `AI推薦` | AI 評分後推薦的候選人 |
+| `聯繫階段` | 已初步聯繫候選人 |
+| `面試階段` | 已完成面試 |
 | `Offer` | 已發出 Offer |
-| `已上職` | 候選人已到職 |
+| `on board` | 候選人已到職 |
 | `婉拒` | 候選人或客戶婉拒 |
+| `備選人才` | 備選庫（需搭配 PATCH，見下方說明） |
+| `爬蟲初篩` | 爬蟲自動匯入的初篩候選人 |
 | `其他` | 其他情況 |
 
 ### 成功回應
@@ -463,16 +468,16 @@ PUT /api/candidates/:id/pipeline-status
   "data": {
     "id": 123,
     "name": "陳宥樺",
-    "status": "已面試",
+    "status": "面試階段",
     "progress_tracking": [
       {
         "date": "2026-02-20",
-        "event": "已聯繫",
+        "event": "聯繫階段",
         "by": "Phoebe"
       },
       {
         "date": "2026-02-25",
-        "event": "已面試",
+        "event": "面試階段",
         "by": "Phoebe-aibot"
       }
     ]
@@ -485,7 +490,7 @@ PUT /api/candidates/:id/pipeline-status
 ```json
 {
   "success": false,
-  "error": "Invalid status. Must be one of: 未開始, 已聯繫, 已面試, Offer, 已上職, 婉拒, 其他"
+  "error": "Invalid status. Must be one of: 未開始, AI推薦, 聯繫階段, 面試階段, Offer, on board, 婉拒, 備選人才, 爬蟲初篩, 其他"
 }
 ```
 
@@ -527,8 +532,8 @@ curl -X PATCH "https://backendstep1ne.zeabur.app/api/candidates/148" \
     "status": "備選人才",
     "talent_level": "C",
     "progressTracking": [
-      {"by": "Jacky", "date": "2026-03-02", "event": "已聯繫"},
-      {"by": "Jacky", "date": "2026-03-02", "event": "已面試"},
+      {"by": "Jacky", "date": "2026-03-02", "event": "聯繫階段"},
+      {"by": "Jacky", "date": "2026-03-02", "event": "面試階段"},
       {"by": "jacky-scoring-bot", "date": "2026-03-02", "event": "備選人才"}
     ],
     "actor": "jacky-scoring-bot"
@@ -575,7 +580,7 @@ PATCH /api/candidates/batch-status
 ```json
 {
   "ids": [123, 124, 125],
-  "status": "已面試",
+  "status": "面試階段",
   "actor": "Jacky-aibot",
   "note": "批量完成初篩面試（可選）"
 }
@@ -593,7 +598,7 @@ PATCH /api/candidates/batch-status
 ```json
 {
   "success": true,
-  "status": "已面試",
+  "status": "面試階段",
   "succeeded_count": 3,
   "failed_count": 0,
   "total": 3,
@@ -617,7 +622,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/batch-status \
   -H "Content-Type: application/json" \
   -d '{
     "ids": [123, 124, 125],
-    "status": "已面試",
+    "status": "面試階段",
     "actor": "Jacky-aibot",
     "note": "初篩通過，安排正式面試"
   }'
@@ -727,7 +732,7 @@ PATCH /api/candidates/:id
 
 ```json
 {
-  "status": "已聯繫",
+  "status": "聯繫階段",
   "recruiter": "Phoebe",
   "notes": "候選人對 CTO 職位有高度興趣",
   "talent_level": "A+",
@@ -739,7 +744,7 @@ PATCH /api/candidates/:id
   "progressTracking": [
     {
       "date": "2026-02-25",
-      "event": "已聯繫",
+      "event": "聯繫階段",
       "by": "Phoebe-aibot"
     }
   ],
@@ -923,7 +928,7 @@ GET /api/system-logs
       "actor_type": "AIBOT",
       "candidate_id": 123,
       "candidate_name": "陳宥樺",
-      "detail": { "from": "已聯繫", "to": "已面試" },
+      "detail": { "from": "聯繫階段", "to": "面試階段" },
       "created_at": "2026-02-25T10:30:00.000Z"
     },
     {
@@ -933,7 +938,7 @@ GET /api/system-logs
       "actor_type": "HUMAN",
       "candidate_id": 120,
       "candidate_name": "林志明",
-      "detail": { "from": "未開始", "to": "已聯繫" },
+      "detail": { "from": "未開始", "to": "聯繫階段" },
       "created_at": "2026-02-25T09:30:00.000Z"
     },
     {
@@ -1429,11 +1434,14 @@ AIbot 回覆：
 | Pipeline 階段 | `status` 欄位值 | SLA 天數上限 |
 |--------------|----------------|-------------|
 | 未開始 | `未開始` | 2 天 |
-| 已聯繫 | `已聯繫` | 3 天 |
-| 已面試 | `已面試` | 7 天 |
+| AI推薦 | `AI推薦` | 3 天 |
+| 聯繫階段 | `聯繫階段` | 3 天 |
+| 面試階段 | `面試階段` | 7 天 |
 | Offer | `Offer` | 5 天 |
-| 已上職 | `已上職` | 不計算 |
+| on board | `on board` | 不計算 |
 | 婉拒 | `婉拒` | 不計算 |
+| 備選人才 | `備選人才` | 不計算 |
+| 爬蟲初篩 | `爬蟲初篩` | 不計算 |
 | 其他 | `其他` | 不計算 |
 
 ---
@@ -1446,7 +1454,7 @@ AIbot 回覆：
 curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status \
   -H "Content-Type: application/json" \
   -d '{
-    "status": "已面試",
+    "status": "面試階段",
     "by": "Phoebe-aibot"
   }'
 ```
@@ -1493,8 +1501,8 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
 ### 情境四：查詢某顧問的所有候選人並找出 SLA 逾期
 
 ```bash
-# 1. 取得所有候選人
-curl https://backendstep1ne.zeabur.app/api/candidates
+# 1. 取得所有候選人（務必帶 limit=2000）
+curl https://backendstep1ne.zeabur.app/api/candidates?limit=2000
 
 # 2. AIbot 在本地過濾：
 #    - consultant === "Phoebe"
@@ -1704,10 +1712,10 @@ PATCH /api/candidates/:id
 
 | 應寫入 progressTracking 的事件 | 觸發時機 |
 |-------------------------------|---------|
-| `已聯繫` | 第一次聯繫候選人後 |
-| `已面試` | 候選人完成面試後 |
+| `聯繫階段` | 第一次聯繫候選人後 |
+| `面試階段` | 候選人完成面試後 |
 | `Offer` | 發出 Offer 後 |
-| `已上職` | 候選人正式到職後 |
+| `on board` | 候選人正式到職後 |
 | `婉拒` | 候選人或客戶婉拒後 |
 | `AI推薦` | AI 評分完成，評為推薦時 |
 | `備選人才` | 納入備選庫時 |
@@ -1715,7 +1723,7 @@ PATCH /api/candidates/:id
 **API 操作（推薦：自動追加進度）：**
 ```json
 PUT /api/candidates/:id/pipeline-status
-{ "status": "已面試", "by": "Jacky-aibot" }
+{ "status": "面試階段", "by": "Jacky-aibot" }
 ```
 → 系統自動追加 `{ date, event, by }` 到 progressTracking 陣列，不會覆蓋既有紀錄。
 

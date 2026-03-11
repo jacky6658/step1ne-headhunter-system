@@ -504,16 +504,20 @@ AVA 的背景：
 ```
 履歷分析報告
     ↓
-匯入履歷池（Google Sheets）
+POST /api/candidates 匯入候選人（或 PATCH 更新現有候選人）
     ↓
-更新候選人檔案（系統）
+PATCH /api/candidates/:id 寫入 stability_score + talent_level
     ↓
-AI 配對推薦
+AI 配對推薦（ai_match_result）
     ↓
 推薦等級排序
     ↓
+PUT /api/candidates/:id/pipeline-status 更新進度
+    ↓
 聯繫與面試安排
 ```
+
+> ⚠️ 查詢候選人時請帶 `?limit=2000`：`GET /api/candidates?limit=2000`
 
 ---
 

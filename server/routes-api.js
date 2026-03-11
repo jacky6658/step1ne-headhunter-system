@@ -386,7 +386,7 @@ router.get('/candidates', async (req, res) => {
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const limitVal = Math.min(Math.max(1, parseInt(limit) || 1000), 2000);
+    const limitClause = limit ? `LIMIT ${Math.min(Math.max(1, parseInt(limit)), 10000)}` : '';
 
     const result = await client.query(`
       SELECT
@@ -407,7 +407,7 @@ router.get('/candidates', async (req, res) => {
       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
       ${whereClause}
       ORDER BY c.id ASC
-      LIMIT ${limitVal}
+      ${limitClause}
     `, params);
 
     const candidates = result.rows.map(row => ({

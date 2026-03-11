@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Role, UserProfile } from '../types';
-import { LayoutGrid, ClipboardList, CheckSquare, History, Users, Download, Database, LogOut, X, BarChart3, BookOpen, ScrollText, Target, Bot, Activity } from 'lucide-react';
+import { ClipboardList, CheckSquare, History, Users, Download, Database, LogOut, X, BarChart3, BookOpen, ScrollText, Target, Bot, Activity } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -24,7 +24,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     { id: 'ops-dashboard', label: '📊 運營儀表板', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 核心功能
     { id: 'candidates', label: '📋 候選人總表', icon: Users, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
-    { id: 'candidate-kanban', label: '📊 候選人看板', icon: LayoutGrid, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+
 
     // 職缺與配對功能
     { id: 'jobs', label: '💼 職缺管理', icon: ClipboardList, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },

@@ -30,7 +30,7 @@ export function filterCandidatesByPermission(
  * 從 API 或 Mock 資料取得候選人（支援權限過濾）
  */
 export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
-  const result = await apiGet<{ success: boolean; data: any[] }>('/candidates?limit=1000');
+  const result = await apiGet<{ success: boolean; data: any[] }>('/candidates?limit=2000');
   const candidates = (result.data || []).map((c: any) => ({
     ...c,
     aiMatchResult: c.ai_match_result || c.aiMatchResult || null

@@ -20,8 +20,10 @@
 ## 第一步：取得待分析候選人
 
 ```
-GET https://backendstep1ne.zeabur.app/api/candidates
+GET https://backendstep1ne.zeabur.app/api/candidates?limit=2000
 ```
+
+> ⚠️ **必須帶 `limit=2000`**，否則預設只回傳前 1000 筆，會遺漏 ID > 1000 的候選人。
 
 篩選條件：
 - `github_url` 不為空
