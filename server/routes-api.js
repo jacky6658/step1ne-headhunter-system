@@ -181,6 +181,11 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS gender TEXT;
 `).catch(err => console.warn('gender migration:', err.message));
 
+// 英文名欄位
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS english_name TEXT;
+`).catch(err => console.warn('english_name migration:', err.message));
+
 // 目標職缺欄位：改為直接 FK 對應 jobs_pipeline（不再存在 notes 文字內）
 pool.query(`
   ALTER TABLE candidates_pipeline
@@ -520,6 +525,7 @@ router.get('/candidates', async (req, res) => {
       age: row.age != null ? parseInt(row.age) : estimateAgeFromEducation(row.education_details),
       ageEstimated: row.birthday ? false : (row.age == null), // 有生日 = 確定值
       gender: row.gender || '',
+      englishName: row.english_name || '',
       industry: row.industry || '',
       languages: row.languages || '',
       certifications: row.certifications || '',
@@ -613,6 +619,7 @@ router.get('/candidates/:id', async (req, res) => {
       age: row.age != null ? parseInt(row.age) : estimateAgeFromEducation(row.education_details),
       ageEstimated: row.birthday ? false : (row.age == null),
       gender: row.gender || '',
+      englishName: row.english_name || '',
       // JSONB / 詳細欄位
       workHistory: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       quitReasons: row.leaving_reason || '',
@@ -872,6 +879,7 @@ router.patch('/candidates/:id', async (req, res) => {
     const age = req.body.age;
     const age_estimated = req.body.age_estimated !== undefined ? req.body.age_estimated : req.body.ageEstimated;
     const gender = req.body.gender;
+    const english_name = req.body.english_name !== undefined ? req.body.english_name : req.body.englishName;
     const industry = req.body.industry;
     const languages = req.body.languages;
     const certifications = req.body.certifications;
@@ -1003,6 +1011,10 @@ router.patch('/candidates/:id', async (req, res) => {
     if (gender !== undefined) {
       setClauses.push(`gender = $${idx++}`);
       values.push(gender);
+    }
+    if (english_name !== undefined) {
+      setClauses.push(`english_name = $${idx++}`);
+      values.push(english_name);
     }
     if (industry !== undefined) {
       setClauses.push(`industry = $${idx++}`);

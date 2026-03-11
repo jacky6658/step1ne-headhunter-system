@@ -125,6 +125,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [editBirthday, setEditBirthday] = useState(candidate.birthday || '');
   const [editAge, setEditAge] = useState(String(candidate.age ?? ''));
   const [editGender, setEditGender] = useState(candidate.gender || '');
+  const [editEnglishName, setEditEnglishName] = useState(candidate.englishName || '');
   const [editIndustry, setEditIndustry] = useState(candidate.industry || '');
 
   // 從出生日期自動計算年齡
@@ -592,6 +593,7 @@ Step1ne Recruitment`;
         age: editBirthday ? calcAgeFromBirthday(editBirthday) : (editAge ? parseInt(editAge) : null),
         age_estimated: editBirthday ? false : (candidate.ageEstimated ?? true),
         gender: editGender,
+        english_name: editEnglishName.trim(),
         education: editEducation.trim(),
         industry: editIndustry.trim(),
         languages: editLanguages.trim(),
@@ -1062,7 +1064,7 @@ Step1ne Recruitment`;
                       <button onClick={handleSaveBasicInfo} disabled={savingBasicInfo} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">
                         {savingBasicInfo ? '儲存中...' : '儲存'}
                       </button>
-                      <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditEducation(typeof candidate.education === 'string' ? candidate.education : ''); setEditIndustry(candidate.industry||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); setEditJobSearchStatus(candidate.jobSearchStatus||''); setEditReasonForChange(candidate.reasonForChange||''); setEditMotivation(candidate.motivation||''); setEditDealBreakers(candidate.dealBreakers||''); setEditCompetingOffers(candidate.competingOffers||''); setEditRelationshipLevel(candidate.relationshipLevel||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                      <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditEducation(typeof candidate.education === 'string' ? candidate.education : ''); setEditEnglishName(candidate.englishName||''); setEditIndustry(candidate.industry||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); setEditJobSearchStatus(candidate.jobSearchStatus||''); setEditReasonForChange(candidate.reasonForChange||''); setEditMotivation(candidate.motivation||''); setEditDealBreakers(candidate.dealBreakers||''); setEditCompetingOffers(candidate.competingOffers||''); setEditRelationshipLevel(candidate.relationshipLevel||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
                     </div>
                   )}
                 </div>
@@ -1127,6 +1129,10 @@ Step1ne Recruitment`;
                         <option value="女">女</option>
                         <option value="其他">其他</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">英文名（匿名履歷用）</label>
+                      <input value={editEnglishName} onChange={e => setEditEnglishName(e.target.value)} placeholder="例：Iris、Jack Chen" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">學歷</label>
@@ -1253,6 +1259,11 @@ Step1ne Recruitment`;
                       <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">性別</span>
                       <span className="text-sm font-medium text-gray-800">{editGender || '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Globe className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">英文名</span>
+                      <span className="text-sm font-medium text-gray-800">{editEnglishName || '—'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />

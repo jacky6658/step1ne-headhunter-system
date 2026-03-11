@@ -108,10 +108,27 @@ function extractEnglishName(name: string): string {
   // 格式: "張麗秋 (Iris)" or "張麗秋 (Iris Chang)" → "Iris" or "Iris Chang"
   const parenMatch = name.match(/\(([A-Za-z][A-Za-z\s.\-']+)\)/);
   if (parenMatch) return parenMatch[1].trim();
+  // 格式: "張麗秋（Iris）" — 全形括號
+  const parenMatch2 = name.match(/（([A-Za-z][A-Za-z\s.\-']+)）/);
+  if (parenMatch2) return parenMatch2[1].trim();
   // 格式: "Vanessa Chen" — 全英文名直接回傳
   if (/^[A-Za-z]/.test(name) && !/[\u4e00-\u9fff]/.test(name)) return name.trim();
+  // 中英混合，嘗試取出英文部分: "陳俊豪 Jacky" → "Jacky"
+  const engPart = name.match(/[A-Za-z][A-Za-z\s.\-']{1,}/);
+  if (engPart) return engPart[0].trim();
   // 格式: "陳俊豪" — 純中文，無英文名
   return '';
+}
+
+/** 從年齡推算生肖 */
+function getZodiacFromAge(age: number | null | undefined): string {
+  if (!age || age <= 0) return '';
+  const currentYear = new Date().getFullYear();
+  const birthYear = currentYear - age;
+  const zodiacAnimals = ['鼠', '牛', '虎', '兔', '龍', '蛇', '馬', '羊', '猴', '雞', '狗', '豬'];
+  // 1900 年是鼠年，以此為基準
+  const index = ((birthYear - 1900) % 12 + 12) % 12;
+  return zodiacAnimals[index];
 }
 
 /**
@@ -244,7 +261,52 @@ function generateSummary(candidate: Candidate): string {
   }
 }
 
-function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSummary?: string): string {
+// 匿名履歷可見欄位設定
+export interface ResumeVisibleFields {
+  summary: boolean;        // 推薦摘要
+  basicInfo: boolean;      // 基本資料區塊
+  skills: boolean;         // 核心技能
+  languages: boolean;      // 語言能力
+  certifications: boolean; // 證照
+  dealTerms: boolean;      // 轉職條件
+  workHistory: boolean;    // 工作經歷
+  education: boolean;      // 教育背景
+  achievements: boolean;   // 專業成就
+  radarChart: boolean;     // 顧問評估
+  // 基本資料子欄位
+  field_position: boolean;
+  field_years: boolean;
+  field_industry: boolean;
+  field_location: boolean;
+  field_gender: boolean;
+  field_age: boolean;
+  field_education: boolean;
+  field_languages: boolean;
+  field_certifications: boolean;
+  field_currentSalary: boolean;
+  field_expectedSalary: boolean;
+  field_noticePeriod: boolean;
+  field_management: boolean;
+  field_jobSearchStatus: boolean;
+  field_motivation: boolean;
+  field_reasonForChange: boolean;
+}
+
+export const DEFAULT_VISIBLE_FIELDS: ResumeVisibleFields = {
+  summary: true, basicInfo: true, skills: true, languages: true,
+  certifications: true, dealTerms: true, workHistory: true,
+  education: true, achievements: true, radarChart: true,
+  field_position: true, field_years: true, field_industry: true,
+  field_location: true, field_gender: true, field_age: true,
+  field_education: true, field_languages: true, field_certifications: true,
+  field_currentSalary: true, field_expectedSalary: true,
+  field_noticePeriod: true, field_management: true,
+  field_jobSearchStatus: true, field_motivation: true,
+  field_reasonForChange: true,
+};
+
+function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSummary?: string, visibleFields?: ResumeVisibleFields): string {
+  const vf = visibleFields || DEFAULT_VISIBLE_FIELDS;
   const skills = parseSkills(candidate.skills);
   const workHistory = parseWorkHistory(candidate);
   const education = parseEducation(candidate);
@@ -276,9 +338,9 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   }, 0);
   const years = totalMonthsFromHistory > 0 ? Math.round(totalMonthsFromHistory / 12) : (candidate.years || 0);
 
-  // 匿名處理：只顯示英文名，沒有英文名就用 Candidate label
-  const englishName = extractEnglishName(candidate.name || '');
-  const displayName = englishName || candidateLabel;
+  // 匿名處理：優先使用 englishName 欄位，否則從姓名萃取英文名
+  const englishName = (candidate.englishName || '').trim() || extractEnglishName(candidate.name || '');
+  const displayName = englishName || '';
 
   // Headline: Position | N年 | key skills
   const topSkills = skills.slice(0, 3).join(' × ');
@@ -427,7 +489,8 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   if (position) infoPills.push(position);              // required
   if (years > 0) infoPills.push(`${years} 年經驗`);    // required
   if (candidate.location) infoPills.push(candidate.location); // required
-  if (age) infoPills.push(`${age} 歲`);                // required (年齡)
+  const zodiac = getZodiacFromAge(age);
+  if (age) infoPills.push(`${age} 歲${zodiac ? `（${zodiac}）` : ''}`); // required (年齡+生肖)
   if (industry) infoPills.push(industry);               // required (產業)
   const infoPillsHTML = infoPills.map(p => `<span class="info-pill">${p}</span>`).join('');
 
@@ -451,25 +514,25 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   if (candidate.competingOffers) dealTerms.push(`競爭 Offer：${candidate.competingOffers}`);
   if (candidate.relationshipLevel) dealTerms.push(`顧問關係：${candidate.relationshipLevel}`);
 
-  // 基本資料區塊（放在摘要和核心技能之間）
+  // 基本資料區塊（放在摘要和核心技能之間）— 受 vf 控制
   const genderStr = candidate.gender || '';
   const basicInfoItems: Array<{label: string; value: string}> = [];
-  if (position) basicInfoItems.push({ label: '現職', value: position });
-  if (years > 0) basicInfoItems.push({ label: '年資', value: `${years} 年` });
-  if (industry) basicInfoItems.push({ label: '產業', value: industry });
-  if (candidate.location) basicInfoItems.push({ label: '地點', value: candidate.location });
-  if (genderStr) basicInfoItems.push({ label: '性別', value: genderStr });
-  if (age) basicInfoItems.push({ label: '年齡', value: `${age} 歲` });
-  if (candidate.education) basicInfoItems.push({ label: '學歷', value: candidate.education.length > 40 ? candidate.education.substring(0, 40) + '…' : candidate.education });
-  if (languages) basicInfoItems.push({ label: '語言', value: languages });
-  if (certifications) basicInfoItems.push({ label: '證照', value: certifications });
-  if (currentSalary) basicInfoItems.push({ label: '目前薪資', value: currentSalary });
-  if (expectedSalary) basicInfoItems.push({ label: '期望薪資', value: expectedSalary });
-  if (noticePeriod) basicInfoItems.push({ label: '到職時間', value: noticePeriod });
-  if (hasManagement) basicInfoItems.push({ label: '管理經驗', value: `是${teamSize ? `（${teamSize}）` : ''}` });
-  if (candidate.jobSearchStatus) basicInfoItems.push({ label: '求職狀態', value: candidate.jobSearchStatus });
-  if (candidate.motivation) basicInfoItems.push({ label: '主要動機', value: candidate.motivation });
-  if (candidate.reasonForChange) basicInfoItems.push({ label: '轉職原因', value: candidate.reasonForChange });
+  if (vf.field_position && position) basicInfoItems.push({ label: '現職', value: position });
+  if (vf.field_years && years > 0) basicInfoItems.push({ label: '年資', value: `${years} 年` });
+  if (vf.field_industry && industry) basicInfoItems.push({ label: '產業', value: industry });
+  if (vf.field_location && candidate.location) basicInfoItems.push({ label: '地點', value: candidate.location });
+  if (vf.field_gender && genderStr) basicInfoItems.push({ label: '性別', value: genderStr });
+  if (vf.field_age && age) basicInfoItems.push({ label: '年齡', value: `${age} 歲${zodiac ? `（屬${zodiac}）` : ''}` });
+  if (vf.field_education && candidate.education) basicInfoItems.push({ label: '學歷', value: candidate.education.length > 40 ? candidate.education.substring(0, 40) + '…' : candidate.education });
+  if (vf.field_languages && languages) basicInfoItems.push({ label: '語言', value: languages });
+  if (vf.field_certifications && certifications) basicInfoItems.push({ label: '證照', value: certifications });
+  if (vf.field_currentSalary && currentSalary) basicInfoItems.push({ label: '目前薪資', value: currentSalary });
+  if (vf.field_expectedSalary && expectedSalary) basicInfoItems.push({ label: '期望薪資', value: expectedSalary });
+  if (vf.field_noticePeriod && noticePeriod) basicInfoItems.push({ label: '到職時間', value: noticePeriod });
+  if (vf.field_management && hasManagement) basicInfoItems.push({ label: '管理經驗', value: `是${teamSize ? `（${teamSize}）` : ''}` });
+  if (vf.field_jobSearchStatus && candidate.jobSearchStatus) basicInfoItems.push({ label: '求職狀態', value: candidate.jobSearchStatus });
+  if (vf.field_motivation && candidate.motivation) basicInfoItems.push({ label: '主要動機', value: candidate.motivation });
+  if (vf.field_reasonForChange && candidate.reasonForChange) basicInfoItems.push({ label: '轉職原因', value: candidate.reasonForChange });
 
   const basicInfoHTML = basicInfoItems.map(item =>
     `<div class="basic-info-item"><span class="basic-info-label">${item.label}</span><span class="basic-info-value">${item.value}</span></div>`
@@ -886,12 +949,13 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     </div>
     <div class="header-info">
       <div class="header-title">CANDIDATE PROFILE</div>
-      <div class="header-name">${displayName}</div>
+      ${displayName ? `<div class="header-name">${displayName}</div>` : ''}
       ${infoPillsHTML ? `<div class="info-pills">${infoPillsHTML}</div>` : ''}
     </div>
   </div>
 
   <!-- Summary -->
+  ${vf.summary ? `
   <div class="section">
     <div class="section-title">
       <span class="section-icon">✦</span>
@@ -899,9 +963,10 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     </div>
     <div class="summary-card">${summary}</div>
   </div>
+  ` : ''}
 
   <!-- Basic Info -->
-  ${basicInfoItems.length > 0 ? `
+  ${vf.basicInfo && basicInfoItems.length > 0 ? `
   <div class="section">
     <div class="section-title">
       <span class="section-icon">📋</span>
@@ -912,7 +977,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   ` : ''}
 
   <!-- Skills -->
-  ${skills.length > 0 ? `
+  ${vf.skills && skills.length > 0 ? `
   <div class="section">
     <div class="section-title">
       <span class="section-icon">◈</span>
@@ -923,7 +988,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   ` : ''}
 
   <!-- Languages (optional) -->
-  ${langList.length > 0 ? `
+  ${vf.languages && langList.length > 0 ? `
   <div class="section">
     <div class="section-title">
       <span class="section-icon">🌐</span>
@@ -934,7 +999,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   ` : ''}
 
   <!-- Certifications (optional) -->
-  ${certsList.length > 0 ? `
+  ${vf.certifications && certsList.length > 0 ? `
   <div class="section">
     <div class="section-title">
       <span class="section-icon">📜</span>
@@ -945,7 +1010,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   ` : ''}
 
   <!-- Achievements -->
-  ${achievementsHTML ? `
+  ${vf.achievements && achievementsHTML ? `
   <div class="section">
     <div class="section-title">
       <span class="section-icon">★</span>
@@ -956,7 +1021,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   ` : ''}
 
   <!-- Work Experience -->
-  ${workHistory.length > 0 ? `
+  ${vf.workHistory && workHistory.length > 0 ? `
   <div class="section">
     <div class="section-title">
       <span class="section-icon">▸</span>
@@ -967,6 +1032,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   ` : ''}
 
   <!-- Education -->
+  ${vf.education ? `
   <div class="section">
     <div class="section-title">
       <span class="section-icon">◉</span>
@@ -974,9 +1040,10 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     </div>
     ${eduHTML}
   </div>
+  ` : ''}
 
   <!-- Radar Chart (optional) -->
-  ${hasEvalData ? `
+  ${vf.radarChart && hasEvalData ? `
   <div class="section">
     <div class="section-title">
       <span class="section-icon">📊</span>
@@ -1003,7 +1070,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   ` : ''}
 
   <!-- Deal Terms (optional) -->
-  ${dealTerms.length > 0 ? `
+  ${vf.dealTerms && dealTerms.length > 0 ? `
   <div class="section">
     <div class="section-title">
       <span class="section-icon">💼</span>
@@ -1028,9 +1095,9 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
 </html>`;
 }
 
-export function generateResumePDF(candidate: Candidate, candidateLabel?: string, customSummary?: string): void {
+export function generateResumePDF(candidate: Candidate, candidateLabel?: string, customSummary?: string, visibleFields?: ResumeVisibleFields): void {
   const label = candidateLabel || `Candidate ${candidate.id}`;
-  const html = buildResumeHTML(candidate, label, customSummary);
+  const html = buildResumeHTML(candidate, label, customSummary, visibleFields);
 
   const printWindow = window.open('', '_blank', 'width=800,height=1100');
   if (!printWindow) {
@@ -1049,14 +1116,63 @@ export function generateResumePDF(candidate: Candidate, candidateLabel?: string,
 }
 
 // React component: renders a preview inside a modal
+// 勾選面板的欄位定義
+const SECTION_TOGGLES: Array<{ key: keyof ResumeVisibleFields; label: string; group: 'section' }> = [
+  { key: 'summary', label: '推薦摘要', group: 'section' },
+  { key: 'basicInfo', label: '基本資料', group: 'section' },
+  { key: 'skills', label: '核心技能', group: 'section' },
+  { key: 'languages', label: '語言能力', group: 'section' },
+  { key: 'certifications', label: '專業證照', group: 'section' },
+  { key: 'workHistory', label: '工作經歷', group: 'section' },
+  { key: 'education', label: '教育背景', group: 'section' },
+  { key: 'achievements', label: '代表性成就', group: 'section' },
+  { key: 'radarChart', label: '顧問評估', group: 'section' },
+  { key: 'dealTerms', label: '轉職條件', group: 'section' },
+];
+
+const FIELD_TOGGLES: Array<{ key: keyof ResumeVisibleFields; label: string }> = [
+  { key: 'field_position', label: '現職' },
+  { key: 'field_years', label: '年資' },
+  { key: 'field_industry', label: '產業' },
+  { key: 'field_location', label: '地點' },
+  { key: 'field_gender', label: '性別' },
+  { key: 'field_age', label: '年齡/生肖' },
+  { key: 'field_education', label: '學歷' },
+  { key: 'field_languages', label: '語言' },
+  { key: 'field_certifications', label: '證照' },
+  { key: 'field_currentSalary', label: '目前薪資' },
+  { key: 'field_expectedSalary', label: '期望薪資' },
+  { key: 'field_noticePeriod', label: '到職時間' },
+  { key: 'field_management', label: '管理經驗' },
+  { key: 'field_jobSearchStatus', label: '求職狀態' },
+  { key: 'field_motivation', label: '主要動機' },
+  { key: 'field_reasonForChange', label: '轉職原因' },
+];
+
 export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: string; onClose: () => void }> = ({
   candidate, candidateLabel, onClose
 }) => {
   const defaultSummary = generateSummary(candidate);
   const [editingSummary, setEditingSummary] = React.useState(false);
   const [summary, setSummary] = React.useState(defaultSummary);
+  const [visibleFields, setVisibleFields] = React.useState<ResumeVisibleFields>({ ...DEFAULT_VISIBLE_FIELDS });
+  const [showPanel, setShowPanel] = React.useState(true);
 
-  const html = buildResumeHTML(candidate, candidateLabel, summary);
+  const html = buildResumeHTML(candidate, candidateLabel, summary, visibleFields);
+
+  const toggleField = (key: keyof ResumeVisibleFields) => {
+    setVisibleFields(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSelectAll = () => {
+    setVisibleFields({ ...DEFAULT_VISIBLE_FIELDS });
+  };
+
+  const handleDeselectAll = () => {
+    const allOff = {} as ResumeVisibleFields;
+    Object.keys(DEFAULT_VISIBLE_FIELDS).forEach(k => { (allOff as any)[k] = false; });
+    setVisibleFields(allOff);
+  };
 
   const handlePrint = () => {
     const iframe = document.getElementById('resume-iframe') as HTMLIFrameElement;
@@ -1066,7 +1182,7 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
   };
 
   const handleDownload = () => {
-    generateResumePDF(candidate, candidateLabel, summary);
+    generateResumePDF(candidate, candidateLabel, summary, visibleFields);
   };
 
   return (
@@ -1075,13 +1191,19 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-teal-600 to-cyan-600 text-white p-4 rounded-t-xl flex items-center justify-between">
           <h3 className="text-lg font-semibold">匿名履歷預覽 — {candidateLabel}</h3>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowPanel(!showPanel)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showPanel ? 'bg-white text-teal-700' : 'bg-white/20 hover:bg-white/30'}`}
+            >
+              {showPanel ? '隱藏面板' : '欄位設定'}
+            </button>
             <button
               onClick={() => setEditingSummary(!editingSummary)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${editingSummary ? 'bg-white text-teal-700' : 'bg-white/20 hover:bg-white/30'}`}
@@ -1130,14 +1252,64 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
           </div>
         )}
 
-        {/* Preview iframe */}
-        <div className="flex-1 overflow-hidden p-4 bg-gray-100">
-          <iframe
-            id="resume-iframe"
-            srcDoc={html}
-            className="w-full h-full border border-gray-200 rounded-lg bg-white shadow-inner"
-            title="Resume Preview"
-          />
+        {/* Main content: side panel + preview */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Side panel: field toggles */}
+          {showPanel && (
+            <div className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto p-3">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">顯示欄位</span>
+                <div className="flex gap-1">
+                  <button onClick={handleSelectAll} className="text-[10px] px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded hover:bg-teal-200">全選</button>
+                  <button onClick={handleDeselectAll} className="text-[10px] px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300">全取消</button>
+                </div>
+              </div>
+
+              {/* Section toggles */}
+              <div className="mb-3">
+                <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">區塊</div>
+                {SECTION_TOGGLES.map(t => (
+                  <label key={t.key} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-white rounded px-1.5 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={visibleFields[t.key] as boolean}
+                      onChange={() => toggleField(t.key)}
+                      className="rounded border-gray-300 text-teal-600 focus:ring-teal-500 w-3.5 h-3.5"
+                    />
+                    <span className="text-xs text-gray-700">{t.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {/* Basic info sub-field toggles */}
+              {visibleFields.basicInfo && (
+                <div>
+                  <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 pt-2 border-t border-gray-200">基本資料子欄位</div>
+                  {FIELD_TOGGLES.map(t => (
+                    <label key={t.key} className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-white rounded px-1.5 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={visibleFields[t.key] as boolean}
+                        onChange={() => toggleField(t.key)}
+                        className="rounded border-gray-300 text-teal-600 focus:ring-teal-500 w-3 h-3"
+                      />
+                      <span className="text-[11px] text-gray-600">{t.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Preview iframe */}
+          <div className="flex-1 overflow-hidden p-4 bg-gray-100">
+            <iframe
+              id="resume-iframe"
+              srcDoc={html}
+              className="w-full h-full border border-gray-200 rounded-lg bg-white shadow-inner"
+              title="Resume Preview"
+            />
+          </div>
         </div>
       </div>
     </div>
