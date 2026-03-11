@@ -23,7 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
 
   const menuItems = [
     // 總攬看板
-    { id: 'overview-dashboard', label: '📊 總攬看板', icon: BarChart3, roles: [Role.ADMIN], disabled: false },
+    { id: 'overview-dashboard', label: '📊 總攬看板', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 運營總覽
     { id: 'ops-dashboard', label: '📈 運營儀表板', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 核心功能

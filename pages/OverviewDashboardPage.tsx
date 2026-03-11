@@ -280,12 +280,13 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
           <div className="text-center">Pipeline</div>
         </div>
 
-        {/* 各顧問行 */}
+        {/* 各顧問行 — 桌面表格 + 手機卡片 */}
         {consultantStats.map(stat => (
           <div key={stat.name}>
+            {/* 桌面版：表格行 */}
             <button
               onClick={() => setExpandedConsultant(expandedConsultant === stat.name ? null : stat.name)}
-              className="w-full grid grid-cols-[40px_1fr_80px_80px_80px_80px_80px_80px] gap-2 px-5 py-3 hover:bg-slate-50 transition-all items-center text-sm border-b border-slate-50"
+              className="hidden sm:grid w-full grid-cols-[40px_1fr_80px_80px_80px_80px_80px_80px] gap-2 px-5 py-3 hover:bg-slate-50 transition-all items-center text-sm border-b border-slate-50"
             >
               <div className="flex items-center justify-center">{healthIcon(stat.health)}</div>
               <div className="text-left font-medium text-slate-800 flex items-center gap-2">
@@ -322,9 +323,32 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
               </div>
             </button>
 
+            {/* 手機版：卡片 */}
+            <button
+              onClick={() => setExpandedConsultant(expandedConsultant === stat.name ? null : stat.name)}
+              className="sm:hidden w-full px-4 py-3 hover:bg-slate-50 transition-all border-b border-slate-50 text-left"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                {healthIcon(stat.health)}
+                <span className="font-semibold text-slate-800 text-sm">{stat.name}</span>
+                <span className="text-xs text-slate-400 ml-auto">負責 {stat.total} 人</span>
+                {expandedConsultant === stat.name ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                {stat.contacted > 0 && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs font-semibold">聯繫 {stat.contacted}</span>}
+                {stat.interviewing > 0 && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-semibold">面試 {stat.interviewing}</span>}
+                {stat.offer > 0 && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-semibold">Offer {stat.offer}</span>}
+                {stat.onboard > 0 && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-semibold">On Board {stat.onboard}</span>}
+                {stat.pipeline === 0 && <span className="text-xs text-slate-400">無進行中</span>}
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                  stat.pipeline > 5 ? 'bg-indigo-100 text-indigo-700' : stat.pipeline > 0 ? 'bg-slate-100 text-slate-600' : 'text-slate-300'
+                }`}>Pipeline {stat.pipeline}</span>
+              </div>
+            </button>
+
             {/* 展開：該顧問各狀態人選明細 */}
             {expandedConsultant === stat.name && (
-              <div className="bg-slate-50 px-5 py-3 border-b border-slate-100">
+              <div className="bg-slate-50 px-4 sm:px-5 py-3 border-b border-slate-100">
                 {/* 狀態分布 bar */}
                 <div className="flex gap-1.5 mb-3 flex-wrap">
                   {Object.entries(stat.byStatus)
@@ -348,12 +372,14 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
                         .map(c => {
                           const cfg = STATUS_CONFIG[c.status] || { label: c.status, color: 'text-slate-600', bg: 'bg-slate-100' };
                           return (
-                            <div key={c.id} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 text-sm border border-slate-100">
-                              <span className={`${cfg.bg} ${cfg.color} px-2 py-0.5 rounded text-xs font-semibold shrink-0`}>{cfg.label}</span>
-                              <span className="font-medium text-slate-800">{c.name}</span>
+                            <div key={c.id} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 bg-white rounded-lg px-3 py-2 text-sm border border-slate-100">
+                              <div className="flex items-center gap-2">
+                                <span className={`${cfg.bg} ${cfg.color} px-2 py-0.5 rounded text-xs font-semibold shrink-0`}>{cfg.label}</span>
+                                <span className="font-medium text-slate-800">{c.name}</span>
+                              </div>
                               <span className="text-slate-400 text-xs truncate">{c.position}</span>
                               {c.targetJobLabel && (
-                                <span className="text-xs text-indigo-500 ml-auto flex items-center gap-1 shrink-0">
+                                <span className="text-xs text-indigo-500 sm:ml-auto flex items-center gap-1 shrink-0">
                                   <ArrowRight className="w-3 h-3" /> {c.targetJobLabel}
                                 </span>
                               )}
@@ -399,39 +425,55 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
         </div>
 
         {jobStats.map(js => (
-          <div
-            key={js.job.id}
-            className="grid grid-cols-[40px_1.5fr_1fr_80px_80px_80px_80px_1fr] gap-2 px-5 py-3 hover:bg-slate-50 transition-all items-center text-sm border-b border-slate-50"
-          >
-            <div className="flex items-center justify-center">{healthIcon(js.health)}</div>
-            <div className="font-medium text-slate-800 truncate">{js.job.position_name}</div>
-            <div className="text-slate-500 text-xs truncate">{js.job.client_company}</div>
-            <div className="text-center font-semibold text-slate-700">{js.total}</div>
-            <div className="text-center">
-              <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${
-                (js.byStatus['面試階段'] || 0) > 0 ? 'bg-purple-100 text-purple-700' : 'text-slate-300'
-              }`}>
-                {js.byStatus['面試階段'] || 0}
-              </span>
+          <div key={js.job.id}>
+            {/* 桌面版 */}
+            <div className="hidden sm:grid grid-cols-[40px_1.5fr_1fr_80px_80px_80px_80px_1fr] gap-2 px-5 py-3 hover:bg-slate-50 transition-all items-center text-sm border-b border-slate-50">
+              <div className="flex items-center justify-center">{healthIcon(js.health)}</div>
+              <div className="font-medium text-slate-800 truncate">{js.job.position_name}</div>
+              <div className="text-slate-500 text-xs truncate">{js.job.client_company}</div>
+              <div className="text-center font-semibold text-slate-700">{js.total}</div>
+              <div className="text-center">
+                <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${
+                  (js.byStatus['面試階段'] || 0) > 0 ? 'bg-purple-100 text-purple-700' : 'text-slate-300'
+                }`}>
+                  {js.byStatus['面試階段'] || 0}
+                </span>
+              </div>
+              <div className="text-center">
+                <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${
+                  (js.byStatus['Offer'] || 0) > 0 ? 'bg-emerald-100 text-emerald-700' : 'text-slate-300'
+                }`}>
+                  {js.byStatus['Offer'] || 0}
+                </span>
+              </div>
+              <div className="text-center">
+                <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${
+                  (js.byStatus['on board'] || 0) > 0 ? 'bg-green-100 text-green-700' : 'text-slate-300'
+                }`}>
+                  {js.byStatus['on board'] || 0}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {js.consultants.map(c => (
+                  <span key={c} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{c}</span>
+                ))}
+              </div>
             </div>
-            <div className="text-center">
-              <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${
-                (js.byStatus['Offer'] || 0) > 0 ? 'bg-emerald-100 text-emerald-700' : 'text-slate-300'
-              }`}>
-                {js.byStatus['Offer'] || 0}
-              </span>
-            </div>
-            <div className="text-center">
-              <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${
-                (js.byStatus['on board'] || 0) > 0 ? 'bg-green-100 text-green-700' : 'text-slate-300'
-              }`}>
-                {js.byStatus['on board'] || 0}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {js.consultants.map(c => (
-                <span key={c} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{c}</span>
-              ))}
+            {/* 手機版：卡片 */}
+            <div className="sm:hidden px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-all">
+              <div className="flex items-center gap-2 mb-1.5">
+                {healthIcon(js.health)}
+                <span className="font-semibold text-slate-800 text-sm truncate">{js.job.position_name}</span>
+              </div>
+              <div className="text-xs text-slate-500 mb-2">{js.job.client_company} · 推薦 {js.total} 人</div>
+              <div className="flex gap-1.5 flex-wrap">
+                {(js.byStatus['面試階段'] || 0) > 0 && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-semibold">面試 {js.byStatus['面試階段']}</span>}
+                {(js.byStatus['Offer'] || 0) > 0 && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-semibold">Offer {js.byStatus['Offer']}</span>}
+                {(js.byStatus['on board'] || 0) > 0 && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-semibold">On Board {js.byStatus['on board']}</span>}
+                {js.consultants.map(c => (
+                  <span key={c} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{c}</span>
+                ))}
+              </div>
             </div>
           </div>
         ))}
