@@ -102,11 +102,28 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
   }, [candidates, jobs]);
 
   // ── 各顧問統計 ──
+  // 非真人顧問名稱 → 歸入「系統/爬蟲」
+  const BOT_CONSULTANTS = ['crawler', 'crawler-webui', 'crawler-autopush', 'd級人才庫重整'];
+  // 顧問名稱合併對照（小寫 key → 標準名稱）
+  const CONSULTANT_ALIASES: Record<string, string> = {
+    'jacky chen': 'Jacky',
+    'jacky': 'Jacky',
+    'phoebe': 'Phoebe',
+  };
+
+  const normalizeConsultant = (raw: string): string => {
+    const trimmed = (raw || '').trim();
+    if (!trimmed || trimmed === '待指派') return '未指派';
+    const lower = trimmed.toLowerCase();
+    if (BOT_CONSULTANTS.includes(lower)) return '系統/爬蟲';
+    return CONSULTANT_ALIASES[lower] || trimmed;
+  };
+
   const consultantStats = useMemo(() => {
     const map: Record<string, { name: string; candidates: Candidate[]; byStatus: Record<string, number> }> = {};
 
     filteredCandidates.forEach(c => {
-      const name = c.consultant || '未指派';
+      const name = normalizeConsultant(c.consultant || '');
       if (!map[name]) {
         map[name] = { name, candidates: [], byStatus: {} };
       }
@@ -132,9 +149,13 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
         return { ...stat, pipeline, total, onboard, contacted, interviewing, offer, health };
       })
       .sort((a, b) => {
-        // 未指派排最後
-        if (a.name === '未指派') return 1;
-        if (b.name === '未指派') return -1;
+        // 系統/爬蟲 和 未指派排最後
+        const bottomNames = ['系統/爬蟲', '未指派'];
+        const aBottom = bottomNames.indexOf(a.name);
+        const bBottom = bottomNames.indexOf(b.name);
+        if (aBottom >= 0 && bBottom >= 0) return aBottom - bBottom;
+        if (aBottom >= 0) return 1;
+        if (bBottom >= 0) return -1;
         // 紅燈排前面
         const healthOrder = { red: 0, yellow: 1, green: 2 };
         if (healthOrder[a.health] !== healthOrder[b.health]) return healthOrder[a.health] - healthOrder[b.health];
