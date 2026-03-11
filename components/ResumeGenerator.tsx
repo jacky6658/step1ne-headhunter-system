@@ -120,15 +120,28 @@ function extractEnglishName(name: string): string {
   return '';
 }
 
-/** 從年齡推算生肖 */
-function getZodiacFromAge(age: number | null | undefined): string {
+/** 從生日或年齡推算生肖 */
+function getZodiac(age: number | null | undefined, birthday?: string | null): string {
+  const zodiacAnimals = ['鼠', '牛', '虎', '兔', '龍', '蛇', '馬', '羊', '猴', '雞', '狗', '豬'];
+  const toZodiac = (year: number) => zodiacAnimals[((year - 1900) % 12 + 12) % 12];
+
+  // 有精確生日 → 用實際出生年
+  if (birthday) {
+    const birthYear = new Date(birthday).getFullYear();
+    if (birthYear > 1900) return toZodiac(birthYear);
+  }
+
+  // 只有年齡 → 出生年可能是 currentYear-age 或 currentYear-age-1
   if (!age || age <= 0) return '';
   const currentYear = new Date().getFullYear();
-  const birthYear = currentYear - age;
-  const zodiacAnimals = ['鼠', '牛', '虎', '兔', '龍', '蛇', '馬', '羊', '猴', '雞', '狗', '豬'];
-  // 1900 年是鼠年，以此為基準
-  const index = ((birthYear - 1900) % 12 + 12) % 12;
-  return zodiacAnimals[index];
+  const year1 = currentYear - age;
+  const year2 = currentYear - age - 1;
+  const z1 = toZodiac(year1);
+  const z2 = toZodiac(year2);
+  // 兩個可能年份如果同生肖就直接顯示
+  if (z1 === z2) return z1;
+  // 不同就顯示兩個可能
+  return `${z2}或${z1}`;
 }
 
 /**
@@ -489,7 +502,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   if (position) infoPills.push(position);              // required
   if (years > 0) infoPills.push(`${years} 年經驗`);    // required
   if (candidate.location) infoPills.push(candidate.location); // required
-  const zodiac = getZodiacFromAge(age);
+  const zodiac = getZodiac(age, candidate.birthday);
   if (age) infoPills.push(`${age} 歲${zodiac ? `（${zodiac}）` : ''}`); // required (年齡+生肖)
   if (industry) infoPills.push(industry);               // required (產業)
   const infoPillsHTML = infoPills.map(p => `<span class="info-pill">${p}</span>`).join('');
