@@ -132,11 +132,9 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
   const handleBackupData = () => {
     try {
       // 讀取所有 localStorage 資料
-      const leads = JSON.parse(localStorage.getItem('caseflow_leads_db') || '[]');
       const users = JSON.parse(localStorage.getItem('caseflow_users_db') || '{}');
-      const auditLogs = JSON.parse(localStorage.getItem('caseflow_audit_db') || '[]');
       const onlineUsers = JSON.parse(localStorage.getItem('caseflow_online_users') || '[]');
-      
+
       // 組織備份資料
       const backupData = {
         version: '1.0',
@@ -144,14 +142,10 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
         exportedBy: userProfile.displayName,
         data: {
           users: users,
-          leads: leads,
-          auditLogs: auditLogs,
           onlineUsers: onlineUsers
         },
         statistics: {
           userCount: Object.keys(users).length,
-          leadCount: leads.length,
-          auditLogCount: auditLogs.length,
           onlineUserCount: onlineUsers.length
         }
       };
@@ -171,7 +165,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
       URL.revokeObjectURL(url);
 
       // 顯示成功訊息
-      alert(`備份成功！\n\n統計資訊：\n- 使用者：${backupData.statistics.userCount} 個\n- 案件：${backupData.statistics.leadCount} 筆\n- 審計日誌：${backupData.statistics.auditLogCount} 筆\n\n檔案已下載到您的下載資料夾。`);
+      alert(`備份成功！\n\n統計資訊：\n- 使用者：${backupData.statistics.userCount} 個\n\n檔案已下載到您的下載資料夾。`);
     } catch (error) {
       console.error('備份失敗', error);
       alert('備份失敗，請稍後再試');

@@ -16,10 +16,8 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
 
   // 從 localStorage 讀取資料
   const getLocalStorageData = () => {
-    const leads = JSON.parse(localStorage.getItem('caseflow_leads_db') || '[]');
     const users = JSON.parse(localStorage.getItem('caseflow_users_db') || '{}');
-    const auditLogs = JSON.parse(localStorage.getItem('caseflow_audit_db') || '[]');
-    return { leads, users, auditLogs };
+    return { users };
   };
 
   // 生成 SQL 插入語句
@@ -63,101 +61,28 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
     return generateInsertSQL(userData, 'users', columns);
   };
 
-  // 遷移案件資料
-  const migrateLeads = (leads: any[]) => {
-    if (leads.length === 0) return '';
-    
-    const columns = [
-      'id', 'platform', 'platform_id', 'need', 'budget_text', 'posted_at',
-      'phone', 'email', 'location', 'note', 'internal_remarks', 'remarks_author',
-      'status', 'decision', 'decision_by', 'reject_reason', 'review_note',
-      'assigned_to', 'assigned_to_name', 'priority', 'created_by', 'created_by_name',
-      'created_at', 'updated_at', 'last_action_by',
-      'progress_updates', 'change_history'
-    ];
-    
-    const leadData = leads.map((lead: any) => ({
-      id: lead.id,
-      platform: lead.platform || 'FB',
-      platform_id: lead.platform_id || '',
-      need: lead.need || '',
-      budget_text: lead.budget_text || null,
-      posted_at: lead.posted_at || null,
-      phone: lead.phone || null,
-      email: lead.email || null,
-      location: lead.location || null,
-      note: lead.note || null,
-      internal_remarks: lead.internal_remarks || null,
-      remarks_author: lead.remarks_author || null,
-      status: lead.status || '待篩選',
-      decision: lead.decision || 'pending',
-      decision_by: lead.decision_by || null,
-      reject_reason: lead.reject_reason || null,
-      review_note: lead.review_note || null,
-      assigned_to: lead.assigned_to || null,
-      assigned_to_name: lead.assigned_to_name || null,
-      priority: lead.priority || 3,
-      created_by: lead.created_by || null,
-      created_by_name: lead.created_by_name || '',
-      created_at: lead.created_at || new Date().toISOString(),
-      updated_at: lead.updated_at || new Date().toISOString(),
-      last_action_by: lead.last_action_by || null,
-      progress_updates: lead.progress_updates ? JSON.stringify(lead.progress_updates) : null,
-      change_history: lead.change_history ? JSON.stringify(lead.change_history) : null,
-    }));
-    
-    return generateInsertSQL(leadData, 'leads', columns);
-  };
-
-  // 遷移審計日誌
-  const migrateAuditLogs = (auditLogs: any[]) => {
-    if (auditLogs.length === 0) return '';
-    
-    const columns = ['id', 'lead_id', 'actor_uid', 'actor_name', 'action', 'before', 'after', 'created_at'];
-    const logData = auditLogs.map((log: any) => ({
-      id: log.id,
-      lead_id: log.lead_id,
-      actor_uid: log.actor_uid,
-      actor_name: log.actor_name,
-      action: log.action,
-      before: log.before ? JSON.stringify(log.before) : null,
-      after: log.after ? JSON.stringify(log.after) : null,
-      created_at: log.created_at || new Date().toISOString(),
-    }));
-    
-    return generateInsertSQL(logData, 'audit_logs', columns);
-  };
-
   // 生成遷移 SQL
   const handleGenerateSQL = () => {
     setStatus('generating');
     setMessage('');
-    
+
     try {
-      const { leads, users, auditLogs } = getLocalStorageData();
-      
+      const { users } = getLocalStorageData();
+
       const stats = {
         users: Object.keys(users).length,
-        leads: leads.length,
-        auditLogs: auditLogs.length,
       };
-      
+
       const sqlStatements: string[] = [];
-      
+
       const usersSQL = migrateUsers(users);
       if (usersSQL) sqlStatements.push(usersSQL);
-      
-      const leadsSQL = migrateLeads(leads);
-      if (leadsSQL) sqlStatements.push(leadsSQL);
-      
-      const auditLogsSQL = migrateAuditLogs(auditLogs);
-      if (auditLogsSQL) sqlStatements.push(auditLogsSQL);
-      
+
       const fullSQL = sqlStatements.join('\n\n');
-      
+
       setMigrationSQL(fullSQL);
       setStatus('success');
-      setMessage(`成功生成遷移 SQL！包含 ${stats.users} 個使用者、${stats.leads} 筆案件、${stats.auditLogs} 筆審計日誌`);
+      setMessage(`成功生成遷移 SQL！包含 ${stats.users} 個使用者`);
     } catch (error: any) {
       setStatus('error');
       setMessage(`生成失敗：${error.message}`);
@@ -284,25 +209,23 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
     setMessage('正在讀取本地資料...');
 
     try {
-      const { leads, users, auditLogs } = getLocalStorageData();
-      
+      const { users } = getLocalStorageData();
+
       const stats = {
         users: Object.keys(users).length,
-        leads: leads.length,
-        auditLogs: auditLogs.length,
       };
 
-      if (stats.users === 0 && stats.leads === 0 && stats.auditLogs === 0) {
+      if (stats.users === 0) {
         setStatus('error');
         setMessage('❌ 本地沒有資料可遷移！');
         return;
       }
 
-      setMessage(`正在匯入 ${stats.users} 個使用者、${stats.leads} 筆案件、${stats.auditLogs} 筆審計日誌...`);
+      setMessage(`正在匯入 ${stats.users} 個使用者...`);
 
       const result = await apiRequest('/api/migrate', {
         method: 'POST',
-        body: JSON.stringify({ users, leads, auditLogs }),
+        body: JSON.stringify({ users }),
       });
 
       if (result.success) {
@@ -360,8 +283,7 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
             <p className="text-xs text-amber-700 font-bold mb-2">⚠️ 重要提醒：</p>
             <ul className="list-disc list-inside space-y-1 text-xs text-amber-800">
               <li>匯入的是<strong>當前瀏覽器本地</strong>保存的資料，不是雲端資料庫的資料</li>
-              <li>如果雲端已有相同 ID 的案件，會<strong>跳過不覆蓋</strong>（使用 ON CONFLICT DO NOTHING）</li>
-              <li>如果雲端有新案件但本地沒有，這些案件<strong>不會被匯入</strong></li>
+              <li>如果雲端已有相同 ID 的資料，會<strong>跳過不覆蓋</strong>（使用 ON CONFLICT DO NOTHING）</li>
               <li>建議在首次部署時使用，後續直接在雲端操作即可</li>
             </ul>
           </div>
@@ -509,67 +431,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. 案件表
-CREATE TABLE IF NOT EXISTS leads (
-  id TEXT PRIMARY KEY,
-  platform TEXT NOT NULL DEFAULT 'FB',
-  platform_id TEXT,
-  need TEXT NOT NULL,
-  budget_text TEXT,
-  posted_at TIMESTAMPTZ,
-  phone TEXT,
-  email TEXT,
-  location TEXT,
-  note TEXT,
-  internal_remarks TEXT,
-  remarks_author TEXT,
-  status TEXT DEFAULT '待篩選',
-  decision TEXT DEFAULT 'pending',
-  decision_by TEXT,
-  reject_reason TEXT,
-  review_note TEXT,
-  assigned_to TEXT,
-  assigned_to_name TEXT,
-  priority INTEGER DEFAULT 3,
-  created_by TEXT,
-  created_by_name TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  last_action_by TEXT,
-  progress_updates JSONB,
-  change_history JSONB
-);
-
--- 3. 審計日誌表
-CREATE TABLE IF NOT EXISTS audit_logs (
-  id TEXT PRIMARY KEY,
-  lead_id TEXT REFERENCES leads(id) ON DELETE CASCADE,
-  actor_uid TEXT,
-  actor_name TEXT NOT NULL,
-  action TEXT NOT NULL,
-  before JSONB,
-  after JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 建立索引
-CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
-CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at);
-CREATE INDEX IF NOT EXISTS idx_leads_created_by ON leads(created_by);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_lead_id ON audit_logs(lead_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
-
--- 建立更新時間自動更新觸發器
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_leads_updated_at BEFORE UPDATE ON leads
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();`}
+-- （案件表 leads 及審計日誌表 audit_logs 已移除）`}
             </pre>
           </div>
         </div>

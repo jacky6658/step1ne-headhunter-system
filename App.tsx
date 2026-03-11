@@ -6,9 +6,7 @@ import { UserProfile, Role } from './types';
 import Sidebar from './components/Sidebar';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
 import MembersPage from './pages/MembersPage';
-import ImportPage from './pages/ImportPage';
 import MigrationPage from './pages/MigrationPage';
-import AnalyticsPage from './pages/AnalyticsPage';
 import HelpPage from './pages/HelpPage';
 import LoginPage from './pages/LoginPage';
 // 新增: 候選人管理頁面
@@ -79,7 +77,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!profile) return;
     
-    const adminOnlyTabs = ['members', 'import', 'migration'];
+    const adminOnlyTabs = ['members', 'migration'];
     if (adminOnlyTabs.includes(activeTab) && profile.role !== Role.ADMIN) {
       // 非管理員嘗試訪問管理員專用頁面，重定向到候選人總表
       setActiveTab('candidates');
@@ -148,22 +146,6 @@ const App: React.FC = () => {
           );
         }
         return <MembersPage userProfile={profile} />;
-      case 'import': 
-        // 只有管理員可以訪問匯入案件
-        if (profile.role !== Role.ADMIN) {
-          return (
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
-                <h2 className="text-xl font-black text-slate-900 mb-2">權限不足</h2>
-                <p className="text-slate-500">只有管理員可以訪問此頁面</p>
-              </div>
-            </div>
-          );
-        }
-        return <ImportPage userProfile={profile} />;
-      case 'analytics': 
-        // 所有用戶都可以查看財務分析
-        return <AnalyticsPage leads={[]} userProfile={profile} />;
       case 'help':
         // 所有用戶都可以查看使用說明
         return <HelpPage userProfile={profile} />;
