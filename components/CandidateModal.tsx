@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion, ConsultantEvaluation } from '../types';
 import { ResumePreview } from './ResumeGenerator';
+import { RadarChart, RADAR_DIMENSIONS, computeAutoScores, computeOverallRating } from './RadarChart';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
 import { apiPatch, apiGet, getApiUrl } from '../config/api';
 import {
@@ -1404,7 +1405,7 @@ Step1ne Recruitment`;
                 </div>
               </div>
               
-              {/* 顧問 5 維度評估 */}
+              {/* 顧問 5 維度評估 + 雷達圖 */}
               <div className="bg-emerald-50/50 rounded-lg border border-emerald-200">
                 <div className="flex items-center justify-between p-3 border-b border-emerald-100">
                   <div className="flex items-center gap-2">
@@ -1412,7 +1413,17 @@ Step1ne Recruitment`;
                     <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">顧問評估</span>
                   </div>
                   {!editingEval ? (
-                    <button onClick={() => setEditingEval(true)} className="text-xs px-2 py-1 border border-emerald-200 rounded text-emerald-600 hover:bg-emerald-100">
+                    <button onClick={() => {
+                      // 開始評估時，自動預填系統可算的 3 維度（若尚未填過）
+                      const auto = computeAutoScores({ candidate, targetJob: null });
+                      setConsultEval(prev => ({
+                        ...auto,
+                        ...prev, // 已有值的不覆蓋
+                        // 確保 overallRating 同步
+                        overallRating: prev.overallRating || computeOverallRating({ ...auto, ...prev }),
+                      }));
+                      setEditingEval(true);
+                    }} className="text-xs px-2 py-1 border border-emerald-200 rounded text-emerald-600 hover:bg-emerald-100">
                       {consultEval.overallRating ? '✏️ 修改' : '+ 評估'}
                     </button>
                   ) : (
@@ -1424,6 +1435,7 @@ Step1ne Recruitment`;
                           try {
                             const evalData = {
                               ...consultEval,
+                              overallRating: consultEval.overallRating || computeOverallRating(consultEval),
                               evaluatedBy: currentUserName || 'system',
                               evaluatedAt: new Date().toISOString(),
                             };
@@ -1446,23 +1458,24 @@ Step1ne Recruitment`;
                 <div className="p-3">
                   {editingEval ? (
                     <div className="space-y-3">
-                      {([
-                        { key: 'communication', label: '溝通能力', desc: '表達清晰、理解力、互動感' },
-                        { key: 'stability', label: '穩定度', desc: '職涯穩定、忠誠度' },
-                        { key: 'technicalDepth', label: '技術深度', desc: '專業能力、解決問題' },
-                        { key: 'personality', label: '個性/態度', desc: '積極度、合作意願' },
-                        { key: 'cultureFit', label: '文化匹配', desc: '與目標企業文化契合度' },
-                      ] as const).map(dim => (
+                      {/* 自動預填維度（綠色標籤） */}
+                      <div className="text-[10px] text-emerald-600 bg-emerald-50 rounded px-2 py-1 border border-emerald-100">
+                        🤖 技術深度、穩定度、產業匹配已由系統自動預填，可手動調整
+                      </div>
+                      {RADAR_DIMENSIONS.map(dim => (
                         <div key={dim.key} className="flex items-center gap-3">
-                          <span className="text-xs text-gray-600 w-16 shrink-0">{dim.label}</span>
+                          <span className={`text-xs w-16 shrink-0 ${dim.auto ? 'text-gray-600' : 'text-amber-700 font-semibold'}`}>
+                            {dim.label}
+                            {!dim.auto && <span className="text-amber-500 ml-0.5">*</span>}
+                          </span>
                           <div className="flex gap-1">
                             {[1, 2, 3, 4, 5].map(v => (
                               <button
                                 key={v}
                                 onClick={() => setConsultEval(prev => ({ ...prev, [dim.key]: v }))}
                                 className={`w-7 h-7 rounded-full text-xs font-medium transition-all ${
-                                  (consultEval[dim.key] || 0) >= v
-                                    ? 'bg-emerald-500 text-white shadow-sm'
+                                  ((consultEval[dim.key] as number) || 0) >= v
+                                    ? dim.auto ? 'bg-emerald-500 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm'
                                     : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                                 }`}
                               >
@@ -1470,11 +1483,25 @@ Step1ne Recruitment`;
                               </button>
                             ))}
                           </div>
-                          <span className="text-[10px] text-gray-400 hidden sm:inline">{dim.desc}</span>
+                          <span className="text-[10px] text-gray-400 hidden sm:inline">{dim.description}</span>
                         </div>
                       ))}
+                      {/* 手動維度提醒 */}
+                      {(!consultEval.communication || !consultEval.personality) && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span className="text-xs text-amber-700">
+                            <b>溝通能力</b>與<b>個性/態度</b>需面談後填寫，直接影響匹配準確度
+                          </span>
+                        </div>
+                      )}
                       <div>
-                        <label className="block text-xs text-gray-500 mb-1">顧問總評（1-5）</label>
+                        <label className="block text-xs text-gray-500 mb-1">
+                          顧問總評（1-5）
+                          <span className="text-[10px] text-gray-400 ml-1">
+                            — 建議值：{computeOverallRating(consultEval) || '—'}
+                          </span>
+                        </label>
                         <div className="flex gap-1">
                           {[1, 2, 3, 4, 5].map(v => (
                             <button
@@ -1505,46 +1532,53 @@ Step1ne Recruitment`;
                         />
                       </div>
                     </div>
-                  ) : consultEval.overallRating ? (
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-5 gap-2 text-center">
-                        {([
-                          { key: 'communication', label: '溝通' },
-                          { key: 'stability', label: '穩定' },
-                          { key: 'technicalDepth', label: '技術' },
-                          { key: 'personality', label: '態度' },
-                          { key: 'cultureFit', label: '文化' },
-                        ] as const).map(dim => (
-                          <div key={dim.key}>
-                            <div className="text-[10px] text-gray-500">{dim.label}</div>
-                            <div className={`text-lg font-bold ${
-                              (consultEval[dim.key] || 0) >= 4 ? 'text-emerald-600' :
-                              (consultEval[dim.key] || 0) >= 3 ? 'text-blue-600' :
-                              (consultEval[dim.key] || 0) >= 2 ? 'text-amber-600' :
-                              'text-gray-300'
-                            }`}>
-                              {consultEval[dim.key] || '—'}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex items-center justify-between pt-2 border-t border-emerald-100">
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3.5 h-3.5 text-amber-500" />
-                          <span className="text-xs text-gray-600">總評</span>
-                          <span className="text-sm font-bold text-amber-600">{consultEval.overallRating}/5</span>
+                  ) : consultEval.overallRating || consultEval.technicalDepth ? (
+                    <div className="flex gap-4 items-start">
+                      {/* 雷達圖 */}
+                      <RadarChart evaluation={consultEval} size={180} />
+                      {/* 分數 + 資訊 */}
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Star className="w-4 h-4 text-amber-500" />
+                          <span className="text-sm font-bold text-amber-600">{consultEval.overallRating || computeOverallRating(consultEval)}/5</span>
+                          <span className="text-xs text-gray-500">總評</span>
+                          {consultEval.evaluatedBy && (
+                            <span className="text-[10px] text-gray-400 ml-auto">by {consultEval.evaluatedBy}</span>
+                          )}
                         </div>
-                        {consultEval.evaluatedBy && (
-                          <span className="text-[10px] text-gray-400">by {consultEval.evaluatedBy}</span>
+                        {RADAR_DIMENSIONS.map(dim => {
+                          const val = (consultEval[dim.key] as number) || 0;
+                          return (
+                            <div key={dim.key} className="flex items-center gap-2">
+                              <span className="text-[10px] text-gray-500 w-12">{dim.shortLabel}</span>
+                              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    val >= 4 ? 'bg-emerald-500' : val >= 3 ? 'bg-blue-500' : val >= 2 ? 'bg-amber-400' : val > 0 ? 'bg-red-400' : 'bg-gray-200'
+                                  }`}
+                                  style={{ width: `${(val / 5) * 100}%` }}
+                                />
+                              </div>
+                              <span className={`text-xs font-bold w-4 text-right ${
+                                val === 0 ? 'text-amber-400' : val >= 4 ? 'text-emerald-600' : 'text-gray-600'
+                              }`}>
+                                {val || '—'}
+                              </span>
+                              {!dim.auto && val === 0 && (
+                                <span className="text-[9px] text-amber-500 font-medium">待填</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {consultEval.comment && (
+                          <div className="text-xs text-gray-600 bg-white/50 rounded p-2 mt-1 border border-gray-100">{consultEval.comment}</div>
                         )}
                       </div>
-                      {consultEval.comment && (
-                        <div className="text-xs text-gray-600 bg-white/50 rounded p-2 mt-1">{consultEval.comment}</div>
-                      )}
                     </div>
                   ) : (
-                    <div className="text-center py-3">
-                      <div className="text-xs text-gray-400">尚未評估，點擊右上角開始評估</div>
+                    <div className="text-center py-4">
+                      <div className="text-xs text-gray-400 mb-2">尚未評估，點擊右上角開始</div>
+                      <div className="text-[10px] text-emerald-500">系統將自動預填技術深度、穩定度、產業匹配 3 項</div>
                     </div>
                   )}
                 </div>

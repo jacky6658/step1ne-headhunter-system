@@ -359,17 +359,22 @@ export interface ProgressEvent {
   note?: string;  // 額外備註
 }
 
-// 顧問評估（5 維度）
+// 顧問評估（5 維度：3 自動 + 2 手動）
 export interface ConsultantEvaluation {
-  communication?: number;    // 溝通能力 1-5
-  stability?: number;        // 穩定度 1-5
-  technicalDepth?: number;   // 技術深度 1-5
-  personality?: number;      // 個性/態度 1-5
-  cultureFit?: number;       // 文化匹配 1-5
-  overallRating?: number;    // 顧問總評 1-5
+  // ── 系統自動預填（可被顧問覆蓋）──
+  technicalDepth?: number;   // 技術深度 1-5（自動：skills vs job match）
+  stability?: number;        // 穩定度 1-5（自動：stabilityScore 轉換）
+  industryMatch?: number;    // 產業匹配 1-5（自動：candidate.industry vs job.industry_background）
+  // ── 顧問面談後手動填寫 ──
+  communication?: number;    // 溝通能力 1-5（手動：面談後填入）
+  personality?: number;      // 個性/態度 1-5（手動：面談後填入）
+  // ── 總評 ──
+  overallRating?: number;    // 顧問總評 1-5（自動平均或顧問覆蓋）
   evaluatedBy?: string;      // 評估顧問
   evaluatedAt?: string;      // 評估時間
   comment?: string;          // 顧問評語
+  // 向後相容（舊欄位）
+  cultureFit?: number;       // deprecated → 改用 industryMatch
 }
 
 export interface Candidate {
