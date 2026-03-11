@@ -114,7 +114,8 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
           ? c.skills.join(' ') 
           : (c.skills || '');
         
-        return c.name.toLowerCase().includes(lowerQuery) ||
+        return c.id.toString() === searchQuery.trim() ||
+               c.name.toLowerCase().includes(lowerQuery) ||
                c.email.toLowerCase().includes(lowerQuery) ||
                c.phone.includes(searchQuery) ||
                c.position.toLowerCase().includes(lowerQuery) ||
@@ -486,7 +487,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜尋姓名、Email、技能..."
+                placeholder="搜尋姓名、Email、技能、ID..."
                 className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
               />
             </div>

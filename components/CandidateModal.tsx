@@ -1,6 +1,7 @@
 // Step1ne Headhunter System - 候選人詳情 Modal
 import React, { useState } from 'react';
 import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion } from '../types';
+import { ResumePreview } from './ResumeGenerator';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
 import { apiPatch, apiGet, getApiUrl } from '../config/api';
 import {
@@ -86,6 +87,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [newProgressEvent, setNewProgressEvent] = useState('');
   const [newProgressNote, setNewProgressNote] = useState('');
   const [showInviteMessage, setShowInviteMessage] = useState(false);
+  const [showResumeGen, setShowResumeGen] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
   const [editingRecruiter, setEditingRecruiter] = useState(false);
   const [recruiterInput, setRecruiterInput] = useState(candidate.consultant || '');
@@ -660,7 +662,8 @@ Step1ne Recruitment`;
   const education = candidate.educationJson || [];
   
   return (
-    <div 
+    <>
+    <div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
@@ -1562,6 +1565,15 @@ Step1ne Recruitment`;
                     💌 生成邀請訊息
                   </button>
                 )}
+
+                {/* 匿名履歷產生 */}
+                <button
+                  onClick={() => setShowResumeGen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <FileText className="w-4 h-4" />
+                  產生匿名履歷
+                </button>
               </div>
               
               {/* Resume Preview Modal */}
@@ -2204,5 +2216,14 @@ Step1ne Recruitment`;
         </div>
       </div>
     </div>
+    {/* 匿名履歷預覽 Modal */}
+    {showResumeGen && (
+      <ResumePreview
+        candidate={candidate}
+        candidateLabel={`Candidate ${candidate.id}`}
+        onClose={() => setShowResumeGen(false)}
+      />
+    )}
+    </>
   );
 }
