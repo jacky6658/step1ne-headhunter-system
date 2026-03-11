@@ -9,7 +9,7 @@
  * Zeabur 雲端友善：全程 in-memory，不寫磁碟
  */
 
-const pdfParse = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 const axios = require('axios');
 
 // ─────────────────────────────────────────────
@@ -54,8 +54,13 @@ module.exports = { parseResumePDF };
 // ─────────────────────────────────────────────
 
 async function extractPDFText(buffer) {
-  const data = await pdfParse(buffer);
-  return data.text || '';
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    return result.text || '';
+  } finally {
+    await parser.destroy().catch(() => {});
+  }
 }
 
 // ─────────────────────────────────────────────
