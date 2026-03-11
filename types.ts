@@ -419,6 +419,13 @@ export interface Candidate {
   managementExperience?: boolean;         // 是否有管理經驗
   teamSize?: string;                      // 管理人數（如 5-10人）
   consultantEvaluation?: ConsultantEvaluation | null; // 顧問 5 維度評估
+  // ── Phase 3 動機與交易條件 ──
+  jobSearchStatus?: string;               // 求職狀態：主動求職/被動觀望/暫不考慮
+  reasonForChange?: string;               // 轉職原因
+  motivation?: string;                    // 主要動機：技術成長/轉型/出國/離開產業
+  dealBreakers?: string;                  // 不適配條件（不接受的工作類型/環境）
+  competingOffers?: string;               // 競爭 Offer
+  relationshipLevel?: string;             // 顧問關係程度：初次接觸/已建立關係/深度信任
   createdAt: string;
   updatedAt: string;
   createdBy: string;

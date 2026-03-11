@@ -409,6 +409,8 @@ router.get('/candidates', async (req, res) => {
         c.age, c.industry, c.languages, c.certifications,
         c.current_salary, c.expected_salary, c.notice_period,
         c.management_experience, c.team_size, c.consultant_evaluation,
+        c.job_search_status, c.reason_for_change, c.motivation,
+        c.deal_breakers, c.competing_offers, c.relationship_level,
         j.position_name AS target_job_label, j.client_company AS target_job_company
       FROM candidates_pipeline c
       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
@@ -504,6 +506,13 @@ router.get('/candidates', async (req, res) => {
       managementExperience: row.management_experience || false,
       teamSize: row.team_size || '',
       consultantEvaluation: row.consultant_evaluation || null,
+      // Phase 3 動機與交易條件
+      jobSearchStatus: row.job_search_status || '',
+      reasonForChange: row.reason_for_change || '',
+      motivation: row.motivation || '',
+      dealBreakers: row.deal_breakers || '',
+      competingOffers: row.competing_offers || '',
+      relationshipLevel: row.relationship_level || '',
     }));
 
     client.release();
@@ -587,6 +596,13 @@ router.get('/candidates/:id', async (req, res) => {
       progressTracking: row.progress_tracking || [],
       talentLevel: row.talent_level || '',
       interviewRound: row.interview_round || null,
+      // Phase 3 動機與交易條件
+      jobSearchStatus: row.job_search_status || '',
+      reasonForChange: row.reason_for_change || '',
+      motivation: row.motivation || '',
+      dealBreakers: row.deal_breakers || '',
+      competingOffers: row.competing_offers || '',
+      relationshipLevel: row.relationship_level || '',
 
       // 向後相容：保留 DB 字段名
       work_history: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
@@ -837,6 +853,13 @@ router.patch('/candidates/:id', async (req, res) => {
     const management_experience = req.body.management_experience !== undefined ? req.body.management_experience : req.body.managementExperience;
     const team_size = req.body.team_size !== undefined ? req.body.team_size : req.body.teamSize;
     const consultant_evaluation = req.body.consultant_evaluation !== undefined ? req.body.consultant_evaluation : req.body.consultantEvaluation;
+    // Phase 3 動機與交易條件
+    const job_search_status = req.body.job_search_status !== undefined ? req.body.job_search_status : req.body.jobSearchStatus;
+    const reason_for_change = req.body.reason_for_change !== undefined ? req.body.reason_for_change : req.body.reasonForChange;
+    const motivation = req.body.motivation;
+    const deal_breakers = req.body.deal_breakers !== undefined ? req.body.deal_breakers : req.body.dealBreakers;
+    const competing_offers = req.body.competing_offers !== undefined ? req.body.competing_offers : req.body.competingOffers;
+    const relationship_level = req.body.relationship_level !== undefined ? req.body.relationship_level : req.body.relationshipLevel;
     const actor = req.body.actor || req.body.by || '';
     const isAIBot = /aibot|bot$|openclaw|yuqi|ai$/i.test(actor);
 
@@ -977,6 +1000,13 @@ router.patch('/candidates/:id', async (req, res) => {
       setClauses.push(`consultant_evaluation = $${idx++}`);
       values.push(JSON.stringify(consultant_evaluation));
     }
+    // Phase 3 動機與交易條件
+    if (job_search_status !== undefined) { setClauses.push(`job_search_status = $${idx++}`); values.push(job_search_status); }
+    if (reason_for_change !== undefined) { setClauses.push(`reason_for_change = $${idx++}`); values.push(reason_for_change); }
+    if (motivation !== undefined) { setClauses.push(`motivation = $${idx++}`); values.push(motivation); }
+    if (deal_breakers !== undefined) { setClauses.push(`deal_breakers = $${idx++}`); values.push(deal_breakers); }
+    if (competing_offers !== undefined) { setClauses.push(`competing_offers = $${idx++}`); values.push(competing_offers); }
+    if (relationship_level !== undefined) { setClauses.push(`relationship_level = $${idx++}`); values.push(relationship_level); }
     // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析
     let resolvedAiMatch = ai_match_result;
 

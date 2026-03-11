@@ -131,6 +131,14 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [editManagement, setEditManagement] = useState(candidate.managementExperience || false);
   const [editTeamSize, setEditTeamSize] = useState(candidate.teamSize || '');
 
+  // Phase 3 動機與交易條件
+  const [editJobSearchStatus, setEditJobSearchStatus] = useState(candidate.jobSearchStatus || '');
+  const [editReasonForChange, setEditReasonForChange] = useState(candidate.reasonForChange || '');
+  const [editMotivation, setEditMotivation] = useState(candidate.motivation || '');
+  const [editDealBreakers, setEditDealBreakers] = useState(candidate.dealBreakers || '');
+  const [editCompetingOffers, setEditCompetingOffers] = useState(candidate.competingOffers || '');
+  const [editRelationshipLevel, setEditRelationshipLevel] = useState(candidate.relationshipLevel || '');
+
   // 顧問評估
   const [consultEval, setConsultEval] = useState<ConsultantEvaluation>(candidate.consultantEvaluation || {});
   const [editingEval, setEditingEval] = useState(false);
@@ -543,6 +551,13 @@ Step1ne Recruitment`;
         notice_period: editNoticePeriod.trim(),
         management_experience: editManagement,
         team_size: editTeamSize.trim(),
+        // Phase 3 動機與交易條件
+        job_search_status: editJobSearchStatus.trim(),
+        reason_for_change: editReasonForChange.trim(),
+        motivation: editMotivation.trim(),
+        deal_breakers: editDealBreakers.trim(),
+        competing_offers: editCompetingOffers.trim(),
+        relationship_level: editRelationshipLevel.trim(),
         actor: currentUserName || 'system',
       };
       await apiPatch(`/api/candidates/${candidate.id}`, updates);
@@ -978,7 +993,7 @@ Step1ne Recruitment`;
                       <button onClick={handleSaveBasicInfo} disabled={savingBasicInfo} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">
                         {savingBasicInfo ? '儲存中...' : '儲存'}
                       </button>
-                      <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditIndustry(candidate.industry||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                      <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditIndustry(candidate.industry||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); setEditJobSearchStatus(candidate.jobSearchStatus||''); setEditReasonForChange(candidate.reasonForChange||''); setEditMotivation(candidate.motivation||''); setEditDealBreakers(candidate.dealBreakers||''); setEditCompetingOffers(candidate.competingOffers||''); setEditRelationshipLevel(candidate.relationshipLevel||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
                     </div>
                   )}
                 </div>
@@ -1048,6 +1063,54 @@ Step1ne Recruitment`;
                     <div className="sm:col-span-2 flex items-center gap-2">
                       <input type="checkbox" id="edit-mgmt" checked={editManagement} onChange={e => setEditManagement(e.target.checked)} className="rounded border-gray-300" />
                       <label htmlFor="edit-mgmt" className="text-xs text-gray-600">具備管理經驗</label>
+                    </div>
+                    {/* Phase 3 動機與交易條件 */}
+                    <div className="sm:col-span-2 pt-2 border-t border-gray-200">
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">動機與交易條件</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">求職狀態</label>
+                      <select value={editJobSearchStatus} onChange={e => setEditJobSearchStatus(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                        <option value="">— 請選擇 —</option>
+                        <option value="主動求職">主動求職</option>
+                        <option value="被動觀望">被動觀望</option>
+                        <option value="暫不考慮">暫不考慮</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">主要動機</label>
+                      <select value={editMotivation} onChange={e => setEditMotivation(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                        <option value="">— 請選擇 —</option>
+                        <option value="薪資提升">薪資提升</option>
+                        <option value="技術成長">技術成長</option>
+                        <option value="管理發展">管理發展</option>
+                        <option value="產業轉型">產業轉型</option>
+                        <option value="出國發展">出國發展</option>
+                        <option value="離開現職">離開現職</option>
+                        <option value="Work-Life Balance">Work-Life Balance</option>
+                        <option value="其他">其他</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-gray-500 mb-1">轉職原因</label>
+                      <input value={editReasonForChange} onChange={e => setEditReasonForChange(e.target.value)} placeholder="例：現公司發展有限、想挑戰新領域" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-gray-500 mb-1">不適配條件</label>
+                      <input value={editDealBreakers} onChange={e => setEditDealBreakers(e.target.value)} placeholder="例：不接受輪班、不考慮傳產" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">競爭 Offer</label>
+                      <input value={editCompetingOffers} onChange={e => setEditCompetingOffers(e.target.value)} placeholder="例：已有 Google Offer" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">顧問關係程度</label>
+                      <select value={editRelationshipLevel} onChange={e => setEditRelationshipLevel(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                        <option value="">— 請選擇 —</option>
+                        <option value="初次接觸">初次接觸</option>
+                        <option value="已建立關係">已建立關係</option>
+                        <option value="深度信任">深度信任</option>
+                      </select>
                     </div>
                   </div>
                 ) : (
@@ -1147,6 +1210,64 @@ Step1ne Recruitment`;
                               {editManagement ? '有管理經驗' : ''}
                               {editManagement && editTeamSize ? `（${editTeamSize}）` : editTeamSize || ''}
                             </span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {/* Phase 3 動機與交易條件 */}
+                    {(editJobSearchStatus || editReasonForChange || editMotivation || editDealBreakers || editCompetingOffers || editRelationshipLevel) && (
+                      <>
+                        <div className="col-span-2 pt-2 border-t border-gray-200">
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">動機與交易條件</span>
+                        </div>
+                        {editJobSearchStatus && (
+                          <div className="flex items-center gap-2">
+                            <Target className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-500">求職狀態</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              editJobSearchStatus === '主動求職' ? 'bg-green-50 text-green-700' :
+                              editJobSearchStatus === '被動觀望' ? 'bg-amber-50 text-amber-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>{editJobSearchStatus}</span>
+                          </div>
+                        )}
+                        {editMotivation && (
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-500">動機</span>
+                            <span className="text-sm font-medium text-gray-800">{editMotivation}</span>
+                          </div>
+                        )}
+                        {editReasonForChange && (
+                          <div className="col-span-2 flex items-start gap-2">
+                            <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                            <span className="text-xs text-gray-500 shrink-0">轉職原因</span>
+                            <span className="text-sm text-gray-800">{editReasonForChange}</span>
+                          </div>
+                        )}
+                        {editDealBreakers && (
+                          <div className="col-span-2 flex items-start gap-2">
+                            <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                            <span className="text-xs text-gray-500 shrink-0">不適配</span>
+                            <span className="text-sm text-red-700">{editDealBreakers}</span>
+                          </div>
+                        )}
+                        {editCompetingOffers && (
+                          <div className="col-span-2 flex items-start gap-2">
+                            <Star className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                            <span className="text-xs text-gray-500 shrink-0">競爭 Offer</span>
+                            <span className="text-sm font-medium text-amber-700">{editCompetingOffers}</span>
+                          </div>
+                        )}
+                        {editRelationshipLevel && (
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-500">關係</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              editRelationshipLevel === '深度信任' ? 'bg-green-50 text-green-700' :
+                              editRelationshipLevel === '已建立關係' ? 'bg-blue-50 text-blue-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>{editRelationshipLevel}</span>
                           </div>
                         )}
                       </>
