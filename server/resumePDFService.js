@@ -57,7 +57,10 @@ async function extractPDFText(buffer) {
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
-    return result.text || '';
+    let text = result.text || '';
+    // pdf-parse v2 會插入頁碼分隔符 "-- X of Y --"，移除以免干擾解析
+    text = text.replace(/--\s*\d+\s*of\s*\d+\s*--/g, '');
+    return text;
   } finally {
     await parser.destroy().catch(() => {});
   }

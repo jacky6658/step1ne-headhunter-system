@@ -3957,13 +3957,14 @@ router.post('/resume/parse', (req, res) => {
     const useAI = req.body.useAI === 'true';
     try {
       const parsed = await parseResumePDF(req.file.buffer, useAI);
+      console.log('[/api/resume/parse] source:', parsed.source, 'workHistory:', parsed.workHistory?.length, 'confidence:', parsed._meta?.confidence);
       res.json({
         success: true,
         filename: req.file.originalname,
         parsed,
       });
     } catch (e) {
-      console.error('[/api/resume/parse]', e.message);
+      console.error('[/api/resume/parse]', e.message, e.stack);
       res.status(500).json({ success: false, error: e.message });
     }
   });
