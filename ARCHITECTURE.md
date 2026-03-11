@@ -1,508 +1,470 @@
-# Step1ne 獵頭顧問 AI 協作系統 — 專案架構文件
+# Step1ne 獵頭 AI 協作系統 — 系統架構 & 敏捷看板
 
 > 最後更新：2026-03-11
 
 ---
 
-## 一、系統總覽
+## 系統健康總覽
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        ZEABUR 雲端平台                               │
-│                                                                      │
-│   ┌────────────────────┐    /api     ┌────────────────────────┐     │
-│   │    FRONTEND         │◄──────────►│      BACKEND            │     │
-│   │  React 19 + Vite 6  │            │  Node.js + Express 5    │     │
-│   │  TypeScript          │            │  CommonJS               │     │
-│   │  Tailwind CSS 3      │            │                         │     │
-│   │                      │            │  Services:              │     │
-│   │  step1ne.zeabur.app  │            │  - resumePDFService     │     │
-│   └────────────────────┘            │  - githubAnalysisService│     │
-│                                      │  - talentSourceService  │     │
-│                                      │  - personaService       │     │
-│                                      │  - jobsService          │     │
-│                                      │                         │     │
-│                                      │  backendstep1ne.        │     │
-│                                      │  zeabur.app/api         │     │
-│                                      └───────────┬────────────┘     │
-│                                                   │                  │
-│                                      ┌────────────▼────────────┐    │
-│                                      │     PostgreSQL           │    │
-│                                      │   Zeabur 託管            │    │
-│                                      │   tpe1.clusters.        │    │
-│                                      │   zeabur.com:27883      │    │
-│                                      └─────────────────────────┘    │
-│                                                                      │
-│   外部整合：                                                         │
-│   Google Sheets / Drive ─ GitHub API ─ Perplexity AI ─ Gemini AI    │
-│   LinkedIn 爬蟲 ─ 104/1111 人力銀行 ─ OpenClaw (選用)               │
-└─────────────────────────────────────────────────────────────────────┘
+╔══════════════════════════════════════════════════════════════════════════╗
+║                      STEP1NE SYSTEM HEALTH DASHBOARD                     ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║                                                                          ║
+║  前端 (React 19)  ████████████████████████████████████  95%  🟢 良好     ║
+║  後端 (Express 5) ██████████████████████████████████░░  90%  🟢 良好     ║
+║  資料庫 (PG)      ████████████████████████████████████  98%  🟢 良好     ║
+║  AI 整合          ██████████████████████████░░░░░░░░░░  70%  🟡 進行中   ║
+║  爬蟲系統         ████████████████████░░░░░░░░░░░░░░░░  55%  🟡 進行中   ║
+║  安全性           ██████████████░░░░░░░░░░░░░░░░░░░░░░  40%  🔴 需改善   ║
+║  測試覆蓋         ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  10%  🔴 缺少     ║
+║  CI/CD            ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░  20%  🔴 基本     ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
-## 二、技術棧
-
-| 層級 | 技術 | 版本 |
-|------|------|------|
-| **前端框架** | React + TypeScript | 19.0.0 |
-| **建置工具** | Vite | 6.0.0 |
-| **CSS** | Tailwind CSS | 3.4.17 |
-| **圖示** | Lucide React | 0.474.0 |
-| **PDF 匯出** | html2canvas + jsPDF | 1.4.1 / 2.5.1 |
-| **OCR** | tesseract.js | 7.0.0 |
-| **試算表** | xlsx (SheetJS) | 0.18.5 |
-| **後端** | Express | 5.2.1 |
-| **資料庫** | PostgreSQL (pg) | 8.18.0 |
-| **AI** | Google Generative AI (Gemini) | @google/genai 1.36.0 |
-| **PDF 解析** | pdf-parse | 2.4.5 |
-| **檔案上傳** | Multer | 2.1.0 |
-| **Python 腳本** | 人才搜尋 / AI 分析 | 3.x |
-
----
-
-## 三、目錄結構
+## 一、系統架構全景圖
 
 ```
-step1ne-headhunter-system-main/
-│
-├── App.tsx                         # 主應用：Tab 路由、權限控制
-├── index.tsx                       # React 入口
-├── types.ts                        # TypeScript 型別定義（498 行，20+ 介面）
-├── constants.ts                    # 全域常數（狀態顏色、看板欄位、快取設定）
-├── crawlerTypes.ts                 # 爬蟲專用型別
-├── firebase.ts                     # 認證（localStorage 模擬）
-├── index.css                       # 全域樣式 + Tailwind
-│
-├── components/                     # ── React UI 元件 ──
-│   ├── CandidateModal.tsx          #   人選卡片（161KB，最大元件）
-│   ├── LeadModal.tsx               #   案件詳情（71KB）
-│   ├── ResumeGenerator.tsx         #   匿名履歷產生器（含雷達圖 SVG）
-│   ├── RadarChart.tsx              #   五維雷達圖視覺化
-│   ├── KanbanBoard.tsx             #   看板佈局
-│   ├── Badge.tsx                   #   狀態標籤
-│   ├── Sidebar.tsx                 #   主導覽列
-│   ├── ProfileSettingsModal.tsx    #   使用者設定
-│   ├── CaseFinancialDetailModal.tsx#   案件財務明細
-│   ├── ColumnTooltip.tsx           #   欄位說明 Tooltip
-│   ├── DecisionModal.tsx           #   案件接單/退件
-│   ├── UserDetailModal.tsx         #   顧問資料
-│   └── crawler/                    #   爬蟲管理子元件
-│       ├── CrawlerManagementTab.tsx
-│       ├── CrawlerScoringTab.tsx
-│       ├── EfficiencyStatsTab.tsx
-│       └── KpiDashboardTab.tsx
-│
-├── pages/                          # ── 頁面元件（26 頁）──
-│   ├── CandidatesPage.tsx          #   候選人總表（搜尋、篩選、排序）
-│   ├── AIMatchingPage.tsx          #   AI 配對推薦
-│   ├── AIProgressPage.tsx          #   AI 工作進度監控
-│   ├── JobsPage.tsx                #   職缺管理
-│   ├── PipelinePage.tsx            #   人選漏斗管線
-│   ├── LeadsPage.tsx               #   案件管理
-│   ├── BDClientsPage.tsx           #   BD 客戶開發
-│   ├── OperationsDashboardPage.tsx #   運營儀表板
-│   ├── AnalyticsPage.tsx           #   數據分析
-│   ├── CandidateKanbanPage.tsx     #   候選人看板
-│   ├── BotSchedulerPage.tsx        #   AI Bot 排程
-│   ├── CrawlerDashboardPage.tsx    #   爬蟲整合儀表板
-│   ├── ImportPage.tsx              #   資料匯入
-│   ├── ResumeImportPage.tsx        #   履歷匯入
-│   ├── MembersPage.tsx             #   團隊成員（Admin）
-│   ├── AuditLogsPage.tsx           #   操作日誌
-│   ├── SystemLogPage.tsx           #   系統日誌
-│   ├── LoginPage.tsx               #   登入
-│   ├── HelpPage.tsx                #   使用說明（70KB）
-│   └── ...
-│
-├── services/                       # ── 前端商業邏輯 ──
-│   ├── aiService.ts                #   AI 評估與評分
-│   ├── candidateService.ts         #   人選 CRUD
-│   ├── leadService.ts              #   案件管理（28KB）
-│   ├── userService.ts              #   使用者管理
-│   ├── auditService.ts             #   稽核日誌
-│   ├── crawlerService.ts           #   爬蟲整合
-│   ├── sheetsService.ts            #   Google Sheets 同步
-│   ├── onlineService.ts            #   上線狀態
-│   └── apiConfig.ts                #   API 設定
-│
-├── config/                         # ── 設定 ──
-│   ├── api.ts                      #   API helper
-│   └── columnDescriptions.tsx      #   欄位後設資料
-│
-├── utils/                          # ── 工具函式 ──
-│   ├── dateFormat.ts               #   日期格式化
-│   └── pdfGenerator.ts             #   PDF 產生
-│
-├── server/                         # ══ Node.js 後端 ══
-│   ├── server.js                   #   伺服器入口
-│   ├── routes-api.js               #   主 API 路由（4323 行，55+ 端點）
-│   ├── routes-crawler.js           #   爬蟲路由
-│   ├── routes-openclaw.js          #   OpenClaw AI 路由
-│   │
-│   ├── resumePDFService.js         #   PDF 履歷解析（LinkedIn + 104）
-│   ├── githubAnalysisService.js    #   GitHub 分析
-│   ├── talentSourceService.js      #   人才搜尋引擎
-│   ├── jobsService.js              #   職缺邏輯
-│   ├── personaService.js           #   Persona 生成
-│   ├── perplexityService.js        #   Perplexity AI
-│   ├── anonymousResumeService.js   #   匿名履歷
-│   ├── crawlerImportService.js     #   爬蟲匯入
-│   ├── gradingService.js           #   人選評分
-│   ├── sheetsService*.js           #   Google Sheets 同步（4 版本）
-│   │
-│   ├── db/                         #   資料庫 Schema
-│   │   ├── init-postgres.sql
-│   │   └── init-full-schema.sql
-│   │
-│   ├── guides/                     #   AI Bot 教學文件（API 提供）
-│   │   ├── AIBOT-API-GUIDE.md
-│   │   ├── SCORING-GUIDE.md
-│   │   ├── JOB-IMPORT-GUIDE.md
-│   │   └── RESUME-ANALYSIS-GUIDE.md
-│   │
-│   ├── talent-sourcing/            #   Python AI & 爬蟲腳本
-│   │   ├── candidate-scoring-system-v2.py
-│   │   ├── one-bot-pipeline.py
-│   │   ├── search-plan-executor.py
-│   │   ├── profile-reader.py
-│   │   ├── job-profile-analyzer.py
-│   │   └── requirements.txt
-│   │
-│   └── package.json                #   後端相依套件
-│
-├── scripts/                        # ── 資料庫遷移（23 個 SQL）──
-│   ├── init-database.sh
-│   ├── init-database.sql
-│   ├── add-phase1-candidate-fields.sql
-│   ├── add-phase3-motivation-fields.sql
-│   └── ...
-│
-├── docs/                           # ── 文件 ──
-│   ├── ai-prompts/                 #   AI 系統提示
-│   ├── api/                        #   API 文件
-│   ├── rules/                      #   商業規則
-│   ├── setup/                      #   部署指南
-│   └── technical/                  #   技術架構
-│
-├── public/                         # ── 靜態資源 ──
-│   └── step1ne-logo.jpeg
-│
-└── 設定檔
-    ├── vite.config.ts
-    ├── tsconfig.json
-    ├── tailwind.config.js
-    ├── postcss.config.js
-    ├── package.json
-    └── .env.example
+                              ┌─────────────┐
+                              │   使用者      │
+                              │  (顧問/管理)  │
+                              └──────┬──────┘
+                                     │ HTTPS
+                              ┌──────▼──────┐
+                              │   Zeabur CDN │
+                              └──────┬──────┘
+                                     │
+          ┌──────────────────────────┼──────────────────────────┐
+          │                          │                          │
+   ┌──────▼──────┐           ┌──────▼──────┐           ┌──────▼──────┐
+   │  前端 SPA    │           │  後端 API    │           │  PostgreSQL  │
+   │  React 19    │◄─────────►│  Express 5   │◄─────────►│  Zeabur DB   │
+   │  Vite 6      │   /api    │  Node.js     │    pg     │  12+ 資料表   │
+   │  TypeScript   │           │  4300+ 行    │           │  1347 人選   │
+   │  Tailwind 3   │           │  55+ 端點    │           │  53+ 職缺    │
+   └──────────────┘           └──────┬──────┘           └──────────────┘
+                                     │
+                    ┌────────────────┼────────────────┐
+                    │                │                │
+             ┌──────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐
+             │  Google AI   │ │  GitHub API  │ │  爬蟲引擎    │
+             │  Gemini      │ │  Profile分析  │ │  104/1111   │
+             │  Perplexity  │ │  Repo 統計   │ │  LinkedIn   │
+             └─────────────┘ └─────────────┘ └─────────────┘
 ```
 
 ---
 
-## 四、資料庫 Schema（PostgreSQL）
+## 二、功能模組看板（敏捷 Sprint 視角）
 
-### 核心資料表
+### 🟢 已完成 (Done)
 
 ```
-┌─────────────────────────┐     ┌─────────────────────────┐
-│  candidates_pipeline     │     │  jobs_pipeline           │
-├─────────────────────────┤     ├─────────────────────────┤
-│ id (VARCHAR PK)          │     │ id (SERIAL PK)           │
-│ name                     │     │ title                    │
-│ status                   │     │ client_company           │
-│ current_position         │     │ salary_range             │
-│ phone, email             │     │ main_skills              │
-│ location                 │     │ experience_required      │
-│ years_experience         │     │ education_required       │
-│ age                      │     │ work_location            │
-│ skills                   │     │ job_status               │
-│ education_details (JSONB)│     │ industry_background      │
-│ work_history (TEXT/JSON)  │     │ interview_process        │
-│ linkedin_url, github_url │     │ consultant_notes         │
-│ ai_match_result (JSONB)  │◄───►│                          │
-│ consultant_evaluation    │     │ search_primary (TEXT)     │
-│   (JSONB)                │     │ welfare_tags             │
-│ industry, languages      │     │ job_url                  │
-│ certifications           │     └─────────────────────────┘
-│ expected_salary          │
-│ notice_period            │     ┌─────────────────────────┐
-│ job_search_status        │     │  bd_clients              │
-│ reason_for_change        │     ├─────────────────────────┤
-│ motivation               │     │ id (SERIAL PK)           │
-│ deal_breakers            │     │ company_name             │
-│ competing_offers         │     │ industry                 │
-│ relationship_level       │     │ bd_status                │
-│ management_experience    │     │ contact_name/email/phone │
-│ team_size                │     │ contract_terms (JSONB)   │
-│ target_job_id (FK)       │     └─────────────────────────┘
-│ progress_tracking (JSONB)│
-│ consultant               │     ┌─────────────────────────┐
-│ created_at, last_updated │     │  leads                   │
-└─────────────────────────┘     ├─────────────────────────┤
-                                  │ id (TEXT PK)             │
-┌─────────────────────────┐     │ case_code, platform      │
-│  users                   │     │ need, budget_text        │
-├─────────────────────────┤     │ status, decision         │
-│ id (TEXT PK)             │     │ assigned_to              │
-│ email, display_name      │     │ progress_updates (JSONB) │
-│ role (ADMIN/REVIEWER)    │     │ cost_records (JSONB)     │
-│ is_active, is_online     │     │ profit_records (JSONB)   │
-└─────────────────────────┘     └─────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│ 模組                     │ 功能                    │ 涵蓋檔案      │
+├────────────────────────────────────────────────────────────────────┤
+│ ✅ 人選管理（核心）       │ CRUD + 40+ 欄位編輯     │ CandidateModal │
+│ ✅ 人選卡片 Phase 1       │ 年齡/產業/語言/證照/薪資 │ types.ts       │
+│ ✅ 人選卡片 Phase 3       │ 動機/轉職原因/競爭Offer  │ routes-api.js  │
+│ ✅ 五維雷達圖             │ 自動計算 + 手動調整      │ RadarChart.tsx │
+│ ✅ 匿名履歷               │ 雷達圖+評語+Phase3欄位  │ ResumeGenerator│
+│ ✅ 履歷解析 (LinkedIn)    │ PDF→結構化資料           │ resumePDFSvc   │
+│ ✅ 履歷解析 (104)         │ 自動偵測+完整解析        │ resumePDFSvc   │
+│ ✅ 拖曳匯入履歷           │ Drag & Drop PDF         │ CandidateModal │
+│ ✅ 職缺管理               │ CRUD + 狀態追蹤         │ JobsPage       │
+│ ✅ AI 配對推薦            │ 加權評分 + P0/P1/P2     │ AIMatchingPage │
+│ ✅ 看板視圖               │ Kanban 拖拉狀態         │ KanbanBoard    │
+│ ✅ BD 客戶管理            │ 公司+聯繫人+合約        │ BDClientsPage  │
+│ ✅ 案件管理 (Leads)       │ 進度追蹤+成本+利潤      │ LeadsPage      │
+│ ✅ GitHub 分析            │ Profile+Repo+語言統計   │ githubAnalysis │
+│ ✅ Google Sheets 同步     │ 雙向同步               │ sheetsService  │
+│ ✅ 操作日誌               │ 完整稽核軌跡            │ AuditLogsPage  │
+│ ✅ 年齡/年資自動計算       │ 從學歷推估+批次回填     │ routes-api.js  │
+│ ✅ 使用者權限              │ ADMIN / REVIEWER        │ App.tsx        │
+│ ✅ 運營儀表板              │ KPI 統計               │ OperationsDash │
+│ ✅ 使用說明                │ 完整操作指南            │ HelpPage       │
+│ ✅ 專案架構文件            │ 本文件                  │ ARCHITECTURE   │
+└────────────────────────────────────────────────────────────────────┘
+```
 
-┌─────────────────────────┐     ┌─────────────────────────┐
-│  audit_logs              │     │  system_logs             │
-├─────────────────────────┤     ├─────────────────────────┤
-│ id (TEXT PK)             │     │ id (SERIAL PK)           │
-│ lead_id (FK)             │     │ action                   │
-│ actor_uid, actor_name    │     │ actor, actor_type        │
-│ action                   │     │ candidate_id/name        │
-│ before, after (JSONB)    │     │ detail (JSONB)           │
-│ created_at               │     │ created_at               │
-└─────────────────────────┘     └─────────────────────────┘
+### 🟡 進行中 / 部分完成 (In Progress)
 
-┌─────────────────────────┐     ┌─────────────────────────┐
-│  user_contacts           │     │  candidate_job_rankings  │
-├─────────────────────────┤     │  _cache                  │
-│ display_name (PK)        │     ├─────────────────────────┤
-│ contact_phone/email      │     │ candidate_id (PK)        │
-│ line_id, telegram_handle │     │ rankings (JSONB)         │
-│ github_token             │     │ computed_at              │
-│ linkedin_token           │     └─────────────────────────┘
-│ brave_api_key            │
-└─────────────────────────┘
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ 模組                     │ 現況             │ 缺什麼              │
+├────────────────────────────────────────────────────────────────────┤
+│ 🟡 履歷解析穩定性         │ v2 API 已修      │ 工作經歷解析待驗證   │
+│ 🟡 爬蟲系統               │ UI+路由已建      │ Python 腳本未整合    │
+│ 🟡 AI Bot 排程            │ UI+設定已建      │ 實際排程引擎未串接   │
+│ 🟡 Perplexity AI 擴充     │ Service 已寫     │ API Key 管理不完整  │
+│ 🟡 104/1111 職缺爬取       │ URL 欄位已加     │ 自動同步未實作      │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### 🔴 待開發 / 缺少 (To Do)
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ 模組                     │ 優先級   │ 說明                        │
+├────────────────────────────────────────────────────────────────────┤
+│ 🔴 自動化測試             │ 高 ‼️    │ 完全沒有單元/整合測試       │
+│ 🔴 安全性：密碼外洩       │ 高 ‼️    │ DB 密碼硬寫在 27 個檔案    │
+│ 🔴 安全性：環境變數       │ 高 ‼️    │ vite.config 暴露全部 env   │
+│ 🔴 本地開發 .env          │ 高       │ 缺 .env 檔案無法本地啟動   │
+│ 🔴 錯誤監控 (Sentry等)    │ 中       │ 生產環境無錯誤追蹤         │
+│ 🔴 Docker 容器化          │ 中       │ 無 Dockerfile              │
+│ 🔴 CI/CD Pipeline         │ 中       │ 無 GitHub Actions          │
+│ 🔴 效能優化               │ 中       │ 主 bundle 1.1MB（應拆分）  │
+│ 🔴 通知系統               │ 中       │ 無 Email/Line 推播         │
+│ 🔴 完整認證系統            │ 中       │ 目前用 localStorage 模擬   │
+│ 🔴 API Rate Limiting      │ 低       │ 無請求限流                 │
+│ 🔴 API 文件 (Swagger)     │ 低       │ 無自動化 API 文件          │
+│ 🔴 多語系 (i18n)          │ 低       │ 目前僅中文                 │
+│ 🔴 行動裝置適配           │ 低       │ 無 RWD 優化                │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 五、API 路由一覽（55+ 端點）
+## 三、安全性問題報告 🚨
 
-### 候選人 (10)
-| Method | Path | 說明 |
-|--------|------|------|
-| GET | `/api/candidates` | 列表（支援分頁、篩選、排序） |
-| GET | `/api/candidates/:id` | 單筆詳情 |
-| POST | `/api/candidates` | 新增 |
-| PATCH | `/api/candidates/:id` | 部分更新 |
-| DELETE | `/api/candidates/:id` | 刪除 |
-| DELETE | `/api/candidates/batch` | 批次刪除 |
-| PATCH | `/api/candidates/batch-status` | 批次更新狀態 |
-| POST | `/api/candidates/bulk` | 批次建立 |
-| POST | `/api/candidates/:id/enrich` | AI 擴充資料 |
-| POST | `/api/candidates/backfill-computed` | 回填年齡/年資 |
-
-### 職缺 (6)
-| Method | Path | 說明 |
-|--------|------|------|
-| GET | `/api/jobs` | 列表 |
-| GET | `/api/jobs/:id` | 詳情 |
-| POST | `/api/jobs` | 新增 |
-| PUT | `/api/jobs/:id` | 更新 |
-| PATCH | `/api/jobs/:id/status` | 更新狀態 |
-| DELETE | `/api/jobs/:id` | 刪除 |
-
-### 履歷解析 (2)
-| Method | Path | 說明 |
-|--------|------|------|
-| POST | `/api/resume/parse` | 單檔解析（LinkedIn / 104 自動偵測） |
-| POST | `/api/resume/batch-parse` | 批次解析 |
-
-### GitHub 整合 (3)
-| Method | Path | 說明 |
-|--------|------|------|
-| GET | `/api/github/analyze/:username` | GitHub 分析 |
-| POST | `/api/github/ai-analyze` | AI 深度分析 |
-| GET | `/api/candidates/:id/github-stats` | 快取統計 |
-
-### 配對排名 (1)
-| Method | Path | 說明 |
-|--------|------|------|
-| GET | `/api/candidates/:id/job-rankings` | 職缺配對排名 |
-
-### BD 客戶 (8)
-| Method | Path | 說明 |
-|--------|------|------|
-| GET | `/api/clients` | 列表 |
-| GET | `/api/clients/:id` | 詳情 |
-| POST | `/api/clients` | 新增 |
-| PATCH | `/api/clients/:id` | 更新 |
-| PATCH | `/api/clients/:id/status` | 更新狀態 |
-| DELETE | `/api/clients/:id` | 刪除 |
-| GET | `/api/clients/:id/contacts` | 聯繫紀錄 |
-| POST | `/api/clients/:id/contacts` | 新增聯繫 |
-
-### Bot 自動化 (5)
-| Method | Path | 說明 |
-|--------|------|------|
-| GET | `/api/bot-config` | 取得設定 |
-| GET | `/api/bot-configs` | 列表 |
-| POST | `/api/bot-config` | 建立設定 |
-| POST | `/api/bot/run-now` | 立即執行 |
-| GET | `/api/bot-logs` | 執行日誌 |
-
-### 使用者/系統 (8)
-| Method | Path | 說明 |
-|--------|------|------|
-| GET | `/api/users` | 使用者列表 |
-| POST | `/api/users/register` | 註冊 |
-| GET | `/api/users/:name/contact` | 聯絡資訊 |
-| PUT | `/api/users/:name/contact` | 更新聯絡 |
-| GET | `/api/system-logs` | 系統日誌 |
-| GET | `/api/health` | 健康檢查 |
-| POST | `/api/sync/sheets-to-sql` | Sheets→SQL 同步 |
-| POST | `/api/migrate/extract-links` | 提取連結 |
-
----
-
-## 六、核心功能模組
-
-### 6.1 人選管理
-- **人選卡片** (`CandidateModal.tsx` 161KB)：完整的候選人資料編輯，含基本資料、工作經歷、學歷、技能、AI 評估、顧問評分
-- **Phase 1 欄位**：年齡、產業、語言、證照、目前/期望薪資、到職時間、管理經驗
-- **Phase 3 欄位**：求職狀態、轉職原因、主要動機、不適配條件、競爭 Offer、顧問關係程度
-
-### 6.2 履歷解析（`resumePDFService.js`）
-- **自動格式偵測**：`detect104Format()` 判斷 LinkedIn vs 104
-- **LinkedIn 解析**：姓名、職稱、地點、技能、工作經歷、學歷、LinkedIn URL
-- **104 解析**：額外支援電話、Email、年齡、語言、證照、產業、期望薪資、到職時間
-- **前端拖曳匯入**：支援拖曳 PDF 到人選卡片直接解析
-
-### 6.3 五維雷達圖（`RadarChart.tsx`）
 ```
-       技術深度
-         ▲
-        / \
-  穩定度/   \產業適配
-      /     \
-     /       \
-  個性───────溝通
-```
-- 自動計算分數 + 顧問手動調整
-- 匿名履歷內嵌 SVG 雷達圖
-
-### 6.4 匿名履歷（`ResumeGenerator.tsx`）
-- 隱藏個人識別資訊
-- 包含雷達圖 + 評分 + 顧問評語
-- 顯示 Phase 3 交易條件欄位
-- HTML 模板 → 新視窗開啟/列印
-
-### 6.5 AI 配對推薦
-- **加權評分**：技能 30% + 經驗 25% + 穩定度 20% + 產業 20% + 綜合 5%
-- **自動配對**：與所有職缺計算匹配度
-- **等級分類**：P0（強推）/ P1（推薦）/ P2（備選）/ REJECT
-
-### 6.6 爬蟲系統
-- 104 / 1111 / LinkedIn 人力銀行爬蟲
-- GitHub Profile 分析（語言、貢獻、活躍度）
-- 自動人才評分與篩選
-- KPI 儀表板追蹤效率
-
----
-
-## 七、TypeScript 型別定義
-
-### 主要介面
-
-```typescript
-// 候選人（40+ 欄位）
-interface Candidate {
-  id, name, email, phone, location, position
-  years, age, skills, education, educationJson
-  workHistory, source, status, consultant
-  linkedinUrl, githubUrl
-  // AI 評估
-  aiMatchResult, aiScore, aiGrade
-  // 顧問評分（五維）
-  consultantEvaluation: ConsultantEvaluation
-  // Phase 1 擴充
-  industry, languages, certifications
-  currentSalary, expectedSalary, noticePeriod
-  managementExperience, teamSize
-  // Phase 3 動機
-  jobSearchStatus, reasonForChange, motivation
-  dealBreakers, competingOffers, relationshipLevel
-}
-
-// 顧問評估
-interface ConsultantEvaluation {
-  technicalDepth, stability, industryMatch
-  communication, personality    // 各 0-100
-  comment?: string
-}
-
-// 職缺
-interface Job {
-  id, title, clientCompany, salaryRange
-  mainSkills, experienceRequired, jobStatus
-  industryBackground, interviewProcess
-}
-
-// 案件（Lead）
-interface Lead {
-  id, caseCode, platform, need, budgetText
-  status, decision, assignedTo
-  progressUpdates, costRecords, profitRecords
-}
-```
-
-### 列舉值
-
-| 列舉 | 值 |
-|------|-----|
-| CandidateStatus | 未開始、AI推薦、聯繫階段、面試階段、Offer、on board、婉拒、備選人才、爬蟲初篩 |
-| CandidateSource | LinkedIn、GitHub、Gmail進件、推薦、主動開發、人力銀行、爬蟲匯入、其他 |
-| JobStatus | 招募中、暫緩、已關閉、已成交 |
-| MatchGrade | P0、P1、P2、REJECT |
-| Role | ADMIN、REVIEWER |
-
----
-
-## 八、環境設定
-
-### 前端 (.env)
-```env
-VITE_API_URL=https://backendstep1ne.zeabur.app/api
-VITE_SHEET_ID=1PunpaDAFBPBL...        # Google Sheets ID
-VITE_GOOGLE_ACCOUNT=aijessie88@step1ne.com
-VITE_DRIVE_FOLDER_ID=12lfoz7qwjhWMwbCJL_...
-PERPLEXITY_API_KEY=pplx-...
-```
-
-### 後端 (server/.env)
-```env
-DATABASE_URL=postgresql://root:***@tpe1.clusters.zeabur.com:27883/zeabur
-PORT=3001
-NODE_ENV=production
+╔══════════════════════════════════════════════════════════════════════╗
+║  🚨 嚴重：資料庫密碼寫死在原始碼（27 個檔案）                       ║
+║                                                                      ║
+║  受影響檔案：                                                        ║
+║  server.js, routes-api.js, routes-openclaw.js, routes-crawler.js     ║
+║  talentSourceService.js, sqlService.js, init-db.js                   ║
+║  import-*.js (8個), check-*.js (5個), verify-db.js 等               ║
+║                                                                      ║
+║  風險：任何能存取 Git Repo 的人都能看到正式環境的 DB 帳密             ║
+║  建議：改用 process.env.DATABASE_URL，移除所有 hardcoded 值           ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  ⚠️ 中等：vite.config.ts 暴露全部環境變數到瀏覽器                    ║
+║                                                                      ║
+║  問題行：'process.env': JSON.stringify(process.env)                  ║
+║  風險：如果 .env 含敏感資訊，會被打包進前端 JS                       ║
+║  建議：只暴露 VITE_ 開頭的變數                                      ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  ⚠️ 中等：認證系統使用 localStorage 模擬                             ║
+║                                                                      ║
+║  現況：firebase.ts 用 localStorage 存登入狀態                        ║
+║  風險：任何人可直接存取系統，無實際身份驗證                           ║
+║  建議：導入 JWT 或 Firebase Auth 真實認證                            ║
+╚══════════════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
-## 九、部署流程
+## 四、環境配置狀態
 
 ```
-Git Push (main) → Zeabur 自動部署
-                    │
-                    ├── Frontend：npm run build (Vite) → 靜態檔案
-                    │
-                    └── Backend：npm install + node server.js
-                         └── 自動連接 PostgreSQL (Zeabur 託管)
+                    本地開發                    Zeabur 生產
+                 ─────────────              ─────────────
+前端啟動          npm run dev                 自動部署 ✅
+                  ├─ Port 3000               ├─ step1ne.zeabur.app
+                  ├─ 需要 .env ❌ 缺少       ├─ 環境變數已設定 ✅
+                  └─ Proxy → :3001           └─ 直連後端 API
+
+後端啟動          npm run backend             自動部署 ✅
+                  ├─ Port 3001               ├─ backendstep1ne.zeabur.app
+                  ├─ 需要 server/.env ❌     ├─ POSTGRES_URI 自動注入 ✅
+                  └─ DB 連線 (hardcoded)     └─ DB 連線 ✅
+
+資料庫            需連線遠端 DB               Zeabur 託管 PostgreSQL ✅
+                  └─ 密碼在原始碼 ⚠️         └─ 1347 候選人 / 53 職缺
 ```
 
-- **前端** 連接 `https://backendstep1ne.zeabur.app/api`
-- **後端** 監聽 Port 3001
-- **資料庫** Zeabur 託管 PostgreSQL，快取 30 分鐘
+### 本地啟動 Checklist
+
+```
+[ ] 1. 複製 .env.example → .env（前端）
+[ ] 2. 複製 server/.env.example → server/.env（後端）
+[ ] 3. 在 server/.env 加入 DATABASE_URL=postgresql://...
+[ ] 4. npm install（前端）
+[ ] 5. cd server && npm install（後端）
+[ ] 6. npm run dev（前端，Port 3000）
+[ ] 7. npm run backend（後端，Port 3001）
+```
 
 ---
 
-## 十、檔案統計
+## 五、技術棧詳情
 
-| 分類 | 數量 | 備註 |
-|------|------|------|
-| React 元件 | 15+ | CandidateModal 最大（161KB） |
-| 頁面 | 26 | 各業務模組 |
-| API 端點 | 55+ | RESTful |
-| 資料庫資料表 | 12+ | 核心 + 追蹤 |
-| 前端 Services | 8 | TypeScript |
-| 後端 Services | 10+ | JavaScript |
-| SQL 遷移腳本 | 23 | Schema 演進 |
-| Python 腳本 | 7 | AI & 爬蟲 |
-| 文件 | 30+ | 指南、規則、範例 |
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        FRONTEND                              │
+│                                                              │
+│  Framework:  React 19.0.0 + TypeScript                      │
+│  Build:      Vite 6.0.0                                     │
+│  Styling:    Tailwind CSS 3.4.17                             │
+│  Icons:      Lucide React 0.474.0                            │
+│  PDF Export: html2canvas 1.4.1 + jsPDF 2.5.1                │
+│  OCR:        tesseract.js 7.0.0                              │
+│  Excel:      xlsx (SheetJS) 0.18.5                           │
+│                                                              │
+│  Pages: 26    Components: 15+    Services: 8                 │
+│  Bundle: ~1.1MB (gzip ~325KB)   ← 需要 code-split           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                           /api
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                        BACKEND                               │
+│                                                              │
+│  Runtime:    Node.js (≥14, 建議 ≥18)                        │
+│  Framework:  Express 5.2.1                                   │
+│  Database:   PostgreSQL via pg 8.18.0                        │
+│  AI:         @google/genai 1.36.0 (Gemini)                  │
+│  PDF Parse:  pdf-parse 2.4.5 (v2 API)                       │
+│  Upload:     Multer 2.1.0                                    │
+│  HTTP:       Axios 1.7.0                                     │
+│                                                              │
+│  Routes: 55+   Services: 10+   Python Scripts: 7            │
+│  DB Tables: 12+                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 六、資料流程圖
+
+### 人選從匯入到配對的完整流程
+
+```
+  PDF 履歷             CSV/Excel              爬蟲
+  (LinkedIn/104)       (Google Sheets)        (GitHub/104)
+       │                    │                     │
+       ▼                    ▼                     ▼
+  ┌─────────┐        ┌─────────┐          ┌─────────┐
+  │ 解析 PDF │        │ 匯入資料 │          │ 爬蟲匯入 │
+  │ 自動偵測 │        │ 欄位對應 │          │ 自動評分 │
+  └────┬────┘        └────┬────┘          └────┬────┘
+       │                  │                    │
+       └──────────────────┼────────────────────┘
+                          │
+                          ▼
+                 ┌────────────────┐
+                 │  候選人卡片      │
+                 │  (40+ 欄位)     │
+                 │                 │
+                 │  基本資料        │
+                 │  工作經歷        │
+                 │  學歷背景        │
+                 │  技能標籤        │
+                 │  Phase 1 擴充   │
+                 │  Phase 3 動機   │
+                 └────────┬───────┘
+                          │
+              ┌───────────┼───────────┐
+              │           │           │
+              ▼           ▼           ▼
+        ┌──────────┐ ┌────────┐ ┌──────────┐
+        │ 顧問評估  │ │ AI 配對 │ │ 匿名履歷  │
+        │ 五維雷達圖│ │ 職缺排名│ │ PDF 輸出  │
+        │ 評語備註  │ │ P0~P2  │ │ 雷達圖    │
+        └──────────┘ └────────┘ └──────────┘
+              │           │
+              ▼           ▼
+        ┌──────────────────────┐
+        │    Pipeline 管線      │
+        │                      │
+        │  未開始 → AI推薦      │
+        │    → 聯繫 → 面試     │
+        │    → Offer → 到職    │
+        │    → 婉拒 / 備選     │
+        └──────────────────────┘
+```
+
+---
+
+## 七、資料庫 ER 圖
+
+```
+┌──────────────────────┐         ┌──────────────────────┐
+│  candidates_pipeline  │         │  jobs_pipeline        │
+├──────────────────────┤         ├──────────────────────┤
+│ PK  id               │    ┌───►│ PK  id               │
+│     name             │    │    │     title             │
+│     status           │    │    │     client_company    │
+│     current_position │    │    │     salary_range      │
+│     phone, email     │    │    │     main_skills       │
+│     location         │    │    │     job_status        │
+│     years_experience │    │    │     industry          │
+│     age              │    │    │     interview_process │
+│     skills           │    │    └──────────────────────┘
+│     education_details│    │
+│     work_history     │    │    ┌──────────────────────┐
+│     linkedin_url     │    │    │  bd_clients           │
+│     github_url       │    │    ├──────────────────────┤
+│     consultant_eval  │    │    │ PK  id               │
+│     ai_match_result  │    │    │     company_name     │
+│     industry         │    │    │     bd_status        │
+│     languages        │    │    │     contact_name     │
+│     certifications   │    │    │     contract_terms   │
+│     expected_salary  │    │    └──────────────────────┘
+│     job_search_status│    │
+│     motivation       │    │    ┌──────────────────────┐
+│ FK  target_job_id   ─┼────┘    │  leads               │
+│     consultant       │         ├──────────────────────┤
+│     progress_tracking│         │ PK  id               │
+└──────────┬───────────┘         │     case_code        │
+           │                     │     status, decision  │
+           │                     │     assigned_to       │
+           │                     │     progress_updates  │
+           │                     │     cost_records      │
+┌──────────▼───────────┐         └──────────────────────┘
+│  candidate_job_       │
+│  rankings_cache       │         ┌──────────────────────┐
+├──────────────────────┤         │  users               │
+│ PK  candidate_id     │         ├──────────────────────┤
+│     rankings (JSONB) │         │ PK  id               │
+│     computed_at      │         │     display_name     │
+└──────────────────────┘         │     role (ADMIN/     │
+                                 │          REVIEWER)   │
+┌──────────────────────┐         └──────────┬───────────┘
+│  audit_logs           │                    │
+├──────────────────────┤         ┌──────────▼───────────┐
+│ PK  id               │         │  user_contacts       │
+│     actor_name       │         ├──────────────────────┤
+│     action           │         │ PK  display_name     │
+│     before/after     │         │     phone, email     │
+│     created_at       │         │     line_id          │
+└──────────────────────┘         │     api_keys         │
+                                 └──────────────────────┘
+┌──────────────────────┐
+│  system_logs          │
+├──────────────────────┤
+│ PK  id               │
+│     action, actor    │
+│     actor_type       │
+│     detail (JSONB)   │
+└──────────────────────┘
+```
+
+---
+
+## 八、API 端點總覽
+
+| 分類 | 數量 | 端點範例 | 狀態 |
+|------|------|---------|------|
+| 候選人 CRUD | 10 | `GET/POST/PATCH/DELETE /candidates` | ✅ |
+| 職缺管理 | 6 | `GET/POST/PUT/DELETE /jobs` | ✅ |
+| 履歷解析 | 2 | `POST /resume/parse` | ✅ |
+| GitHub 整合 | 3 | `GET /github/analyze/:user` | ✅ |
+| 配對排名 | 1 | `GET /candidates/:id/job-rankings` | ✅ |
+| BD 客戶 | 8 | `GET/POST/PATCH/DELETE /clients` | ✅ |
+| Bot 自動化 | 5 | `POST /bot/run-now` | 🟡 |
+| 使用者 | 4 | `GET /users`, `POST /users/register` | ✅ |
+| 系統工具 | 4 | `GET /health`, `POST /sync/sheets-to-sql` | ✅ |
+| AI Guide | 6 | `GET /guide`, `GET /scoring-guide` | ✅ |
+| **合計** | **55+** | | |
+
+---
+
+## 九、前端頁面地圖
+
+```
+App.tsx (主路由)
+│
+├── 📊 運營儀表板          OperationsDashboardPage    ✅ 完成
+├── 📋 候選人總表          CandidatesPage             ✅ 完成
+│   └── 人選卡片 Modal     CandidateModal             ✅ 完成（161KB）
+│       ├── 基本資料編輯                               ✅
+│       ├── 匯入履歷 (拖曳)                            ✅
+│       ├── 工作經歷管理                                ✅
+│       ├── 顧問五維評分                                ✅
+│       ├── 匿名履歷產生                                ✅
+│       ├── AI 配對結果                                 ✅
+│       ├── 進度追蹤                                    ✅
+│       └── 備註紀錄                                    ✅
+├── 📊 候選人看板          CandidateKanbanPage        ✅ 完成
+├── 💼 職缺管理            JobsPage                   ✅ 完成
+├── 🤖 AI 配對推薦         AIMatchingPage             ✅ 完成
+├── 🎯 BD 客戶開發         BDClientsPage              ✅ 完成
+├── 📈 顧問人選追蹤表      PipelinePage               ✅ 完成
+├── 🕷️ 爬蟲整合儀表板      CrawlerDashboardPage       🟡 UI 完成
+├── 🤖 AI 工作進度         AIProgressPage             🟡 UI 完成
+├── 📋 操作日誌            AuditLogsPage              ✅ 完成
+├── 📖 使用說明            HelpPage                   ✅ 完成
+└── 🔐 登入頁              LoginPage                  ⚠️ localStorage
+```
+
+---
+
+## 十、Sprint 待辦優先排序
+
+### 🔥 P0 — 立即修復（安全 & 可用性）
+
+| # | 任務 | 影響 | 工時估計 |
+|---|------|------|---------|
+| 1 | 移除 27 個檔案中的 hardcoded DB 密碼 | 安全漏洞 | 2h |
+| 2 | 修正 vite.config 不暴露全部 env | 安全漏洞 | 0.5h |
+| 3 | 建立完整 .env / server/.env 範本 | 本地無法啟動 | 0.5h |
+| 4 | 驗證履歷匯入工作經歷解析 | 功能異常 | 1h |
+
+### 🟠 P1 — 短期改善（1-2 週）
+
+| # | 任務 | 影響 | 工時估計 |
+|---|------|------|---------|
+| 5 | 前端 bundle code-splitting | 效能（1.1MB→分包） | 2h |
+| 6 | 真實認證系統 (JWT/Firebase Auth) | 安全性 | 8h |
+| 7 | 基本單元測試 (核心 Services) | 品質保障 | 8h |
+| 8 | GitHub Actions CI (build + lint) | 自動化 | 3h |
+| 9 | 錯誤監控 (Sentry 整合) | 可觀測性 | 2h |
+
+### 🟡 P2 — 中期規劃（1-2 月）
+
+| # | 任務 | 影響 | 工時估計 |
+|---|------|------|---------|
+| 10 | Docker 容器化 | 部署一致性 | 4h |
+| 11 | 通知系統 (Email/Line) | 業務效率 | 16h |
+| 12 | 更多履歷格式支援 (CakeResume等) | 功能完整 | 8h |
+| 13 | API Rate Limiting | 安全性 | 2h |
+| 14 | 爬蟲引擎完整串接 | 功能完整 | 16h |
+
+### ⚪ P3 — 長期願景
+
+| # | 任務 | 說明 |
+|---|------|------|
+| 15 | Swagger/OpenAPI 文件 | API 自動化文件 |
+| 16 | 多語系 (i18n) | 英文介面 |
+| 17 | 行動裝置適配 (RWD) | 手機可用 |
+| 18 | WebSocket 即時更新 | 多人協作即時同步 |
+| 19 | AI 自動履歷評分 | 無需人工觸發 |
+
+---
+
+## 十一、檔案規模統計
+
+```
+程式碼規模：
+──────────────
+前端元件      15+ 個     最大：CandidateModal (161KB)
+頁面          26 個      最大：HelpPage (70KB)
+API 端點      55+ 個     主檔：routes-api.js (4323 行)
+後端服務      10+ 個     最大：talentSourceService (29KB)
+SQL 遷移      23 個
+Python 腳本   7 個
+文件          30+ 個
+
+資料規模：
+──────────────
+候選人        1,347 筆
+職缺          53 筆
+顧問          3 人 (Jacky, Phoebe, Crawler-WebUI)
+資料表        12+ 個
+```
+
+---
+
+## 十二、CORS & 環境對照表
+
+| 環境 | 前端 URL | 後端 URL | CORS | 狀態 |
+|------|---------|---------|------|------|
+| 本地開發 | `localhost:3000` | `localhost:3001` | Vite Proxy | ⚠️ 需 .env |
+| Zeabur 生產 | `step1ne.zeabur.app` | `backendstep1ne.zeabur.app` | 白名單 ✅ | ✅ 運作中 |
+| 其他域名 | `step1ne.com` | 同上 | 白名單 ✅ | ✅ 已設定 |
