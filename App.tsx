@@ -19,6 +19,7 @@ import { BDClientsPage } from './pages/BDClientsPage';
 import { CrawlerDashboardPage } from './pages/CrawlerDashboardPage';
 import { AIProgressPage } from './pages/AIProgressPage';
 import { OperationsDashboardPage } from './pages/OperationsDashboardPage';
+import { OverviewDashboardPage } from './pages/OverviewDashboardPage';
 import { Menu, X as XIcon } from 'lucide-react';
 import { API_BASE_URL } from './constants';
 
@@ -131,6 +132,7 @@ const App: React.FC = () => {
       // 爬蟲 & AI
       case 'crawler-dashboard': return <CrawlerDashboardPage userProfile={profile} />;
       case 'ai-progress': return <AIProgressPage userProfile={profile} />;
+      case 'overview-dashboard': return <OverviewDashboardPage userProfile={profile} />;
       case 'ops-dashboard': return <OperationsDashboardPage userProfile={profile} />;
       // 操作日誌
       case 'system-log': return <SystemLogPage userProfile={profile} />;

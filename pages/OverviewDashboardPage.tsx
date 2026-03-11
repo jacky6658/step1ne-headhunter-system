@@ -1,0 +1,441 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { UserProfile } from '../types';
+import { getApiUrl } from '../config/api';
+import {
+  Users, Briefcase, TrendingUp, RefreshCw, Phone, UserCheck,
+  Target, ChevronDown, ChevronUp, Eye, Award, AlertTriangle,
+  BarChart3, ArrowRight
+} from 'lucide-react';
+
+interface OverviewDashboardPageProps {
+  userProfile: UserProfile;
+}
+
+interface Candidate {
+  id: string;
+  name: string;
+  status: string;
+  consultant?: string;
+  position: string;
+  years: number;
+  targetJobLabel?: string | null;
+  createdAt?: string;
+  interviewRound?: number | null;
+}
+
+interface Job {
+  id: number;
+  position_name: string;
+  client_company: string;
+  job_status: string;
+}
+
+// 狀態顏色配置
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  '未開始':   { label: '未開始',   color: 'text-gray-600',   bg: 'bg-gray-100' },
+  'AI推薦':   { label: 'AI推薦',   color: 'text-blue-600',   bg: 'bg-blue-100' },
+  '聯繫階段': { label: '聯繫階段', color: 'text-amber-600',  bg: 'bg-amber-100' },
+  '面試階段': { label: '面試階段', color: 'text-purple-600', bg: 'bg-purple-100' },
+  'Offer':    { label: 'Offer',    color: 'text-emerald-600',bg: 'bg-emerald-100' },
+  'on board': { label: 'On Board', color: 'text-green-700',  bg: 'bg-green-100' },
+  '婉拒':     { label: '婉拒',     color: 'text-red-600',    bg: 'bg-red-100' },
+  '備選人才': { label: '備選人才', color: 'text-cyan-600',   bg: 'bg-cyan-100' },
+  '爬蟲初篩': { label: '爬蟲初篩', color: 'text-slate-500',  bg: 'bg-slate-100' },
+};
+
+// 活躍狀態（排除爬蟲初篩、婉拒、備選人才）
+const ACTIVE_STATUSES = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board'];
+// 進行中狀態（聯繫、面試、Offer）
+const PIPELINE_STATUSES = ['聯繫階段', '面試階段', 'Offer'];
+
+export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProps) {
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedConsultant, setExpandedConsultant] = useState<string | null>(null);
+  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'all'>('all');
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [candidatesRes, jobsRes] = await Promise.all([
+        fetch(getApiUrl('/api/candidates?limit=2000')),
+        fetch(getApiUrl('/api/jobs')),
+      ]);
+      const candidatesData = await candidatesRes.json();
+      const jobsData = await jobsRes.json();
+      setCandidates(candidatesData.data || []);
+      setJobs(jobsData.data || []);
+    } catch (e) {
+      console.error('Failed to fetch dashboard data:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  // 時間過濾
+  const filteredCandidates = useMemo(() => {
+    if (timeRange === 'all') return candidates;
+    const now = new Date();
+    const cutoff = new Date();
+    if (timeRange === 'week') cutoff.setDate(now.getDate() - 7);
+    else cutoff.setDate(now.getDate() - 30);
+    return candidates.filter(c => {
+      if (!c.createdAt) return true;
+      return new Date(c.createdAt) >= cutoff;
+    });
+  }, [candidates, timeRange]);
+
+  // ── 全局 KPI ──
+  const globalKPI = useMemo(() => {
+    const all = candidates; // KPI 用全量資料
+    const active = all.filter(c => ACTIVE_STATUSES.includes(c.status));
+    const contacted = all.filter(c => c.status === '聯繫階段').length;
+    const interviewing = all.filter(c => c.status === '面試階段').length;
+    const offer = all.filter(c => c.status === 'Offer').length;
+    const onboard = all.filter(c => c.status === 'on board').length;
+    const activeJobs = jobs.filter(j => j.job_status === '招募中' || j.job_status === '面試中').length;
+
+    return { total: all.length, active: active.length, contacted, interviewing, offer, onboard, activeJobs };
+  }, [candidates, jobs]);
+
+  // ── 各顧問統計 ──
+  const consultantStats = useMemo(() => {
+    const map: Record<string, { name: string; candidates: Candidate[]; byStatus: Record<string, number> }> = {};
+
+    filteredCandidates.forEach(c => {
+      const name = c.consultant || '未指派';
+      if (!map[name]) {
+        map[name] = { name, candidates: [], byStatus: {} };
+      }
+      map[name].candidates.push(c);
+      map[name].byStatus[c.status] = (map[name].byStatus[c.status] || 0) + 1;
+    });
+
+    // 計算健康燈號
+    return Object.values(map)
+      .map(stat => {
+        const pipeline = PIPELINE_STATUSES.reduce((sum, s) => sum + (stat.byStatus[s] || 0), 0);
+        const total = stat.candidates.length;
+        const onboard = stat.byStatus['on board'] || 0;
+        const contacted = stat.byStatus['聯繫階段'] || 0;
+        const interviewing = stat.byStatus['面試階段'] || 0;
+        const offer = stat.byStatus['Offer'] || 0;
+
+        // 健康度判斷
+        let health: 'green' | 'yellow' | 'red' = 'green';
+        if (total > 10 && pipeline === 0) health = 'red';       // 有人選但沒推進
+        else if (total > 5 && contacted === 0 && interviewing === 0) health = 'yellow'; // 卡住
+
+        return { ...stat, pipeline, total, onboard, contacted, interviewing, offer, health };
+      })
+      .sort((a, b) => {
+        // 未指派排最後
+        if (a.name === '未指派') return 1;
+        if (b.name === '未指派') return -1;
+        // 紅燈排前面
+        const healthOrder = { red: 0, yellow: 1, green: 2 };
+        if (healthOrder[a.health] !== healthOrder[b.health]) return healthOrder[a.health] - healthOrder[b.health];
+        return b.pipeline - a.pipeline;
+      });
+  }, [filteredCandidates]);
+
+  // ── 職缺維度 ──
+  const jobStats = useMemo(() => {
+    const activeJobs = jobs.filter(j => j.job_status === '招募中' || j.job_status === '面試中');
+    return activeJobs.map(job => {
+      const matched = candidates.filter(c => c.targetJobLabel?.includes(job.position_name) || c.targetJobLabel?.includes(job.client_company));
+      const byStatus: Record<string, number> = {};
+      matched.forEach(c => { byStatus[c.status] = (byStatus[c.status] || 0) + 1; });
+
+      const pipeline = PIPELINE_STATUSES.reduce((sum, s) => sum + (byStatus[s] || 0), 0);
+      let health: 'green' | 'yellow' | 'red' = 'green';
+      if (matched.length === 0) health = 'red';
+      else if (pipeline === 0) health = 'yellow';
+
+      return {
+        job,
+        total: matched.length,
+        byStatus,
+        pipeline,
+        health,
+        consultants: [...new Set(matched.map(c => c.consultant || '未指派'))],
+      };
+    }).sort((a, b) => {
+      const healthOrder = { red: 0, yellow: 1, green: 2 };
+      if (healthOrder[a.health] !== healthOrder[b.health]) return healthOrder[a.health] - healthOrder[b.health];
+      return b.pipeline - a.pipeline;
+    });
+  }, [jobs, candidates]);
+
+  const healthIcon = (h: 'green' | 'yellow' | 'red') => {
+    if (h === 'green') return <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />;
+    if (h === 'yellow') return <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />;
+    return <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block animate-pulse" />;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+
+      {/* ━━━ Header ━━━ */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <BarChart3 className="w-7 h-7 text-indigo-600" />
+            總攬看板
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">全團隊顧問進度一覽</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-slate-100 rounded-lg p-0.5">
+            {(['all', 'month', 'week'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setTimeRange(t)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  timeRange === t ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t === 'all' ? '全部' : t === 'month' ? '本月' : '本週'}
+              </button>
+            ))}
+          </div>
+          <button onClick={fetchData} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-all" title="重新整理">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* ━━━ 全局 KPI 數字卡片 ━━━ */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        {[
+          { label: '總人選', value: globalKPI.total, icon: Users, color: 'text-slate-700', bg: 'bg-slate-50' },
+          { label: '活躍人選', value: globalKPI.active, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+          { label: '聯繫中', value: globalKPI.contacted, icon: Phone, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: '面試中', value: globalKPI.interviewing, icon: UserCheck, color: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: 'Offer', value: globalKPI.offer, icon: Award, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'On Board', value: globalKPI.onboard, icon: Target, color: 'text-green-700', bg: 'bg-green-50' },
+          { label: '活躍職缺', value: globalKPI.activeJobs, icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-50' },
+        ].map((kpi, i) => (
+          <div key={i} className={`${kpi.bg} rounded-xl p-4 border border-slate-100`}>
+            <div className="flex items-center gap-2 mb-2">
+              <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
+              <span className="text-xs text-slate-500 font-medium">{kpi.label}</span>
+            </div>
+            <div className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ━━━ 各顧問進度對比 ━━━ */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+            <Users className="w-5 h-5 text-indigo-500" />
+            各顧問進度
+          </h2>
+          <span className="text-xs text-slate-400">{consultantStats.length} 位顧問</span>
+        </div>
+
+        {/* 表頭 */}
+        <div className="hidden sm:grid grid-cols-[40px_1fr_80px_80px_80px_80px_80px_80px] gap-2 px-5 py-2 bg-slate-50 text-xs font-semibold text-slate-500 border-b border-slate-100">
+          <div></div>
+          <div>顧問</div>
+          <div className="text-center">負責人選</div>
+          <div className="text-center">聯繫中</div>
+          <div className="text-center">面試中</div>
+          <div className="text-center">Offer</div>
+          <div className="text-center">On Board</div>
+          <div className="text-center">Pipeline</div>
+        </div>
+
+        {/* 各顧問行 */}
+        {consultantStats.map(stat => (
+          <div key={stat.name}>
+            <button
+              onClick={() => setExpandedConsultant(expandedConsultant === stat.name ? null : stat.name)}
+              className="w-full grid grid-cols-[40px_1fr_80px_80px_80px_80px_80px_80px] gap-2 px-5 py-3 hover:bg-slate-50 transition-all items-center text-sm border-b border-slate-50"
+            >
+              <div className="flex items-center justify-center">{healthIcon(stat.health)}</div>
+              <div className="text-left font-medium text-slate-800 flex items-center gap-2">
+                {stat.name}
+                {expandedConsultant === stat.name ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+              </div>
+              <div className="text-center font-semibold text-slate-700">{stat.total}</div>
+              <div className="text-center">
+                <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${stat.contacted > 0 ? 'bg-amber-100 text-amber-700' : 'text-slate-300'}`}>
+                  {stat.contacted}
+                </span>
+              </div>
+              <div className="text-center">
+                <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${stat.interviewing > 0 ? 'bg-purple-100 text-purple-700' : 'text-slate-300'}`}>
+                  {stat.interviewing}
+                </span>
+              </div>
+              <div className="text-center">
+                <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${stat.offer > 0 ? 'bg-emerald-100 text-emerald-700' : 'text-slate-300'}`}>
+                  {stat.offer}
+                </span>
+              </div>
+              <div className="text-center">
+                <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${stat.onboard > 0 ? 'bg-green-100 text-green-700' : 'text-slate-300'}`}>
+                  {stat.onboard}
+                </span>
+              </div>
+              <div className="text-center">
+                <span className={`inline-block min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold ${
+                  stat.pipeline > 5 ? 'bg-indigo-100 text-indigo-700' : stat.pipeline > 0 ? 'bg-slate-100 text-slate-600' : 'text-slate-300'
+                }`}>
+                  {stat.pipeline}
+                </span>
+              </div>
+            </button>
+
+            {/* 展開：該顧問各狀態人選明細 */}
+            {expandedConsultant === stat.name && (
+              <div className="bg-slate-50 px-5 py-3 border-b border-slate-100">
+                {/* 狀態分布 bar */}
+                <div className="flex gap-1.5 mb-3 flex-wrap">
+                  {Object.entries(stat.byStatus)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([status, count]) => {
+                      const cfg = STATUS_CONFIG[status] || { label: status, color: 'text-slate-600', bg: 'bg-slate-100' };
+                      return (
+                        <span key={status} className={`${cfg.bg} ${cfg.color} px-2.5 py-1 rounded-full text-xs font-semibold`}>
+                          {cfg.label} {count}
+                        </span>
+                      );
+                    })}
+                </div>
+                {/* Pipeline 人選列表 */}
+                {stat.candidates.filter(c => PIPELINE_STATUSES.includes(c.status)).length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 mb-2">進行中人選：</p>
+                    <div className="space-y-1">
+                      {stat.candidates
+                        .filter(c => PIPELINE_STATUSES.includes(c.status))
+                        .map(c => {
+                          const cfg = STATUS_CONFIG[c.status] || { label: c.status, color: 'text-slate-600', bg: 'bg-slate-100' };
+                          return (
+                            <div key={c.id} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 text-sm border border-slate-100">
+                              <span className={`${cfg.bg} ${cfg.color} px-2 py-0.5 rounded text-xs font-semibold shrink-0`}>{cfg.label}</span>
+                              <span className="font-medium text-slate-800">{c.name}</span>
+                              <span className="text-slate-400 text-xs truncate">{c.position}</span>
+                              {c.targetJobLabel && (
+                                <span className="text-xs text-indigo-500 ml-auto flex items-center gap-1 shrink-0">
+                                  <ArrowRight className="w-3 h-3" /> {c.targetJobLabel}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+                {stat.candidates.filter(c => PIPELINE_STATUSES.includes(c.status)).length === 0 && (
+                  <p className="text-xs text-slate-400 italic">目前沒有進行中的人選</p>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {consultantStats.length === 0 && (
+          <div className="px-5 py-8 text-center text-sm text-slate-400">暫無資料</div>
+        )}
+      </div>
+
+      {/* ━━━ 職缺維度進度 ━━━ */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+            <Briefcase className="w-5 h-5 text-blue-500" />
+            活躍職缺進度
+          </h2>
+          <span className="text-xs text-slate-400">{jobStats.length} 個職缺</span>
+        </div>
+
+        {/* 表頭 */}
+        <div className="hidden sm:grid grid-cols-[40px_1.5fr_1fr_80px_80px_80px_80px_1fr] gap-2 px-5 py-2 bg-slate-50 text-xs font-semibold text-slate-500 border-b border-slate-100">
+          <div></div>
+          <div>職缺</div>
+          <div>公司</div>
+          <div className="text-center">推薦人選</div>
+          <div className="text-center">面試中</div>
+          <div className="text-center">Offer</div>
+          <div className="text-center">On Board</div>
+          <div>負責顧問</div>
+        </div>
+
+        {jobStats.map(js => (
+          <div
+            key={js.job.id}
+            className="grid grid-cols-[40px_1.5fr_1fr_80px_80px_80px_80px_1fr] gap-2 px-5 py-3 hover:bg-slate-50 transition-all items-center text-sm border-b border-slate-50"
+          >
+            <div className="flex items-center justify-center">{healthIcon(js.health)}</div>
+            <div className="font-medium text-slate-800 truncate">{js.job.position_name}</div>
+            <div className="text-slate-500 text-xs truncate">{js.job.client_company}</div>
+            <div className="text-center font-semibold text-slate-700">{js.total}</div>
+            <div className="text-center">
+              <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${
+                (js.byStatus['面試階段'] || 0) > 0 ? 'bg-purple-100 text-purple-700' : 'text-slate-300'
+              }`}>
+                {js.byStatus['面試階段'] || 0}
+              </span>
+            </div>
+            <div className="text-center">
+              <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${
+                (js.byStatus['Offer'] || 0) > 0 ? 'bg-emerald-100 text-emerald-700' : 'text-slate-300'
+              }`}>
+                {js.byStatus['Offer'] || 0}
+              </span>
+            </div>
+            <div className="text-center">
+              <span className={`inline-block min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold ${
+                (js.byStatus['on board'] || 0) > 0 ? 'bg-green-100 text-green-700' : 'text-slate-300'
+              }`}>
+                {js.byStatus['on board'] || 0}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {js.consultants.map(c => (
+                <span key={c} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{c}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {jobStats.length === 0 && (
+          <div className="px-5 py-8 text-center text-sm text-slate-400">目前沒有活躍職缺</div>
+        )}
+      </div>
+
+      {/* ━━━ 注意事項 ━━━ */}
+      {consultantStats.filter(s => s.health === 'red').length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <h3 className="text-sm font-bold text-red-700 flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4" />
+            需要關注
+          </h3>
+          <ul className="space-y-1">
+            {consultantStats.filter(s => s.health === 'red').map(s => (
+              <li key={s.name} className="text-sm text-red-600">
+                <span className="font-semibold">{s.name}</span>：負責 {s.total} 位人選，但進行中（聯繫/面試/Offer）為 0，需確認是否有推進
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

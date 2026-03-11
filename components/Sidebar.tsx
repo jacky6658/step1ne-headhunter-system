@@ -22,8 +22,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
   const isAdmin = profile.role === Role.ADMIN;
 
   const menuItems = [
+    // 總攬看板
+    { id: 'overview-dashboard', label: '📊 總攬看板', icon: BarChart3, roles: [Role.ADMIN], disabled: false },
     // 運營總覽
-    { id: 'ops-dashboard', label: '📊 運營儀表板', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    { id: 'ops-dashboard', label: '📈 運營儀表板', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 核心功能
     { id: 'candidates', label: '📋 候選人總表', icon: Users, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
 
