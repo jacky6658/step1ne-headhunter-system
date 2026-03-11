@@ -248,6 +248,21 @@ pool.query(`
   }
 }).catch(err => console.warn('legacy status migration:', err.message));
 
+// 顧問名稱清理：合併爬蟲帳號 → 待指派，Jacky Chen → Jacky
+pool.query(`
+  UPDATE candidates_pipeline SET recruiter = '待指派', updated_at = NOW()
+  WHERE LOWER(recruiter) IN ('crawler', 'crawler-webui', 'crawler-autopush', 'd級人才庫重整')
+`).then(r => {
+  if (r.rowCount > 0) console.log(`✅ 顧問名稱清理：${r.rowCount} 位爬蟲帳號已改為「待指派」`);
+}).catch(err => console.warn('consultant cleanup (bots):', err.message));
+
+pool.query(`
+  UPDATE candidates_pipeline SET recruiter = 'Jacky', updated_at = NOW()
+  WHERE recruiter = 'Jacky Chen'
+`).then(r => {
+  if (r.rowCount > 0) console.log(`✅ 顧問名稱合併：${r.rowCount} 位「Jacky Chen」已合併為「Jacky」`);
+}).catch(err => console.warn('consultant cleanup (alias):', err.message));
+
 // 寫入 system_logs 輔助函數
 async function writeLog({ action, actor, candidateId, candidateName, detail }) {
   // 判斷 AIBOT：包含 "aibot" 或以 "bot" 結尾（如 Jackeybot、Phoebebot）
