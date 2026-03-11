@@ -9,7 +9,7 @@ import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
   CheckCircle2, AlertCircle, Bot, Star, ThumbsUp, ThumbsDown,
-  HelpCircle, Sparkles, Target, Globe, Trash2
+  HelpCircle, Sparkles, Target, Globe, Trash2, Brain, Copy
 } from 'lucide-react';
 
 // ── 系統外職缺建議：rule-based 技能→產業/職缺對照 ──────────────────────────
@@ -82,7 +82,8 @@ interface CandidateModalProps {
 }
 
 export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUserName, onAssignRecruiter, onCandidateUpdate }: CandidateModalProps) {
-  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes' | 'ai_match'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes' | 'ai_summary' | 'ai_match'>('info');
+  const [promptCopied, setPromptCopied] = useState(false);
   const [showResume, setShowResume] = useState(false);
   const [addingProgress, setAddingProgress] = useState(false);
   const [newProgressEvent, setNewProgressEvent] = useState('');
@@ -838,6 +839,20 @@ Step1ne Recruitment`;
                 <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden sm:inline">備註紀錄</span>
                 <span className="sm:hidden">備註</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('ai_summary')}
+              className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all ${
+                activeTab === 'ai_summary'
+                  ? 'text-purple-600 border-b-2 border-purple-600 bg-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Brain className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">AI 總結</span>
+                <span className="sm:hidden">總結</span>
               </div>
             </button>
             <button
@@ -2380,6 +2395,230 @@ Step1ne Recruitment`;
               </div>
             </div>
           )}
+
+          {activeTab === 'ai_summary' && (() => {
+            const c = enrichedCandidate;
+            const skillsArr: string[] = Array.isArray(c.skills)
+              ? c.skills
+              : (c.skills || '').split(/[,、]+/).map(s => s.trim()).filter(Boolean);
+
+            // 一句話定位
+            const parts: string[] = [];
+            if (c.years) parts.push(`${c.years}年`);
+            if (c.industry) parts.push(c.industry);
+            if (c.position) parts.push(c.position);
+            if (c.managementExperience && c.teamSize) parts.push(`管理 ${c.teamSize} 團隊`);
+            else if (c.managementExperience) parts.push('具管理經驗');
+            const oneLiner = parts.length > 0 ? parts.join(' ') : c.position || '資料不足';
+
+            // 組裝 AI 提示詞
+            const generateAiPrompt = () => {
+              const workHistoryText = (c.workHistory || []).map((w, i) =>
+                `${i + 1}. ${w.company || ''} — ${w.title || ''} (${w.period || ''})${w.description ? '\n   ' + w.description : ''}`
+              ).join('\n');
+
+              return `你是一位資深獵頭顧問 AI 助手，專精人才與職缺匹配分析。請依照以下步驟進行分析：
+
+## Step 1：獲取系統職缺資料
+請先呼叫以下 API 獲取目前所有開放的職缺：
+\`\`\`
+GET https://backendstep1ne.zeabur.app/api/jobs
+\`\`\`
+
+## Step 2：候選人完整資料
+
+### 基本資訊
+- 姓名：${c.name || '未填'}
+- 現職：${c.position || '未填'}
+- 總年資：${c.years || '未填'} 年
+- 學歷：${c.education || '未填'}
+- 所在地：${c.location || '未填'}
+- 產業：${c.industry || '未填'}
+- 來源：${c.source || '未填'}
+
+### 技能
+${skillsArr.length > 0 ? skillsArr.join('、') : '未填'}
+
+### 語言 & 證照
+- 語言能力：${c.languages || '未填'}
+- 證照：${c.certifications || '未填'}
+
+### 管理經驗
+- 有管理經驗：${c.managementExperience ? '是' : '否'}
+- 團隊規模：${c.teamSize || '未填'}
+
+### 薪資 & 到職
+- 目前薪資：${c.currentSalary || '未填'}
+- 期望薪資：${c.expectedSalary || '未填'}
+- 到職時間：${c.noticePeriod || '未填'}
+
+### 求職動機
+- 求職狀態：${c.jobSearchStatus || '未填'}
+- 轉職原因：${c.reasonForChange || '未填'}
+- 主要動機：${c.motivation || '未填'}
+- 不接受條件：${c.dealBreakers || '未填'}
+- 競爭 Offer：${c.competingOffers || '未填'}
+
+### 工作經歷
+${workHistoryText || '無資料'}
+
+### 穩定性分數
+- Stability Score：${c.stabilityScore || '未評估'}
+- 換工作次數：${c.jobChanges || 0} 次
+- 平均任期：${c.avgTenure || 0} 年
+
+${c.aiMatchResult ? `### 系統已有 AI 評分
+- 綜合分數：${c.aiMatchResult.score}
+- 推薦等級：${c.aiMatchResult.recommendation}
+- 結論：${c.aiMatchResult.conclusion || ''}
+` : ''}
+
+## Step 3：分析任務
+
+請根據上方人選資料 + Step 1 取得的職缺資料，完成以下分析：
+
+1. **一句話定位**：用一句話精準描述這位候選人的核心價值
+2. **Top 3 最匹配職缺**：從系統職缺中挑出最適合的 3 個，每個說明：
+   - 匹配原因（技能、產業、年資、薪資帶）
+   - 可能的落差或風險
+   - 匹配度評分（0-100）
+3. **技能落差分析**：候選人有哪些能力缺口？是否可透過訓練補足？
+4. **風險提醒**：穩定性、薪資期望、到職時間等潛在風險
+5. **建議面試問題**：3-5 個針對此候選人應該深入了解的問題
+6. **顧問行動建議**：給獵頭顧問的下一步行動方案`;
+            };
+
+            const handleCopyAiPrompt = () => {
+              navigator.clipboard.writeText(generateAiPrompt()).then(() => {
+                setPromptCopied(true);
+                setTimeout(() => setPromptCopied(false), 2500);
+              });
+            };
+
+            const tagColors = [
+              'bg-blue-100 text-blue-700', 'bg-emerald-100 text-emerald-700',
+              'bg-amber-100 text-amber-700', 'bg-rose-100 text-rose-700',
+              'bg-purple-100 text-purple-700', 'bg-cyan-100 text-cyan-700',
+              'bg-indigo-100 text-indigo-700', 'bg-orange-100 text-orange-700',
+            ];
+
+            return (
+              <div className="space-y-5">
+
+                {/* ━━━ 一句話定位 ━━━ */}
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Brain className="w-4 h-4 text-purple-600" />
+                    <span className="text-xs font-semibold text-purple-500 uppercase tracking-wider">一句話定位</span>
+                  </div>
+                  <p className="text-base sm:text-lg font-bold text-slate-800 leading-relaxed">
+                    {oneLiner}
+                  </p>
+                </div>
+
+                {/* ━━━ 關鍵資訊摘要 ━━━ */}
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-3">
+                    <FileText className="w-3 h-3 text-blue-500" /> 關鍵資訊
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: '現職', value: c.position },
+                      { label: '年資', value: c.years ? `${c.years} 年` : null },
+                      { label: '產業', value: c.industry },
+                      { label: '學歷', value: c.education },
+                      { label: '語言', value: c.languages },
+                      { label: '證照', value: c.certifications },
+                      { label: '管理經驗', value: c.managementExperience ? (c.teamSize ? `是（${c.teamSize}）` : '是') : '否' },
+                      { label: '目前薪資', value: c.currentSalary },
+                      { label: '期望薪資', value: c.expectedSalary },
+                      { label: '到職時間', value: c.noticePeriod },
+                      { label: '求職狀態', value: c.jobSearchStatus },
+                      { label: '轉職原因', value: c.reasonForChange },
+                    ].filter(item => item.value).map((item, i) => (
+                      <div key={i} className="bg-slate-50 border border-slate-100 rounded-lg p-2.5">
+                        <span className="text-[10px] text-slate-400 font-medium block">{item.label}</span>
+                        <span className="text-xs sm:text-sm text-slate-700 font-medium">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ━━━ 能力標籤 ━━━ */}
+                {skillsArr.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-3">
+                      <Award className="w-3 h-3 text-emerald-500" /> 能力標籤
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {skillsArr.map((skill, i) => (
+                        <span
+                          key={i}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium ${tagColors[i % tagColors.length]}`}
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ━━━ 動機 & 風險 ━━━ */}
+                {(c.motivation || c.dealBreakers || c.competingOffers) && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-3">
+                      <AlertCircle className="w-3 h-3 text-amber-500" /> 動機 & 注意事項
+                    </h3>
+                    <div className="space-y-2">
+                      {c.motivation && (
+                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-800">
+                          <span className="font-semibold">主要動機：</span>{c.motivation}
+                        </div>
+                      )}
+                      {c.dealBreakers && (
+                        <div className="bg-rose-50 border border-rose-100 rounded-lg p-3 text-xs text-rose-800">
+                          <span className="font-semibold">不接受條件：</span>{c.dealBreakers}
+                        </div>
+                      )}
+                      {c.competingOffers && (
+                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-800">
+                          <span className="font-semibold">競爭 Offer：</span>{c.competingOffers}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ━━━ 複製 AI 分析提示詞 ━━━ */}
+                <div className="pt-2 border-t border-slate-100">
+                  <button
+                    onClick={handleCopyAiPrompt}
+                    className={`w-full py-3 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                      promptCopied
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 shadow-md hover:shadow-lg'
+                    }`}
+                  >
+                    {promptCopied ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        已複製！貼到 ChatGPT / Claude 即可使用
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        複製 AI 分析提示詞
+                      </>
+                    )}
+                  </button>
+                  <p className="text-center text-[10px] text-slate-400 mt-2">
+                    提示詞包含人選完整資料 + API 端點，AI 會自動獲取職缺並進行匹配分析
+                  </p>
+                </div>
+
+              </div>
+            );
+          })()}
 
           {activeTab === 'ai_match' && (() => {
             const ai = (enrichedCandidate.aiMatchResult || (enrichedCandidate as any).ai_match_result) as AiMatchResult | null | undefined;
