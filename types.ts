@@ -409,6 +409,7 @@ export interface Candidate {
   targetJobLabel?: string | null;       // 目標職缺顯示名稱（JOIN 計算：職缺名 (公司)）
   // ── Phase 1 新增欄位 ──
   age?: number | null;                    // 年齡
+  ageEstimated?: boolean;                  // true = 系統從學歷推估，UI 顯示 ~
   industry?: string;                      // 所屬產業
   languages?: string;                     // 語言能力（如：中文、英文流利、日文基礎）
   certifications?: string;                // 證照（如：PMP、AWS SAA）

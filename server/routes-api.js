@@ -406,6 +406,9 @@ router.get('/candidates', async (req, res) => {
         c.stability_score, c.education_details, c.personality_type,
         c.status, c.recruiter, c.notes, c.talent_level, c.progress_tracking,
         c.created_at, c.updated_at, c.ai_match_result, c.target_job_id, c.interview_round,
+        c.age, c.industry, c.languages, c.certifications,
+        c.current_salary, c.expected_salary, c.notice_period,
+        c.management_experience, c.team_size, c.consultant_evaluation,
         j.position_name AS target_job_label, j.client_company AS target_job_company
       FROM candidates_pipeline c
       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
@@ -422,7 +425,7 @@ router.get('/candidates', async (req, res) => {
       phone: row.phone || '',
       location: row.location || '', // 數據庫沒有，使用空值
       position: row.current_position || '',
-      years: (() => { const v = parseInt(row.years_experience); return (!isNaN(v) && v >= 0 && v <= 60) ? v : 0; })(),
+      years: (() => { const v = parseInt(row.years_experience); if (!isNaN(v) && v > 0 && v <= 60) return v; const c = computeYearsFromWorkHistory(row.work_history); return (c && c > 0) ? c : 0; })(),
       jobChanges: (() => { const v = parseInt(row.job_changes); return (!isNaN(v) && v >= 0 && v <= 30) ? v : 0; })(),
       avgTenure: (() => { const v = parseInt(row.avg_tenure_months); return (!isNaN(v) && v >= 0 && v <= 600) ? v : 0; })(),
       lastGap: (() => { const v = parseInt(row.recent_gap_months); return (!isNaN(v) && v >= 0 && v <= 600) ? v : 0; })(),
@@ -490,7 +493,8 @@ router.get('/candidates', async (req, res) => {
         : null,
       interviewRound: row.interview_round || null,
       // Phase 1 新增欄位
-      age: row.age != null ? parseInt(row.age) : null,
+      age: row.age != null ? parseInt(row.age) : estimateAgeFromEducation(row.education_details),
+      ageEstimated: row.age == null, // true = 系統推估，false = 確定值
       industry: row.industry || '',
       languages: row.languages || '',
       certifications: row.certifications || '',
@@ -555,7 +559,7 @@ router.get('/candidates/:id', async (req, res) => {
       phone: row.phone || '',
       location: row.location || '',
       position: row.current_position || '',
-      years: parseInt(row.years_experience) || 0,
+      years: (() => { const v = parseInt(row.years_experience); if (!isNaN(v) && v > 0 && v <= 60) return v; const c = computeYearsFromWorkHistory(row.work_history); return (c && c > 0) ? c : 0; })(),
       jobChanges: parseInt(row.job_changes) || 0,
       avgTenure: parseInt(row.avg_tenure_months) || 0,
       lastGap: parseInt(row.recent_gap_months) || 0,
@@ -573,6 +577,8 @@ router.get('/candidates/:id', async (req, res) => {
       targetJobLabel: row.target_job_label
         ? `${row.target_job_label}${row.target_job_company ? ` (${row.target_job_company})` : ''}`
         : null,
+      age: row.age != null ? parseInt(row.age) : estimateAgeFromEducation(row.education_details),
+      ageEstimated: row.age == null,
       // JSONB / 詳細欄位
       workHistory: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       quitReasons: row.leaving_reason || '',
@@ -4120,6 +4126,129 @@ router.post('/candidates/enrich-batch', async (req, res) => {
     message: `批量分析完成：成功 ${results.success.length} 筆，失敗 ${results.failed.length} 筆`,
     ...results,
   });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// 年資 / 年齡 自動計算 & 批次回填
+// ═══════════════════════════════════════════════════════════════
+
+/** 從 work_history 計算總年資（取最早 startDate 到今天） */
+function computeYearsFromWorkHistory(wh) {
+  const entries = parseWorkHistory(wh);
+  if (entries.length === 0) return null;
+
+  let earliest = null;
+  for (const entry of entries) {
+    const sd = entry.startDate || entry.start_date || '';
+    // 支援 "2015-09", "2015/09", "2015" 等格式
+    const match = sd.match(/(\d{4})[-/]?(\d{1,2})?/);
+    if (match) {
+      const year = parseInt(match[1]);
+      const month = match[2] ? parseInt(match[2]) - 1 : 0;
+      const d = new Date(year, month, 1);
+      if (!earliest || d < earliest) earliest = d;
+    }
+  }
+
+  if (!earliest) return null;
+  const now = new Date();
+  const years = (now - earliest) / (365.25 * 24 * 60 * 60 * 1000);
+  return Math.round(years);
+}
+
+/** 從 education_details 畢業年推估年齡 */
+function estimateAgeFromEducation(ed) {
+  let details = ed;
+  if (!details) return null;
+  if (typeof details === 'string') { try { details = JSON.parse(details); } catch { return null; } }
+  if (!Array.isArray(details)) return null;
+
+  // 找最早畢業年份（通常是最高學歷或第一個學歷）
+  let gradYear = null;
+  let degree = null;
+  for (const entry of details) {
+    const yr = parseInt(entry.year);
+    if (yr && yr >= 1960 && yr <= new Date().getFullYear()) {
+      if (!gradYear || yr > gradYear) { // 取最近畢業年
+        gradYear = yr;
+        degree = (entry.degree || '').toLowerCase();
+      }
+    }
+  }
+
+  if (!gradYear) return null;
+
+  // 依學歷推估畢業年齡
+  let gradAge = 22; // 學士預設
+  if (degree.includes('碩') || degree.includes('master') || degree.includes('mba')) gradAge = 24;
+  else if (degree.includes('博') || degree.includes('phd') || degree.includes('doctor')) gradAge = 28;
+  else if (degree.includes('專') || degree.includes('associate')) gradAge = 20;
+
+  const birthYear = gradYear - gradAge;
+  const currentYear = new Date().getFullYear();
+  return currentYear - birthYear;
+}
+
+/** POST /api/candidates/backfill-computed — 批次回填年資+推估年齡 */
+router.post('/candidates/backfill-computed', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, work_history, education_details, years_experience, age
+       FROM candidates_pipeline`
+    );
+
+    let updatedYears = 0;
+    let updatedAge = 0;
+    let skipped = 0;
+
+    for (const row of rows) {
+      const sets = [];
+      const vals = [];
+      let idx = 1;
+
+      // 年資：只在 years_experience 為 0 或空時回填
+      const currentYears = parseInt(row.years_experience) || 0;
+      if (currentYears === 0) {
+        const computed = computeYearsFromWorkHistory(row.work_history);
+        if (computed && computed > 0) {
+          sets.push(`years_experience = $${idx++}`);
+          vals.push(String(computed));
+          updatedYears++;
+        }
+      }
+
+      // 年齡：只在 age 為 null 時回填
+      if (row.age == null) {
+        const estimated = estimateAgeFromEducation(row.education_details);
+        if (estimated && estimated >= 18 && estimated <= 70) {
+          sets.push(`age = $${idx++}`);
+          vals.push(estimated);
+          updatedAge++;
+        }
+      }
+
+      if (sets.length > 0) {
+        vals.push(row.id);
+        await pool.query(
+          `UPDATE candidates_pipeline SET ${sets.join(', ')} WHERE id = $${idx}`,
+          vals
+        );
+      } else {
+        skipped++;
+      }
+    }
+
+    res.json({
+      success: true,
+      total: rows.length,
+      updatedYears,
+      updatedAge,
+      skipped,
+    });
+  } catch (err) {
+    console.error('backfill-computed error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

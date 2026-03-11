@@ -729,6 +729,12 @@ Step1ne Recruitment`;
                   <Briefcase className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                   <span>{candidate.years > 0 ? `${candidate.years} 年經驗` : '年資未知'}</span>
                 </div>
+                {candidate.age != null && candidate.age > 0 && (
+                  <div className="flex items-center gap-0.5 sm:gap-1.5 whitespace-nowrap">
+                    <Calendar className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                    <span>{candidate.ageEstimated ? '~' : ''}{candidate.age} 歲</span>
+                  </div>
+                )}
                 <div className={`flex items-center gap-0.5 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 rounded whitespace-nowrap ${currentStatus.bgColor} ${currentStatus.textColor}`}>
                   {currentStatus.label}
                 </div>
@@ -1082,11 +1088,16 @@ Step1ne Recruitment`;
                     {/* Phase 1 新增欄位顯示 */}
                     {(editAge || editIndustry || editLanguages || editCertifications || editCurrentSalary || editExpectedSalary || editNoticePeriod || editManagement || editTeamSize) && (
                       <>
-                        {editAge && (
+                        {(candidate.age || editAge) && (
                           <div className="flex items-center gap-2">
                             <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                             <span className="text-xs text-gray-500">年齡</span>
-                            <span className="text-sm font-medium text-gray-800">{editAge} 歲</span>
+                            <span className="text-sm font-medium text-gray-800">
+                              {candidate.ageEstimated ? '~' : ''}{editAge || candidate.age} 歲
+                            </span>
+                            {candidate.ageEstimated && (
+                              <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">推估</span>
+                            )}
                           </div>
                         )}
                         {editIndustry && (
