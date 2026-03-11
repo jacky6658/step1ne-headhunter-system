@@ -284,6 +284,13 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   if (expectedSalary) dealTerms.push(`期望薪資：${expectedSalary}`);
   if (noticePeriod) dealTerms.push(`到職時間：${noticePeriod}`);
   if (hasManagement) dealTerms.push(`管理經驗：是${teamSize ? `（${teamSize}）` : ''}`);
+  // Phase 3 動機與交易條件
+  if (candidate.jobSearchStatus) dealTerms.push(`求職狀態：${candidate.jobSearchStatus}`);
+  if (candidate.motivation) dealTerms.push(`主要動機：${candidate.motivation}`);
+  if (candidate.reasonForChange) dealTerms.push(`轉職原因：${candidate.reasonForChange}`);
+  if (candidate.dealBreakers) dealTerms.push(`不適配條件：${candidate.dealBreakers}`);
+  if (candidate.competingOffers) dealTerms.push(`競爭 Offer：${candidate.competingOffers}`);
+  if (candidate.relationshipLevel) dealTerms.push(`顧問關係：${candidate.relationshipLevel}`);
 
   return `<!DOCTYPE html>
 <html lang="zh-TW">
