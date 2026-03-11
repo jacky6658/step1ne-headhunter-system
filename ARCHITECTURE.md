@@ -1,6 +1,6 @@
 # Step1ne 獵頭 AI 協作系統 — 系統架構 & 敏捷看板
 
-> 最後更新：2026-03-11
+> 最後更新：2026-03-11（已清理：移除 Bot 排程、Leads 案件管理、Python 腳本）
 
 ---
 
@@ -78,10 +78,9 @@
 │ ✅ AI 配對推薦            │ 加權評分 + P0/P1/P2     │ AIMatchingPage │
 │ ✅ 看板視圖               │ Kanban 拖拉狀態         │ KanbanBoard    │
 │ ✅ BD 客戶管理            │ 公司+聯繫人+合約        │ BDClientsPage  │
-│ ✅ 案件管理 (Leads)       │ 進度追蹤+成本+利潤      │ LeadsPage      │
 │ ✅ GitHub 分析            │ Profile+Repo+語言統計   │ githubAnalysis │
 │ ✅ Google Sheets 同步     │ 雙向同步               │ sheetsService  │
-│ ✅ 操作日誌               │ 完整稽核軌跡            │ AuditLogsPage  │
+│ ✅ 操作日誌               │ 系統操作追蹤            │ SystemLogPage  │
 │ ✅ 年齡/年資自動計算       │ 從學歷推估+批次回填     │ routes-api.js  │
 │ ✅ 使用者權限              │ ADMIN / REVIEWER        │ App.tsx        │
 │ ✅ 運營儀表板              │ KPI 統計               │ OperationsDash │
@@ -97,8 +96,7 @@
 │ 模組                     │ 現況             │ 缺什麼              │
 ├────────────────────────────────────────────────────────────────────┤
 │ 🟡 履歷解析穩定性         │ v2 API 已修      │ 工作經歷解析待驗證   │
-│ 🟡 爬蟲系統               │ UI+路由已建      │ Python 腳本未整合    │
-│ ❌ AI Bot 排程            │ 已移除           │ 排程引擎未串接，先移除│
+│ 🟡 爬蟲系統               │ UI+路由已建      │ 獨立 Crawler 專案   │
 │ 🟡 Perplexity AI 擴充     │ Service 已寫     │ API Key 管理不完整  │
 │ 🟡 104/1111 職缺爬取       │ URL 欄位已加     │ 自動同步未實作      │
 └────────────────────────────────────────────────────────────────────┘
@@ -113,7 +111,7 @@
 │ 🔴 自動化測試             │ 高 ‼️    │ 完全沒有單元/整合測試       │
 │ 🔴 安全性：密碼外洩       │ 高 ‼️    │ DB 密碼硬寫在 27 個檔案    │
 │ 🔴 安全性：環境變數       │ 高 ‼️    │ vite.config 暴露全部 env   │
-│ 🔴 本地開發 .env          │ 高       │ 缺 .env 檔案無法本地啟動   │
+│ ✅ 本地開發 .env          │ 已建立   │ .env + server/.env 已建立  │
 │ 🔴 錯誤監控 (Sentry等)    │ 中       │ 生產環境無錯誤追蹤         │
 │ 🔴 Docker 容器化          │ 中       │ 無 Dockerfile              │
 │ 🔴 CI/CD Pipeline         │ 中       │ 無 GitHub Actions          │
@@ -166,28 +164,28 @@
                  ─────────────              ─────────────
 前端啟動          npm run dev                 自動部署 ✅
                   ├─ Port 3000               ├─ step1ne.zeabur.app
-                  ├─ 需要 .env ❌ 缺少       ├─ 環境變數已設定 ✅
+                  ├─ .env ✅ 已建立          ├─ 環境變數已設定 ✅
                   └─ Proxy → :3001           └─ 直連後端 API
 
 後端啟動          npm run backend             自動部署 ✅
                   ├─ Port 3001               ├─ backendstep1ne.zeabur.app
-                  ├─ 需要 server/.env ❌     ├─ POSTGRES_URI 自動注入 ✅
-                  └─ DB 連線 (hardcoded)     └─ DB 連線 ✅
+                  ├─ server/.env ✅ 已建立   ├─ POSTGRES_URI 自動注入 ✅
+                  └─ DB 連線 (env)           └─ DB 連線 ✅
 
-資料庫            需連線遠端 DB               Zeabur 託管 PostgreSQL ✅
-                  └─ 密碼在原始碼 ⚠️         └─ 1347 候選人 / 53 職缺
+資料庫            連線遠端 DB ✅              Zeabur 託管 PostgreSQL ✅
+                  └─ 密碼在 .env + 原始碼 ⚠️ └─ 1347 候選人 / 53 職缺
 ```
 
 ### 本地啟動 Checklist
 
 ```
-[ ] 1. 複製 .env.example → .env（前端）
-[ ] 2. 複製 server/.env.example → server/.env（後端）
-[ ] 3. 在 server/.env 加入 DATABASE_URL=postgresql://...
-[ ] 4. npm install（前端）
-[ ] 5. cd server && npm install（後端）
-[ ] 6. npm run dev（前端，Port 3000）
-[ ] 7. npm run backend（後端，Port 3001）
+[x] 1. .env 已建立（前端，連線 Zeabur 後端）
+[x] 2. server/.env 已建立（後端，含 DATABASE_URL）
+[ ] 3. npm install（前端）
+[ ] 4. cd server && npm install（後端）
+[ ] 5. npm run dev（前端，Port 3000）
+[ ] 6. npm run backend（後端，Port 3001）
+⚠️ 注意：.env 不在 Git 裡，共享時需手動複製
 ```
 
 ---
@@ -206,8 +204,8 @@
 │  OCR:        tesseract.js 7.0.0                              │
 │  Excel:      xlsx (SheetJS) 0.18.5                           │
 │                                                              │
-│  Pages: 26    Components: 15+    Services: 8                 │
-│  Bundle: ~1.1MB (gzip ~325KB)   ← 需要 code-split           │
+│  Pages: 15    Components: 10+    Services: 5                 │
+│  Bundle: ~1.1MB (gzip ~316KB)   ← 需要 code-split           │
 └─────────────────────────────────────────────────────────────┘
                               │
                            /api
@@ -223,8 +221,8 @@
 │  Upload:     Multer 2.1.0                                    │
 │  HTTP:       Axios 1.7.0                                     │
 │                                                              │
-│  Routes: 55+   Services: 10+   Python Scripts: 7            │
-│  DB Tables: 12+                                              │
+│  Routes: ~45   Services: 10+   Python Scripts: 0            │
+│  DB Tables: 10+                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -308,15 +306,12 @@
 │     expected_salary  │    │    └──────────────────────┘
 │     job_search_status│    │
 │     motivation       │    │    ┌──────────────────────┐
-│ FK  target_job_id   ─┼────┘    │  leads               │
-│     consultant       │         ├──────────────────────┤
-│     progress_tracking│         │ PK  id               │
-└──────────┬───────────┘         │     case_code        │
-           │                     │     status, decision  │
-           │                     │     assigned_to       │
-           │                     │     progress_updates  │
-           │                     │     cost_records      │
-┌──────────▼───────────┐         └──────────────────────┘
+│ FK  target_job_id   ─┼────┘
+│     consultant       │
+│     progress_tracking│
+└──────────┬───────────┘
+           │
+┌──────────▼───────────┐
 │  candidate_job_       │
 │  rankings_cache       │         ┌──────────────────────┐
 ├──────────────────────┤         │  users               │
@@ -325,15 +320,15 @@
 │     computed_at      │         │     display_name     │
 └──────────────────────┘         │     role (ADMIN/     │
                                  │          REVIEWER)   │
-┌──────────────────────┐         └──────────┬───────────┘
-│  audit_logs           │                    │
-├──────────────────────┤         ┌──────────▼───────────┐
-│ PK  id               │         │  user_contacts       │
-│     actor_name       │         ├──────────────────────┤
-│     action           │         │ PK  display_name     │
-│     before/after     │         │     phone, email     │
-│     created_at       │         │     line_id          │
-└──────────────────────┘         │     api_keys         │
+                                 └──────────┬───────────┘
+                                            │
+                                 ┌──────────▼───────────┐
+                                 │  user_contacts       │
+                                 ├──────────────────────┤
+                                 │ PK  display_name     │
+                                 │     phone, email     │
+                                 │     line_id          │
+                                 │     api_keys         │
                                  └──────────────────────┘
 ┌──────────────────────┐
 │  system_logs          │
@@ -357,11 +352,10 @@
 | GitHub 整合 | 3 | `GET /github/analyze/:user` | ✅ |
 | 配對排名 | 1 | `GET /candidates/:id/job-rankings` | ✅ |
 | BD 客戶 | 8 | `GET/POST/PATCH/DELETE /clients` | ✅ |
-| ~~Bot 自動化~~ | ~~5~~ | ~~已移除~~ | ❌ |
 | 使用者 | 4 | `GET /users`, `POST /users/register` | ✅ |
 | 系統工具 | 4 | `GET /health`, `POST /sync/sheets-to-sql` | ✅ |
 | AI Guide | 6 | `GET /guide`, `GET /scoring-guide` | ✅ |
-| **合計** | **55+** | | |
+| **合計** | **~45** | | |
 
 ---
 
@@ -388,8 +382,10 @@ App.tsx (主路由)
 ├── 📈 顧問人選追蹤表      PipelinePage               ✅ 完成
 ├── 🕷️ 爬蟲整合儀表板      CrawlerDashboardPage       🟡 UI 完成
 ├── 🤖 AI 工作進度         AIProgressPage             🟡 UI 完成
-├── 📋 操作日誌            AuditLogsPage              ✅ 完成
+├── 📋 操作日誌            SystemLogPage              ✅ 完成
 ├── 📖 使用說明            HelpPage                   ✅ 完成
+├── 🛠️ 資料維護            MigrationPage              ✅ 完成 (Admin)
+├── 👥 成員管理            MembersPage                ✅ 完成 (Admin)
 └── 🔐 登入頁              LoginPage                  ⚠️ localStorage
 ```
 
@@ -403,7 +399,7 @@ App.tsx (主路由)
 |---|------|------|---------|
 | 1 | 移除 27 個檔案中的 hardcoded DB 密碼 | 安全漏洞 | 2h |
 | 2 | 修正 vite.config 不暴露全部 env | 安全漏洞 | 0.5h |
-| 3 | 建立完整 .env / server/.env 範本 | 本地無法啟動 | 0.5h |
+| ~~3~~ | ~~建立完整 .env / server/.env~~ | ~~✅ 已建立~~ | ~~done~~ |
 | 4 | 驗證履歷匯入工作經歷解析 | 功能異常 | 1h |
 
 ### 🟠 P1 — 短期改善（1-2 週）
@@ -443,12 +439,12 @@ App.tsx (主路由)
 ```
 程式碼規模：
 ──────────────
-前端元件      15+ 個     最大：CandidateModal (161KB)
-頁面          26 個      最大：HelpPage (70KB)
-API 端點      55+ 個     主檔：routes-api.js (4323 行)
+前端元件      10+ 個     最大：CandidateModal (161KB)
+頁面          15 個      最大：HelpPage (70KB)
+API 端點      ~45 個     主檔：routes-api.js (~3100 行)
 後端服務      10+ 個     最大：talentSourceService (29KB)
 SQL 遷移      23 個
-Python 腳本   7 個
+Python 腳本   0 個       (已移除，改由獨立爬蟲專案處理)
 文件          30+ 個
 
 資料規模：
