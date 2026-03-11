@@ -98,7 +98,7 @@
 ├────────────────────────────────────────────────────────────────────┤
 │ 🟡 履歷解析穩定性         │ v2 API 已修      │ 工作經歷解析待驗證   │
 │ 🟡 爬蟲系統               │ UI+路由已建      │ Python 腳本未整合    │
-│ 🟡 AI Bot 排程            │ UI+設定已建      │ 實際排程引擎未串接   │
+│ ❌ AI Bot 排程            │ 已移除           │ 排程引擎未串接，先移除│
 │ 🟡 Perplexity AI 擴充     │ Service 已寫     │ API Key 管理不完整  │
 │ 🟡 104/1111 職缺爬取       │ URL 欄位已加     │ 自動同步未實作      │
 └────────────────────────────────────────────────────────────────────┘
@@ -357,7 +357,7 @@
 | GitHub 整合 | 3 | `GET /github/analyze/:user` | ✅ |
 | 配對排名 | 1 | `GET /candidates/:id/job-rankings` | ✅ |
 | BD 客戶 | 8 | `GET/POST/PATCH/DELETE /clients` | ✅ |
-| Bot 自動化 | 5 | `POST /bot/run-now` | 🟡 |
+| ~~Bot 自動化~~ | ~~5~~ | ~~已移除~~ | ❌ |
 | 使用者 | 4 | `GET /users`, `POST /users/register` | ✅ |
 | 系統工具 | 4 | `GET /health`, `POST /sync/sheets-to-sql` | ✅ |
 | AI Guide | 6 | `GET /guide`, `GET /scoring-guide` | ✅ |

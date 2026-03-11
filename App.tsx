@@ -216,7 +216,6 @@ const App: React.FC = () => {
                activeTab === 'pipeline' ? '顧問人選追蹤表' :
                activeTab === 'ai-matching' ? 'AI 配對推薦' :
                activeTab === 'system-log' ? '操作日誌' :
-               activeTab === 'bot-scheduler' ? 'Bot 排程設定' :
                activeTab === 'crawler-dashboard' ? '爬蟲整合儀表板' :
                activeTab === 'ops-dashboard' ? '運營儀表板' : 'Step1ne 獵頭系統'}
             </h1>
