@@ -166,6 +166,11 @@ pool.query(`
   ALTER TABLE candidates_pipeline ALTER COLUMN personality_type TYPE VARCHAR(255);
 `).catch(err => console.warn('column resize migration:', err.message));
 
+// 出生年月日欄位
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS birthday DATE;
+`).catch(err => console.warn('birthday migration:', err.message));
+
 // 目標職缺欄位：改為直接 FK 對應 jobs_pipeline（不再存在 notes 文字內）
 pool.query(`
   ALTER TABLE candidates_pipeline
@@ -486,8 +491,9 @@ router.get('/candidates', async (req, res) => {
         : null,
       interviewRound: row.interview_round || null,
       // Phase 1 新增欄位
+      birthday: row.birthday || null,
       age: row.age != null ? parseInt(row.age) : estimateAgeFromEducation(row.education_details),
-      ageEstimated: row.age == null, // true = 系統推估，false = 確定值
+      ageEstimated: row.birthday ? false : (row.age == null), // 有生日 = 確定值
       industry: row.industry || '',
       languages: row.languages || '',
       certifications: row.certifications || '',
@@ -577,8 +583,9 @@ router.get('/candidates/:id', async (req, res) => {
       targetJobLabel: row.target_job_label
         ? `${row.target_job_label}${row.target_job_company ? ` (${row.target_job_company})` : ''}`
         : null,
+      birthday: row.birthday || null,
       age: row.age != null ? parseInt(row.age) : estimateAgeFromEducation(row.education_details),
-      ageEstimated: row.age == null,
+      ageEstimated: row.birthday ? false : (row.age == null),
       // JSONB / 詳細欄位
       workHistory: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       quitReasons: row.leaving_reason || '',
@@ -834,7 +841,9 @@ router.patch('/candidates/:id', async (req, res) => {
     const target_job_id = req.body.target_job_id !== undefined ? req.body.target_job_id : undefined;
     const interview_round = req.body.interview_round !== undefined ? req.body.interview_round : req.body.interviewRound;
     // Phase 1 新增欄位
+    const birthday = req.body.birthday;
     const age = req.body.age;
+    const age_estimated = req.body.age_estimated !== undefined ? req.body.age_estimated : req.body.ageEstimated;
     const industry = req.body.industry;
     const languages = req.body.languages;
     const certifications = req.body.certifications;
@@ -951,9 +960,17 @@ router.patch('/candidates/:id', async (req, res) => {
       values.push(interview_round === null ? null : Number(interview_round));
     }
     // Phase 1 新增欄位
+    if (birthday !== undefined) {
+      setClauses.push(`birthday = $${idx++}`);
+      values.push(birthday || null);
+    }
     if (age !== undefined) {
       setClauses.push(`age = $${idx++}`);
       values.push(age === null ? null : Number(age));
+    }
+    if (age_estimated !== undefined) {
+      setClauses.push(`age_estimated = $${idx++}`);
+      values.push(!!age_estimated);
     }
     if (industry !== undefined) {
       setClauses.push(`industry = $${idx++}`);

@@ -122,8 +122,20 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
 
   // Phase 1 新增欄位
+  const [editBirthday, setEditBirthday] = useState(candidate.birthday || '');
   const [editAge, setEditAge] = useState(String(candidate.age ?? ''));
   const [editIndustry, setEditIndustry] = useState(candidate.industry || '');
+
+  // 從出生日期自動計算年齡
+  const calcAgeFromBirthday = (bd: string): number | null => {
+    if (!bd) return null;
+    const birth = new Date(bd);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age > 0 && age < 120 ? age : null;
+  };
   const [editLanguages, setEditLanguages] = useState(candidate.languages || '');
   const [editCertifications, setEditCertifications] = useState(candidate.certifications || '');
   const [editCurrentSalary, setEditCurrentSalary] = useState(candidate.currentSalary || '');
@@ -573,7 +585,9 @@ Step1ne Recruitment`;
         years: parseInt(editYears) || 0,
         skills: editSkills.trim(),
         // Phase 1 新增欄位
-        age: editAge ? parseInt(editAge) : null,
+        birthday: editBirthday || null,
+        age: editBirthday ? calcAgeFromBirthday(editBirthday) : (editAge ? parseInt(editAge) : null),
+        age_estimated: editBirthday ? false : (candidate.ageEstimated ?? true),
         industry: editIndustry.trim(),
         languages: editLanguages.trim(),
         certifications: editCertifications.trim(),
@@ -775,10 +789,15 @@ Step1ne Recruitment`;
                   <Briefcase className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                   <span>{candidate.years > 0 ? `${candidate.years} 年經驗` : '年資未知'}</span>
                 </div>
-                {candidate.age != null && candidate.age > 0 && (
-                  <div className="flex items-center gap-0.5 sm:gap-1.5 whitespace-nowrap">
+                {(candidate.age != null && candidate.age > 0 || candidate.birthday) && (
+                  <div className="flex items-center gap-0.5 sm:gap-1.5 whitespace-nowrap" title={candidate.birthday ? `生日：${candidate.birthday}` : ''}>
                     <Calendar className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                    <span>{candidate.ageEstimated ? '~' : ''}{candidate.age} 歲</span>
+                    <span>
+                      {candidate.birthday
+                        ? `${calcAgeFromBirthday(candidate.birthday)} 歲`
+                        : `${candidate.ageEstimated ? '~' : ''}${candidate.age} 歲`
+                      }
+                    </span>
                   </div>
                 )}
                 <div className={`flex items-center gap-0.5 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 rounded whitespace-nowrap ${currentStatus.bgColor} ${currentStatus.textColor}`}>
@@ -1074,8 +1093,26 @@ Step1ne Recruitment`;
                     </div>
                     {/* Phase 1 新增欄位 */}
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">年齡</label>
-                      <input value={editAge} onChange={e => setEditAge(e.target.value)} type="number" min="18" max="70" placeholder="例：32" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      <label className="block text-xs text-gray-500 mb-1">出生年月日</label>
+                      <input
+                        value={editBirthday}
+                        onChange={e => {
+                          const bd = e.target.value;
+                          setEditBirthday(bd);
+                          const age = calcAgeFromBirthday(bd);
+                          if (age !== null) setEditAge(String(age));
+                        }}
+                        type="date"
+                        max={new Date().toISOString().split('T')[0]}
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      {editBirthday && calcAgeFromBirthday(editBirthday) !== null && (
+                        <span className="text-xs text-blue-600 mt-0.5 block">→ {calcAgeFromBirthday(editBirthday)} 歲</span>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">年齡（無生日時手動填）</label>
+                      <input value={editAge} onChange={e => setEditAge(e.target.value)} type="number" min="18" max="70" placeholder="例：32" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" disabled={!!editBirthday} />
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">產業</label>
