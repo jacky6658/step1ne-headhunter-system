@@ -25,9 +25,22 @@ const axios = require('axios');
 async function parseResumePDF(buffer, useAI = false) {
   const rawText = await extractPDFText(buffer);
 
-  // 自動偵測格式：104 vs LinkedIn
+  // 自動偵測格式：104 vs LinkedIn vs 通用
   const is104 = detect104Format(rawText);
-  const parsed = is104 ? parse104PDF(rawText) : parseLinkedInPDF(rawText);
+  const isLinkedIn = detectLinkedInFormat(rawText);
+  let parsed;
+  if (is104) {
+    parsed = parse104PDF(rawText);
+  } else if (isLinkedIn) {
+    parsed = parseLinkedInPDF(rawText);
+  } else {
+    // 通用格式 fallback（先嘗試 LinkedIn parser，若工作經歷為空再用通用）
+    parsed = parseLinkedInPDF(rawText);
+    if (parsed.workHistory.length === 0) {
+      console.log('[resumePDF] LinkedIn parser found 0 work entries, trying generic parser...');
+      parsed = parseGenericPDF(rawText);
+    }
+  }
 
   if (useAI && parsed && rawText.length > 50) {
     try {
@@ -420,6 +433,13 @@ async function enrichSkillsWithOpenClaw(rawText) {
 // 104 人力銀行 格式偵測 + 解析器
 // ─────────────────────────────────────────────
 
+function detectLinkedInFormat(text) {
+  const markers = ['linkedin.com/in/', '熱門技能', '經歷', '簡介'];
+  let hits = 0;
+  for (const m of markers) { if (text.includes(m)) hits++; }
+  return hits >= 2;
+}
+
 function detect104Format(text) {
   // 104 履歷特徵關鍵字
   const markers = ['個人資料', '就業狀態', '主要手機', '工作經驗', '求職條件', '希望職稱'];
@@ -771,6 +791,339 @@ function parse104PDF(text) {
   if (result.age) score += 0.05;
   if (result.languages) score += 0.05;
   result._meta.confidence = Math.round(score * 100) / 100;
+
+  return result;
+}
+
+// ─────────────────────────────────────────────
+// 通用履歷解析器（fallback）
+// 支援多種日期格式：英文月份、YYYY-MM、YYYY.MM、YYYY/MM、純年份等
+// ─────────────────────────────────────────────
+
+function parseGenericPDF(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+  const result = {
+    name: null, position: null, currentCompany: null, location: null,
+    linkedinUrl: null, phone: null, email: null, age: null,
+    topSkills: [], skills: [], summary: null, notes: null,
+    workHistory: [], education: null, educationJson: [],
+    years: null, jobChanges: null, avgTenure: null,
+    languages: null, certifications: null, industry: null,
+    noticePeriod: null, expectedSalary: null, jobSearchStatus: null,
+    source: 'Generic',
+    _meta: { parseMethod: 'generic-rule-based', confidence: 0, rawLineCount: lines.length },
+  };
+
+  const fullText = text;
+
+  // ── 英文月份對照 ──
+  const MONTHS = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12,
+    january:1, february:2, march:3, april:4, june:6, july:7, august:8, september:9, october:10, november:11, december:12 };
+  const monthNames = Object.keys(MONTHS).join('|');
+
+  // ── 多種日期範圍 regex ──
+  // 格式1: "Jan 2020 - Jun 2023" / "January 2020 – Present"
+  const engDateRange = new RegExp(
+    `(${monthNames})\\s*(\\d{4})\\s*[-–~～至]\\s*(?:(${monthNames})\\s*(\\d{4})|present|current|now|至今|現在|迄今)`, 'i'
+  );
+  // 格式2: "2020-01 - 2023-06" / "2020.01 - 2023.06" / "2020/01 - 2023/06"
+  const numDateRange = /(\d{4})[.\-\/](\d{1,2})\s*[-–~～至]\s*(?:(\d{4})[.\-\/](\d{1,2})|present|current|now|至今|現在|迄今|仍在職)/i;
+  // 格式3: "2020 年 1 月 - 2023 年 6 月" (Chinese)
+  const cnDateRange = /(\d{4})\s*年\s*(\d{1,2})\s*月\s*[-–~～至]\s*(?:(\d{4})\s*年\s*(\d{1,2})\s*月|現在|至今|迄今)/;
+  // 格式4: "2020 - 2023" (year only)
+  const yearOnlyRange = /^(\d{4})\s*[-–~～至]\s*(?:(\d{4})|present|current|now|至今|現在|迄今)$/i;
+  // 格式5: "2020/01~2023/06" (104 style, no spaces)
+  const compactDateRange = /(\d{4})\/(\d{1,2})[~～](?:(\d{4})\/(\d{1,2})|仍在職|迄今)/;
+
+  function parseDateRange(line) {
+    let startY, startM, endY, endM;
+
+    // Try each pattern
+    let m = line.match(engDateRange);
+    if (m) {
+      startM = MONTHS[m[1].toLowerCase()]; startY = parseInt(m[2]);
+      if (m[3] && m[4]) { endM = MONTHS[m[3].toLowerCase()]; endY = parseInt(m[4]); }
+      else { endY = new Date().getFullYear(); endM = new Date().getMonth() + 1; }
+      return { startY, startM, endY, endM };
+    }
+
+    m = line.match(cnDateRange);
+    if (m) {
+      startY = parseInt(m[1]); startM = parseInt(m[2]);
+      if (m[3]) { endY = parseInt(m[3]); endM = parseInt(m[4]); }
+      else { endY = new Date().getFullYear(); endM = new Date().getMonth() + 1; }
+      return { startY, startM, endY, endM };
+    }
+
+    m = line.match(numDateRange);
+    if (m) {
+      startY = parseInt(m[1]); startM = parseInt(m[2]);
+      if (m[3]) { endY = parseInt(m[3]); endM = parseInt(m[4]); }
+      else { endY = new Date().getFullYear(); endM = new Date().getMonth() + 1; }
+      return { startY, startM, endY, endM };
+    }
+
+    m = line.match(compactDateRange);
+    if (m) {
+      startY = parseInt(m[1]); startM = parseInt(m[2]);
+      if (m[3]) { endY = parseInt(m[3]); endM = parseInt(m[4]); }
+      else { endY = new Date().getFullYear(); endM = new Date().getMonth() + 1; }
+      return { startY, startM, endY, endM };
+    }
+
+    m = line.match(yearOnlyRange);
+    if (m) {
+      startY = parseInt(m[1]); startM = 1;
+      if (m[2]) { endY = parseInt(m[2]); endM = 12; }
+      else { endY = new Date().getFullYear(); endM = new Date().getMonth() + 1; }
+      return { startY, startM, endY, endM };
+    }
+
+    return null;
+  }
+
+  function hasDateRange(line) {
+    return parseDateRange(line) !== null;
+  }
+
+  // ── LinkedIn URL ──
+  const urlMatch = fullText.match(/linkedin\.com\/in\/([a-zA-Z0-9\-_%]+)/);
+  if (urlMatch) result.linkedinUrl = 'https://www.linkedin.com/in/' + urlMatch[1].replace(/\/$/, '');
+
+  // ── Email ──
+  const emMatch = fullText.match(/[\w.%+-]+@[\w.-]+\.[a-zA-Z]{2,}/);
+  if (emMatch) result.email = emMatch[0];
+
+  // ── Phone ──
+  const phoneMatch = fullText.match(/(?:09\d{2}[-\s]?\d{3}[-\s]?\d{3}|\+?886[-\s]?\d[-\s]?\d{4}[-\s]?\d{4}|\(\d{2,3}\)\s*\d{4}[-\s]?\d{4})/);
+  if (phoneMatch) result.phone = phoneMatch[0];
+
+  // ── 年齡 ──
+  const ageMatch = fullText.match(/(\d{2,3})\s*歲/);
+  if (ageMatch) result.age = parseInt(ageMatch[1]);
+
+  // ── 姓名（前幾行中找短的非標題行） ──
+  for (let i = 0; i < Math.min(8, lines.length); i++) {
+    const l = lines[i];
+    if (l.match(/@|http|linkedin|熱門|聯絡|個人|學歷|工作|經歷|resume|curriculum/i)) continue;
+    if (l.length > 40 || l.length < 2) continue;
+    if (hasDateRange(l)) continue;
+    result.name = l;
+    break;
+  }
+
+  // ── 地點 ──
+  const twCityPattern = /台北|新北|桃園|台中|台南|高雄|新竹|嘉義|基隆|宜蘭|花蓮|台東|Taipei|Hsinchu|Taichung/;
+  const cityLine = lines.find(l => twCityPattern.test(l) && l.length < 40);
+  if (cityLine) result.location = cityLine;
+
+  // ── 工作經歷區段偵測 ──
+  const expHeaders = /^(經歷|工作經歷|工作經驗|Experience|Work Experience|Professional Experience|Employment History|EXPERIENCE|WORK EXPERIENCE)$/i;
+  const eduHeaders = /^(學歷|教育|Education|EDUCATION|教育背景|Academic)$/i;
+  const skillHeaders = /^(技能|Skills|SKILLS|專長|核心技能|Core Competencies|Technical Skills)$/i;
+  const otherHeaders = /^(證照|認證|Certifications?|Licenses?|語言|Languages?|自傳|Summary|SUMMARY|About|Projects?|Awards?)$/i;
+
+  const expStart = lines.findIndex(l => expHeaders.test(l));
+  const eduStart = lines.findIndex(l => eduHeaders.test(l));
+  const skillStart = lines.findIndex(l => skillHeaders.test(l));
+
+  // ── 工作經歷解析 ──
+  if (expStart >= 0) {
+    // 確定結束位置
+    const possibleEnds = [eduStart, skillStart, lines.findIndex((l, idx) => idx > expStart + 2 && otherHeaders.test(l))].filter(x => x > expStart);
+    const expEnd = possibleEnds.length > 0 ? Math.min(...possibleEnds) : lines.length;
+
+    const expLines = lines.slice(expStart + 1, expEnd);
+    let i = 0;
+
+    while (i < expLines.length) {
+      const line = expLines[i];
+      const dateInfo = parseDateRange(line);
+
+      if (dateInfo) {
+        const durationMonths = Math.max(0, (dateInfo.endY - dateInfo.startY) * 12 + (dateInfo.endM - dateInfo.startM));
+        const startDate = `${dateInfo.startY}-${String(dateInfo.startM).padStart(2, '0')}`;
+        const endDate = (dateInfo.endY === new Date().getFullYear() && dateInfo.endM === new Date().getMonth() + 1)
+          ? '現在' : `${dateInfo.endY}-${String(dateInfo.endM).padStart(2, '0')}`;
+
+        // 往上找職稱和公司
+        let title = null, company = null;
+
+        // 日期行前一行 = 職稱，前兩行 = 公司（常見 pattern）
+        if (i >= 1) {
+          const prev1 = expLines[i - 1];
+          if (!hasDateRange(prev1) && prev1.length > 1 && prev1.length < 80) {
+            title = prev1;
+          }
+        }
+        if (i >= 2) {
+          const prev2 = expLines[i - 2];
+          if (!hasDateRange(prev2) && prev2.length > 1 && prev2.length < 80 && prev2 !== title) {
+            company = prev2;
+          }
+        }
+
+        // 也可能是「公司 | 職稱」在同一行
+        if (title && title.includes('|')) {
+          const parts = title.split('|').map(s => s.trim());
+          company = parts[0]; title = parts[1] || parts[0];
+        }
+        if (title && (title.includes(' - ') || title.includes(' · '))) {
+          const sep = title.includes(' · ') ? ' · ' : ' - ';
+          const parts = title.split(sep).map(s => s.trim());
+          if (parts.length >= 2 && !company) {
+            // "公司 - 職稱" or "職稱 - 公司"
+            // 通常較短的是職稱
+            if (parts[0].length > parts[1].length) { company = parts[0]; title = parts[1]; }
+            else { title = parts[0]; company = parts[1]; }
+          }
+        }
+
+        // 往下找描述
+        const descLines = [];
+        for (let j = i + 1; j < Math.min(i + 25, expLines.length); j++) {
+          if (hasDateRange(expLines[j])) break;
+          // 若短行後面緊跟日期，是下一個 entry 的職稱，停止
+          if (j + 1 < expLines.length && hasDateRange(expLines[j + 1]) && expLines[j].length < 60) break;
+          if (j + 2 < expLines.length && hasDateRange(expLines[j + 2]) && expLines[j].length < 60) break;
+          descLines.push(expLines[j]);
+        }
+
+        if (title || company) {
+          result.workHistory.push({
+            company: company || null,
+            title: title || null,
+            start: startDate,
+            end: endDate,
+            duration_months: durationMonths,
+            description: descLines.join('\n').trim() || null,
+          });
+        }
+      }
+      i++;
+    }
+  }
+
+  // 若還是沒有工作經歷，嘗試全文掃描日期範圍
+  if (result.workHistory.length === 0) {
+    let i = 0;
+    while (i < lines.length) {
+      const dateInfo = parseDateRange(lines[i]);
+      if (dateInfo && dateInfo.startY >= 1970 && dateInfo.startY <= 2030) {
+        const durationMonths = Math.max(0, (dateInfo.endY - dateInfo.startY) * 12 + (dateInfo.endM - dateInfo.startM));
+        if (durationMonths > 0 && durationMonths < 600) { // 合理範圍
+          const startDate = `${dateInfo.startY}-${String(dateInfo.startM).padStart(2, '0')}`;
+          const endDate = `${dateInfo.endY}-${String(dateInfo.endM).padStart(2, '0')}`;
+
+          let title = null, company = null;
+          if (i >= 1 && !hasDateRange(lines[i - 1]) && lines[i - 1].length < 80) title = lines[i - 1];
+          if (i >= 2 && !hasDateRange(lines[i - 2]) && lines[i - 2].length < 80 && lines[i - 2] !== title) company = lines[i - 2];
+
+          const descLines = [];
+          for (let j = i + 1; j < Math.min(i + 15, lines.length); j++) {
+            if (hasDateRange(lines[j])) break;
+            if (j + 1 < lines.length && hasDateRange(lines[j + 1]) && lines[j].length < 60) break;
+            descLines.push(lines[j]);
+          }
+
+          if (title || company) {
+            result.workHistory.push({
+              company, title,
+              start: startDate, end: endDate,
+              duration_months: durationMonths,
+              description: descLines.join('\n').trim() || null,
+            });
+          }
+        }
+      }
+      i++;
+    }
+  }
+
+  // ── 學歷 ──
+  if (eduStart >= 0) {
+    const possibleEnds = [expStart, skillStart].filter(x => x > eduStart);
+    const eduEnd = possibleEnds.length > 0 ? Math.min(...possibleEnds) : Math.min(eduStart + 30, lines.length);
+    const eduLines = lines.slice(eduStart + 1, eduEnd);
+
+    for (let i = 0; i < eduLines.length; i++) {
+      const dateInfo = parseDateRange(eduLines[i]);
+      if (dateInfo) {
+        const school = i >= 2 ? eduLines[i - 2] : (i >= 1 ? eduLines[i - 1] : null);
+        const degreeRaw = i >= 1 && i >= 2 ? eduLines[i - 1] : null;
+        let degree = null, major = null;
+        if (degreeRaw && !hasDateRange(degreeRaw)) {
+          const parts = degreeRaw.split(/[,，、|｜]/).map(s => s.trim());
+          if (parts.length >= 2) { major = parts[0]; degree = parts[1]; }
+          else {
+            const dm = degreeRaw.match(/(.*?)\s*(碩士|學士|博士|大學|Master|Bachelor|PhD|MBA|BS|MS|BA|MA).*/i);
+            if (dm) { major = dm[1].trim(); degree = dm[2]; }
+            else major = degreeRaw;
+          }
+        }
+        if (school && school.length > 2 && !hasDateRange(school) && !expHeaders.test(school) && !eduHeaders.test(school)) {
+          result.educationJson.push({
+            school, degree, major,
+            start: String(dateInfo.startY), end: String(dateInfo.endY),
+          });
+        }
+      }
+    }
+    if (result.educationJson.length > 0) {
+      const e = result.educationJson[0];
+      result.education = [e.school, e.major, e.degree].filter(Boolean).join(' ');
+    }
+  }
+
+  // ── 技能 ──
+  if (skillStart >= 0) {
+    const skillEnd = lines.findIndex((l, idx) => idx > skillStart + 1 && (expHeaders.test(l) || eduHeaders.test(l) || otherHeaders.test(l)));
+    const end = skillEnd > skillStart ? skillEnd : Math.min(skillStart + 30, lines.length);
+    for (let i = skillStart + 1; i < end; i++) {
+      const l = lines[i];
+      // #tag 格式
+      const tags = l.match(/#[^\s#]+/g);
+      if (tags) { tags.forEach(t => result.skills.push(t.replace('#', ''))); continue; }
+      // 逗號/頓號分隔
+      if (l.includes(',') || l.includes('、') || l.includes('·')) {
+        l.split(/[,、·•|]/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 30).forEach(s => {
+          if (!result.skills.includes(s)) result.skills.push(s);
+        });
+      } else if (l.length > 1 && l.length < 30 && !hasDateRange(l)) {
+        result.skills.push(l);
+      }
+    }
+  }
+
+  // ── 職稱 fallback ──
+  if (!result.position && result.workHistory.length > 0) {
+    result.position = result.workHistory[0].title;
+    result.currentCompany = result.workHistory[0].company;
+  }
+
+  // ── 統計 ──
+  if (result.workHistory.length > 0) {
+    const totalMonths = result.workHistory.reduce((a, w) => a + (w.duration_months || 0), 0);
+    result.years = Math.round((totalMonths / 12) * 10) / 10;
+    const companies = [...new Set(result.workHistory.map(w => w.company).filter(Boolean))];
+    result.jobChanges = companies.length;
+    if (companies.length > 0) result.avgTenure = Math.round(totalMonths / companies.length);
+  }
+
+  // ── 信心分數 ──
+  let score = 0;
+  if (result.name) score += 0.15;
+  if (result.phone) score += 0.1;
+  if (result.email) score += 0.1;
+  if (result.position) score += 0.1;
+  if (result.workHistory.length > 0) score += 0.3;
+  if (result.educationJson.length > 0) score += 0.1;
+  if (result.skills.length > 0) score += 0.1;
+  if (result.age) score += 0.05;
+  result._meta.confidence = Math.round(score * 100) / 100;
+
+  console.log(`[resumePDF/generic] Parsed: name=${result.name}, workHistory=${result.workHistory.length}, skills=${result.skills.length}, edu=${result.educationJson.length}`);
 
   return result;
 }
