@@ -4193,13 +4193,48 @@ function estimateAgeFromEducation(ed) {
   if (typeof details === 'string') { try { details = JSON.parse(details); } catch { return null; } }
   if (!Array.isArray(details)) return null;
 
-  // 找最早畢業年份（通常是最高學歷或第一個學歷）
+  const currentYear = new Date().getFullYear();
+
+  // 取得畢業年的通用函式（支援 end / end_year / year 三種格式）
+  function getEndYear(entry) {
+    const raw = entry.end_year || entry.end || entry.year || null;
+    if (!raw) return null;
+    const yr = parseInt(String(raw).slice(0, 4)); // "2016-08" → 2016
+    return (yr >= 1960 && yr <= currentYear) ? yr : null;
+  }
+
+  // 判斷是否為正式學位（排除職訓、培訓班）
+  function isDegreeProgram(entry) {
+    const d = (entry.degree || '').toLowerCase();
+    if (d.includes('職訓') || d.includes('培訓') || d.includes('養成班')) return false;
+    if (d.includes('學士') || d.includes('碩') || d.includes('博') || d.includes('專')) return true;
+    if (d.includes('bachelor') || d.includes('master') || d.includes('mba') || d.includes('phd') || d.includes('doctor') || d.includes('associate')) return true;
+    return true; // 未知學位也算
+  }
+
+  // 優先找正式學位的第一筆畢業年（最早的正式學歷）
   let gradYear = null;
   let degree = null;
+
+  // 第一輪：找正式學位中最早的畢業年（學士優先）
   for (const entry of details) {
-    const yr = parseInt(entry.year);
-    if (yr && yr >= 1960 && yr <= new Date().getFullYear()) {
-      if (!gradYear || yr > gradYear) { // 取最近畢業年
+    if (!isDegreeProgram(entry)) continue;
+    const yr = getEndYear(entry);
+    if (!yr) continue;
+    const d = (entry.degree || '').toLowerCase();
+    const isBachelor = d.includes('學士') || d.includes('bachelor');
+    if (!gradYear || (isBachelor && !degree?.includes('學士')) || yr < gradYear) {
+      gradYear = yr;
+      degree = d;
+    }
+  }
+
+  // 第二輪 fallback：若無正式學位，找任何有畢業年的
+  if (!gradYear) {
+    for (const entry of details) {
+      const yr = getEndYear(entry);
+      if (!yr) continue;
+      if (!gradYear || yr < gradYear) {
         gradYear = yr;
         degree = (entry.degree || '').toLowerCase();
       }
@@ -4215,7 +4250,6 @@ function estimateAgeFromEducation(ed) {
   else if (degree.includes('專') || degree.includes('associate')) gradAge = 20;
 
   const birthYear = gradYear - gradAge;
-  const currentYear = new Date().getFullYear();
   return currentYear - birthYear;
 }
 
@@ -4247,13 +4281,16 @@ router.post('/candidates/backfill-computed', async (req, res) => {
         }
       }
 
-      // 年齡：只在 age 為 null 時回填
-      if (row.age == null) {
+      // 年齡：null 時回填；force=true 時全部重新推估
+      const forceAge = req.body.force === true || req.query.force === 'true';
+      if (row.age == null || forceAge) {
         const estimated = estimateAgeFromEducation(row.education_details);
         if (estimated && estimated >= 18 && estimated <= 70) {
-          sets.push(`age = $${idx++}`);
-          vals.push(estimated);
-          updatedAge++;
+          if (row.age !== estimated) {
+            sets.push(`age = $${idx++}`);
+            vals.push(estimated);
+            updatedAge++;
+          }
         }
       }
 
