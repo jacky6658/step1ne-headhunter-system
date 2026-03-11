@@ -2655,7 +2655,7 @@ Step1ne Recruitment`;
     {/* 匿名履歷預覽 Modal */}
     {showResumeGen && (
       <ResumePreview
-        candidate={candidate}
+        candidate={{ ...candidate, consultantEvaluation: consultEval }}
         candidateLabel={`Candidate ${candidate.id}`}
         onClose={() => setShowResumeGen(false)}
       />
