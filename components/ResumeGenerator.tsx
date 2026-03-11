@@ -87,19 +87,21 @@ function generateSummary(candidate: Candidate): string {
 
     // ── 策略 2: 從結構化資料組合摘要 ──
 
-    // 第一句：角色定位（獵頭推薦語氣）
+    // 第一句：角色定位（獵頭推薦語氣）— 加入產業
+    const cIndustry = candidate.industry || '';
+    const industryStr = cIndustry ? `${cIndustry}領域` : '';
     if (position && years > 0) {
       if (years >= 8) {
-        parts.push(`資深${position}，擁有 ${years} 年豐富產業經驗`);
+        parts.push(`資深${position}，擁有 ${years} 年${industryStr ? industryStr : '豐富產業'}經驗`);
       } else if (years >= 4) {
-        parts.push(`具備 ${years} 年實戰經驗的${position}`);
+        parts.push(`具備 ${years} 年${industryStr}實戰經驗的${position}`);
       } else {
-        parts.push(`${position}，${years} 年工作經驗`);
+        parts.push(`${position}，${years} 年${industryStr ? industryStr : ''}工作經驗`);
       }
     } else if (position) {
-      parts.push(`現職${position}，具備相關領域實務經驗`);
+      parts.push(`現職${position}，具備${industryStr || '相關領域'}實務經驗`);
     } else if (years > 0) {
-      parts.push(`擁有 ${years} 年專業工作經驗`);
+      parts.push(`擁有 ${years} 年${industryStr || '專業'}工作經驗`);
     }
 
     // 第二句：核心專長領域
@@ -250,12 +252,38 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     }
   }
 
-  // Info pills for header
+  // Phase 1 新增欄位
+  const age = candidate.age;
+  const industry = candidate.industry || '';
+  const languages = candidate.languages || '';
+  const certifications = candidate.certifications || '';
+  const currentSalary = candidate.currentSalary || '';
+  const expectedSalary = candidate.expectedSalary || '';
+  const noticePeriod = candidate.noticePeriod || '';
+  const hasManagement = candidate.managementExperience;
+  const teamSize = candidate.teamSize || '';
+
+  // Info pills for header (匿名履歷 required/optional 顯示規則)
   const infoPills: string[] = [];
-  if (position) infoPills.push(position);
-  if (years > 0) infoPills.push(`${years} 年經驗`);
-  if (candidate.location) infoPills.push(candidate.location);
+  if (position) infoPills.push(position);              // required
+  if (years > 0) infoPills.push(`${years} 年經驗`);    // required
+  if (candidate.location) infoPills.push(candidate.location); // required
+  if (age) infoPills.push(`${age} 歲`);                // required (年齡)
+  if (industry) infoPills.push(industry);               // required (產業)
   const infoPillsHTML = infoPills.map(p => `<span class="info-pill">${p}</span>`).join('');
+
+  // 證照 & 語言 HTML (optional)
+  const certsList = certifications ? certifications.split(/[,、;]/).map(s => s.trim()).filter(Boolean) : [];
+  const certsHTML = certsList.map(c => `<span class="skill-tag">${c}</span>`).join('');
+  const langList = languages ? languages.split(/[,、;]/).map(s => s.trim()).filter(Boolean) : [];
+  const langHTML = langList.map(l => `<span class="info-pill-dark">${l}</span>`).join('');
+
+  // 轉職條件 HTML (optional)
+  const dealTerms: string[] = [];
+  if (currentSalary) dealTerms.push(`目前薪資：${currentSalary}`);
+  if (expectedSalary) dealTerms.push(`期望薪資：${expectedSalary}`);
+  if (noticePeriod) dealTerms.push(`到職時間：${noticePeriod}`);
+  if (hasManagement) dealTerms.push(`管理經驗：是${teamSize ? `（${teamSize}）` : ''}`);
 
   return `<!DOCTYPE html>
 <html lang="zh-TW">
@@ -521,6 +549,50 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     color: #718096;
   }
 
+  /* ─── Deal Terms ─── */
+  .deal-terms {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+  }
+  .deal-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #f7fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    font-size: 9.5pt;
+    color: #4a5568;
+  }
+  .deal-label {
+    color: #718096;
+    font-size: 9pt;
+    white-space: nowrap;
+  }
+  .deal-value {
+    font-weight: 600;
+    color: #1a202c;
+  }
+
+  /* ─── Language pills ─── */
+  .info-pill-dark {
+    display: inline-block;
+    background: #edf2f7;
+    color: #2d3748;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 9pt;
+    font-weight: 500;
+    border: 1px solid #e2e8f0;
+  }
+  .lang-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   @media print {
     body { background: white; }
     .page { padding: 0; }
@@ -562,6 +634,28 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   </div>
   ` : ''}
 
+  <!-- Languages (optional) -->
+  ${langList.length > 0 ? `
+  <div class="section">
+    <div class="section-title">
+      <span class="section-icon">🌐</span>
+      語言能力
+    </div>
+    <div class="lang-container">${langHTML}</div>
+  </div>
+  ` : ''}
+
+  <!-- Certifications (optional) -->
+  ${certsList.length > 0 ? `
+  <div class="section">
+    <div class="section-title">
+      <span class="section-icon">📜</span>
+      專業證照
+    </div>
+    <div class="skills-container">${certsHTML}</div>
+  </div>
+  ` : ''}
+
   <!-- Achievements -->
   ${achievementsHTML ? `
   <div class="section">
@@ -592,6 +686,22 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     </div>
     ${eduHTML}
   </div>
+
+  <!-- Deal Terms (optional) -->
+  ${dealTerms.length > 0 ? `
+  <div class="section">
+    <div class="section-title">
+      <span class="section-icon">💼</span>
+      轉職條件
+    </div>
+    <div class="deal-terms">
+      ${dealTerms.map(d => {
+        const [label, value] = d.split('：');
+        return `<div class="deal-item"><span class="deal-label">${label}</span><span class="deal-value">${value || ''}</span></div>`;
+      }).join('')}
+    </div>
+  </div>
+  ` : ''}
 
   <!-- Footer -->
   <div class="footer">

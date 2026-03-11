@@ -1,6 +1,6 @@
 // Step1ne Headhunter System - 候選人詳情 Modal
 import React, { useState } from 'react';
-import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion } from '../types';
+import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion, ConsultantEvaluation } from '../types';
 import { ResumePreview } from './ResumeGenerator';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
 import { apiPatch, apiGet, getApiUrl } from '../config/api';
@@ -118,6 +118,22 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [editSkills, setEditSkills] = useState(
     Array.isArray(candidate.skills) ? candidate.skills.join('、') : (candidate.skills || ''));
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
+
+  // Phase 1 新增欄位
+  const [editAge, setEditAge] = useState(String(candidate.age ?? ''));
+  const [editIndustry, setEditIndustry] = useState(candidate.industry || '');
+  const [editLanguages, setEditLanguages] = useState(candidate.languages || '');
+  const [editCertifications, setEditCertifications] = useState(candidate.certifications || '');
+  const [editCurrentSalary, setEditCurrentSalary] = useState(candidate.currentSalary || '');
+  const [editExpectedSalary, setEditExpectedSalary] = useState(candidate.expectedSalary || '');
+  const [editNoticePeriod, setEditNoticePeriod] = useState(candidate.noticePeriod || '');
+  const [editManagement, setEditManagement] = useState(candidate.managementExperience || false);
+  const [editTeamSize, setEditTeamSize] = useState(candidate.teamSize || '');
+
+  // 顧問評估
+  const [consultEval, setConsultEval] = useState<ConsultantEvaluation>(candidate.consultantEvaluation || {});
+  const [editingEval, setEditingEval] = useState(false);
+  const [savingEval, setSavingEval] = useState(false);
 
   // PDF 履歷匯入
   const [showImport, setShowImport] = useState(false);
@@ -504,11 +520,11 @@ Step1ne Recruitment`;
     }
   };
 
-  // 儲存基本資料（name/position/location/phone/email/years/skills）
+  // 儲存基本資料（含 Phase 1 新增欄位）
   const handleSaveBasicInfo = async () => {
     setSavingBasicInfo(true);
     try {
-      const updates = {
+      const updates: Record<string, any> = {
         name: editName.trim(),
         position: editPosition.trim(),
         location: editLocation.trim(),
@@ -516,6 +532,16 @@ Step1ne Recruitment`;
         email: editEmail.trim(),
         years: parseInt(editYears) || 0,
         skills: editSkills.trim(),
+        // Phase 1 新增欄位
+        age: editAge ? parseInt(editAge) : null,
+        industry: editIndustry.trim(),
+        languages: editLanguages.trim(),
+        certifications: editCertifications.trim(),
+        current_salary: editCurrentSalary.trim(),
+        expected_salary: editExpectedSalary.trim(),
+        notice_period: editNoticePeriod.trim(),
+        management_experience: editManagement,
+        team_size: editTeamSize.trim(),
         actor: currentUserName || 'system',
       };
       await apiPatch(`/api/candidates/${candidate.id}`, updates);
@@ -945,7 +971,7 @@ Step1ne Recruitment`;
                       <button onClick={handleSaveBasicInfo} disabled={savingBasicInfo} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">
                         {savingBasicInfo ? '儲存中...' : '儲存'}
                       </button>
-                      <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                      <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditIndustry(candidate.industry||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
                     </div>
                   )}
                 </div>
@@ -978,6 +1004,43 @@ Step1ne Recruitment`;
                     <div className="sm:col-span-2">
                       <label className="block text-xs text-gray-500 mb-1">核心技能（以逗號或頓號分隔）</label>
                       <input value={editSkills} onChange={e => setEditSkills(e.target.value)} placeholder="例：React、TypeScript、Node.js" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    {/* Phase 1 新增欄位 */}
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">年齡</label>
+                      <input value={editAge} onChange={e => setEditAge(e.target.value)} type="number" min="18" max="70" placeholder="例：32" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">產業</label>
+                      <input value={editIndustry} onChange={e => setEditIndustry(e.target.value)} placeholder="例：半導體、金融科技" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">語言能力</label>
+                      <input value={editLanguages} onChange={e => setEditLanguages(e.target.value)} placeholder="例：中文母語、英文流利" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">證照</label>
+                      <input value={editCertifications} onChange={e => setEditCertifications(e.target.value)} placeholder="例：PMP、AWS SAA" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">目前薪資</label>
+                      <input value={editCurrentSalary} onChange={e => setEditCurrentSalary(e.target.value)} placeholder="例：90K" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">期望薪資</label>
+                      <input value={editExpectedSalary} onChange={e => setEditExpectedSalary(e.target.value)} placeholder="例：100K+" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">到職時間</label>
+                      <input value={editNoticePeriod} onChange={e => setEditNoticePeriod(e.target.value)} placeholder="例：1個月" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">管理人數</label>
+                      <input value={editTeamSize} onChange={e => setEditTeamSize(e.target.value)} placeholder="例：5-10人" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div className="sm:col-span-2 flex items-center gap-2">
+                      <input type="checkbox" id="edit-mgmt" checked={editManagement} onChange={e => setEditManagement(e.target.checked)} className="rounded border-gray-300" />
+                      <label htmlFor="edit-mgmt" className="text-xs text-gray-600">具備管理經驗</label>
                     </div>
                   </div>
                 ) : (
@@ -1015,6 +1078,67 @@ Step1ne Recruitment`;
                         )) : <span className="text-xs text-gray-400">—</span>}
                       </div>
                     </div>
+                    {/* Phase 1 新增欄位顯示 */}
+                    {(editAge || editIndustry || editLanguages || editCertifications || editCurrentSalary || editExpectedSalary || editNoticePeriod || editManagement || editTeamSize) && (
+                      <>
+                        {editAge && (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-500">年齡</span>
+                            <span className="text-sm font-medium text-gray-800">{editAge} 歲</span>
+                          </div>
+                        )}
+                        {editIndustry && (
+                          <div className="flex items-center gap-2">
+                            <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-500">產業</span>
+                            <span className="text-sm font-medium text-gray-800 truncate">{editIndustry}</span>
+                          </div>
+                        )}
+                        {editLanguages && (
+                          <div className="flex items-center gap-2">
+                            <Globe className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-500">語言</span>
+                            <span className="text-sm font-medium text-gray-800 truncate">{editLanguages}</span>
+                          </div>
+                        )}
+                        {editCertifications && (
+                          <div className="flex items-center gap-2">
+                            <Award className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-500">證照</span>
+                            <span className="text-sm font-medium text-gray-800 truncate">{editCertifications}</span>
+                          </div>
+                        )}
+                        {(editCurrentSalary || editExpectedSalary) && (
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-500">薪資</span>
+                            <span className="text-sm font-medium text-gray-800">
+                              {editCurrentSalary && `現 ${editCurrentSalary}`}
+                              {editCurrentSalary && editExpectedSalary && ' → '}
+                              {editExpectedSalary && `期望 ${editExpectedSalary}`}
+                            </span>
+                          </div>
+                        )}
+                        {editNoticePeriod && (
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-500">到職</span>
+                            <span className="text-sm font-medium text-gray-800">{editNoticePeriod}</span>
+                          </div>
+                        )}
+                        {(editManagement || editTeamSize) && (
+                          <div className="flex items-center gap-2">
+                            <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-500">管理</span>
+                            <span className="text-sm font-medium text-gray-800">
+                              {editManagement ? '有管理經驗' : ''}
+                              {editManagement && editTeamSize ? `（${editTeamSize}）` : editTeamSize || ''}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1280,6 +1404,152 @@ Step1ne Recruitment`;
                 </div>
               </div>
               
+              {/* 顧問 5 維度評估 */}
+              <div className="bg-emerald-50/50 rounded-lg border border-emerald-200">
+                <div className="flex items-center justify-between p-3 border-b border-emerald-100">
+                  <div className="flex items-center gap-2">
+                    <Star className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">顧問評估</span>
+                  </div>
+                  {!editingEval ? (
+                    <button onClick={() => setEditingEval(true)} className="text-xs px-2 py-1 border border-emerald-200 rounded text-emerald-600 hover:bg-emerald-100">
+                      {consultEval.overallRating ? '✏️ 修改' : '+ 評估'}
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        disabled={savingEval}
+                        onClick={async () => {
+                          setSavingEval(true);
+                          try {
+                            const evalData = {
+                              ...consultEval,
+                              evaluatedBy: currentUserName || 'system',
+                              evaluatedAt: new Date().toISOString(),
+                            };
+                            await apiPatch(`/api/candidates/${candidate.id}`, {
+                              consultant_evaluation: evalData,
+                              actor: currentUserName || 'system',
+                            });
+                            setConsultEval(evalData);
+                            setEditingEval(false);
+                          } catch { alert('❌ 儲存評估失敗'); } finally { setSavingEval(false); }
+                        }}
+                        className="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        {savingEval ? '儲存中...' : '儲存'}
+                      </button>
+                      <button onClick={() => { setEditingEval(false); setConsultEval(candidate.consultantEvaluation || {}); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                    </div>
+                  )}
+                </div>
+                <div className="p-3">
+                  {editingEval ? (
+                    <div className="space-y-3">
+                      {([
+                        { key: 'communication', label: '溝通能力', desc: '表達清晰、理解力、互動感' },
+                        { key: 'stability', label: '穩定度', desc: '職涯穩定、忠誠度' },
+                        { key: 'technicalDepth', label: '技術深度', desc: '專業能力、解決問題' },
+                        { key: 'personality', label: '個性/態度', desc: '積極度、合作意願' },
+                        { key: 'cultureFit', label: '文化匹配', desc: '與目標企業文化契合度' },
+                      ] as const).map(dim => (
+                        <div key={dim.key} className="flex items-center gap-3">
+                          <span className="text-xs text-gray-600 w-16 shrink-0">{dim.label}</span>
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map(v => (
+                              <button
+                                key={v}
+                                onClick={() => setConsultEval(prev => ({ ...prev, [dim.key]: v }))}
+                                className={`w-7 h-7 rounded-full text-xs font-medium transition-all ${
+                                  (consultEval[dim.key] || 0) >= v
+                                    ? 'bg-emerald-500 text-white shadow-sm'
+                                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                }`}
+                              >
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                          <span className="text-[10px] text-gray-400 hidden sm:inline">{dim.desc}</span>
+                        </div>
+                      ))}
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">顧問總評（1-5）</label>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map(v => (
+                            <button
+                              key={v}
+                              onClick={() => setConsultEval(prev => ({ ...prev, overallRating: v }))}
+                              className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${
+                                (consultEval.overallRating || 0) >= v
+                                  ? 'bg-amber-400 text-white shadow-sm'
+                                  : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                              }`}
+                            >
+                              {v}
+                            </button>
+                          ))}
+                          <span className="text-xs text-gray-400 ml-2 self-center">
+                            {consultEval.overallRating === 5 ? '頂尖' : consultEval.overallRating === 4 ? '優秀' : consultEval.overallRating === 3 ? '合格' : consultEval.overallRating === 2 ? '待加強' : consultEval.overallRating === 1 ? '不適合' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">評語（選填）</label>
+                        <textarea
+                          value={consultEval.comment || ''}
+                          onChange={e => setConsultEval(prev => ({ ...prev, comment: e.target.value }))}
+                          rows={2}
+                          placeholder="對此人選的整體印象..."
+                          className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                        />
+                      </div>
+                    </div>
+                  ) : consultEval.overallRating ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-5 gap-2 text-center">
+                        {([
+                          { key: 'communication', label: '溝通' },
+                          { key: 'stability', label: '穩定' },
+                          { key: 'technicalDepth', label: '技術' },
+                          { key: 'personality', label: '態度' },
+                          { key: 'cultureFit', label: '文化' },
+                        ] as const).map(dim => (
+                          <div key={dim.key}>
+                            <div className="text-[10px] text-gray-500">{dim.label}</div>
+                            <div className={`text-lg font-bold ${
+                              (consultEval[dim.key] || 0) >= 4 ? 'text-emerald-600' :
+                              (consultEval[dim.key] || 0) >= 3 ? 'text-blue-600' :
+                              (consultEval[dim.key] || 0) >= 2 ? 'text-amber-600' :
+                              'text-gray-300'
+                            }`}>
+                              {consultEval[dim.key] || '—'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-emerald-100">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 text-amber-500" />
+                          <span className="text-xs text-gray-600">總評</span>
+                          <span className="text-sm font-bold text-amber-600">{consultEval.overallRating}/5</span>
+                        </div>
+                        {consultEval.evaluatedBy && (
+                          <span className="text-[10px] text-gray-400">by {consultEval.evaluatedBy}</span>
+                        )}
+                      </div>
+                      {consultEval.comment && (
+                        <div className="text-xs text-gray-600 bg-white/50 rounded p-2 mt-1">{consultEval.comment}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-3">
+                      <div className="text-xs text-gray-400">尚未評估，點擊右上角開始評估</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Work History */}
               <div>
                 <div className="flex items-center justify-between mb-3">

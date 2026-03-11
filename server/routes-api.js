@@ -489,6 +489,17 @@ router.get('/candidates', async (req, res) => {
         ? `${row.target_job_label}${row.target_job_company ? ` (${row.target_job_company})` : ''}`
         : null,
       interviewRound: row.interview_round || null,
+      // Phase 1 新增欄位
+      age: row.age != null ? parseInt(row.age) : null,
+      industry: row.industry || '',
+      languages: row.languages || '',
+      certifications: row.certifications || '',
+      currentSalary: row.current_salary || '',
+      expectedSalary: row.expected_salary || '',
+      noticePeriod: row.notice_period || '',
+      managementExperience: row.management_experience || false,
+      teamSize: row.team_size || '',
+      consultantEvaluation: row.consultant_evaluation || null,
     }));
 
     client.release();
@@ -809,6 +820,17 @@ router.patch('/candidates/:id', async (req, res) => {
     const education_details = req.body.education_details;
     const target_job_id = req.body.target_job_id !== undefined ? req.body.target_job_id : undefined;
     const interview_round = req.body.interview_round !== undefined ? req.body.interview_round : req.body.interviewRound;
+    // Phase 1 新增欄位
+    const age = req.body.age;
+    const industry = req.body.industry;
+    const languages = req.body.languages;
+    const certifications = req.body.certifications;
+    const current_salary = req.body.current_salary !== undefined ? req.body.current_salary : req.body.currentSalary;
+    const expected_salary = req.body.expected_salary !== undefined ? req.body.expected_salary : req.body.expectedSalary;
+    const notice_period = req.body.notice_period !== undefined ? req.body.notice_period : req.body.noticePeriod;
+    const management_experience = req.body.management_experience !== undefined ? req.body.management_experience : req.body.managementExperience;
+    const team_size = req.body.team_size !== undefined ? req.body.team_size : req.body.teamSize;
+    const consultant_evaluation = req.body.consultant_evaluation !== undefined ? req.body.consultant_evaluation : req.body.consultantEvaluation;
     const actor = req.body.actor || req.body.by || '';
     const isAIBot = /aibot|bot$|openclaw|yuqi|ai$/i.test(actor);
 
@@ -907,6 +929,47 @@ router.patch('/candidates/:id', async (req, res) => {
     if (interview_round !== undefined) {
       setClauses.push(`interview_round = $${idx++}`);
       values.push(interview_round === null ? null : Number(interview_round));
+    }
+    // Phase 1 新增欄位
+    if (age !== undefined) {
+      setClauses.push(`age = $${idx++}`);
+      values.push(age === null ? null : Number(age));
+    }
+    if (industry !== undefined) {
+      setClauses.push(`industry = $${idx++}`);
+      values.push(industry);
+    }
+    if (languages !== undefined) {
+      setClauses.push(`languages = $${idx++}`);
+      values.push(languages);
+    }
+    if (certifications !== undefined) {
+      setClauses.push(`certifications = $${idx++}`);
+      values.push(certifications);
+    }
+    if (current_salary !== undefined) {
+      setClauses.push(`current_salary = $${idx++}`);
+      values.push(current_salary);
+    }
+    if (expected_salary !== undefined) {
+      setClauses.push(`expected_salary = $${idx++}`);
+      values.push(expected_salary);
+    }
+    if (notice_period !== undefined) {
+      setClauses.push(`notice_period = $${idx++}`);
+      values.push(notice_period);
+    }
+    if (management_experience !== undefined) {
+      setClauses.push(`management_experience = $${idx++}`);
+      values.push(management_experience);
+    }
+    if (team_size !== undefined) {
+      setClauses.push(`team_size = $${idx++}`);
+      values.push(team_size);
+    }
+    if (consultant_evaluation !== undefined) {
+      setClauses.push(`consultant_evaluation = $${idx++}`);
+      values.push(JSON.stringify(consultant_evaluation));
     }
     // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析
     let resolvedAiMatch = ai_match_result;

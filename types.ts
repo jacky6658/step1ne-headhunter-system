@@ -359,6 +359,19 @@ export interface ProgressEvent {
   note?: string;  // 額外備註
 }
 
+// 顧問評估（5 維度）
+export interface ConsultantEvaluation {
+  communication?: number;    // 溝通能力 1-5
+  stability?: number;        // 穩定度 1-5
+  technicalDepth?: number;   // 技術深度 1-5
+  personality?: number;      // 個性/態度 1-5
+  cultureFit?: number;       // 文化匹配 1-5
+  overallRating?: number;    // 顧問總評 1-5
+  evaluatedBy?: string;      // 評估顧問
+  evaluatedAt?: string;      // 評估時間
+  comment?: string;          // 顧問評語
+}
+
 export interface Candidate {
   id: string;
   name: string;
@@ -389,6 +402,17 @@ export interface Candidate {
   aiMatchResult?: AiMatchResult | null; // AI 匹配評分結果
   targetJobId?: number | null;          // 目標職缺 FK → jobs_pipeline.id
   targetJobLabel?: string | null;       // 目標職缺顯示名稱（JOIN 計算：職缺名 (公司)）
+  // ── Phase 1 新增欄位 ──
+  age?: number | null;                    // 年齡
+  industry?: string;                      // 所屬產業
+  languages?: string;                     // 語言能力（如：中文、英文流利、日文基礎）
+  certifications?: string;                // 證照（如：PMP、AWS SAA）
+  currentSalary?: string;                 // 目前薪資（概略，如 90K）
+  expectedSalary?: string;                // 期望薪資（概略，如 100K+）
+  noticePeriod?: string;                  // 到職時間（如 1個月、即刻到職）
+  managementExperience?: boolean;         // 是否有管理經驗
+  teamSize?: string;                      // 管理人數（如 5-10人）
+  consultantEvaluation?: ConsultantEvaluation | null; // 顧問 5 維度評估
   createdAt: string;
   updatedAt: string;
   createdBy: string;
