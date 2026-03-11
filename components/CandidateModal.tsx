@@ -2477,14 +2477,20 @@ Step1ne Recruitment`;
               ? c.skills
               : (c.skills || '').split(/[,、]+/).map(s => s.trim()).filter(Boolean);
 
+            // 從工作經歷取得現職：優先用最新一筆 workHistory，否則用 c.position
+            const latestWork = (c.workHistory || [])[0];
+            const currentPosition = latestWork
+              ? `${latestWork.title || ''}${latestWork.company ? ` @ ${latestWork.company}` : ''}`
+              : (c.position || '');
+
             // 一句話定位
             const parts: string[] = [];
             if (c.years) parts.push(`${c.years}年`);
             if (c.industry) parts.push(c.industry);
-            if (c.position) parts.push(c.position);
+            if (currentPosition) parts.push(currentPosition);
             if (c.managementExperience && c.teamSize) parts.push(`管理 ${c.teamSize} 團隊`);
             else if (c.managementExperience) parts.push('具管理經驗');
-            const oneLiner = parts.length > 0 ? parts.join(' ') : c.position || '資料不足';
+            const oneLiner = parts.length > 0 ? parts.join(' ') : currentPosition || '資料不足';
 
             // 組裝 AI 提示詞
             const generateAiPrompt = () => {
@@ -2504,7 +2510,7 @@ GET https://backendstep1ne.zeabur.app/api/jobs
 
 ### 基本資訊
 - 姓名：${c.name || '未填'}
-- 現職：${c.position || '未填'}
+- 現職：${currentPosition || '未填'}
 - 總年資：${c.years || '未填'} 年
 - 學歷：${c.education || '未填'}
 - 所在地：${c.location || '未填'}
@@ -2598,7 +2604,7 @@ ${c.aiMatchResult ? `### 系統已有 AI 評分
                   </h3>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { label: '現職', value: c.position },
+                      { label: '現職', value: currentPosition },
                       { label: '年資', value: c.years ? `${c.years} 年` : null },
                       { label: '產業', value: c.industry },
                       { label: '學歷', value: c.education },
