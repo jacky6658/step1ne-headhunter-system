@@ -6,6 +6,10 @@ import {
   Target, ChevronDown, ChevronUp, Eye, Award, AlertTriangle,
   BarChart3, ArrowRight
 } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell
+} from 'recharts';
 
 interface OverviewDashboardPageProps {
   userProfile: UserProfile;
@@ -191,6 +195,46 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
     });
   }, [jobs, candidates]);
 
+  // ── 圖表資料 ──
+  // 1. 各顧問堆疊長條圖
+  const consultantBarData = useMemo(() => {
+    return consultantStats
+      .filter(s => s.name !== '系統/爬蟲' && s.name !== '未指派')
+      .map(s => ({
+        name: s.name,
+        聯繫中: s.contacted,
+        面試中: s.interviewing,
+        Offer: s.offer,
+        'On Board': s.onboard,
+        未開始: s.byStatus['未開始'] || 0,
+        'AI推薦': s.byStatus['AI推薦'] || 0,
+      }));
+  }, [consultantStats]);
+
+  // 2. 全狀態分布圓餅圖
+  const statusPieData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    candidates.forEach(c => {
+      counts[c.status] = (counts[c.status] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name: STATUS_CONFIG[name]?.label || name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [candidates]);
+
+  const PIE_COLORS = ['#6366f1', '#f59e0b', '#8b5cf6', '#10b981', '#059669', '#ef4444', '#06b6d4', '#94a3b8', '#64748b'];
+
+  // 3. Pipeline 對比長條圖
+  const pipelineBarData = useMemo(() => {
+    return consultantStats
+      .filter(s => s.name !== '系統/爬蟲' && s.name !== '未指派')
+      .map(s => ({
+        name: s.name,
+        Pipeline: s.pipeline,
+        總負責: s.total,
+      }));
+  }, [consultantStats]);
+
   const healthIcon = (h: 'green' | 'yellow' | 'red') => {
     if (h === 'green') return <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />;
     if (h === 'yellow') return <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />;
@@ -256,6 +300,99 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
             <div className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</div>
           </div>
         ))}
+      </div>
+
+      {/* ━━━ 圖表區 ━━━ */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* 各顧問人選分布（堆疊長條圖） */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5">
+          <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-indigo-500" />
+            各顧問人選狀態分布
+          </h3>
+          {consultantBarData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={consultantBarData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Bar dataKey="聯繫中" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="面試中" stackId="a" fill="#8b5cf6" />
+                <Bar dataKey="Offer" stackId="a" fill="#10b981" />
+                <Bar dataKey="On Board" stackId="a" fill="#059669" />
+                <Bar dataKey="AI推薦" stackId="a" fill="#6366f1" />
+                <Bar dataKey="未開始" stackId="a" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[280px] flex items-center justify-center text-sm text-slate-400">無資料</div>
+          )}
+        </div>
+
+        {/* 全狀態分布（圓餅圖） */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5">
+          <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+            <Target className="w-4 h-4 text-emerald-500" />
+            人選狀態總覽
+          </h3>
+          {statusPieData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={statusPieData}
+                  cx="50%"
+                  cy="45%"
+                  innerRadius={50}
+                  outerRadius={90}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={{ strokeWidth: 1 }}
+                  style={{ fontSize: '10px' }}
+                >
+                  {statusPieData.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value: number) => [`${value} 人`, '數量']}
+                  contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[280px] flex items-center justify-center text-sm text-slate-400">無資料</div>
+          )}
+        </div>
+      </div>
+
+      {/* Pipeline 對比長條圖 */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5">
+        <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-purple-500" />
+          各顧問 Pipeline 進行中 vs 總負責
+        </h3>
+        {pipelineBarData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={pipelineBarData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip
+                contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+              />
+              <Legend wrapperStyle={{ fontSize: '12px' }} />
+              <Bar dataKey="總負責" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Pipeline" fill="#6366f1" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-[240px] flex items-center justify-center text-sm text-slate-400">無資料</div>
+        )}
       </div>
 
       {/* ━━━ 各顧問進度對比 ━━━ */}
