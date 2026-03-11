@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Role, UserProfile } from '../types';
-import { ClipboardList, CheckSquare, History, Users, Download, Database, LogOut, X, BarChart3, BookOpen, ScrollText, Target, Bot, Activity } from 'lucide-react';
+import { ClipboardList, CheckSquare, History, Users, Download, Database, LogOut, X, BarChart3, BookOpen, ScrollText, Target, Bot, Activity, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -10,9 +10,11 @@ interface SidebarProps {
   onLogout: () => void;
   isOpen: boolean;
   onClose: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onLogout, isOpen, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onLogout, isOpen, onClose, collapsed, onToggleCollapse }) => {
   if (!profile) {
     return null; // Safety check
   }
@@ -64,16 +66,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
       {/* 側邊欄 */}
       <div className={`
         fixed sm:static inset-y-0 left-0 z-50
-        w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0
-        transform transition-transform duration-300 ease-in-out
+        ${collapsed ? 'w-[68px]' : 'w-64'} bg-slate-900 text-slate-300 flex flex-col shrink-0
+        transform transition-all duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}
         shadow-2xl sm:shadow-none
       `}>
-        {/* 手機版關閉按鈕 */}
-        <div className="p-4 sm:p-6 flex items-center justify-between border-b border-slate-800 sm:border-b-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-white text-xs">S1</div>
-            <span className="text-xl font-bold text-white tracking-tight">Step1ne 獵頭系統</span>
+        {/* Logo 區域 */}
+        <div className={`p-4 ${collapsed ? 'sm:px-3' : 'sm:p-6'} flex items-center justify-between border-b border-slate-800 sm:border-b-0`}>
+          <div className={`flex items-center gap-3 ${collapsed ? 'sm:justify-center sm:w-full' : ''} overflow-hidden`}>
+            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-white text-xs shrink-0">S1</div>
+            <span className={`text-xl font-bold text-white tracking-tight whitespace-nowrap transition-opacity duration-200 ${collapsed ? 'sm:hidden' : ''}`}>Step1ne 獵頭系統</span>
           </div>
           <button
             onClick={onClose}
@@ -81,27 +83,28 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
           >
             <X size={20} />
           </button>
-      </div>
-      
-        <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+        </div>
+
+        <nav className={`flex-1 ${collapsed ? 'px-2' : 'px-4'} py-4 space-y-1 overflow-y-auto`}>
         {menuItems.filter(item => item.roles.includes(profile.role)).map((item) => (
           <button
             key={item.id}
-              onClick={() => !item.disabled && handleItemClick(item.id)}
+            onClick={() => !item.disabled && handleItemClick(item.id)}
             disabled={item.disabled}
-            className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+            title={collapsed ? item.label : undefined}
+            className={`w-full flex items-center ${collapsed ? 'justify-center sm:px-0' : 'justify-between'} gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
               item.disabled
                 ? 'opacity-50 cursor-not-allowed text-slate-500'
-                : activeTab === item.id 
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
+                : activeTab === item.id
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
                   : 'hover:bg-slate-800 hover:text-white'
             }`}
           >
-            <div className="flex items-center gap-3">
-              <item.icon size={18} />
-              {item.label}
+            <div className={`flex items-center gap-3 ${collapsed ? 'sm:gap-0' : ''} overflow-hidden`}>
+              <item.icon size={18} className="shrink-0" />
+              <span className={`whitespace-nowrap transition-opacity duration-200 ${collapsed ? 'sm:hidden' : ''}`}>{item.label}</span>
             </div>
-            {item.badge && (
+            {!collapsed && item.badge && (
               <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded">
                 {item.badge}
               </span>
@@ -110,13 +113,23 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
-        <button 
-          onClick={onLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
+      <div className={`${collapsed ? 'px-2' : 'px-4'} py-2 border-t border-slate-800`}>
+        {/* 收合按鈕（桌面版） */}
+        <button
+          onClick={onToggleCollapse}
+          className="hidden sm:flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all justify-center"
+          title={collapsed ? '展開側邊欄' : '收合側邊欄'}
         >
-          <LogOut size={18} />
-          登出
+          {collapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
+          <span className={`whitespace-nowrap ${collapsed ? 'sm:hidden' : ''}`}>收合側邊欄</span>
+        </button>
+        <button
+          onClick={onLogout}
+          title={collapsed ? '登出' : undefined}
+          className={`w-full flex items-center ${collapsed ? 'justify-center sm:px-0' : ''} gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all`}
+        >
+          <LogOut size={18} className="shrink-0" />
+          <span className={`whitespace-nowrap ${collapsed ? 'sm:hidden' : ''}`}>登出</span>
         </button>
       </div>
     </div>

@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { auth, signInAnonymously } from '../mockBackend';
-import { createUserProfile, getAllUsers, getUserProfile } from '../services/userService';
+import { createUserProfile, getAllUsers, getUserProfile, verifyPassword } from '../services/userService';
 import { setUserOnline } from '../services/onlineService';
 import { Role, UserProfile } from '../types';
-import { ArrowRight, AlertCircle, Loader2, User, Shield } from 'lucide-react';
+import { ArrowRight, AlertCircle, Loader2, User, Shield, ArrowLeft, Lock } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     const initLogin = async () => {
@@ -33,7 +35,7 @@ const LoginPage: React.FC = () => {
   const loadUsers = async () => {
     try {
       let allUsers = await getAllUsers();
-      
+
       // 如果沒有用戶，嘗試初始化預設用戶
       if (allUsers.length === 0) {
         console.log('未找到用戶，初始化預設用戶...');
@@ -42,11 +44,11 @@ const LoginPage: React.FC = () => {
         await createUserProfile('phoebe', 'phoebe@aijob.internal', Role.REVIEWER, 'Phoebe', 'phoebe123');
         await createUserProfile('jacky', 'jacky@aijob.internal', Role.REVIEWER, 'Jacky', 'jacky123');
         await createUserProfile('jim', 'jim@aijob.internal', Role.REVIEWER, 'Jim', 'jim123');
-        
+
         // 重新獲取用戶列表
         allUsers = await getAllUsers();
       }
-      
+
       setUsers(allUsers);
     } catch (error) {
       console.error('載入用戶失敗:', error);
@@ -54,42 +56,65 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const handleCardClick = async (user: UserProfile) => {
+  const handleCardClick = (user: UserProfile) => {
+    setSelectedUser(user);
+    setPassword('');
+    setError('');
+  };
+
+  const handleBack = () => {
+    setSelectedUser(null);
+    setPassword('');
+    setError('');
+  };
+
+  const handleLogin = async () => {
+    if (!selectedUser) return;
+
+    if (!password.trim()) {
+      setError('請輸入密碼');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      // 直接登入，無需密碼
-      const virtualEmail = `${(user.displayName || 'user').toLowerCase()}@caseflow.internal`;
-      
-      // 使用用戶的原始 uid 作為登入 uid，確保一致性
-      const loginUid = user.uid;
-      
-      // 先創建或更新用戶資料（如果不存在）
+      // 驗證密碼
+      const isValid = await verifyPassword(selectedUser.displayName, password);
+      if (!isValid) {
+        setError('密碼錯誤，請重新輸入');
+        setLoading(false);
+        return;
+      }
+
+      // 密碼正確，執行登入
+      const virtualEmail = `${(selectedUser.displayName || 'user').toLowerCase()}@caseflow.internal`;
+      const loginUid = selectedUser.uid;
+
       let profile = await getUserProfile(loginUid);
       if (!profile) {
-        profile = await createUserProfile(loginUid, virtualEmail, user.role, user.displayName);
+        profile = await createUserProfile(loginUid, virtualEmail, selectedUser.role, selectedUser.displayName);
       } else {
-        // 更新現有 profile 到 localStorage
         localStorage.setItem('caseflow_profile', JSON.stringify(profile));
       }
-      
-      // 使用用戶的 uid 執行登入
+
       const userCredential = await signInAnonymously(auth, loginUid);
-      
-      // 確保 profile 已保存
+
       if (profile) {
         localStorage.setItem('caseflow_profile', JSON.stringify(profile));
-        // 設置在線狀態
         await setUserOnline(loginUid);
       }
-      
-      // 登入完成，認證狀態會自動更新
-      // 不需要手動設置 loading，因為認證狀態更新會觸發 App 重新渲染
     } catch (err: any) {
       console.error("Auth Error:", err);
       setError('登入處理失敗，請稍後再試。');
       setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleLogin();
     }
   };
 
@@ -113,7 +138,9 @@ const LoginPage: React.FC = () => {
             AI
           </div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-1 sm:mb-2">Step1ne 獵頭系統</h1>
-          <p className="text-slate-500 text-sm sm:text-base md:text-lg px-4">獵頭顧問協作平台 · 請選擇您的身份</p>
+          <p className="text-slate-500 text-sm sm:text-base md:text-lg px-4">
+            {selectedUser ? `歡迎回來，${selectedUser.displayName}` : '獵頭顧問協作平台 · 請選擇您的身份'}
+          </p>
         </div>
 
         {loading && (
@@ -127,7 +154,67 @@ const LoginPage: React.FC = () => {
           </div>
         )}
 
-        {!loading && (
+        {/* 密碼輸入畫面 */}
+        {!loading && selectedUser && (
+          <div className="max-w-md mx-auto">
+            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl shadow-slate-200 border border-slate-100 p-6 sm:p-10">
+              <div className="flex flex-col items-center gap-4 sm:gap-6">
+                {/* 用戶頭像 */}
+                <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-xl sm:rounded-2xl bg-gradient-to-br ${getCardColor(selectedUser)} flex items-center justify-center text-white text-2xl sm:text-3xl font-black shadow-lg border-2 border-white/20 overflow-hidden`}>
+                  {selectedUser.avatar ? (
+                    <img src={selectedUser.avatar} alt={selectedUser.displayName} className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{getInitials(selectedUser.displayName)}</span>
+                  )}
+                </div>
+                <div className="text-center">
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900">{selectedUser.displayName}</h3>
+                  <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500 mt-1">
+                    {selectedUser.role === Role.ADMIN ? (
+                      <><Shield size={14} /><span>管理員</span></>
+                    ) : (
+                      <><User size={14} /><span>獵頭顧問</span></>
+                    )}
+                  </div>
+                </div>
+
+                {/* 密碼輸入 */}
+                <div className="w-full space-y-3">
+                  <div className="relative">
+                    <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="請輸入密碼"
+                      autoFocus
+                      className="w-full pl-11 pr-4 py-3 sm:py-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl sm:rounded-2xl text-sm sm:text-base font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 transition-all"
+                    />
+                  </div>
+                  <button
+                    onClick={handleLogin}
+                    className="w-full py-3 sm:py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black text-sm sm:text-base rounded-xl sm:rounded-2xl shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300 transform hover:scale-[1.02] active:scale-95 transition-all"
+                  >
+                    登入
+                  </button>
+                </div>
+
+                {/* 返回按鈕 */}
+                <button
+                  onClick={handleBack}
+                  className="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-indigo-600 transition-colors"
+                >
+                  <ArrowLeft size={16} />
+                  返回選擇用戶
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 用戶卡片列表 */}
+        {!loading && !selectedUser && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             {users.map((user) => (
               <div
