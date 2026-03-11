@@ -2495,11 +2495,32 @@ Step1ne Recruitment`;
 
             // 組裝 AI 提示詞
             const generateAiPrompt = () => {
-              const workHistoryText = (c.workHistory || []).map((w, i) =>
+              const wh = c.workHistory || [];
+              const workHistoryText = wh.map((w, i) =>
                 `${i + 1}. ${w.company || ''} — ${w.title || ''} (${w.period || ''})${w.description ? '\n   ' + w.description : ''}`
               ).join('\n');
 
-              return `你是一位資深獵頭顧問 AI 助手，專精人才與職缺匹配分析。請依照以下步驟進行分析：
+              // 從工作經歷智慧補全空白基本資料
+              const latestW = wh[0];
+              const inferredPosition = currentPosition || (latestW ? `${latestW.title || ''} @ ${latestW.company || ''}` : '');
+              const inferredIndustry = c.industry || '';
+              // 從工作描述中提取可能的技能關鍵字
+              const allDescriptions = wh.map(w => w.description || '').join(' ');
+              const inferredSkillsNote = skillsArr.length === 0 && allDescriptions.length > 20
+                ? `\n（⚡ 技能欄未填，但工作經歷描述中包含以下內容可供推斷技能：「${allDescriptions.substring(0, 300)}...」）`
+                : '';
+
+              return `你是一位擁有 10 年以上經驗的資深獵頭顧問 AI 助手，專精人才評估與職缺匹配分析。
+
+⚠️ 重要規則：
+- 你「只能」使用下方提供的候選人資料進行分析，嚴禁自行編造、猜測或補充任何未提供的資訊
+- 如果某個欄位標示「❌ 未填」，但工作經歷中有相關線索，你可以標註「根據工作經歷推斷：...」來輔助分析，但必須明確區分「已確認資料」vs「推斷資料」
+- 如果完全無法推斷，請標註「資料不足，無法判斷」，不要自行編造
+- 工作經歷是本次分析的核心資料來源，請仔細閱讀每一段工作描述
+- 所有分析結論都必須能追溯到下方提供的具體資料
+- 請以繁體中文回覆
+
+---
 
 ## Step 1：獲取系統職缺資料
 請先呼叫以下 API 獲取目前所有開放的職缺：
@@ -2507,67 +2528,96 @@ Step1ne Recruitment`;
 GET https://backendstep1ne.zeabur.app/api/jobs
 \`\`\`
 
-## Step 2：候選人完整資料
+---
+
+## Step 2：候選人完整資料（以下為唯一事實來源）
 
 ### 基本資訊
-- 姓名：${c.name || '未填'}
-- 現職：${currentPosition || '未填'}
-- 總年資：${c.years || '未填'} 年
-- 學歷：${c.education || '未填'}
-- 所在地：${c.location || '未填'}
-- 產業：${c.industry || '未填'}
-- 來源：${c.source || '未填'}
+- 姓名：${c.name || '❌ 未填'}
+- 現職：${inferredPosition || '❌ 未填'}
+- 總年資：${c.years ? `${c.years} 年` : '❌ 未填'}
+- 學歷：${c.education || '❌ 未填'}
+- 所在地：${c.location || '❌ 未填'}
+- 產業：${inferredIndustry || '❌ 未填（請從工作經歷的公司與職稱推斷）'}
+- 年齡：${c.age ? `${c.age} 歲` : '❌ 未填'}
 
 ### 技能
-${skillsArr.length > 0 ? skillsArr.join('、') : '未填'}
+${skillsArr.length > 0 ? skillsArr.join('、') : '❌ 未填（請從工作經歷描述中提取關鍵技能）'}${inferredSkillsNote}
 
 ### 語言 & 證照
-- 語言能力：${c.languages || '未填'}
-- 證照：${c.certifications || '未填'}
+- 語言能力：${c.languages || '❌ 未填'}
+- 證照：${c.certifications || '❌ 未填'}
 
 ### 管理經驗
 - 有管理經驗：${c.managementExperience ? '是' : '否'}
-- 團隊規模：${c.teamSize || '未填'}
+${c.managementExperience && c.teamSize ? `- 團隊規模：${c.teamSize}` : ''}
 
 ### 薪資 & 到職
-- 目前薪資：${c.currentSalary || '未填'}
-- 期望薪資：${c.expectedSalary || '未填'}
-- 到職時間：${c.noticePeriod || '未填'}
+- 目前薪資：${c.currentSalary || '❌ 未填'}
+- 期望薪資：${c.expectedSalary || '❌ 未填'}
+- 到職時間：${c.noticePeriod || '❌ 未填'}
 
 ### 求職動機
-- 求職狀態：${c.jobSearchStatus || '未填'}
-- 轉職原因：${c.reasonForChange || '未填'}
-- 主要動機：${c.motivation || '未填'}
-- 不接受條件：${c.dealBreakers || '未填'}
-- 競爭 Offer：${c.competingOffers || '未填'}
+- 求職狀態：${c.jobSearchStatus || '❌ 未填'}
+- 轉職原因：${c.reasonForChange || '❌ 未填'}
+- 主要動機：${c.motivation || '❌ 未填'}
+- 不接受條件：${c.dealBreakers || '❌ 未填'}
+- 競爭 Offer：${c.competingOffers || '❌ 未填'}
 
-### 工作經歷
-${workHistoryText || '無資料'}
+### 工作經歷（依時間由近到遠）
+${workHistoryText || '❌ 無工作經歷資料'}
 
-### 穩定性分數
-- Stability Score：${c.stabilityScore || '未評估'}
+### 穩定性數據
+- 穩定度評分：${c.stabilityScore || '未評估'}
 - 換工作次數：${c.jobChanges || 0} 次
 - 平均任期：${c.avgTenure || 0} 年
 
-${c.aiMatchResult ? `### 系統已有 AI 評分
+${c.aiMatchResult ? `### 系統既有 AI 評分（僅供參考）
 - 綜合分數：${c.aiMatchResult.score}
 - 推薦等級：${c.aiMatchResult.recommendation}
-- 結論：${c.aiMatchResult.conclusion || ''}
+- 結論：${c.aiMatchResult.conclusion || '無'}
 ` : ''}
+---
 
 ## Step 3：分析任務
 
-請根據上方人選資料 + Step 1 取得的職缺資料，完成以下分析：
+請根據「Step 2 的人選資料」+「Step 1 取得的系統職缺」完成以下分析。
 
-1. **一句話定位**：用一句話精準描述這位候選人的核心價值
-2. **Top 3 最匹配職缺**：從系統職缺中挑出最適合的 3 個，每個說明：
-   - 匹配原因（技能、產業、年資、薪資帶）
-   - 可能的落差或風險
-   - 匹配度評分（0-100）
-3. **技能落差分析**：候選人有哪些能力缺口？是否可透過訓練補足？
-4. **風險提醒**：穩定性、薪資期望、到職時間等潛在風險
-5. **建議面試問題**：3-5 個針對此候選人應該深入了解的問題
-6. **顧問行動建議**：給獵頭顧問的下一步行動方案`;
+📌 分析策略：
+- 基本資料如有「❌ 未填」，請優先從「工作經歷」中交叉比對推斷，並標註「（根據工作經歷推斷）」
+- 工作經歷是最重要的分析依據，請仔細分析每一段的職稱、公司、任期、工作描述
+- 從工作經歷的職稱變化判斷職涯發展軌跡（升遷 / 平轉 / 降級）
+- 從公司規模與類型推斷產業經驗
+- 如果完全無法從任何資料推斷，才標註「資料不足」
+
+### 1️⃣ 一句話定位
+用一句話精準描述這位候選人的核心價值與市場定位。
+
+### 2️⃣ Top 3 最匹配職缺
+從 Step 1 取得的系統職缺中挑出最適合的 3 個，每個說明：
+- ✅ 匹配原因（引用具體的技能、年資、產業等資料）
+- ⚠️ 可能的落差或風險
+- 📊 匹配度評分（0-100）及評分依據
+
+### 3️⃣ 能力分析
+- 核心優勢：列出 3-5 項（必須基於已提供的技能和工作經歷）
+- 能力缺口：相對於匹配職缺缺少什麼？是否可透過短期培訓補足？
+
+### 4️⃣ 風險評估
+- 穩定性風險（根據換工作次數、平均任期判斷）
+- 薪資風險（期望 vs 市場行情）
+- 到職時間風險
+- 其他紅旗（如有）
+
+### 5️⃣ 建議顧問提問
+提供 5 個針對此候選人應深入了解的問題，分類如下：
+- 🔍 技能驗證題（確認關鍵技能的實際深度）
+- 💼 行為面試題（過去如何處理困難情境）
+- ❤️ 動機探索題（真實轉職原因與期望）
+- ⚠️ 風險確認題（針對履歷中的疑點）
+
+### 6️⃣ 顧問行動建議
+給獵頭顧問的具體下一步行動方案（安排面試 / 補充資料 / 先釐清疑點 / 暫不推薦等）`;
             };
 
             const handleCopyAiPrompt = () => {
