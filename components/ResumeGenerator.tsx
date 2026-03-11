@@ -251,23 +251,6 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   const summary = customSummary || generateSummary(candidate);
   const position = candidate.position || '';
 
-  // 動態計算總年資（從工作經歷加總，比後端靜態值準確）
-  const totalMonthsFromHistory = workHistory.reduce((sum, w) => {
-    return sum + calcDurationMonths(w.start || '', w.end || 'present');
-  }, 0);
-  const years = totalMonthsFromHistory > 0 ? Math.round(totalMonthsFromHistory / 12) : (candidate.years || 0);
-
-  // 匿名處理：只顯示英文名，沒有英文名就用 Candidate label
-  const englishName = extractEnglishName(candidate.name || '');
-  const displayName = englishName || candidateLabel;
-
-  // Headline: Position | N年 | key skills
-  const topSkills = skills.slice(0, 3).join(' × ');
-  const headline = [position, years > 0 ? `${years} 年經驗` : '', topSkills].filter(Boolean).join(' | ');
-
-  // Skills grouped
-  const skillsHTML = skills.map(s => `<span class="skill-tag">${s}</span>`).join('');
-
   // 從 start/end 動態計算月數（不依賴後端靜態 duration_months）
   const calcDurationMonths = (start: string, end: string): number => {
     if (!start) return 0;
@@ -287,10 +270,56 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     return Math.max(0, months);
   };
 
+  // 動態計算總年資（從工作經歷加總，比後端靜態值準確）
+  const totalMonthsFromHistory = workHistory.reduce((sum, w) => {
+    return sum + calcDurationMonths(w.start || '', w.end || 'present');
+  }, 0);
+  const years = totalMonthsFromHistory > 0 ? Math.round(totalMonthsFromHistory / 12) : (candidate.years || 0);
+
+  // 匿名處理：只顯示英文名，沒有英文名就用 Candidate label
+  const englishName = extractEnglishName(candidate.name || '');
+  const displayName = englishName || candidateLabel;
+
+  // Headline: Position | N年 | key skills
+  const topSkills = skills.slice(0, 3).join(' × ');
+  const headline = [position, years > 0 ? `${years} 年經驗` : '', topSkills].filter(Boolean).join(' | ');
+
+  // Skills grouped
+  const skillsHTML = skills.map(s => `<span class="skill-tag">${s}</span>`).join('');
+
   // Work history — 公司名匿名化：用產業/規模描述取代真實公司名
+  // 非台灣公司會保留國家/地區標記
   const anonymizeCompany = (company: string): string => {
     if (!company) return '某企業';
-    const c = company.toLowerCase();
+
+    // 1. 先提取括號中的國家/地區資訊（全形/半形括號皆支援）
+    let regionTag = '';
+    const regionMatch = company.match(/[（(]([^）)]+)[）)]/);
+    if (regionMatch) {
+      const region = regionMatch[1].trim();
+      // 判斷是否為非台灣的國家/地區（排除台灣相關字樣與非地區的括號內容）
+      const twKeywords = ['台灣', '台北', '台中', '台南', '高雄', 'taiwan', 'tw'];
+      const isTW = twKeywords.some(k => region.toLowerCase().includes(k));
+      // 常見國家/地區列表，有匹配才保留
+      const countryKeywords = [
+        '英國', '美國', '日本', '韓國', '中國', '香港', '新加坡', '澳洲', '德國', '法國',
+        '加拿大', '荷蘭', '瑞士', '瑞典', '印度', '泰國', '馬來西亞', '越南', '菲律賓',
+        '紐西蘭', '以色列', '巴西', '墨西哥', '西班牙', '義大利', '奧地利', '比利時',
+        '丹麥', '芬蘭', '挪威', '波蘭', '愛爾蘭', '俄羅斯', '土耳其', '阿聯酋', '沙烏地',
+        'uk', 'us', 'usa', 'japan', 'korea', 'china', 'hong kong', 'singapore', 'australia',
+        'germany', 'france', 'canada', 'india', 'thailand', 'malaysia', 'vietnam',
+        '上海', '北京', '深圳', '廣州', '東京', '大阪', '倫敦', '紐約', '矽谷', '舊金山',
+      ];
+      const isCountry = countryKeywords.some(k => region.toLowerCase().includes(k.toLowerCase()));
+      if (!isTW && isCountry) {
+        regionTag = `（${region}）`;
+      }
+    }
+
+    // 2. 去掉括號部分再做匿名判斷
+    const companyClean = company.replace(/[（(][^）)]*[）)]/g, '').trim();
+    const c = companyClean.toLowerCase();
+
     // 知名大廠 → 用規模+產業描述
     const techGiants = ['google', 'meta', 'facebook', 'amazon', 'apple', 'microsoft', 'netflix', 'nvidia', 'tesla', 'openai'];
     const cnTech = ['阿里', '騰訊', '字節', '百度', '華為', '小米', '京東', '美團', '拼多多', '網易'];
@@ -298,23 +327,29 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     const banks = ['銀行', 'bank', '金控', '證券', '投信', '保險', 'insurance'];
     const consulting = ['mckinsey', 'bain', 'bcg', 'deloitte', 'ey', 'pwc', 'kpmg', 'accenture', '麥肯錫', '貝恩', '勤業', '資誠', '安永'];
 
-    if (techGiants.some(t => c.includes(t))) return '全球知名科技巨頭';
-    if (cnTech.some(t => c.includes(t))) return '中國頭部科技公司';
-    if (twTech.some(t => c.includes(t))) return '台灣知名科技/半導體企業';
-    if (banks.some(t => c.includes(t))) return '知名金融機構';
-    if (consulting.some(t => c.includes(t))) return '國際頂級顧問公司';
-
+    let anonName = '';
+    if (techGiants.some(t => c.includes(t))) anonName = '全球知名科技巨頭';
+    else if (cnTech.some(t => c.includes(t))) anonName = '中國頭部科技公司';
+    else if (twTech.some(t => c.includes(t))) anonName = '台灣知名科技/半導體企業';
+    else if (banks.some(t => c.includes(t))) anonName = '知名金融機構';
+    else if (consulting.some(t => c.includes(t))) anonName = '國際頂級顧問公司';
     // 一般公司 → 用產業關鍵字推測
-    if (/科技|tech|software|資訊|IT|internet|網路/.test(c)) return '科技公司';
-    if (/生技|醫|pharma|biotech|health/.test(c)) return '生技醫療公司';
-    if (/製造|工業|industrial|manufact/.test(c)) return '製造業公司';
-    if (/電商|commerce|零售|retail/.test(c)) return '電商/零售公司';
-    if (/媒體|media|傳播|廣告|advert/.test(c)) return '媒體/廣告公司';
-    if (/教育|education|學/.test(c)) return '教育機構';
-    if (/顧問|consul/.test(c)) return '顧問公司';
-    if (/新創|startup/.test(c)) return '新創公司';
+    else if (/科技|tech|software|資訊|IT|internet|網路/.test(c)) anonName = '科技公司';
+    else if (/生技|醫|pharma|biotech|health/.test(c)) anonName = '生技醫療公司';
+    else if (/製造|工業|industrial|manufact/.test(c)) anonName = '製造業公司';
+    else if (/電商|commerce|零售|retail/.test(c)) anonName = '電商/零售公司';
+    else if (/媒體|media|傳播|廣告|advert/.test(c)) anonName = '媒體/廣告公司';
+    else if (/教育|education|學/.test(c)) anonName = '教育機構';
+    else if (/顧問|consul/.test(c)) anonName = '顧問公司';
+    else if (/建築|architect|設計|design|事務所/.test(c)) anonName = '建築/設計事務所';
+    else if (/營造|construct|工程/.test(c)) anonName = '營造/工程公司';
+    else if (/法律|律師|law/.test(c)) anonName = '法律事務所';
+    else if (/會計|account/.test(c)) anonName = '會計事務所';
+    else if (/新創|startup/.test(c)) anonName = '新創公司';
+    else anonName = '某企業';
 
-    return '某企業';
+    // 3. 如有海外地區標記就附加
+    return regionTag ? `${anonName}${regionTag}` : anonName;
   };
 
   const workHTML = workHistory.map(w => {
@@ -324,7 +359,13 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     // 動態計算月數，不用後端靜態的 duration_months
     const months = calcDurationMonths(startStr, w.end || 'present');
     const durationStr = months > 0
-      ? `${Math.floor(months / 12) > 0 ? Math.floor(months / 12) + '年' : ''}${months % 12 ? months % 12 + '個月' : ''}`
+      ? (() => {
+          const y = Math.floor(months / 12);
+          const m = months % 12;
+          if (y > 0 && m > 0) return `${y}年${m}個月`;
+          if (y > 0) return `${y}年`;
+          return `${m}個月`;
+        })()
       : '';
     const timeDisplay = period
       ? `${period}${durationStr ? `（${durationStr}）` : ''}`

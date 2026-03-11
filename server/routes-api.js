@@ -171,6 +171,11 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS birthday DATE;
 `).catch(err => console.warn('birthday migration:', err.message));
 
+// 年齡是否為推估值
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS age_estimated BOOLEAN DEFAULT true;
+`).catch(err => console.warn('age_estimated migration:', err.message));
+
 // 目標職缺欄位：改為直接 FK 對應 jobs_pipeline（不再存在 notes 文字內）
 pool.query(`
   ALTER TABLE candidates_pipeline
