@@ -151,6 +151,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [importError, setImportError] = useState<string | null>(null);
   const [importSelected, setImportSelected] = useState<Set<string>>(new Set());
   const [applyingImport, setApplyingImport] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // 工作經歷本地狀態（支援新增/編輯/刪除）
   const [workItems, setWorkItems] = useState<any[]>(() => {
@@ -1309,16 +1310,36 @@ Step1ne Recruitment`;
               {showImport && (
                 <div className="border border-blue-200 rounded-lg bg-blue-50/40 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-blue-700">📄 匯入 LinkedIn PDF 履歷</span>
-                    <button onClick={() => { setShowImport(false); setImportParsed(null); setImportError(null); }} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+                    <span className="text-sm font-semibold text-blue-700">📄 匯入 PDF 履歷（LinkedIn / 104）</span>
+                    <button onClick={() => { setShowImport(false); setImportParsed(null); setImportError(null); setIsDragging(false); }} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
                   </div>
 
-                  {/* 檔案選擇 */}
+                  {/* 檔案選擇 + 拖曳 */}
                   {!importParsed && !importLoading && (
-                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-blue-300 rounded-lg p-6 cursor-pointer hover:bg-blue-50 transition-colors">
-                      <span className="text-3xl mb-2">📂</span>
-                      <span className="text-sm text-blue-600 font-medium">點擊選擇 LinkedIn PDF 檔案</span>
-                      <span className="text-xs text-gray-400 mt-1">最大 10 MB</span>
+                    <label
+                      className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${
+                        isDragging
+                          ? 'border-blue-500 bg-blue-100 scale-[1.01]'
+                          : 'border-blue-300 hover:bg-blue-50'
+                      }`}
+                      onDragEnter={e => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                      onDragLeave={e => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                      onDrop={e => {
+                        e.preventDefault(); e.stopPropagation(); setIsDragging(false);
+                        const f = e.dataTransfer.files?.[0];
+                        if (f && f.type === 'application/pdf') {
+                          handleImportPDF(f);
+                        } else if (f) {
+                          setImportError('請上傳 PDF 格式的檔案');
+                        }
+                      }}
+                    >
+                      <span className="text-3xl mb-2">{isDragging ? '📥' : '📂'}</span>
+                      <span className="text-sm text-blue-600 font-medium">
+                        {isDragging ? '放開以匯入 PDF' : '拖曳 PDF 到這裡，或點擊選擇檔案'}
+                      </span>
+                      <span className="text-xs text-gray-400 mt-1">支援 LinkedIn / 104 人力銀行 PDF，最大 10 MB</span>
                       <input
                         type="file"
                         accept="application/pdf"
