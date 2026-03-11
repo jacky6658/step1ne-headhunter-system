@@ -127,6 +127,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [editAge, setEditAge] = useState(String(candidate.age ?? ''));
   const [editGender, setEditGender] = useState(candidate.gender || '');
   const [editEnglishName, setEditEnglishName] = useState(candidate.englishName || '');
+  const [editConsultantNote, setEditConsultantNote] = useState(candidate.consultantNote || '');
   const [editIndustry, setEditIndustry] = useState(candidate.industry || '');
 
   // 從出生日期自動計算年齡
@@ -606,6 +607,7 @@ Step1ne Recruitment`;
         age_estimated: editBirthday ? false : (candidate.ageEstimated ?? true),
         gender: editGender,
         english_name: editEnglishName.trim(),
+        consultant_note: editConsultantNote.trim(),
         education: editEducation.trim(),
         industry: editIndustry.trim(),
         languages: editLanguages.trim(),
@@ -634,6 +636,7 @@ Step1ne Recruitment`;
         years: updates.years,
         skills: updates.skills,
         englishName: updates.english_name,
+        consultantNote: updates.consultant_note,
         education: updates.education,
         age: updates.age,
         gender: updates.gender,
@@ -1094,7 +1097,7 @@ Step1ne Recruitment`;
                       <button onClick={handleSaveBasicInfo} disabled={savingBasicInfo} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">
                         {savingBasicInfo ? '儲存中...' : '儲存'}
                       </button>
-                      <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditEducation(typeof candidate.education === 'string' ? candidate.education : ''); setEditEnglishName(candidate.englishName||''); setEditIndustry(candidate.industry||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); setEditJobSearchStatus(candidate.jobSearchStatus||''); setEditReasonForChange(candidate.reasonForChange||''); setEditMotivation(candidate.motivation||''); setEditDealBreakers(candidate.dealBreakers||''); setEditCompetingOffers(candidate.competingOffers||''); setEditRelationshipLevel(candidate.relationshipLevel||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                      <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditEducation(typeof candidate.education === 'string' ? candidate.education : ''); setEditEnglishName(candidate.englishName||''); setEditIndustry(candidate.industry||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); setEditJobSearchStatus(candidate.jobSearchStatus||''); setEditReasonForChange(candidate.reasonForChange||''); setEditMotivation(candidate.motivation||''); setEditDealBreakers(candidate.dealBreakers||''); setEditCompetingOffers(candidate.competingOffers||''); setEditRelationshipLevel(candidate.relationshipLevel||''); setEditConsultantNote(candidate.consultantNote||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
                     </div>
                   )}
                 </div>
@@ -1374,6 +1377,10 @@ Step1ne Recruitment`;
                         <option value="深度信任">深度信任</option>
                       </select>
                     </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs text-gray-500 mb-1">📝 顧問備註（與人選溝通後的重點記錄）</label>
+                      <textarea value={editConsultantNote} onChange={e => setEditConsultantNote(e.target.value)} placeholder="例：人選目前在 A 公司做到主管，主要想換的原因是加班太多。薪資底線 80K，可接受新竹。英文口說流利但沒有證照。" rows={3} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y" />
+                    </div>
                   </div>
                 ) : (
                   <div className="p-3 grid grid-cols-2 gap-x-4 gap-y-2">
@@ -1519,6 +1526,15 @@ Step1ne Recruitment`;
                         }`}>{editRelationshipLevel}</span>
                       ) : <span className="text-sm font-medium text-gray-400">—</span>}
                     </div>
+                    {editConsultantNote && (
+                      <div className="col-span-2 mt-1 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                        <div className="flex items-center gap-1 mb-1">
+                          <FileText className="w-3 h-3 text-amber-600" />
+                          <span className="text-[10px] font-semibold text-amber-600 uppercase">顧問備註</span>
+                        </div>
+                        <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{editConsultantNote}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2564,6 +2580,9 @@ ${c.managementExperience && c.teamSize ? `- 團隊規模：${c.teamSize}` : ''}
 - 不接受條件：${c.dealBreakers || '❌ 未填'}
 - 競爭 Offer：${c.competingOffers || '❌ 未填'}
 
+### 顧問備註（顧問與人選實際溝通後的重點記錄，⚠️ 優先參考）
+${c.consultantNote || '❌ 無顧問備註'}
+
 ### 工作經歷（依時間由近到遠）
 ${workHistoryText || '❌ 無工作經歷資料'}
 
@@ -2585,6 +2604,7 @@ ${c.aiMatchResult ? `### 系統既有 AI 評分（僅供參考）
 
 📌 分析策略：
 - 基本資料如有「❌ 未填」，請優先從「工作經歷」中交叉比對推斷，並標註「（根據工作經歷推斷）」
+- 「顧問備註」是顧問與人選實際溝通後的第一手記錄，優先級最高，若與其他欄位矛盾以顧問備註為準
 - 工作經歷是最重要的分析依據，請仔細分析每一段的職稱、公司、任期、工作描述
 - 從工作經歷的職稱變化判斷職涯發展軌跡（升遷 / 平轉 / 降級）
 - 從公司規模與類型推斷產業經驗
@@ -2962,6 +2982,9 @@ ${candidateSkills}
 - 主要動機：${c.motivation || '未填'}
 - 不接受條件：${c.dealBreakers || '未填'}
 - 競爭 Offer：${c.competingOffers || '未填'}
+
+### 顧問備註（顧問與人選實際溝通後的重點記錄，⚠️ 此為第一手資訊，優先參考）
+${c.consultantNote || '無顧問備註'}
 
 ### 工作經歷
 ${workHistoryText || '無資料'}

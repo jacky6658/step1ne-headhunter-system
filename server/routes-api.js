@@ -186,6 +186,11 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS english_name TEXT;
 `).catch(err => console.warn('english_name migration:', err.message));
 
+// 顧問備註欄位（顧問與人選聊過後的重點記錄）
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS consultant_note TEXT;
+`).catch(err => console.warn('consultant_note migration:', err.message));
+
 // 目標職缺欄位：改為直接 FK 對應 jobs_pipeline（不再存在 notes 文字內）
 pool.query(`
   ALTER TABLE candidates_pipeline
@@ -526,6 +531,7 @@ router.get('/candidates', async (req, res) => {
       ageEstimated: row.birthday ? false : (row.age == null), // 有生日 = 確定值
       gender: row.gender || '',
       englishName: row.english_name || '',
+      consultantNote: row.consultant_note || '',
       industry: row.industry || '',
       languages: row.languages || '',
       certifications: row.certifications || '',
@@ -880,6 +886,7 @@ router.patch('/candidates/:id', async (req, res) => {
     const age_estimated = req.body.age_estimated !== undefined ? req.body.age_estimated : req.body.ageEstimated;
     const gender = req.body.gender;
     const english_name = req.body.english_name !== undefined ? req.body.english_name : req.body.englishName;
+    const consultant_note = req.body.consultant_note !== undefined ? req.body.consultant_note : req.body.consultantNote;
     const industry = req.body.industry;
     const languages = req.body.languages;
     const certifications = req.body.certifications;
@@ -1015,6 +1022,10 @@ router.patch('/candidates/:id', async (req, res) => {
     if (english_name !== undefined) {
       setClauses.push(`english_name = $${idx++}`);
       values.push(english_name);
+    }
+    if (consultant_note !== undefined) {
+      setClauses.push(`consultant_note = $${idx++}`);
+      values.push(consultant_note);
     }
     if (industry !== undefined) {
       setClauses.push(`industry = $${idx++}`);

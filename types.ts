@@ -413,6 +413,7 @@ export interface Candidate {
   birthday?: string | null;               // 出生年月日（YYYY-MM-DD）
   gender?: string;                        // 性別（男/女/其他）
   englishName?: string;                   // 英文名（匿名履歷用）
+  consultantNote?: string;                // 顧問備註（與人選溝通後的重點記錄）
   industry?: string;                      // 所屬產業
   languages?: string;                     // 語言能力（如：中文、英文流利、日文基礎）
   certifications?: string;                // 證照（如：PMP、AWS SAA）
