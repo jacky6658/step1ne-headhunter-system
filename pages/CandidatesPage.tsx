@@ -1128,6 +1128,12 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
               prev.map(c => c.id === candidateId ? { ...c, consultant: recruiter } : c)
             );
           }}
+          onCandidateUpdate={(candidateId, updates) => {
+            setCandidates(prev =>
+              prev.map(c => c.id === candidateId ? { ...c, ...updates } : c)
+            );
+            setSelectedCandidate(prev => prev && prev.id === candidateId ? { ...prev, ...updates } : prev);
+          }}
         />
       )}
 

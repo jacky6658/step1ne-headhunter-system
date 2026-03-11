@@ -558,13 +558,24 @@ Step1ne Recruitment`;
       if (importSelected.has('jobSearchStatus') && p.jobSearchStatus) setEditJobSearchStatus(p.jobSearchStatus);
 
       onCandidateUpdate?.(candidate.id, {
-        ...(importSelected.has('name') && { name: p.name }),
-        ...(importSelected.has('position') && { position: p.position }),
-        ...(importSelected.has('location') && { location: p.location }),
-        ...(importSelected.has('years') && { years: p.years }),
-        ...(importSelected.has('skills') && { skills: p.skills }),
-        ...(importSelected.has('phone') && { phone: p.phone }),
-        ...(importSelected.has('email') && { email: p.email }),
+        ...(importSelected.has('name') && p.name && { name: p.name }),
+        ...(importSelected.has('position') && p.position && { position: p.position }),
+        ...(importSelected.has('location') && p.location && { location: p.location }),
+        ...(importSelected.has('years') && p.years && { years: p.years }),
+        ...(importSelected.has('skills') && p.skills && { skills: p.skills }),
+        ...(importSelected.has('phone') && p.phone && { phone: p.phone }),
+        ...(importSelected.has('email') && p.email && { email: p.email }),
+        ...(importSelected.has('age') && p.age && { age: p.age }),
+        ...(importSelected.has('education') && p.education && { education: p.education }),
+        ...(importSelected.has('industry') && p.industry && { industry: p.industry }),
+        ...(importSelected.has('languages') && p.languages && { languages: p.languages }),
+        ...(importSelected.has('certifications') && p.certifications && { certifications: p.certifications }),
+        ...(importSelected.has('expectedSalary') && p.expectedSalary && { expectedSalary: p.expectedSalary }),
+        ...(importSelected.has('noticePeriod') && p.noticePeriod && { noticePeriod: p.noticePeriod }),
+        ...(importSelected.has('jobSearchStatus') && p.jobSearchStatus && { jobSearchStatus: p.jobSearchStatus }),
+        ...(importSelected.has('linkedinUrl') && p.linkedinUrl && { linkedinUrl: p.linkedinUrl }),
+        ...(importSelected.has('workHistory') && p.workHistory && { workHistory: p.workHistory }),
+        ...(importSelected.has('educationJson') && p.educationJson && { educationJson: p.educationJson }),
       });
       setShowImport(false);
       setImportParsed(null);
@@ -1068,6 +1079,132 @@ Step1ne Recruitment`;
                     </div>
                   )}
                 </div>
+                {/* PDF 履歷匯入面板 — 放在 header 下方方便立即看到 */}
+                {showImport && (
+                  <div className="border-b border-blue-200 bg-blue-50/40 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-blue-700">📄 匯入 PDF 履歷（LinkedIn / 104）</span>
+                      <button onClick={() => { setShowImport(false); setImportParsed(null); setImportError(null); setIsDragging(false); }} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+                    </div>
+
+                    {/* 檔案選擇 + 拖曳 */}
+                    {!importParsed && !importLoading && (
+                      <label
+                        className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${
+                          isDragging
+                            ? 'border-blue-500 bg-blue-100 scale-[1.01]'
+                            : 'border-blue-300 hover:bg-blue-50'
+                        }`}
+                        onDragEnter={e => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                        onDragOver={e => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                        onDragLeave={e => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                        onDrop={e => {
+                          e.preventDefault(); e.stopPropagation(); setIsDragging(false);
+                          const f = e.dataTransfer.files?.[0];
+                          if (f && f.type === 'application/pdf') {
+                            handleImportPDF(f);
+                          } else if (f) {
+                            setImportError('請上傳 PDF 格式的檔案');
+                          }
+                        }}
+                      >
+                        <span className="text-3xl mb-2">{isDragging ? '📥' : '📂'}</span>
+                        <span className="text-sm text-blue-600 font-medium">
+                          {isDragging ? '放開以匯入 PDF' : '拖曳 PDF 到這裡，或點擊選擇檔案'}
+                        </span>
+                        <span className="text-xs text-gray-400 mt-1">支援 LinkedIn / 104 人力銀行 PDF，最大 10 MB</span>
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={e => {
+                            const f = e.target.files?.[0];
+                            if (f) handleImportPDF(f);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    )}
+
+                    {/* 載入中 */}
+                    {importLoading && (
+                      <div className="flex items-center justify-center gap-2 py-6 text-blue-600">
+                        <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        <span className="text-sm">解析 PDF 中...</span>
+                      </div>
+                    )}
+
+                    {/* 錯誤 */}
+                    {importError && (
+                      <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
+                        ❌ {importError}
+                        <button onClick={() => setImportError(null)} className="ml-3 text-xs underline">重試</button>
+                      </div>
+                    )}
+
+                    {/* 解析結果預覽 */}
+                    {importParsed && !importLoading && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">
+                            來源：<span className="font-semibold text-blue-600">{importParsed.source || 'LinkedIn'}</span>
+                            &nbsp;·&nbsp;信心 {Math.round((importParsed._meta?.confidence || 0) * 100)}%
+                          </span>
+                          <button
+                            onClick={() => { setImportParsed(null); setImportError(null); }}
+                            className="text-xs text-gray-400 hover:text-gray-600 underline"
+                          >重新選擇</button>
+                        </div>
+
+                        {/* 欄位勾選表格 */}
+                        <div className="border border-gray-200 rounded-lg overflow-hidden text-xs bg-white divide-y divide-gray-100">
+                          <div className="grid grid-cols-[1.5rem_5rem_1fr] gap-2 px-3 py-2 bg-gray-50 font-semibold text-gray-500">
+                            <span></span><span>欄位</span><span>解析值</span>
+                          </div>
+                          {IMPORT_FIELDS.map(field => {
+                            const val = importParsed[field];
+                            if (val === null || val === undefined) return null;
+                            const displayVal = Array.isArray(val)
+                              ? (field === 'workHistory'
+                                  ? `${val.length} 筆工作經歷`
+                                  : field === 'educationJson'
+                                    ? `${val.length} 筆學歷`
+                                    : val.join('、'))
+                              : String(val);
+                            if (!displayVal || displayVal === '0') return null;
+                            return (
+                              <label key={field} className="grid grid-cols-[1.5rem_5rem_1fr] gap-2 px-3 py-2 items-start cursor-pointer hover:bg-blue-50/40">
+                                <input
+                                  type="checkbox"
+                                  checked={importSelected.has(field)}
+                                  onChange={e => {
+                                    const next = new Set(importSelected);
+                                    e.target.checked ? next.add(field) : next.delete(field);
+                                    setImportSelected(next);
+                                  }}
+                                  className="mt-0.5"
+                                />
+                                <span className="text-gray-500 font-medium">{IMPORT_FIELD_LABELS[field]}</span>
+                                <span className="text-gray-800 break-all">{displayVal}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex items-center gap-2 justify-end">
+                          <span className="text-xs text-gray-400">已選 {importSelected.size} 個欄位</span>
+                          <button
+                            onClick={handleApplyImport}
+                            disabled={applyingImport || importSelected.size === 0}
+                            className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+                          >
+                            {applyingImport ? '套用中...' : '套用選取欄位'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {editingBasicInfo ? (
                   <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
@@ -1224,12 +1361,12 @@ Step1ne Recruitment`;
                     <div className="flex items-center gap-2">
                       <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">地點</span>
-                      <span className="text-sm font-medium text-gray-800 truncate">{candidate.location || '—'}</span>
+                      <span className="text-sm font-medium text-gray-800 truncate">{editLocation || '—'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">年資</span>
-                      <span className="text-sm font-medium text-gray-800">{candidate.years > 0 ? `${candidate.years} 年` : '—'}</span>
+                      <span className="text-sm font-medium text-gray-800">{editYears && Number(editYears) > 0 ? `${editYears} 年` : '—'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -1367,132 +1504,6 @@ Step1ne Recruitment`;
                 )}
               </div>
 
-              {/* PDF 履歷匯入面板 */}
-              {showImport && (
-                <div className="border border-blue-200 rounded-lg bg-blue-50/40 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-blue-700">📄 匯入 PDF 履歷（LinkedIn / 104）</span>
-                    <button onClick={() => { setShowImport(false); setImportParsed(null); setImportError(null); setIsDragging(false); }} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
-                  </div>
-
-                  {/* 檔案選擇 + 拖曳 */}
-                  {!importParsed && !importLoading && (
-                    <label
-                      className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${
-                        isDragging
-                          ? 'border-blue-500 bg-blue-100 scale-[1.01]'
-                          : 'border-blue-300 hover:bg-blue-50'
-                      }`}
-                      onDragEnter={e => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
-                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
-                      onDragLeave={e => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
-                      onDrop={e => {
-                        e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-                        const f = e.dataTransfer.files?.[0];
-                        if (f && f.type === 'application/pdf') {
-                          handleImportPDF(f);
-                        } else if (f) {
-                          setImportError('請上傳 PDF 格式的檔案');
-                        }
-                      }}
-                    >
-                      <span className="text-3xl mb-2">{isDragging ? '📥' : '📂'}</span>
-                      <span className="text-sm text-blue-600 font-medium">
-                        {isDragging ? '放開以匯入 PDF' : '拖曳 PDF 到這裡，或點擊選擇檔案'}
-                      </span>
-                      <span className="text-xs text-gray-400 mt-1">支援 LinkedIn / 104 人力銀行 PDF，最大 10 MB</span>
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        className="hidden"
-                        onChange={e => {
-                          const f = e.target.files?.[0];
-                          if (f) handleImportPDF(f);
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
-                  )}
-
-                  {/* 載入中 */}
-                  {importLoading && (
-                    <div className="flex items-center justify-center gap-2 py-6 text-blue-600">
-                      <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                      <span className="text-sm">解析 PDF 中...</span>
-                    </div>
-                  )}
-
-                  {/* 錯誤 */}
-                  {importError && (
-                    <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
-                      ❌ {importError}
-                      <button onClick={() => setImportError(null)} className="ml-3 text-xs underline">重試</button>
-                    </div>
-                  )}
-
-                  {/* 解析結果預覽 */}
-                  {importParsed && !importLoading && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">
-                          來源：<span className="font-semibold text-blue-600">{importParsed.source || 'LinkedIn'}</span>
-                          &nbsp;·&nbsp;信心 {Math.round((importParsed._meta?.confidence || 0) * 100)}%
-                        </span>
-                        <button
-                          onClick={() => { setImportParsed(null); setImportError(null); }}
-                          className="text-xs text-gray-400 hover:text-gray-600 underline"
-                        >重新選擇</button>
-                      </div>
-
-                      {/* 欄位勾選表格 */}
-                      <div className="border border-gray-200 rounded-lg overflow-hidden text-xs bg-white divide-y divide-gray-100">
-                        <div className="grid grid-cols-[1.5rem_5rem_1fr] gap-2 px-3 py-2 bg-gray-50 font-semibold text-gray-500">
-                          <span></span><span>欄位</span><span>解析值</span>
-                        </div>
-                        {IMPORT_FIELDS.map(field => {
-                          const val = importParsed[field];
-                          if (val === null || val === undefined) return null;
-                          const displayVal = Array.isArray(val)
-                            ? (field === 'workHistory'
-                                ? `${val.length} 筆工作經歷`
-                                : field === 'educationJson'
-                                  ? `${val.length} 筆學歷`
-                                  : val.join('、'))
-                            : String(val);
-                          if (!displayVal || displayVal === '0') return null;
-                          return (
-                            <label key={field} className="grid grid-cols-[1.5rem_5rem_1fr] gap-2 px-3 py-2 items-start cursor-pointer hover:bg-blue-50/40">
-                              <input
-                                type="checkbox"
-                                checked={importSelected.has(field)}
-                                onChange={e => {
-                                  const next = new Set(importSelected);
-                                  e.target.checked ? next.add(field) : next.delete(field);
-                                  setImportSelected(next);
-                                }}
-                                className="mt-0.5"
-                              />
-                              <span className="text-gray-500 font-medium">{IMPORT_FIELD_LABELS[field]}</span>
-                              <span className="text-gray-800 break-all">{displayVal}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-
-                      <div className="flex items-center gap-2 justify-end">
-                        <span className="text-xs text-gray-400">已選 {importSelected.size} 個欄位</span>
-                        <button
-                          onClick={handleApplyImport}
-                          disabled={applyingImport || importSelected.size === 0}
-                          className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
-                        >
-                          {applyingImport ? '套用中...' : '套用選取欄位'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* 外部連結：LinkedIn / GitHub / Google Drive（始終顯示，可編輯） */}
               <div className="space-y-2">
