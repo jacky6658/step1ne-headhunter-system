@@ -263,7 +263,36 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   // Skills grouped
   const skillsHTML = skills.map(s => `<span class="skill-tag">${s}</span>`).join('');
 
-  // Work history
+  // Work history — 公司名匿名化：用產業/規模描述取代真實公司名
+  const anonymizeCompany = (company: string): string => {
+    if (!company) return '某企業';
+    const c = company.toLowerCase();
+    // 知名大廠 → 用規模+產業描述
+    const techGiants = ['google', 'meta', 'facebook', 'amazon', 'apple', 'microsoft', 'netflix', 'nvidia', 'tesla', 'openai'];
+    const cnTech = ['阿里', '騰訊', '字節', '百度', '華為', '小米', '京東', '美團', '拼多多', '網易'];
+    const twTech = ['台積電', 'tsmc', '聯發科', '鴻海', '富士康', '廣達', '華碩', '宏碁', 'acer'];
+    const banks = ['銀行', 'bank', '金控', '證券', '投信', '保險', 'insurance'];
+    const consulting = ['mckinsey', 'bain', 'bcg', 'deloitte', 'ey', 'pwc', 'kpmg', 'accenture', '麥肯錫', '貝恩', '勤業', '資誠', '安永'];
+
+    if (techGiants.some(t => c.includes(t))) return '全球知名科技巨頭';
+    if (cnTech.some(t => c.includes(t))) return '中國頭部科技公司';
+    if (twTech.some(t => c.includes(t))) return '台灣知名科技/半導體企業';
+    if (banks.some(t => c.includes(t))) return '知名金融機構';
+    if (consulting.some(t => c.includes(t))) return '國際頂級顧問公司';
+
+    // 一般公司 → 用產業關鍵字推測
+    if (/科技|tech|software|資訊|IT|internet|網路/.test(c)) return '科技公司';
+    if (/生技|醫|pharma|biotech|health/.test(c)) return '生技醫療公司';
+    if (/製造|工業|industrial|manufact/.test(c)) return '製造業公司';
+    if (/電商|commerce|零售|retail/.test(c)) return '電商/零售公司';
+    if (/媒體|media|傳播|廣告|advert/.test(c)) return '媒體/廣告公司';
+    if (/教育|education|學/.test(c)) return '教育機構';
+    if (/顧問|consul/.test(c)) return '顧問公司';
+    if (/新創|startup/.test(c)) return '新創公司';
+
+    return '某企業';
+  };
+
   const workHTML = workHistory.map(w => {
     const startStr = w.start || '';
     const endStr = w.end || '至今';
@@ -277,10 +306,11 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     const desc = w.description
       ? w.description.split(/[;\n]/).filter(Boolean).map(d => `<li>${d.trim()}</li>`).join('')
       : '';
+    const anonCompany = anonymizeCompany(w.company || '');
     return `
       <div class="work-item">
         <div class="work-role">${w.title || '（職稱未提供）'}</div>
-        <div class="work-company">${w.company || '（公司未提供）'}</div>
+        <div class="work-company">${anonCompany}</div>
         ${timeDisplay ? `<div class="work-period">${timeDisplay}</div>` : ''}
         ${desc ? `<ul class="work-desc">${desc}</ul>` : ''}
       </div>
