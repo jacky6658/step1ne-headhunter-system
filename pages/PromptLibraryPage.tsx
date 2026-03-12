@@ -612,10 +612,16 @@ export function PromptLibraryPage({ userProfile }: Props) {
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [showEndpoints, setShowEndpoints] = useState(false);
   const [copiedFilled, setCopiedFilled] = useState(false);
-  // 候選人搜尋 combobox
+  // 搜尋 combobox 狀態
   const [candidateSearch, setCandidateSearch] = useState('');
   const [candidateDropdownOpen, setCandidateDropdownOpen] = useState(false);
   const candidateComboRef = useRef<HTMLDivElement>(null);
+  const [jobSearch, setJobSearch] = useState('');
+  const [jobDropdownOpen, setJobDropdownOpen] = useState(false);
+  const jobComboRef = useRef<HTMLDivElement>(null);
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+  const clientComboRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = userProfile.role === Role.ADMIN;
   const viewer = userProfile.displayName;
@@ -642,11 +648,17 @@ export function PromptLibraryPage({ userProfile }: Props) {
     loadSystemData();
   }, []);
 
-  // 候選人 combobox — 點擊外部關閉
+  // combobox — 點擊外部關閉
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (candidateComboRef.current && !candidateComboRef.current.contains(e.target as Node)) {
         setCandidateDropdownOpen(false);
+      }
+      if (jobComboRef.current && !jobComboRef.current.contains(e.target as Node)) {
+        setJobDropdownOpen(false);
+      }
+      if (clientComboRef.current && !clientComboRef.current.contains(e.target as Node)) {
+        setClientDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -974,33 +986,139 @@ export function PromptLibraryPage({ userProfile }: Props) {
                     </div>
                   )}
                   {dataSrc.needsJob && (
-                    <div className="flex-1 min-w-[200px]">
+                    <div className="flex-1 min-w-[200px]" ref={jobComboRef}>
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">💼 職缺</label>
-                      <select
-                        value={selectedJobId}
-                        onChange={e => setSelectedJobId(e.target.value)}
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
-                      >
-                        <option value="">隨機取用...</option>
-                        {jobs.map(j => (
-                          <option key={j.id} value={j.id}>{getJobTitle(j)} ({getJobCompany(j)})</option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={jobSearch}
+                          onChange={e => {
+                            setJobSearch(e.target.value);
+                            setJobDropdownOpen(true);
+                            if (!e.target.value) { setSelectedJobId(''); }
+                          }}
+                          onFocus={() => setJobDropdownOpen(true)}
+                          placeholder={selectedJobId ? '' : '搜尋職缺名稱或公司...'}
+                          className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+                        />
+                        {selectedJobId && !jobSearch && (
+                          <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
+                            <span className="text-sm text-gray-700 truncate">
+                              {(() => { const j = jobs.find(j => String(j.id) === selectedJobId); return j ? `${getJobTitle(j)} (${getJobCompany(j)})` : ''; })()}
+                            </span>
+                          </div>
+                        )}
+                        {selectedJobId && (
+                          <button
+                            onClick={() => { setSelectedJobId(''); setJobSearch(''); }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                          >&times;</button>
+                        )}
+                        {jobDropdownOpen && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            <div
+                              onClick={() => { setSelectedJobId(''); setJobSearch(''); setJobDropdownOpen(false); }}
+                              className="px-3 py-2 text-sm text-gray-400 hover:bg-indigo-50 cursor-pointer"
+                            >隨機取用...</div>
+                            {jobs
+                              .filter(j => {
+                                if (!jobSearch) return true;
+                                const q = jobSearch.toLowerCase();
+                                return String(j.id).includes(q) || getJobTitle(j).toLowerCase().includes(q) || getJobCompany(j).toLowerCase().includes(q);
+                              })
+                              .slice(0, 50)
+                              .map(j => (
+                                <div
+                                  key={j.id}
+                                  onClick={() => {
+                                    setSelectedJobId(String(j.id));
+                                    setJobSearch('');
+                                    setJobDropdownOpen(false);
+                                  }}
+                                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${String(j.id) === selectedJobId ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-gray-700'}`}
+                                >
+                                  <span className="text-gray-400 mr-1.5">#{j.id}</span>
+                                  {getJobTitle(j)} <span className="text-gray-400">({getJobCompany(j)})</span>
+                                </div>
+                              ))}
+                            {jobs.filter(j => {
+                              if (!jobSearch) return true;
+                              const q = jobSearch.toLowerCase();
+                              return String(j.id).includes(q) || getJobTitle(j).toLowerCase().includes(q) || getJobCompany(j).toLowerCase().includes(q);
+                            }).length === 0 && (
+                              <div className="px-3 py-3 text-sm text-gray-400 text-center">找不到符合的職缺</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                   {dataSrc.needsClient && (
-                    <div className="flex-1 min-w-[200px]">
+                    <div className="flex-1 min-w-[200px]" ref={clientComboRef}>
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">🏢 客戶</label>
-                      <select
-                        value={selectedClientId}
-                        onChange={e => setSelectedClientId(e.target.value)}
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
-                      >
-                        <option value="">不選擇...</option>
-                        {clients.map(c => (
-                          <option key={c.id} value={c.id}>{c.company_name}{c.industry ? ` (${c.industry})` : ''}</option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={clientSearch}
+                          onChange={e => {
+                            setClientSearch(e.target.value);
+                            setClientDropdownOpen(true);
+                            if (!e.target.value) { setSelectedClientId(''); }
+                          }}
+                          onFocus={() => setClientDropdownOpen(true)}
+                          placeholder={selectedClientId ? '' : '搜尋客戶公司或產業...'}
+                          className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+                        />
+                        {selectedClientId && !clientSearch && (
+                          <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
+                            <span className="text-sm text-gray-700 truncate">
+                              {(() => { const c = clients.find(c => String(c.id) === selectedClientId); return c ? `${c.company_name}${c.industry ? ` (${c.industry})` : ''}` : ''; })()}
+                            </span>
+                          </div>
+                        )}
+                        {selectedClientId && (
+                          <button
+                            onClick={() => { setSelectedClientId(''); setClientSearch(''); }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                          >&times;</button>
+                        )}
+                        {clientDropdownOpen && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            <div
+                              onClick={() => { setSelectedClientId(''); setClientSearch(''); setClientDropdownOpen(false); }}
+                              className="px-3 py-2 text-sm text-gray-400 hover:bg-indigo-50 cursor-pointer"
+                            >不選擇...</div>
+                            {clients
+                              .filter(c => {
+                                if (!clientSearch) return true;
+                                const q = clientSearch.toLowerCase();
+                                return String(c.id).includes(q) || (c.company_name || '').toLowerCase().includes(q) || (c.industry || '').toLowerCase().includes(q);
+                              })
+                              .slice(0, 50)
+                              .map(c => (
+                                <div
+                                  key={c.id}
+                                  onClick={() => {
+                                    setSelectedClientId(String(c.id));
+                                    setClientSearch('');
+                                    setClientDropdownOpen(false);
+                                  }}
+                                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${String(c.id) === selectedClientId ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-gray-700'}`}
+                                >
+                                  <span className="text-gray-400 mr-1.5">#{c.id}</span>
+                                  {c.company_name}{c.industry ? <span className="text-gray-400 ml-1">({c.industry})</span> : ''}
+                                </div>
+                              ))}
+                            {clients.filter(c => {
+                              if (!clientSearch) return true;
+                              const q = clientSearch.toLowerCase();
+                              return String(c.id).includes(q) || (c.company_name || '').toLowerCase().includes(q) || (c.industry || '').toLowerCase().includes(q);
+                            }).length === 0 && (
+                              <div className="px-3 py-3 text-sm text-gray-400 text-center">找不到符合的客戶</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
