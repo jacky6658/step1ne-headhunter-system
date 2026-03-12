@@ -1,8 +1,9 @@
 // Step1ne 獵頭系統 - BD 客戶開發頁面
 import React, { useState, useEffect } from 'react';
-import { Client, BDContact, BDStatus, BD_STATUS_CONFIG, UserProfile } from '../types';
-import { apiGet, apiPost, apiPatch, apiDelete } from '../config/api';
-import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3, Trash2, Pencil, Check } from 'lucide-react';
+import { Client, BDContact, BDStatus, BD_STATUS_CONFIG, UserProfile, SubmissionRule } from '../types';
+import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../config/api';
+import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3, Trash2, Pencil, Check, ClipboardCheck } from 'lucide-react';
+import { SubmissionRulesEditor } from '../components/SubmissionRulesEditor';
 
 interface BDClientsPageProps {
   userProfile: UserProfile;
@@ -25,9 +26,10 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'contacts' | 'jobs'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'contacts' | 'jobs' | 'rules'>('info');
   const [contacts, setContacts] = useState<BDContact[]>([]);
   const [clientJobs, setClientJobs] = useState<any[]>([]);
+  const [submissionRules, setSubmissionRules] = useState<SubmissionRule[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [addForm, setAddForm] = useState(emptyForm);
@@ -52,6 +54,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
     if (selectedClient) {
       loadContacts(selectedClient.id);
       loadClientJobs(selectedClient.id);
+      loadSubmissionRules(selectedClient.id);
     }
   }, [selectedClient]);
 
@@ -76,6 +79,13 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
       const data = await apiGet<{ success: boolean; data: any[] }>(`/clients/${clientId}/jobs`);
       if (data.success) setClientJobs(data.data);
     } catch (e) { setClientJobs([]); }
+  };
+
+  const loadSubmissionRules = async (clientId: string) => {
+    try {
+      const data = await apiGet<{ success: boolean; data: SubmissionRule[] }>(`/clients/${clientId}/submission-rules`);
+      if (data.success) setSubmissionRules(data.data);
+    } catch (e) { setSubmissionRules([]); }
   };
 
   const handleStatusChange = async (client: Client, newStatus: BDStatus) => {
@@ -385,6 +395,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
                   { key: 'info', label: '基本資料', icon: <FileText className="w-4 h-4" /> },
                   { key: 'contacts', label: `聯絡記錄 (${contacts.length})`, icon: <Clock className="w-4 h-4" /> },
                   { key: 'jobs', label: `關聯職缺 (${clientJobs.length})`, icon: <Briefcase className="w-4 h-4" /> },
+                  { key: 'rules', label: `送件規範 (${submissionRules.filter(r => r.enabled).length})`, icon: <ClipboardCheck className="w-4 h-4" /> },
                 ] as const).map(tab => (
                   <button
                     key={tab.key}
@@ -676,6 +687,17 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
                     </div>
                   )}
                 </div>
+              )}
+
+              {activeTab === 'rules' && (
+                <SubmissionRulesEditor
+                  clientId={selectedClient.id}
+                  rules={submissionRules}
+                  onSave={async (rules) => {
+                    await apiPut<any>(`/clients/${selectedClient.id}/submission-rules`, { rules });
+                    setSubmissionRules(rules);
+                  }}
+                />
               )}
             </div>
           </div>

@@ -225,6 +225,11 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS consultant_note TEXT;
 `).catch(err => console.warn('consultant_note migration:', err.message));
 
+// 客戶送件規範（JSONB 欄位，每個客戶一組規則）
+pool.query(`
+  ALTER TABLE clients ADD COLUMN IF NOT EXISTS submission_rules JSONB DEFAULT '[]'
+`).catch(err => console.warn('submission_rules migration:', err.message));
+
 // 目標職缺欄位：改為直接 FK 對應 jobs_pipeline（不再存在 notes 文字內）
 pool.query(`
   ALTER TABLE candidates_pipeline
@@ -2927,7 +2932,7 @@ router.patch('/clients/:id', async (req, res) => {
     const fields = ['company_name','industry','company_size','website','bd_status','bd_source',
       'contact_name','contact_title','contact_email','contact_phone','contact_linkedin',
       'consultant','contract_type','fee_percentage','contract_start','contract_end','notes',
-      'url_104','url_1111'];
+      'url_104','url_1111','submission_rules'];
     const db = await pool.connect();
     const cur = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (!cur.rows.length) { db.release(); return res.status(404).json({ success: false, error: 'Client not found' }); }
@@ -3058,6 +3063,96 @@ router.post('/clients/:id/contacts', async (req, res) => {
     db.release();
     res.json({ success: true, data: result.rows[0], message: '聯絡記錄已新增' });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== 客戶送件規範 ====================
+
+/** GET /api/clients/:id/submission-rules - 取得客戶送件規範 */
+router.get('/clients/:id/submission-rules', async (req, res) => {
+  try {
+    const db = await pool.connect();
+    const result = await db.query('SELECT submission_rules FROM clients WHERE id = $1', [req.params.id]);
+    db.release();
+    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Client not found' });
+    res.json({ success: true, data: result.rows[0].submission_rules || [] });
+  } catch (error) {
+    console.error('❌ GET /clients/:id/submission-rules error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/** PUT /api/clients/:id/submission-rules - 更新客戶送件規範 */
+router.put('/clients/:id/submission-rules', async (req, res) => {
+  try {
+    const { rules } = req.body;
+    if (!Array.isArray(rules)) return res.status(400).json({ success: false, error: '缺少 rules 陣列' });
+    const db = await pool.connect();
+    const result = await db.query(
+      'UPDATE clients SET submission_rules = $1, updated_at = NOW() WHERE id = $2 RETURNING submission_rules',
+      [JSON.stringify(rules), req.params.id]
+    );
+    db.release();
+    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Client not found' });
+    res.json({ success: true, data: result.rows[0].submission_rules, message: '送件規範已更新' });
+  } catch (error) {
+    console.error('❌ PUT /clients/:id/submission-rules error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/** POST /api/candidates/:candidateId/check-submission-rules - 候選人送件規範檢查 */
+router.post('/candidates/:id/check-submission-rules', async (req, res) => {
+  try {
+    const { client_id } = req.body;
+    if (!client_id) return res.status(400).json({ success: false, error: '缺少 client_id' });
+    const db = await pool.connect();
+    const candResult = await db.query('SELECT * FROM candidates_pipeline WHERE id = $1', [req.params.id]);
+    if (!candResult.rows.length) { db.release(); return res.status(404).json({ success: false, error: 'Candidate not found' }); }
+    const clientResult = await db.query('SELECT submission_rules, company_name FROM clients WHERE id = $1', [client_id]);
+    if (!clientResult.rows.length) { db.release(); return res.status(404).json({ success: false, error: 'Client not found' }); }
+    db.release();
+
+    const candidate = candResult.rows[0];
+    const rules = clientResult.rows[0].submission_rules || [];
+    const company_name = clientResult.rows[0].company_name;
+
+    const results = rules.filter(r => r.enabled).map(rule => {
+      if (!rule.is_auto_checkable) {
+        return { rule_id: rule.id, label: rule.label, passed: null, message: '需人工確認', type: 'manual' };
+      }
+      let passed = true;
+      let message = '';
+      switch (rule.rule_type) {
+        case 'field_required':
+          passed = !!candidate[rule.field_key] && String(candidate[rule.field_key]).trim() !== '';
+          message = passed ? '已填寫' : '尚未填寫';
+          break;
+        case 'content_format':
+          if (rule.check_config?.format === 'chinese_name') {
+            passed = /[\u4e00-\u9fff]/.test(candidate.name || '');
+            message = passed ? '已使用中文姓名' : '姓名未包含中文';
+          }
+          break;
+        case 'link_required': {
+          const linkField = rule.check_config?.link_type || rule.field_key;
+          passed = !!candidate[linkField] && String(candidate[linkField]).trim() !== '';
+          message = passed ? '已提供連結' : '尚未提供';
+          break;
+        }
+        case 'resume_version':
+          return { rule_id: rule.id, label: rule.label, passed: null, message: '需確認是否已生成', type: 'manual' };
+        default:
+          return { rule_id: rule.id, label: rule.label, passed: null, message: '需人工確認', type: 'manual' };
+      }
+      return { rule_id: rule.id, label: rule.label, passed, message, type: 'auto' };
+    });
+
+    const failCount = results.filter(r => r.passed === false).length;
+    res.json({ success: true, data: { company_name, results, failCount, totalChecked: results.length } });
+  } catch (error) {
+    console.error('❌ POST /candidates/:id/check-submission-rules error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

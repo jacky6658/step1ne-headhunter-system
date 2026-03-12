@@ -26,7 +26,41 @@ export interface Client {
   url_1111?: string;
   job_count?: number;
   created_at: string;
+  submission_rules?: SubmissionRule[];
   updated_at: string;
+}
+
+// 客戶送件規範
+export type SubmissionRuleType = 'field_required' | 'content_format' | 'resume_version' | 'link_required' | 'custom';
+
+export interface SubmissionRule {
+  id: string;
+  rule_type: SubmissionRuleType;
+  label: string;
+  field_key?: string;
+  check_config?: {
+    format?: string;
+    resume_lang?: string;
+    link_type?: string;
+  };
+  is_auto_checkable: boolean;
+  enabled: boolean;
+  sort_order: number;
+}
+
+export interface SubmissionCheckResult {
+  rule_id: string;
+  label: string;
+  passed: boolean | null;  // null = manual check needed
+  message: string;
+  type: 'auto' | 'manual';
+}
+
+export interface SubmissionCheckResponse {
+  company_name: string;
+  results: SubmissionCheckResult[];
+  failCount: number;
+  totalChecked: number;
 }
 
 export interface BDContact {

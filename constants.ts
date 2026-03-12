@@ -1,4 +1,4 @@
-import { CandidateStatus, CandidateSource } from './types';
+import { CandidateStatus, CandidateSource, SubmissionRule } from './types';
 
 // ===== Step1ne Headhunter Extensions =====
 
@@ -145,3 +145,17 @@ export const SOURCE_CONFIG = {
     color: 'gray'
   }
 };
+
+// 客戶送件規範預設模板
+export const SUBMISSION_RULE_PRESETS: Omit<SubmissionRule, 'id' | 'sort_order'>[] = [
+  { rule_type: 'content_format', label: '必須使用中文姓名', field_key: 'name', check_config: { format: 'chinese_name' }, is_auto_checkable: true, enabled: true },
+  { rule_type: 'field_required', label: '需填寫英文名', field_key: 'english_name', is_auto_checkable: true, enabled: true },
+  { rule_type: 'field_required', label: '要求包含期望薪資', field_key: 'expected_salary', is_auto_checkable: true, enabled: true },
+  { rule_type: 'field_required', label: '需填寫目前薪資', field_key: 'current_salary', is_auto_checkable: true, enabled: true },
+  { rule_type: 'link_required', label: '需附 Portfolio / 作品集連結', field_key: 'resume_link', check_config: { link_type: 'resumeLink' }, is_auto_checkable: true, enabled: true },
+  { rule_type: 'link_required', label: '需附 GitHub 連結', field_key: 'github_url', check_config: { link_type: 'githubUrl' }, is_auto_checkable: true, enabled: true },
+  { rule_type: 'link_required', label: '需附 LinkedIn 連結', field_key: 'linkedin_url', check_config: { link_type: 'linkedinUrl' }, is_auto_checkable: true, enabled: true },
+  { rule_type: 'resume_version', label: '匿名履歷需附英文版', check_config: { resume_lang: 'en' }, is_auto_checkable: false, enabled: true },
+  { rule_type: 'field_required', label: '需填寫語言能力', field_key: 'languages', is_auto_checkable: true, enabled: true },
+  { rule_type: 'field_required', label: '需填寫證照', field_key: 'certifications', is_auto_checkable: true, enabled: true },
+];

@@ -1,9 +1,11 @@
 // Step1ne 匿名履歷產生器 — 從候選人資料一鍵產生 PDF（支援中/英文切換）
 import React from 'react';
-import { Candidate } from '../types';
+import { Candidate, SubmissionRule, SubmissionCheckResult } from '../types';
 
 import { RADAR_DIMENSIONS, computeAutoScores, computeOverallRating } from './RadarChart';
 import { ConsultantEvaluation } from '../types';
+import { apiGet } from '../config/api';
+import { SubmissionCheckModal, evaluateRulesLocally } from './SubmissionCheckModal';
 
 // ═══════════════════════════════════════════════════════════════
 // 中英文翻譯字典
@@ -1411,8 +1413,8 @@ const FIELD_TOGGLES: Array<{ key: keyof ResumeVisibleFields; label: string }> = 
   { key: 'field_reasonForChange', label: '轉職原因' },
 ];
 
-export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: string; onClose: () => void }> = ({
-  candidate, candidateLabel, onClose
+export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: string; onClose: () => void; targetJobId?: number | null }> = ({
+  candidate, candidateLabel, onClose, targetJobId
 }) => {
   const defaultSummary = generateSummary(candidate);
   const [editingSummary, setEditingSummary] = React.useState(false);
@@ -1420,6 +1422,13 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
   const [visibleFields, setVisibleFields] = React.useState<ResumeVisibleFields>({ ...DEFAULT_VISIBLE_FIELDS });
   const [showPanel, setShowPanel] = React.useState(true);
   const [lang, setLang] = React.useState<ResumeLanguage>('zh');
+
+  // 送件規範檢查
+  const [showSubmissionCheck, setShowSubmissionCheck] = React.useState(false);
+  const [checkResults, setCheckResults] = React.useState<SubmissionCheckResult[]>([]);
+  const [checkFailCount, setCheckFailCount] = React.useState(0);
+  const [checkCompanyName, setCheckCompanyName] = React.useState('');
+  const [pendingAction, setPendingAction] = React.useState<'print' | 'download' | null>(null);
 
   const t = RESUME_I18N[lang];
   const html = buildResumeHTML(candidate, candidateLabel, summary, visibleFields, lang);
@@ -1438,16 +1447,55 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
     setVisibleFields(allOff);
   };
 
-  const handlePrint = () => {
-    const iframe = document.getElementById('resume-iframe') as HTMLIFrameElement;
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.print();
+  // 送件規範前置檢查
+  const runSubmissionCheck = async (action: 'print' | 'download') => {
+    if (!targetJobId) {
+      // 無目標職缺，直接執行
+      executeAction(action);
+      return;
+    }
+    try {
+      const jobResp = await apiGet<{ success: boolean; data: any }>(`/jobs/${targetJobId}`);
+      if (!jobResp.success || !jobResp.data?.client_id) {
+        executeAction(action);
+        return;
+      }
+      const clientResp = await apiGet<{ success: boolean; data: any }>(`/clients/${jobResp.data.client_id}`);
+      if (!clientResp.success) {
+        executeAction(action);
+        return;
+      }
+      const rules: SubmissionRule[] = clientResp.data.submission_rules || [];
+      const enabledRules = rules.filter(r => r.enabled);
+      if (enabledRules.length === 0) {
+        executeAction(action);
+        return;
+      }
+      // 前端即時檢查
+      const results = evaluateRulesLocally(candidate, rules);
+      const failCount = results.filter(r => r.passed === false).length;
+      setCheckResults(results);
+      setCheckFailCount(failCount);
+      setCheckCompanyName(clientResp.data.company_name || '');
+      setPendingAction(action);
+      setShowSubmissionCheck(true);
+    } catch {
+      // 檢查失敗不阻擋下載
+      executeAction(action);
     }
   };
 
-  const handleDownload = () => {
-    generateResumePDF(candidate, candidateLabel, summary, visibleFields, lang);
+  const executeAction = (action: 'print' | 'download') => {
+    if (action === 'print') {
+      const iframe = document.getElementById('resume-iframe') as HTMLIFrameElement;
+      if (iframe?.contentWindow) iframe.contentWindow.print();
+    } else {
+      generateResumePDF(candidate, candidateLabel, summary, visibleFields, lang);
+    }
   };
+
+  const handlePrint = () => runSubmissionCheck('print');
+  const handleDownload = () => runSubmissionCheck('download');
 
   return (
     <div
@@ -1584,6 +1632,24 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
           </div>
         </div>
       </div>
+
+      {/* 送件規範檢查彈窗 */}
+      {showSubmissionCheck && (
+        <SubmissionCheckModal
+          companyName={checkCompanyName}
+          results={checkResults}
+          failCount={checkFailCount}
+          onClose={() => {
+            setShowSubmissionCheck(false);
+            setPendingAction(null);
+          }}
+          onForceDownload={() => {
+            setShowSubmissionCheck(false);
+            if (pendingAction) executeAction(pendingAction);
+            setPendingAction(null);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -3226,6 +3226,7 @@ ${workHistoryText || '無資料'}
         candidate={{ ...candidate, consultantEvaluation: consultEval }}
         candidateLabel={`Candidate ${candidate.id}`}
         onClose={() => setShowResumeGen(false)}
+        targetJobId={targetJobId}
       />
     )}
     </>
