@@ -499,3 +499,23 @@ export interface Placement {
   candidate?: Candidate;
   job?: Job;
 }
+
+// ==================== 提示詞資料庫 ====================
+
+export type PromptCategory =
+  | '客戶需求理解' | '職缺分析' | '人才市場 Mapping' | '人才搜尋'
+  | '陌生開發（開發信）' | '人選訪談' | '人選評估' | '客戶推薦'
+  | '面試與 Offer 管理';
+
+export interface Prompt {
+  id: number;
+  category: PromptCategory;
+  title: string;
+  content: string;
+  author: string;
+  is_pinned: boolean;
+  upvote_count: number;
+  has_voted?: boolean;
+  created_at: string;
+  updated_at: string;
+}

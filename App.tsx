@@ -19,6 +19,7 @@ import { BDClientsPage } from './pages/BDClientsPage';
 import { CrawlerDashboardPage } from './pages/CrawlerDashboardPage';
 import { AIProgressPage } from './pages/AIProgressPage';
 import { OperationsDashboardPage } from './pages/OperationsDashboardPage';
+import { PromptLibraryPage } from './pages/PromptLibraryPage';
 import { OverviewDashboardPage } from './pages/OverviewDashboardPage';
 import { Menu, X as XIcon } from 'lucide-react';
 import { API_BASE_URL } from './constants';
@@ -134,7 +135,8 @@ const App: React.FC = () => {
       case 'ai-progress': return <AIProgressPage userProfile={profile} />;
       case 'overview-dashboard': return <OverviewDashboardPage userProfile={profile} />;
       case 'ops-dashboard': return <OperationsDashboardPage userProfile={profile} />;
-      // 操作日誌
+      // 工具
+      case 'prompt-library': return <PromptLibraryPage userProfile={profile} />;
       case 'system-log': return <SystemLogPage userProfile={profile} />;
       case 'members': 
         // 只有管理員可以訪問成員管理

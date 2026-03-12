@@ -42,6 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     { id: 'crawler-dashboard', label: '🕷️ 爬蟲整合儀表板', icon: Activity, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'ai-progress', label: '🤖 AI 工作進度', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 工具
+    { id: 'prompt-library', label: '💡 提示詞資料庫', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'system-log', label: '📋 操作日誌', icon: ScrollText, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'help', label: '📖 使用說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'migration', label: '🛠️ 資料維護', icon: Database, roles: [Role.ADMIN], disabled: false },

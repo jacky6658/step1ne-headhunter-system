@@ -103,6 +103,33 @@ pool.query(`
   )
 `).catch(err => console.warn('candidate_job_rankings_cache migration:', err.message));
 
+// ── 提示詞資料庫（需依序建立，votes 有 FK 依賴 library）──
+pool.query(`
+  CREATE TABLE IF NOT EXISTS prompt_library (
+    id SERIAL PRIMARY KEY,
+    category VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    author VARCHAR(100) NOT NULL,
+    is_pinned BOOLEAN DEFAULT FALSE,
+    upvote_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )
+`).then(() => {
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS prompt_votes (
+      id SERIAL PRIMARY KEY,
+      prompt_id INTEGER NOT NULL REFERENCES prompt_library(id) ON DELETE CASCADE,
+      voter VARCHAR(100) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(prompt_id, voter)
+    )
+  `).catch(err => console.warn('prompt_votes migration:', err.message));
+  pool.query(`CREATE INDEX IF NOT EXISTS idx_prompt_lib_category ON prompt_library(category)`).catch(() => {});
+  pool.query(`CREATE INDEX IF NOT EXISTS idx_prompt_lib_pinned ON prompt_library(is_pinned)`).catch(() => {});
+}).catch(err => console.warn('prompt_library migration:', err.message));
+
 // 確保 github_token 欄位存在
 pool.query(`
   ALTER TABLE user_contacts
@@ -4180,6 +4207,198 @@ router.post('/candidates/backfill-computed', async (req, res) => {
   } catch (err) {
     console.error('backfill-computed error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== 提示詞資料庫 (Prompt Library) API ====================
+
+const VALID_PROMPT_CATEGORIES = [
+  '客戶需求理解', '職缺分析', '人才市場 Mapping', '人才搜尋',
+  '陌生開發（開發信）', '人選訪談', '人選評估', '客戶推薦', '面試與 Offer 管理',
+];
+
+// GET /api/prompts — 列出提示詞（可按分類篩選）
+router.get('/prompts', async (req, res) => {
+  try {
+    const { category, viewer } = req.query;
+    const params = [];
+    let where = '';
+
+    if (category && category !== 'all') {
+      params.push(category);
+      where = `WHERE p.category = $${params.length}`;
+    }
+
+    const viewerParam = viewer || '';
+    params.push(viewerParam);
+    const viewerIdx = params.length;
+
+    const result = await pool.query(`
+      SELECT p.*,
+        CASE WHEN v.id IS NOT NULL THEN true ELSE false END AS has_voted
+      FROM prompt_library p
+      LEFT JOIN prompt_votes v ON v.prompt_id = p.id AND v.voter = $${viewerIdx}
+      ${where}
+      ORDER BY p.is_pinned DESC, p.upvote_count DESC, p.created_at DESC
+    `, params);
+
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error('GET /prompts error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/prompts/:id — 取得單一提示詞
+router.get('/prompts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM prompt_library WHERE id = $1', [id]);
+    if (!result.rows.length) return res.status(404).json({ success: false, error: '找不到提示詞' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/prompts — 新增提示詞
+router.post('/prompts', async (req, res) => {
+  try {
+    const { category, title, content, author } = req.body;
+    if (!category || !title || !content || !author) {
+      return res.status(400).json({ success: false, error: '請填寫所有必填欄位' });
+    }
+    if (!VALID_PROMPT_CATEGORIES.includes(category)) {
+      return res.status(400).json({ success: false, error: '無效的分類' });
+    }
+    const result = await pool.query(
+      `INSERT INTO prompt_library (category, title, content, author)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [category, title.trim(), content.trim(), author.trim()]
+    );
+    res.json({ success: true, data: result.rows[0], message: '提示詞已新增' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH /api/prompts/:id — 編輯提示詞
+router.patch('/prompts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content, actor } = req.body;
+
+    const current = await pool.query('SELECT * FROM prompt_library WHERE id = $1', [id]);
+    if (!current.rows.length) return res.status(404).json({ success: false, error: '找不到提示詞' });
+
+    const result = await pool.query(
+      `UPDATE prompt_library SET
+        title = COALESCE($1, title),
+        content = COALESCE($2, content),
+        updated_at = NOW()
+       WHERE id = $3 RETURNING *`,
+      [title || null, content || null, id]
+    );
+    res.json({ success: true, data: result.rows[0], message: '提示詞已更新' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/prompts/:id — 刪除提示詞
+router.delete('/prompts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM prompt_library WHERE id = $1 RETURNING id', [id]);
+    if (!result.rows.length) return res.status(404).json({ success: false, error: '找不到提示詞' });
+    res.json({ success: true, message: '已刪除' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/prompts/:id/upvote — 投票/取消投票 toggle
+router.post('/prompts/:id/upvote', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { voter } = req.body;
+    if (!voter) return res.status(400).json({ success: false, error: '缺少 voter' });
+
+    await client.query('BEGIN');
+
+    // 檢查是否已投票
+    const existing = await client.query(
+      'SELECT id FROM prompt_votes WHERE prompt_id = $1 AND voter = $2', [id, voter]
+    );
+
+    if (existing.rows.length) {
+      // 取消投票
+      await client.query('DELETE FROM prompt_votes WHERE prompt_id = $1 AND voter = $2', [id, voter]);
+      await client.query('UPDATE prompt_library SET upvote_count = GREATEST(upvote_count - 1, 0) WHERE id = $1', [id]);
+    } else {
+      // 新增投票
+      await client.query('INSERT INTO prompt_votes (prompt_id, voter) VALUES ($1, $2)', [id, voter]);
+      await client.query('UPDATE prompt_library SET upvote_count = upvote_count + 1 WHERE id = $1', [id]);
+    }
+
+    await client.query('COMMIT');
+
+    // 回傳更新後的提示詞
+    const updated = await pool.query(
+      `SELECT p.*,
+        CASE WHEN v.id IS NOT NULL THEN true ELSE false END AS has_voted
+       FROM prompt_library p
+       LEFT JOIN prompt_votes v ON v.prompt_id = p.id AND v.voter = $2
+       WHERE p.id = $1`,
+      [id, voter]
+    );
+    res.json({ success: true, data: updated.rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/prompts/:id/pin — 置頂/取消置頂
+router.post('/prompts/:id/pin', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // 'pin' or 'unpin'
+
+    const current = await client.query('SELECT * FROM prompt_library WHERE id = $1', [id]);
+    if (!current.rows.length) {
+      client.release();
+      return res.status(404).json({ success: false, error: '找不到提示詞' });
+    }
+
+    await client.query('BEGIN');
+
+    if (action === 'pin') {
+      // 先取消同分類的所有置頂
+      await client.query(
+        'UPDATE prompt_library SET is_pinned = FALSE WHERE category = $1',
+        [current.rows[0].category]
+      );
+      // 再置頂指定的
+      await client.query('UPDATE prompt_library SET is_pinned = TRUE WHERE id = $1', [id]);
+    } else {
+      // 取消置頂
+      await client.query('UPDATE prompt_library SET is_pinned = FALSE WHERE id = $1', [id]);
+    }
+
+    await client.query('COMMIT');
+
+    const updated = await pool.query('SELECT * FROM prompt_library WHERE id = $1', [id]);
+    res.json({ success: true, data: updated.rows[0], message: action === 'pin' ? '已置頂' : '已取消置頂' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
   }
 });
 
