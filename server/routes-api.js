@@ -638,6 +638,7 @@ router.get('/candidates', async (req, res) => {
         c.management_experience, c.team_size, c.consultant_evaluation,
         c.job_search_status, c.reason_for_change, c.motivation,
         c.deal_breakers, c.competing_offers, c.relationship_level,
+        c.voice_assessments, c.biography, c.portfolio_url,
         j.position_name AS target_job_label, j.client_company AS target_job_company
       FROM candidates_pipeline c
       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
@@ -744,6 +745,10 @@ router.get('/candidates', async (req, res) => {
       dealBreakers: row.deal_breakers || '',
       competingOffers: row.competing_offers || '',
       relationshipLevel: row.relationship_level || '',
+      // 語音評估 + 自傳 + 作品集
+      voiceAssessments: (() => { const v = row.voice_assessments; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      biography: row.biography || '',
+      portfolioUrl: row.portfolio_url || '',
     }));
 
     client.release();
@@ -3928,7 +3933,7 @@ router.post('/github/ai-analyze', async (req, res) => {
 
     // 1. 取得候選人 GitHub URL
     const candResult = await pool.query(
-      'SELECT name, github_url, skills, notes FROM candidates_pipeline WHERE id = $1',
+      'SELECT name, github_url, skills, notes, biography, portfolio_url, voice_assessments FROM candidates_pipeline WHERE id = $1',
       [candidateId]
     );
     if (candResult.rows.length === 0) {
@@ -3993,6 +3998,22 @@ function buildGithubAnalysisPrompt(candidate, githubData, jobData) {
 - JD：${(jobData.job_description || '未提供').substring(0, 500)}
 ` : '（無指定職缺，請做通用評估）';
 
+  // 組建深度資訊區段（自傳/作品集/語音評估）
+  let depthSection = '';
+  if (candidate.biography || candidate.portfolio_url || (candidate.voice_assessments && candidate.voice_assessments.length > 0)) {
+    depthSection = '\n## 候選人深度資訊（顧問提供）\n';
+    if (candidate.biography) {
+      depthSection += `### 自傳\n${candidate.biography.substring(0, 800)}\n\n`;
+    }
+    if (candidate.portfolio_url) {
+      depthSection += `### 作品集\n- 連結：${candidate.portfolio_url}\n\n`;
+    }
+    if (candidate.voice_assessments && Array.isArray(candidate.voice_assessments) && candidate.voice_assessments.length > 0) {
+      const latest = candidate.voice_assessments[candidate.voice_assessments.length - 1];
+      depthSection += `### 顧問語音面談評估\n- 評分：${latest.score}/5\n- 面談者：${latest.interviewer || '未知'}\n- 評語：${latest.notes || '無'}\n\n`;
+    }
+  }
+
   return `你是一位資深獵頭 AI，請分析以下 GitHub 候選人，判斷其技術能力與職缺適配度。
 
 ## 候選人
@@ -4002,6 +4023,7 @@ function buildGithubAnalysisPrompt(candidate, githubData, jobData) {
 - 公司：${githubData.company || '未知'}
 - 地點：${githubData.location || '未知'}
 - 現有技能標記：${Array.isArray(candidate.skills) ? candidate.skills.join(', ') : candidate.skills || '無'}
+- 作品集：${candidate.portfolio_url || '無'}
 
 ## GitHub 結構化分析（系統自動計算）
 ### 技能匹配（權重 40%）— 初步分數：${githubData.skillMatch.score}/100
@@ -4031,13 +4053,16 @@ ${githubData.languages.map(l => `- ${l.name}: ${l.percentage}%`).join('\n')}
 ### 系統初步加權總分：${githubData.totalScore}/100（${githubData.stars} 星）
 
 ${jobSection}
-
+${depthSection}
 ## 請你做的事：
 1. 根據以上資料，用你的 AI 判斷力做 4 維度深度分析（不要只看初步分數）
 2. 特別注意 repo 名稱/描述是否暗示相關經驗（例如 "payment-gateway" 對 fintech 有加分）
-3. 給出最終 4 維度分數和加權總分（0-100）
-4. 給出評級（S/A+/A/B/C）
-5. 寫出優勢、風險、顧問建議
+3. 若有自傳，分析其職涯動機是否與目標職缺吻合，並從中提取軟實力信號
+4. 若有作品集，評估作品與職缺的相關性
+5. 若有顧問語音面談評估，將其評分和評語納入整體建議
+6. 給出最終 4 維度分數和加權總分（0-100）
+7. 給出評級（S/A+/A/B/C）
+8. 寫出優勢、風險、顧問建議
 
 請用以下 JSON 格式回覆：
 {
@@ -4052,7 +4077,10 @@ ${jobSection}
   "strengths": ["優勢1", "優勢2"],
   "risks": ["風險1", "風險2"],
   "consultantAdvice": "一句話顧問建議",
-  "recommendation": "強力推薦|推薦|觀望|不推薦"
+  "recommendation": "強力推薦|推薦|觀望|不推薦",
+  "biographyInsight": "從自傳提取的洞察（若無自傳則設為 null）",
+  "portfolioRelevance": "作品集與職缺的相關性評估（若無作品集則設為 null）",
+  "voiceSummary": "語音面談評估摘要（若無評估則設為 null）"
 }`;
 }
 
