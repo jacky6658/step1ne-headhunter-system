@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { UserProfile, Role, Prompt, PromptCategory, Candidate, Job } from '../types';
+import { UserProfile, Role, Prompt, PromptCategory, Candidate, Job, Client } from '../types';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../config/api';
-import { Plus, ThumbsUp, Pin, Copy, Check, Trash2, Edit3, X, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { Plus, ThumbsUp, Pin, Copy, Check, Trash2, Edit3, X, ChevronDown, ChevronUp, RefreshCw, Database, Link2, Server } from 'lucide-react';
 
 interface Props {
   userProfile: UserProfile;
@@ -20,6 +20,83 @@ const CATEGORIES: { id: PromptCategory; icon: string; short: string }[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
+// 分類 → 資料來源 + API 端點映射
+// ═══════════════════════════════════════════════════════════════
+
+const CATEGORY_DATA_SOURCES: Record<PromptCategory, {
+  needsCandidate: boolean;
+  needsJob: boolean;
+  needsClient: boolean;
+  endpoints: { method: string; path: string; desc: string }[];
+}> = {
+  '客戶需求理解': {
+    needsCandidate: false, needsJob: true, needsClient: true,
+    endpoints: [
+      { method: 'GET', path: '/api/jobs/:id', desc: '取得職缺詳情（含薪資、技能需求）' },
+      { method: 'GET', path: '/api/clients/:id', desc: '取得客戶基本資訊與聯絡人' },
+    ],
+  },
+  '職缺分析': {
+    needsCandidate: false, needsJob: true, needsClient: true,
+    endpoints: [
+      { method: 'GET', path: '/api/jobs/:id', desc: '取得職缺完整 JD 與需求' },
+      { method: 'GET', path: '/api/clients/:id', desc: '取得客戶產業與規模' },
+    ],
+  },
+  '人才市場 Mapping': {
+    needsCandidate: true, needsJob: true, needsClient: false,
+    endpoints: [
+      { method: 'GET', path: '/api/jobs/:id', desc: '取得目標職缺需求' },
+      { method: 'GET', path: '/api/candidates', desc: '取得候選人列表（篩選技能、產業）' },
+    ],
+  },
+  '人才搜尋': {
+    needsCandidate: false, needsJob: true, needsClient: false,
+    endpoints: [
+      { method: 'GET', path: '/api/jobs/:id', desc: '取得職缺技能與地點需求' },
+    ],
+  },
+  '陌生開發（開發信）': {
+    needsCandidate: true, needsJob: true, needsClient: false,
+    endpoints: [
+      { method: 'GET', path: '/api/candidates/:id', desc: '取得候選人背景、技能、年資' },
+      { method: 'GET', path: '/api/jobs/:id', desc: '取得目標職缺資訊' },
+    ],
+  },
+  '人選訪談': {
+    needsCandidate: true, needsJob: true, needsClient: false,
+    endpoints: [
+      { method: 'GET', path: '/api/candidates/:id', desc: '取得候選人完整資料' },
+      { method: 'GET', path: '/api/jobs/:id', desc: '取得目標職缺需求' },
+    ],
+  },
+  '人選評估': {
+    needsCandidate: true, needsJob: true, needsClient: false,
+    endpoints: [
+      { method: 'GET', path: '/api/candidates/:id', desc: '取得候選人完整資料（含薪資、經歷）' },
+      { method: 'GET', path: '/api/jobs/:id', desc: '取得職缺需求（用於匹配評估）' },
+    ],
+  },
+  '客戶推薦': {
+    needsCandidate: true, needsJob: true, needsClient: true,
+    endpoints: [
+      { method: 'GET', path: '/api/candidates/:id', desc: '取得候選人完整資料' },
+      { method: 'GET', path: '/api/jobs/:id', desc: '取得職缺詳情' },
+      { method: 'GET', path: '/api/clients/:id', desc: '取得客戶資訊與送件規範' },
+      { method: 'GET', path: '/api/clients/:id/submission-rules', desc: '取得客戶送件檢查規範' },
+    ],
+  },
+  '面試與 Offer 管理': {
+    needsCandidate: true, needsJob: true, needsClient: true,
+    endpoints: [
+      { method: 'GET', path: '/api/candidates/:id', desc: '取得候選人薪資期望與競爭 Offer' },
+      { method: 'GET', path: '/api/jobs/:id', desc: '取得職缺薪資範圍' },
+      { method: 'GET', path: '/api/clients/:id', desc: '取得客戶聯絡人資訊' },
+    ],
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
 // 範例輸出生成器 — 根據分類 + 真實資料自動產出
 // ═══════════════════════════════════════════════════════════════
 
@@ -33,10 +110,89 @@ function pickRandom<T>(arr: T[]): T | null {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// jobs_pipeline 表的欄位名稱與 Job interface 不同，這裡做統一存取
+function getJobTitle(job: any): string {
+  return job?.title || job?.position_name || '';
+}
+function getJobCompany(job: any): string {
+  return job?.company || job?.client_company || '';
+}
+function getJobSalary(job: any): string {
+  return job?.salaryText || job?.salary_range || (job?.salaryMin && job?.salaryMax ? `${job.salaryMin}K-${job.salaryMax}K` : '');
+}
+function getJobSkills(job: any): string[] {
+  if (job?.requiredSkills && Array.isArray(job.requiredSkills)) return job.requiredSkills;
+  if (job?.key_skills) return job.key_skills.split(/[,、;]+/).map((s: string) => s.trim()).filter(Boolean);
+  return [];
+}
+function getJobYears(job: any): string {
+  return String(job?.requiredYears || job?.experience_required || '');
+}
+function getJobEducation(job: any): string {
+  return job?.requiredEducation || job?.education_required || '';
+}
+function getJobLocation(job: any): string {
+  return job?.location || '';
+}
+
 function getSkillsArray(skills: string | string[] | undefined): string[] {
   if (!skills) return [];
   if (Array.isArray(skills)) return skills.filter(Boolean);
   return skills.split(/[,、;]+/).map(s => s.trim()).filter(Boolean);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 佔位符自動套入引擎
+// ═══════════════════════════════════════════════════════════════
+
+function fillPromptPlaceholders(
+  content: string,
+  candidate: Candidate | null,
+  job: Job | null,
+  client: Client | null,
+): { filled: string; count: number } {
+  let result = content;
+  let count = 0;
+
+  const replace = (patterns: RegExp, value: string) => {
+    if (!value) return;
+    result = result.replace(patterns, () => { count++; return value; });
+  };
+
+  if (candidate) {
+    replace(/\{候選人姓名\}|\{人選姓名\}|\{候選人名字\}/g, candidate.name);
+    replace(/\{候選人職稱\}|\{目前職稱\}|\{現職\}/g, candidate.position);
+    replace(/\{候選人年資\}|\{年資\}/g, String(candidate.years || ''));
+    replace(/\{候選人技能\}|\{技能\}/g, getSkillsArray(candidate.skills).join('、'));
+    replace(/\{候選人地點\}|\{所在地點\}/g, candidate.location);
+    replace(/\{候選人產業\}|\{所屬產業\}/g, candidate.industry || '');
+    replace(/\{目前薪資\}/g, candidate.currentSalary || '');
+    replace(/\{期望薪資\}/g, candidate.expectedSalary || '');
+    replace(/\{英文名\}/g, candidate.englishName || '');
+    replace(/\{語言能力\}/g, candidate.languages || '');
+    replace(/\{到職時間\}/g, candidate.noticePeriod || '');
+    replace(/\{轉職原因\}/g, candidate.reasonForChange || '');
+    replace(/\{求職狀態\}/g, candidate.jobSearchStatus || '');
+  }
+
+  if (job) {
+    replace(/\{職缺名稱\}|\{職位名稱\}|\{職缺\}/g, getJobTitle(job));
+    replace(/\{公司名稱\}|\{公司\}/g, getJobCompany(job));
+    replace(/\{職缺地點\}/g, getJobLocation(job));
+    replace(/\{職缺薪資\}|\{薪資範圍\}/g, getJobSalary(job));
+    replace(/\{必要技能\}|\{技術需求\}/g, getJobSkills(job).join('、'));
+    replace(/\{年資要求\}/g, getJobYears(job));
+    replace(/\{學歷要求\}/g, getJobEducation(job));
+  }
+
+  if (client) {
+    replace(/\{客戶公司\}|\{客戶名稱\}/g, client.company_name);
+    replace(/\{客戶產業\}/g, client.industry || '');
+    replace(/\{聯絡人\}|\{窗口\}/g, client.contact_name || '');
+    replace(/\{聯絡人職稱\}/g, client.contact_title || '');
+  }
+
+  return { filled: result, count };
 }
 
 function generateExampleOutput(category: PromptCategory, data: SampleData): string {
@@ -51,12 +207,12 @@ function generateExampleOutput(category: PromptCategory, data: SampleData): stri
   const cSalary = candidate?.currentSalary || '70K';
   const cExpSalary = candidate?.expectedSalary || '85K+';
 
-  const jCompany = job?.company || '某科技公司';
-  const jTitle = job?.title || 'Senior Frontend Engineer';
-  const jLocation = job?.location || '台北';
-  const jSkills = (job?.requiredSkills || []).slice(0, 4);
+  const jCompany = getJobCompany(job) || '某科技公司';
+  const jTitle = getJobTitle(job) || 'Senior Frontend Engineer';
+  const jLocation = getJobLocation(job) || '台北';
+  const jSkills = getJobSkills(job).slice(0, 4);
   const jSkillStr = jSkills.length > 0 ? jSkills.join('、') : 'React、TypeScript、CI/CD';
-  const jSalary = job?.salaryText || (job?.salaryMin && job?.salaryMax ? `${job.salaryMin}K-${job.salaryMax}K` : '面議');
+  const jSalary = getJobSalary(job) || '面議';
 
   switch (category) {
     case '客戶需求理解':
@@ -97,8 +253,8 @@ function generateExampleOutput(category: PromptCategory, data: SampleData): stri
 ▎ 一、顯性需求（JD 明確列出）
 ┌──────────────┬─────────────────────────┐
 │ 技術能力      │ ${jSkillStr}            │
-│ 經驗年資      │ ${job?.requiredYears || 3}+ 年           │
-│ 學歷要求      │ ${job?.requiredEducation || '大學以上'}   │
+│ 經驗年資      │ ${getJobYears(job) || '3'}+ 年           │
+│ 學歷要求      │ ${getJobEducation(job) || '大學以上'}   │
 │ 薪資範圍      │ ${jSalary}              │
 └──────────────┴─────────────────────────┘
 
@@ -114,7 +270,7 @@ function generateExampleOutput(category: PromptCategory, data: SampleData): stri
 • 同期類似職缺約 8-12 個，競爭中等偏高
 
 ▎ 四、搜尋策略建議
-• Tier 1 目標：在職年資 ${(job?.requiredYears || 3)}-${(job?.requiredYears || 3) + 3} 年，有完整 ${jSkillStr} 經驗
+• Tier 1 目標：在職年資 ${getJobYears(job) || '3'}-${Number(getJobYears(job) || 3) + 3} 年，有完整 ${jSkillStr} 經驗
 • Tier 2 備選：技術棧 70% 符合，但有快速學習能力
 • 預計需接觸 30-40 位候選人，產出 5-8 位推薦人選`;
 
@@ -384,12 +540,20 @@ export function PromptLibraryPage({ userProfile }: Props) {
   const [editForm, setEditForm] = useState({ title: '', content: '' });
   const [saving, setSaving] = useState(false);
 
-  // 系統資料 — 用於範例輸出
+  // 系統資料 — 用於範例輸出 + 資料連結
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [exampleOutput, setExampleOutput] = useState<string>('');
   const [exampleSeed, setExampleSeed] = useState(0); // 觸發重新生成
   const dataLoadedRef = useRef(false);
+
+  // 資料連結 — 選定的候選人 / 職缺 / 客戶
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [showEndpoints, setShowEndpoints] = useState(false);
+  const [copiedFilled, setCopiedFilled] = useState(false);
 
   const isAdmin = userProfile.role === Role.ADMIN;
   const viewer = userProfile.displayName;
@@ -401,12 +565,14 @@ export function PromptLibraryPage({ userProfile }: Props) {
 
     const loadSystemData = async () => {
       try {
-        const [candRes, jobsRes] = await Promise.all([
+        const [candRes, jobsRes, clientRes] = await Promise.all([
           apiGet<{ success: boolean; data: Candidate[] }>('/candidates'),
           apiGet<{ success: boolean; data: Job[] }>('/jobs'),
+          apiGet<{ success: boolean; data: Client[] }>('/clients'),
         ]);
         if (candRes.success && candRes.data) setCandidates(candRes.data);
         if (jobsRes.success && jobsRes.data) setJobs(jobsRes.data);
+        if (clientRes.success && clientRes.data) setClients(clientRes.data);
       } catch (e) {
         console.error('載入系統資料失敗:', e);
       }
@@ -430,6 +596,20 @@ export function PromptLibraryPage({ userProfile }: Props) {
 
   useEffect(() => { loadPrompts(); }, [loadPrompts]);
 
+  // ── 資料連結：計算選中的實體 ──
+  const selectedCandidate = candidates.find(c => String(c.id) === selectedCandidateId) || null;
+  const selectedJob = jobs.find(j => String(j.id) === selectedJobId) || null;
+  const selectedClient = clients.find(c => String(c.id) === selectedClientId) || null;
+  const dataSrc = CATEGORY_DATA_SOURCES[activeCategory];
+
+  // 分類切換時重置選擇
+  useEffect(() => {
+    setSelectedCandidateId('');
+    setSelectedJobId('');
+    setSelectedClientId('');
+    setShowEndpoints(false);
+  }, [activeCategory]);
+
   // ── 生成範例輸出（當分類、資料、或 seed 改變時）──
   const pinnedPrompt = prompts.find(p => p.is_pinned);
 
@@ -438,17 +618,44 @@ export function PromptLibraryPage({ userProfile }: Props) {
       setExampleOutput('');
       return;
     }
-    const sampleCandidate = pickRandom(candidates);
-    const sampleJob = pickRandom(jobs);
+    // 如果有選定資料，使用選定的；否則隨機取用
+    const sampleCandidate = selectedCandidate || pickRandom(candidates);
+    const sampleJob = selectedJob || pickRandom(jobs);
     const output = generateExampleOutput(activeCategory, {
       candidate: sampleCandidate,
       job: sampleJob,
     });
     setExampleOutput(output);
-  }, [pinnedPrompt?.id, activeCategory, exampleSeed, candidates.length, jobs.length]);
+  }, [pinnedPrompt?.id, activeCategory, exampleSeed, candidates.length, jobs.length, selectedCandidateId, selectedJobId]);
 
   const handleRefreshExample = () => {
     setExampleSeed(prev => prev + 1);
+  };
+
+  // ── 佔位符套入 ──
+  const filledResult = pinnedPrompt
+    ? fillPromptPlaceholders(pinnedPrompt.content, selectedCandidate, selectedJob, selectedClient)
+    : { filled: '', count: 0 };
+
+  // ── 複製完整 Prompt（含資料上下文）──
+  const handleCopyFilled = () => {
+    const parts: string[] = [filledResult.filled || pinnedPrompt?.content || ''];
+
+    // 附加資料來源上下文
+    const contextLines: string[] = [];
+    if (selectedCandidate) contextLines.push(`• 候選人：${selectedCandidate.name}（${selectedCandidate.position}，${selectedCandidate.years}年經驗）→ GET /api/candidates/${selectedCandidate.id}`);
+    if (selectedJob) contextLines.push(`• 職缺：${getJobTitle(selectedJob)}（${getJobCompany(selectedJob)}）→ GET /api/jobs/${selectedJob.id}`);
+    if (selectedClient) contextLines.push(`• 客戶：${selectedClient.company_name}（${selectedClient.industry || ''}）→ GET /api/clients/${selectedClient.id}`);
+
+    if (contextLines.length > 0) {
+      parts.push('\n\n---\n📊 系統資料來源：');
+      parts.push(contextLines.join('\n'));
+    }
+
+    navigator.clipboard.writeText(parts.join('\n')).then(() => {
+      setCopiedFilled(true);
+      setTimeout(() => setCopiedFilled(false), 2000);
+    });
   };
 
   // ── 新增提示詞 ──
@@ -615,23 +822,107 @@ export function PromptLibraryPage({ userProfile }: Props) {
                 )}
               </div>
 
+              {/* ── 🔗 連結系統資料 ── */}
+              <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-4 mb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Link2 size={14} className="text-indigo-500" />
+                  <span className="text-sm font-bold text-indigo-700">連結系統資料</span>
+                  <span className="text-xs text-indigo-400">— 選擇資料後自動套入提示詞佔位符，範例輸出也會對應更新</span>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {dataSrc.needsCandidate && (
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">👤 候選人</label>
+                      <select
+                        value={selectedCandidateId}
+                        onChange={e => setSelectedCandidateId(e.target.value)}
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+                      >
+                        <option value="">隨機取用...</option>
+                        {candidates.map(c => (
+                          <option key={c.id} value={c.id}>{c.name} — {c.position} ({c.years}年)</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {dataSrc.needsJob && (
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">💼 職缺</label>
+                      <select
+                        value={selectedJobId}
+                        onChange={e => setSelectedJobId(e.target.value)}
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+                      >
+                        <option value="">隨機取用...</option>
+                        {jobs.map(j => (
+                          <option key={j.id} value={j.id}>{getJobTitle(j)} ({getJobCompany(j)})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {dataSrc.needsClient && (
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">🏢 客戶</label>
+                      <select
+                        value={selectedClientId}
+                        onChange={e => setSelectedClientId(e.target.value)}
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+                      >
+                        <option value="">不選擇...</option>
+                        {clients.map(c => (
+                          <option key={c.id} value={c.id}>{c.company_name}{c.industry ? ` (${c.industry})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+                {/* 支援的佔位符提示 */}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <span className="text-[10px] text-slate-400 mr-1">可用佔位符：</span>
+                  {dataSrc.needsCandidate && ['候選人姓名', '目前職稱', '年資', '技能', '候選人產業', '目前薪資', '期望薪資'].map(p => (
+                    <code key={p} className="text-[10px] px-1.5 py-0.5 bg-white border border-slate-200 rounded text-indigo-600 font-mono">{`{${p}}`}</code>
+                  ))}
+                  {dataSrc.needsJob && ['職缺名稱', '公司名稱', '職缺地點', '薪資範圍', '必要技能', '年資要求'].map(p => (
+                    <code key={p} className="text-[10px] px-1.5 py-0.5 bg-white border border-slate-200 rounded text-emerald-600 font-mono">{`{${p}}`}</code>
+                  ))}
+                  {dataSrc.needsClient && ['客戶公司', '客戶產業', '聯絡人', '聯絡人職稱'].map(p => (
+                    <code key={p} className="text-[10px] px-1.5 py-0.5 bg-white border border-slate-200 rounded text-violet-600 font-mono">{`{${p}}`}</code>
+                  ))}
+                </div>
+              </div>
+
               {/* 雙欄：左邊提示詞 + 右邊範例輸出 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* 左欄 — 原始提示詞 */}
+                {/* 左欄 — 提示詞（含資料套入） */}
                 <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl overflow-hidden shadow-sm">
                   <div className="px-5 py-3 bg-amber-100/60 border-b border-amber-200 flex items-center justify-between">
                     <h3 className="text-sm font-bold text-amber-800 flex items-center gap-2">
                       ⭐ {pinnedPrompt.title}
+                      {filledResult.count > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
+                          已套入 {filledResult.count} 項
+                        </span>
+                      )}
                     </h3>
-                    <button
-                      onClick={() => handleCopy(pinnedPrompt.content, pinnedPrompt.id)}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-amber-50 rounded-lg text-xs text-amber-700 transition-colors border border-amber-200"
-                    >
-                      {copiedId === pinnedPrompt.id ? <><Check size={12} className="text-green-600" /> 已複製</> : <><Copy size={12} /> 複製</>}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {(selectedCandidate || selectedJob || selectedClient) && (
+                        <button
+                          onClick={handleCopyFilled}
+                          className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-xs text-white transition-colors font-medium"
+                        >
+                          {copiedFilled ? <><Check size={12} /> 已複製</> : <><Database size={12} /> 複製含資料</>}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleCopy(pinnedPrompt.content, pinnedPrompt.id)}
+                        className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-amber-50 rounded-lg text-xs text-amber-700 transition-colors border border-amber-200"
+                      >
+                        {copiedId === pinnedPrompt.id ? <><Check size={12} className="text-green-600" /> 已複製</> : <><Copy size={12} /> 複製原始</>}
+                      </button>
+                    </div>
                   </div>
                   <pre className="whitespace-pre-wrap text-sm text-slate-700 p-5 font-sans leading-relaxed max-h-[500px] overflow-y-auto">
-                    {pinnedPrompt.content}
+                    {filledResult.count > 0 ? filledResult.filled : pinnedPrompt.content}
                   </pre>
                 </div>
 
@@ -639,16 +930,27 @@ export function PromptLibraryPage({ userProfile }: Props) {
                 <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl overflow-hidden shadow-sm">
                   <div className="px-5 py-3 bg-emerald-100/60 border-b border-emerald-200 flex items-center justify-between">
                     <h3 className="text-sm font-bold text-emerald-800 flex items-center gap-2">
-                      🤖 範例輸出（自動生成）
+                      🤖 範例輸出
+                      {(selectedCandidate || selectedJob) ? (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-emerald-200 text-emerald-800 rounded-full font-medium">
+                          使用選定資料
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full font-medium">
+                          隨機資料
+                        </span>
+                      )}
                     </h3>
                     <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={handleRefreshExample}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-emerald-50 rounded-lg text-xs text-emerald-700 transition-colors border border-emerald-200"
-                        title="隨機取用不同候選人/職缺組合重新生成"
-                      >
-                        <RefreshCw size={12} /> 換一組
-                      </button>
+                      {!selectedCandidate && !selectedJob && (
+                        <button
+                          onClick={handleRefreshExample}
+                          className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-emerald-50 rounded-lg text-xs text-emerald-700 transition-colors border border-emerald-200"
+                          title="隨機取用不同候選人/職缺組合重新生成"
+                        >
+                          <RefreshCw size={12} /> 換一組
+                        </button>
+                      )}
                       <button
                         onClick={handleCopyExample}
                         className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-emerald-50 rounded-lg text-xs text-emerald-700 transition-colors border border-emerald-200"
@@ -661,6 +963,37 @@ export function PromptLibraryPage({ userProfile }: Props) {
                     {exampleOutput || '載入系統資料中...'}
                   </pre>
                 </div>
+              </div>
+
+              {/* ── API 端點參考 ── */}
+              <div className="mt-3 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setShowEndpoints(!showEndpoints)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  <Server size={12} className="text-slate-400" />
+                  API 端點參考（AI 可呼叫取得即時資料）
+                  <span className="text-[10px] text-slate-400 font-normal">共 {dataSrc.endpoints.length} 個端點</span>
+                  <div className="flex-1" />
+                  <ChevronDown size={12} className={`text-slate-400 transition-transform ${showEndpoints ? 'rotate-180' : ''}`} />
+                </button>
+                {showEndpoints && (
+                  <div className="px-4 pb-3 space-y-1.5 border-t border-slate-200 pt-2">
+                    <p className="text-[10px] text-slate-400 mb-2">以下端點可供 AI 呼叫，基底 URL: <code className="text-indigo-600">https://backendstep1ne.zeabur.app</code></p>
+                    {dataSrc.endpoints.map((ep, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] ${
+                          ep.method === 'GET' ? 'bg-green-100 text-green-700' :
+                          ep.method === 'POST' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {ep.method}
+                        </span>
+                        <code className="text-indigo-600 font-mono">{ep.path}</code>
+                        <span className="text-slate-400">— {ep.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
