@@ -11,10 +11,9 @@ import { apiPost, apiPatch, getApiUrl } from '../config/api';
 
 interface CandidatesPageProps {
   userProfile: UserProfile;
-  onNavigateToMatching?: (candidateId: string) => void;
 }
 
-export function CandidatesPage({ userProfile, onNavigateToMatching }: CandidatesPageProps) {
+export function CandidatesPage({ userProfile }: CandidatesPageProps) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -702,18 +701,6 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                       指派給我
                     </button>
                   )}
-                  {onNavigateToMatching && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onNavigateToMatching(candidate.id.toString());
-                      }}
-                      className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
-                    >
-                      <Sparkles size={14} />
-                      AI 配對
-                    </button>
-                  )}
                   {/* 快速聯繫按鈕 */}
                   {(candidate as any).linkedin_url && (
                     <a
@@ -1040,18 +1027,6 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                         >
                           <Shield className="w-3.5 h-3.5" />
                           指派給我
-                        </button>
-                      )}
-                      {onNavigateToMatching && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onNavigateToMatching(candidate.id.toString());
-                          }}
-                          className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
-                        >
-                          <Sparkles size={14} />
-                          AI 配對
                         </button>
                       )}
                       {/* 快速聯繫：LinkedIn */}

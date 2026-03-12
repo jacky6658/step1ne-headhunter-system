@@ -30,9 +30,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     { id: 'candidates', label: '📋 候選人總表', icon: Users, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
 
 
-    // 職缺與配對功能
+    // 職缺管理
     { id: 'jobs', label: '💼 職缺管理', icon: ClipboardList, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
-    { id: 'ai-matching', label: '🤖 AI 配對推薦', icon: CheckSquare, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
 
     // 未來功能
     { id: 'bd-clients', label: '🎯 BD 客戶開發', icon: Target, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },

@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { UserProfile } from '../types';
-import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles, FileText, Edit3, Save, X as XIcon, Bot, Plus, Trash2 } from 'lucide-react';
+import { Briefcase, Search, Building2, Users, Target, TrendingUp, FileText, Edit3, Save, X as XIcon, Bot, Plus, Trash2 } from 'lucide-react';
 import { apiGet, apiPut, apiDelete } from '../config/api';
 import { fmtDate } from '../utils/dateFormat';
 
 interface JobsPageProps {
   userProfile: UserProfile;
-  onNavigateToMatching: (jobId: string) => void;
 }
 
 interface Job {
@@ -45,7 +44,7 @@ interface Job {
   lastUpdated: string;
 }
 
-export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMatching }) => {
+export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -296,10 +295,6 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     } finally {
       setDeletingJobId(null);
     }
-  };
-
-  const handleStartMatching = (jobId: string) => {
-    onNavigateToMatching(jobId);
   };
 
   const getStatusColor = (status: string | undefined) => {

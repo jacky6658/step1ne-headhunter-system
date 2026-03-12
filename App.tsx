@@ -11,7 +11,7 @@ import HelpPage from './pages/HelpPage';
 import LoginPage from './pages/LoginPage';
 // 新增: 候選人管理頁面
 import { CandidatesPage } from './pages/CandidatesPage';
-import { AIMatchingPage } from './pages/AIMatchingPage';
+
 import { JobsPage } from './pages/JobsPage';
 import { PipelinePage } from './pages/PipelinePage';
 import { SystemLogPage } from './pages/SystemLogPage';
@@ -34,7 +34,6 @@ const App: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem('sidebar_collapsed') === 'true';
   });
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
@@ -105,23 +104,10 @@ const App: React.FC = () => {
       // 候選人管理頁面
       case 'candidates': return <CandidatesPage
         userProfile={profile}
-        onNavigateToMatching={(candidateId) => {
-          setSelectedJobId(candidateId);
-          setActiveTab('ai-matching');
-        }}
       />;
       // 職缺管理
-      case 'jobs': return <JobsPage 
-        userProfile={profile} 
-        onNavigateToMatching={(jobId) => {
-          setSelectedJobId(jobId);
-          setActiveTab('ai-matching');
-        }}
-      />;
-      // AI 配對推薦
-      case 'ai-matching': return <AIMatchingPage 
-        userProfile={profile} 
-        preSelectedJobId={selectedJobId}
+      case 'jobs': return <JobsPage
+        userProfile={profile}
       />;
       // BD 客戶開發
       case 'bd-clients': return <BDClientsPage
@@ -206,7 +192,6 @@ const App: React.FC = () => {
                activeTab === 'jobs' ? '職缺管理' :
                activeTab === 'bd-clients' ? 'BD 客戶開發' :
                activeTab === 'pipeline' ? '顧問人選追蹤表' :
-               activeTab === 'ai-matching' ? 'AI 配對推薦' :
                activeTab === 'system-log' ? '操作日誌' :
                activeTab === 'crawler-dashboard' ? '爬蟲整合儀表板' :
                activeTab === 'ops-dashboard' ? '運營儀表板' : 'Step1ne 獵頭系統'}

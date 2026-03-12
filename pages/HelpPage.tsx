@@ -118,11 +118,6 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <h3 className="font-black text-slate-900 mb-1">職缺管理</h3>
             <p className="text-sm text-slate-600">新增和管理招聘職缺</p>
           </a>
-          <a href="#AI配對" className="p-4 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition-colors">
-            <Sparkles className="text-emerald-600 mb-2" size={24} />
-            <h3 className="font-black text-slate-900 mb-1">AI 智能評分</h3>
-            <p className="text-sm text-slate-600">五維度自動評分系統</p>
-          </a>
           <a href="#AIbot" className="p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
             <Bot className="text-indigo-600 mb-2" size={24} />
             <h3 className="font-black text-slate-900 mb-1">AIbot 啟動指南</h3>
@@ -284,90 +279,6 @@ const HelpPage: React.FC<HelpPageProps> = () => {
               <li><strong>企業文化</strong>：公司文化描述</li>
               <li><strong>技術棧</strong>：使用的技術和工具</li>
             </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* AI 智能評分說明 */}
-      <div id="AI配對" className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl shadow-sm border border-emerald-200 p-6">
-        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-          <Sparkles className="text-emerald-600" size={24} />
-          AI 智能評分系統
-        </h2>
-
-        <div className="space-y-6 text-slate-700">
-          <div className="bg-white rounded-xl p-4 border border-emerald-200">
-            <h3 className="font-black text-emerald-700 mb-2">🎯 系統概述</h3>
-            <p className="text-sm">透過 AI Bot 自動為候選人進行五維度評分，根據職缺的人才畫像、JD、公司畫像進行智能配對，評分結果自動寫回系統。</p>
-          </div>
-
-          {/* AI 評分等級 */}
-          <div>
-            <h3 className="font-black text-slate-900 mb-3">⭐ AI 評分等級與狀態</h3>
-            <div className="space-y-2">
-              <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-red-700">S 級（90-100 分）</span>
-                  <span className="text-xs bg-red-200 text-red-800 rounded px-2 py-1 font-bold">AI推薦</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">強力推薦，立即聯繫</p>
-              </div>
-              <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-orange-700">A+ 級（80-89 分）</span>
-                  <span className="text-xs bg-orange-200 text-orange-800 rounded px-2 py-1 font-bold">AI推薦</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">強力推薦，高度契合</p>
-              </div>
-              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-yellow-700">A 級（70-79 分）</span>
-                  <span className="text-xs bg-yellow-200 text-yellow-800 rounded px-2 py-1 font-bold">AI推薦</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">推薦，符合要求</p>
-              </div>
-              <div className="p-3 bg-cyan-50 rounded-lg border border-cyan-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-cyan-700">B 級（55-69 分）</span>
-                  <span className="text-xs bg-cyan-200 text-cyan-800 rounded px-2 py-1 font-bold">備選人才</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">觀望，有潛力但需確認</p>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-slate-700">C 級（&lt;55 分）</span>
-                  <span className="text-xs bg-slate-200 text-slate-800 rounded px-2 py-1 font-bold">備選人才</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">不推薦，低優先</p>
-              </div>
-            </div>
-          </div>
-
-          {/* 5 維度評分 */}
-          <div>
-            <h3 className="font-black text-slate-900 mb-3">🔬 AI 評分 5 維度</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <span className="font-black text-blue-700">人才畫像符合度（40%）</span>
-                <p className="text-xs text-slate-600 mt-1">候選人技能/年資 vs 職缺人才畫像吻合程度</p>
-              </div>
-              <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                <span className="font-black text-indigo-700">JD 職責匹配度（30%）</span>
-                <p className="text-xs text-slate-600 mt-1">技能是否覆蓋 JD 核心工作職責</p>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                <span className="font-black text-purple-700">公司適配性（15%）</span>
-                <p className="text-xs text-slate-600 mt-1">公司文化、產業、規模的契合度</p>
-              </div>
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <span className="font-black text-amber-700">可觸達性（10%）</span>
-                <p className="text-xs text-slate-600 mt-1">LinkedIn / GitHub 聯繫管道是否存在</p>
-              </div>
-              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-                <span className="font-black text-emerald-700">活躍信號（5%）</span>
-                <p className="text-xs text-slate-600 mt-1">GitHub 活躍度作為加分項</p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
