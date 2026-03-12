@@ -1,9 +1,205 @@
-// Step1ne 匿名履歷產生器 — 從候選人資料一鍵產生 PDF
+// Step1ne 匿名履歷產生器 — 從候選人資料一鍵產生 PDF（支援中/英文切換）
 import React from 'react';
 import { Candidate } from '../types';
 
 import { RADAR_DIMENSIONS, computeAutoScores, computeOverallRating } from './RadarChart';
 import { ConsultantEvaluation } from '../types';
+
+// ═══════════════════════════════════════════════════════════════
+// 中英文翻譯字典
+// ═══════════════════════════════════════════════════════════════
+export type ResumeLanguage = 'zh' | 'en';
+
+const RESUME_I18N = {
+  zh: {
+    // HTML title / header
+    pageTitle: '候選人摘要',
+    headerTitle: 'CANDIDATE PROFILE',
+    // Section titles
+    summary: '推薦摘要',
+    basicInfo: '基本資料',
+    skills: '核心技能',
+    languages: '語言能力',
+    certifications: '專業證照',
+    achievements: '代表性成就 / 優勢',
+    workHistory: '工作經驗',
+    education: '教育背景',
+    radarChart: '顧問評估',
+    dealTerms: '轉職條件',
+    // Basic info labels
+    field_position: '現職',
+    field_years: '年資',
+    field_industry: '產業',
+    field_location: '地點',
+    field_gender: '性別',
+    field_age: '年齡',
+    field_education: '學歷',
+    field_languages: '語言',
+    field_certifications: '證照',
+    field_currentSalary: '目前薪資',
+    field_expectedSalary: '期望薪資',
+    field_noticePeriod: '到職時間',
+    field_management: '管理經驗',
+    field_jobSearchStatus: '求職狀態',
+    field_motivation: '主要動機',
+    field_reasonForChange: '轉職原因',
+    // Deal terms labels
+    deal_currentSalary: '目前薪資',
+    deal_expectedSalary: '期望薪資',
+    deal_noticePeriod: '到職時間',
+    deal_management: '管理經驗',
+    deal_jobSearchStatus: '求職狀態',
+    deal_motivation: '主要動機',
+    deal_reasonForChange: '轉職原因',
+    deal_dealBreakers: '不適配條件',
+    deal_competingOffers: '競爭 Offer',
+    deal_relationshipLevel: '顧問關係',
+    // Misc
+    yearsExp: '年經驗',
+    years: '年',
+    months: '個月',
+    yesLabel: '是',
+    age_suffix: '歲',
+    zodiac_prefix: '屬',
+    overallScore: '綜合評分',
+    noEdu: '（暫無教育背景資料）',
+    noTitle: '（職稱未提供）',
+    fallbackCompany: '某企業',
+    present: '至今',
+    // Summary fallbacks
+    summaryFallback: '具備相關領域專業經驗之人才，詳見以下履歷內容。',
+    // Footer
+    footerBrand: 'Step1ne 德仁管理顧問',
+    footerConfidential: 'Confidential — For Recruitment Use Only',
+    // Company anonymization
+    anonTechGiant: '全球知名科技巨頭',
+    anonCnTech: '中國頭部科技公司',
+    anonTwTech: '台灣知名科技/半導體企業',
+    anonBank: '知名金融機構',
+    anonConsulting: '國際頂級顧問公司',
+    anonTech: '科技公司',
+    anonBiotech: '生技醫療公司',
+    anonManufacturing: '製造業公司',
+    anonEcommerce: '電商/零售公司',
+    anonMedia: '媒體/廣告公司',
+    anonEducation: '教育機構',
+    anonConsultingGeneral: '顧問公司',
+    anonArchitecture: '建築/設計事務所',
+    anonConstruction: '營造/工程公司',
+    anonLaw: '法律事務所',
+    anonAccounting: '會計事務所',
+    anonStartup: '新創公司',
+    // Preview UI
+    previewTitle: '匿名履歷預覽',
+    hidePanel: '隱藏面板',
+    fieldSettings: '欄位設定',
+    editSummary: '編輯摘要',
+    print: '列印',
+    download: '另開下載',
+    summaryEditHint: '推薦摘要（可自由編輯，即時更新預覽）',
+    resetAuto: '重置為自動生成',
+    displayFields: '顯示欄位',
+    selectAll: '全選',
+    deselectAll: '全取消',
+    sectionGroup: '區塊',
+    subFieldGroup: '基本資料子欄位',
+    langToggle: '中文',
+  },
+  en: {
+    pageTitle: 'Candidate Profile',
+    headerTitle: 'CANDIDATE PROFILE',
+    summary: 'Recommendation Summary',
+    basicInfo: 'Basic Information',
+    skills: 'Core Skills',
+    languages: 'Language Proficiency',
+    certifications: 'Professional Certifications',
+    achievements: 'Key Achievements / Strengths',
+    workHistory: 'Work Experience',
+    education: 'Education',
+    radarChart: 'Consultant Assessment',
+    dealTerms: 'Career Change Requirements',
+    field_position: 'Current Role',
+    field_years: 'Experience',
+    field_industry: 'Industry',
+    field_location: 'Location',
+    field_gender: 'Gender',
+    field_age: 'Age',
+    field_education: 'Education',
+    field_languages: 'Languages',
+    field_certifications: 'Certifications',
+    field_currentSalary: 'Current Salary',
+    field_expectedSalary: 'Expected Salary',
+    field_noticePeriod: 'Availability',
+    field_management: 'Management Exp.',
+    field_jobSearchStatus: 'Job Search Status',
+    field_motivation: 'Motivation',
+    field_reasonForChange: 'Reason for Change',
+    deal_currentSalary: 'Current Salary',
+    deal_expectedSalary: 'Expected Salary',
+    deal_noticePeriod: 'Availability',
+    deal_management: 'Management Exp.',
+    deal_jobSearchStatus: 'Job Search Status',
+    deal_motivation: 'Motivation',
+    deal_reasonForChange: 'Reason for Change',
+    deal_dealBreakers: 'Deal Breakers',
+    deal_competingOffers: 'Competing Offers',
+    deal_relationshipLevel: 'Relationship Level',
+    yearsExp: 'yrs exp.',
+    years: 'yr',
+    months: 'mo',
+    yesLabel: 'Yes',
+    age_suffix: '',
+    zodiac_prefix: '',
+    overallScore: 'Overall Score',
+    noEdu: '(No education data available)',
+    noTitle: '(Title not provided)',
+    fallbackCompany: 'Company',
+    present: 'Present',
+    summaryFallback: 'A professional with relevant industry experience. See resume details below.',
+    footerBrand: 'Step1ne Management Consulting',
+    footerConfidential: 'Confidential — For Recruitment Use Only',
+    anonTechGiant: 'Global Tech Giant',
+    anonCnTech: 'Leading Chinese Tech Company',
+    anonTwTech: 'Prominent Taiwan Tech / Semiconductor Firm',
+    anonBank: 'Leading Financial Institution',
+    anonConsulting: 'Top-tier International Consultancy',
+    anonTech: 'Technology Company',
+    anonBiotech: 'Biotech / Healthcare Company',
+    anonManufacturing: 'Manufacturing Company',
+    anonEcommerce: 'E-commerce / Retail Company',
+    anonMedia: 'Media / Advertising Company',
+    anonEducation: 'Educational Institution',
+    anonConsultingGeneral: 'Consulting Firm',
+    anonArchitecture: 'Architecture / Design Studio',
+    anonConstruction: 'Construction / Engineering Firm',
+    anonLaw: 'Law Firm',
+    anonAccounting: 'Accounting Firm',
+    anonStartup: 'Startup',
+    previewTitle: 'Anonymous Resume Preview',
+    hidePanel: 'Hide Panel',
+    fieldSettings: 'Field Settings',
+    editSummary: 'Edit Summary',
+    print: 'Print',
+    download: 'Download',
+    summaryEditHint: 'Recommendation Summary (edit freely, preview updates in real-time)',
+    resetAuto: 'Reset to auto-generated',
+    displayFields: 'Visible Fields',
+    selectAll: 'All',
+    deselectAll: 'None',
+    sectionGroup: 'Sections',
+    subFieldGroup: 'Basic Info Sub-fields',
+    langToggle: 'EN',
+  }
+} as const;
+
+// Radar dimension English labels
+const RADAR_DIM_EN: Record<string, string> = {
+  technicalDepth: 'Technical',
+  stability: 'Stability',
+  industryMatch: 'Industry',
+  communication: 'Communication',
+  personality: 'Attitude',
+};
 
 // Step1ne logo (loaded from public path at runtime)
 const LOGO_URL = '/step1ne-logo.jpeg';
@@ -318,8 +514,9 @@ export const DEFAULT_VISIBLE_FIELDS: ResumeVisibleFields = {
   field_reasonForChange: true,
 };
 
-function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSummary?: string, visibleFields?: ResumeVisibleFields): string {
+function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSummary?: string, visibleFields?: ResumeVisibleFields, lang: ResumeLanguage = 'zh'): string {
   const vf = visibleFields || DEFAULT_VISIBLE_FIELDS;
+  const t = RESUME_I18N[lang];
   const skills = parseSkills(candidate.skills);
   const workHistory = parseWorkHistory(candidate);
   const education = parseEducation(candidate);
@@ -357,7 +554,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
 
   // Headline: Position | N年 | key skills
   const topSkills = skills.slice(0, 3).join(' × ');
-  const headline = [position, years > 0 ? `${years} 年經驗` : '', topSkills].filter(Boolean).join(' | ');
+  const headline = [position, years > 0 ? (lang === 'en' ? `${years} ${t.yearsExp}` : `${years} 年經驗`) : '', topSkills].filter(Boolean).join(' | ');
 
   // Skills grouped
   const skillsHTML = skills.map(s => `<span class="skill-tag">${s}</span>`).join('');
@@ -365,7 +562,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   // Work history — 公司名匿名化：用產業/規模描述取代真實公司名
   // 非台灣公司會保留國家/地區標記
   const anonymizeCompany = (company: string): string => {
-    if (!company) return '某企業';
+    if (!company) return t.fallbackCompany;
 
     // 1. 先提取括號中的國家/地區資訊（全形/半形括號皆支援）
     let regionTag = '';
@@ -403,25 +600,25 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     const consulting = ['mckinsey', 'bain', 'bcg', 'deloitte', 'ey', 'pwc', 'kpmg', 'accenture', '麥肯錫', '貝恩', '勤業', '資誠', '安永'];
 
     let anonName = '';
-    if (techGiants.some(t => c.includes(t))) anonName = '全球知名科技巨頭';
-    else if (cnTech.some(t => c.includes(t))) anonName = '中國頭部科技公司';
-    else if (twTech.some(t => c.includes(t))) anonName = '台灣知名科技/半導體企業';
-    else if (banks.some(t => c.includes(t))) anonName = '知名金融機構';
-    else if (consulting.some(t => c.includes(t))) anonName = '國際頂級顧問公司';
+    if (techGiants.some(x => c.includes(x))) anonName = t.anonTechGiant;
+    else if (cnTech.some(x => c.includes(x))) anonName = t.anonCnTech;
+    else if (twTech.some(x => c.includes(x))) anonName = t.anonTwTech;
+    else if (banks.some(x => c.includes(x))) anonName = t.anonBank;
+    else if (consulting.some(x => c.includes(x))) anonName = t.anonConsulting;
     // 一般公司 → 用產業關鍵字推測
-    else if (/科技|tech|software|資訊|IT|internet|網路/.test(c)) anonName = '科技公司';
-    else if (/生技|醫|pharma|biotech|health/.test(c)) anonName = '生技醫療公司';
-    else if (/製造|工業|industrial|manufact/.test(c)) anonName = '製造業公司';
-    else if (/電商|commerce|零售|retail/.test(c)) anonName = '電商/零售公司';
-    else if (/媒體|media|傳播|廣告|advert/.test(c)) anonName = '媒體/廣告公司';
-    else if (/教育|education|學/.test(c)) anonName = '教育機構';
-    else if (/顧問|consul/.test(c)) anonName = '顧問公司';
-    else if (/建築|architect|設計|design|事務所/.test(c)) anonName = '建築/設計事務所';
-    else if (/營造|construct|工程/.test(c)) anonName = '營造/工程公司';
-    else if (/法律|律師|law/.test(c)) anonName = '法律事務所';
-    else if (/會計|account/.test(c)) anonName = '會計事務所';
-    else if (/新創|startup/.test(c)) anonName = '新創公司';
-    else anonName = '某企業';
+    else if (/科技|tech|software|資訊|IT|internet|網路/.test(c)) anonName = t.anonTech;
+    else if (/生技|醫|pharma|biotech|health/.test(c)) anonName = t.anonBiotech;
+    else if (/製造|工業|industrial|manufact/.test(c)) anonName = t.anonManufacturing;
+    else if (/電商|commerce|零售|retail/.test(c)) anonName = t.anonEcommerce;
+    else if (/媒體|media|傳播|廣告|advert/.test(c)) anonName = t.anonMedia;
+    else if (/教育|education|學/.test(c)) anonName = t.anonEducation;
+    else if (/顧問|consul/.test(c)) anonName = t.anonConsultingGeneral;
+    else if (/建築|architect|設計|design|事務所/.test(c)) anonName = t.anonArchitecture;
+    else if (/營造|construct|工程/.test(c)) anonName = t.anonConstruction;
+    else if (/法律|律師|law/.test(c)) anonName = t.anonLaw;
+    else if (/會計|account/.test(c)) anonName = t.anonAccounting;
+    else if (/新創|startup/.test(c)) anonName = t.anonStartup;
+    else anonName = t.fallbackCompany;
 
     // 3. 如有海外地區標記就附加
     return regionTag ? `${anonName}${regionTag}` : anonName;
@@ -429,7 +626,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
 
   const workHTML = workHistory.map(w => {
     const startStr = w.start || '';
-    const endStr = w.end || '至今';
+    const endStr = w.end || t.present;
     const period = startStr ? `${startStr} – ${endStr}` : '';
     // 動態計算月數，不用後端靜態的 duration_months
     const months = calcDurationMonths(startStr, w.end || 'present');
@@ -437,6 +634,11 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
       ? (() => {
           const y = Math.floor(months / 12);
           const m = months % 12;
+          if (lang === 'en') {
+            if (y > 0 && m > 0) return `${y} yr ${m} mo`;
+            if (y > 0) return `${y} yr${y > 1 ? 's' : ''}`;
+            return `${m} mo`;
+          }
           if (y > 0 && m > 0) return `${y}年${m}個月`;
           if (y > 0) return `${y}年`;
           return `${m}個月`;
@@ -451,7 +653,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     const anonCompany = anonymizeCompany(w.company || '');
     return `
       <div class="work-item">
-        <div class="work-role">${w.title || '（職稱未提供）'}</div>
+        <div class="work-role">${w.title || t.noTitle}</div>
         <div class="work-company">${anonCompany}</div>
         ${timeDisplay ? `<div class="work-period">${timeDisplay}</div>` : ''}
         ${desc ? `<ul class="work-desc">${desc}</ul>` : ''}
@@ -466,7 +668,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
       <span class="edu-detail">${[e.degree, e.major].filter(Boolean).join(' — ')}</span>
       ${e.start || e.end ? `<span class="edu-period">${[e.start, e.end].filter(Boolean).join(' – ')}</span>` : ''}
     </div>
-  `).join('') || (candidate.education ? `<div class="edu-item"><span class="edu-school">${candidate.education}</span></div>` : '<div class="edu-item"><span class="edu-detail">（暫無教育背景資料）</span></div>');
+  `).join('') || (candidate.education ? `<div class="edu-item"><span class="edu-school">${candidate.education}</span></div>` : `<div class="edu-item"><span class="edu-detail">${t.noEdu}</span></div>`);
 
   // AI match highlights
   const ai = candidate.aiMatchResult;
@@ -499,12 +701,18 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
 
   // Info pills for header (匿名履歷 required/optional 顯示規則)
   const infoPills: string[] = [];
-  if (position) infoPills.push(position);              // required
-  if (years > 0) infoPills.push(`${years} 年經驗`);    // required
-  if (candidate.location) infoPills.push(candidate.location); // required
+  if (position) infoPills.push(position);
+  if (years > 0) infoPills.push(lang === 'en' ? `${years} ${t.yearsExp}` : `${years} 年經驗`);
+  if (candidate.location) infoPills.push(candidate.location);
   const zodiac = getZodiac(age, candidate.birthday);
-  if (age) infoPills.push(`${age} 歲${zodiac ? `（${zodiac}）` : ''}`); // required (年齡+生肖)
-  if (industry) infoPills.push(industry);               // required (產業)
+  if (age) {
+    if (lang === 'en') {
+      infoPills.push(`Age ${age}`);
+    } else {
+      infoPills.push(`${age} 歲${zodiac ? `（${zodiac}）` : ''}`);
+    }
+  }
+  if (industry) infoPills.push(industry);
   const infoPillsHTML = infoPills.map(p => `<span class="info-pill">${p}</span>`).join('');
 
   // 證照 & 語言 HTML (optional)
@@ -515,37 +723,37 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
 
   // 轉職條件 HTML (optional)
   const dealTerms: string[] = [];
-  if (currentSalary) dealTerms.push(`目前薪資：${currentSalary}`);
-  if (expectedSalary) dealTerms.push(`期望薪資：${expectedSalary}`);
-  if (noticePeriod) dealTerms.push(`到職時間：${noticePeriod}`);
-  if (hasManagement) dealTerms.push(`管理經驗：是${teamSize ? `（${teamSize}）` : ''}`);
+  if (currentSalary) dealTerms.push(`${t.deal_currentSalary}：${currentSalary}`);
+  if (expectedSalary) dealTerms.push(`${t.deal_expectedSalary}：${expectedSalary}`);
+  if (noticePeriod) dealTerms.push(`${t.deal_noticePeriod}：${noticePeriod}`);
+  if (hasManagement) dealTerms.push(`${t.deal_management}：${t.yesLabel}${teamSize ? `（${teamSize}）` : ''}`);
   // Phase 3 動機與交易條件
-  if (candidate.jobSearchStatus) dealTerms.push(`求職狀態：${candidate.jobSearchStatus}`);
-  if (candidate.motivation) dealTerms.push(`主要動機：${candidate.motivation}`);
-  if (candidate.reasonForChange) dealTerms.push(`轉職原因：${candidate.reasonForChange}`);
-  if (candidate.dealBreakers) dealTerms.push(`不適配條件：${candidate.dealBreakers}`);
-  if (candidate.competingOffers) dealTerms.push(`競爭 Offer：${candidate.competingOffers}`);
-  if (candidate.relationshipLevel) dealTerms.push(`顧問關係：${candidate.relationshipLevel}`);
+  if (candidate.jobSearchStatus) dealTerms.push(`${t.deal_jobSearchStatus}：${candidate.jobSearchStatus}`);
+  if (candidate.motivation) dealTerms.push(`${t.deal_motivation}：${candidate.motivation}`);
+  if (candidate.reasonForChange) dealTerms.push(`${t.deal_reasonForChange}：${candidate.reasonForChange}`);
+  if (candidate.dealBreakers) dealTerms.push(`${t.deal_dealBreakers}：${candidate.dealBreakers}`);
+  if (candidate.competingOffers) dealTerms.push(`${t.deal_competingOffers}：${candidate.competingOffers}`);
+  if (candidate.relationshipLevel) dealTerms.push(`${t.deal_relationshipLevel}：${candidate.relationshipLevel}`);
 
   // 基本資料區塊（放在摘要和核心技能之間）— 受 vf 控制
   const genderStr = candidate.gender || '';
   const basicInfoItems: Array<{label: string; value: string}> = [];
-  if (vf.field_position && position) basicInfoItems.push({ label: '現職', value: position });
-  if (vf.field_years && years > 0) basicInfoItems.push({ label: '年資', value: `${years} 年` });
-  if (vf.field_industry && industry) basicInfoItems.push({ label: '產業', value: industry });
-  if (vf.field_location && candidate.location) basicInfoItems.push({ label: '地點', value: candidate.location });
-  if (vf.field_gender && genderStr) basicInfoItems.push({ label: '性別', value: genderStr });
-  if (vf.field_age && age) basicInfoItems.push({ label: '年齡', value: `${age} 歲${zodiac ? `（屬${zodiac}）` : ''}` });
-  if (vf.field_education && candidate.education) basicInfoItems.push({ label: '學歷', value: candidate.education.length > 40 ? candidate.education.substring(0, 40) + '…' : candidate.education });
-  if (vf.field_languages && languages) basicInfoItems.push({ label: '語言', value: languages });
-  if (vf.field_certifications && certifications) basicInfoItems.push({ label: '證照', value: certifications });
-  if (vf.field_currentSalary && currentSalary) basicInfoItems.push({ label: '目前薪資', value: currentSalary });
-  if (vf.field_expectedSalary && expectedSalary) basicInfoItems.push({ label: '期望薪資', value: expectedSalary });
-  if (vf.field_noticePeriod && noticePeriod) basicInfoItems.push({ label: '到職時間', value: noticePeriod });
-  if (vf.field_management && hasManagement) basicInfoItems.push({ label: '管理經驗', value: `是${teamSize ? `（${teamSize}）` : ''}` });
-  if (vf.field_jobSearchStatus && candidate.jobSearchStatus) basicInfoItems.push({ label: '求職狀態', value: candidate.jobSearchStatus });
-  if (vf.field_motivation && candidate.motivation) basicInfoItems.push({ label: '主要動機', value: candidate.motivation });
-  if (vf.field_reasonForChange && candidate.reasonForChange) basicInfoItems.push({ label: '轉職原因', value: candidate.reasonForChange });
+  if (vf.field_position && position) basicInfoItems.push({ label: t.field_position, value: position });
+  if (vf.field_years && years > 0) basicInfoItems.push({ label: t.field_years, value: lang === 'en' ? `${years} yr${years > 1 ? 's' : ''}` : `${years} 年` });
+  if (vf.field_industry && industry) basicInfoItems.push({ label: t.field_industry, value: industry });
+  if (vf.field_location && candidate.location) basicInfoItems.push({ label: t.field_location, value: candidate.location });
+  if (vf.field_gender && genderStr) basicInfoItems.push({ label: t.field_gender, value: genderStr });
+  if (vf.field_age && age) basicInfoItems.push({ label: t.field_age, value: lang === 'en' ? `${age}` : `${age} 歲${zodiac ? `（屬${zodiac}）` : ''}` });
+  if (vf.field_education && candidate.education) basicInfoItems.push({ label: t.field_education, value: candidate.education.length > 40 ? candidate.education.substring(0, 40) + '…' : candidate.education });
+  if (vf.field_languages && languages) basicInfoItems.push({ label: t.field_languages, value: languages });
+  if (vf.field_certifications && certifications) basicInfoItems.push({ label: t.field_certifications, value: certifications });
+  if (vf.field_currentSalary && currentSalary) basicInfoItems.push({ label: t.field_currentSalary, value: currentSalary });
+  if (vf.field_expectedSalary && expectedSalary) basicInfoItems.push({ label: t.field_expectedSalary, value: expectedSalary });
+  if (vf.field_noticePeriod && noticePeriod) basicInfoItems.push({ label: t.field_noticePeriod, value: noticePeriod });
+  if (vf.field_management && hasManagement) basicInfoItems.push({ label: t.field_management, value: `${t.yesLabel}${teamSize ? `（${teamSize}）` : ''}` });
+  if (vf.field_jobSearchStatus && candidate.jobSearchStatus) basicInfoItems.push({ label: t.field_jobSearchStatus, value: candidate.jobSearchStatus });
+  if (vf.field_motivation && candidate.motivation) basicInfoItems.push({ label: t.field_motivation, value: candidate.motivation });
+  if (vf.field_reasonForChange && candidate.reasonForChange) basicInfoItems.push({ label: t.field_reasonForChange, value: candidate.reasonForChange });
 
   const basicInfoHTML = basicInfoItems.map(item =>
     `<div class="basic-info-item"><span class="basic-info-label">${item.label}</span><span class="basic-info-value">${item.value}</span></div>`
@@ -564,11 +772,11 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   const logoFullUrl = LOGO_URL.startsWith('http') ? LOGO_URL : `${baseUrl}${LOGO_URL}`;
 
   return `<!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="${lang === 'en' ? 'en' : 'zh-TW'}">
 <head>
 <meta charset="UTF-8">
 <base href="${baseUrl}/">
-<title>候選人摘要 — ${candidateLabel}</title>
+<title>${t.pageTitle} — ${candidateLabel}</title>
 <style>
   @page {
     size: A4;
@@ -1000,7 +1208,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
       <img src="${LOGO_URL}" alt="Step1ne" onerror="this.style.display='none'" />
     </div>
     <div class="header-info">
-      <div class="header-title">CANDIDATE PROFILE</div>
+      <div class="header-title">${t.headerTitle}</div>
       ${displayName ? `<div class="header-name">${displayName}</div>` : ''}
       ${infoPillsHTML ? `<div class="info-pills">${infoPillsHTML}</div>` : ''}
     </div>
@@ -1011,7 +1219,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <div class="section">
     <div class="section-title">
       <span class="section-icon">✦</span>
-      推薦摘要
+      ${t.summary}
     </div>
     <div class="summary-card">${summary}</div>
   </div>
@@ -1022,7 +1230,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <div class="section">
     <div class="section-title">
       <span class="section-icon">📋</span>
-      基本資料
+      ${t.basicInfo}
     </div>
     <div class="basic-info-grid">${basicInfoHTML}</div>
   </div>
@@ -1033,7 +1241,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <div class="section">
     <div class="section-title">
       <span class="section-icon">◈</span>
-      核心技能
+      ${t.skills}
     </div>
     <div class="skills-container">${skillsHTML}</div>
   </div>
@@ -1044,7 +1252,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <div class="section">
     <div class="section-title">
       <span class="section-icon">🌐</span>
-      語言能力
+      ${t.languages}
     </div>
     <div class="lang-container">${langHTML}</div>
   </div>
@@ -1055,7 +1263,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <div class="section">
     <div class="section-title">
       <span class="section-icon">📜</span>
-      專業證照
+      ${t.certifications}
     </div>
     <div class="skills-container">${certsHTML}</div>
   </div>
@@ -1066,7 +1274,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <div class="section">
     <div class="section-title">
       <span class="section-icon">★</span>
-      代表性成就 / 優勢
+      ${t.achievements}
     </div>
     <ul class="achievements-list">${achievementsHTML}</ul>
   </div>
@@ -1077,7 +1285,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <div class="section">
     <div class="section-title">
       <span class="section-icon">▸</span>
-      工作經驗
+      ${t.workHistory}
     </div>
     <div class="work-timeline">${workHTML}</div>
   </div>
@@ -1088,7 +1296,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <div class="section">
     <div class="section-title">
       <span class="section-icon">◉</span>
-      教育背景
+      ${t.education}
     </div>
     ${eduHTML}
   </div>
@@ -1099,7 +1307,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <div class="section">
     <div class="section-title">
       <span class="section-icon">📊</span>
-      顧問評估
+      ${t.radarChart}
     </div>
     <div class="radar-section">
       <div class="radar-chart">${radarSVG}</div>
@@ -1107,14 +1315,15 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
         <div class="radar-scores">
           ${RADAR_DIMENSIONS.map(d => {
             const v = (mergedEval[d.key] as number) || 0;
+            const dimLabel = lang === 'en' ? (RADAR_DIM_EN[d.key] || d.shortLabel) : d.shortLabel;
             return `<div class="radar-score-item">
-              <span class="radar-score-label">${d.shortLabel}</span>
+              <span class="radar-score-label">${dimLabel}</span>
               <div class="radar-score-bar"><div class="radar-score-fill" style="width:${(v / 5) * 100}%"></div></div>
               <span class="radar-score-val">${v || '-'}</span>
             </div>`;
           }).join('')}
         </div>
-        ${overallRating > 0 ? `<div class="radar-overall">綜合評分 ${overallRating} / 5</div>` : ''}
+        ${overallRating > 0 ? `<div class="radar-overall">${t.overallScore} ${overallRating} / 5</div>` : ''}
       </div>
     </div>
     ${mergedEval.comment ? `<div style="margin-top:8px;padding:8px 12px;background:#f8fafc;border-left:3px solid #10b981;border-radius:4px;font-size:9.5pt;color:#475569;line-height:1.6;">💬 ${mergedEval.comment}</div>` : ''}
@@ -1126,7 +1335,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <div class="section">
     <div class="section-title">
       <span class="section-icon">💼</span>
-      轉職條件
+      ${t.dealTerms}
     </div>
     <div class="deal-terms">
       ${dealTerms.map(d => {
@@ -1139,17 +1348,17 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
 
   <!-- Footer -->
   <div class="footer">
-    <span class="footer-brand">Step1ne 德仁管理顧問</span>
-    <span>Confidential — For Recruitment Use Only</span>
+    <span class="footer-brand">${t.footerBrand}</span>
+    <span>${t.footerConfidential}</span>
   </div>
 </div>
 </body>
 </html>`;
 }
 
-export function generateResumePDF(candidate: Candidate, candidateLabel?: string, customSummary?: string, visibleFields?: ResumeVisibleFields): void {
+export function generateResumePDF(candidate: Candidate, candidateLabel?: string, customSummary?: string, visibleFields?: ResumeVisibleFields, lang: ResumeLanguage = 'zh'): void {
   const label = candidateLabel || `Candidate ${candidate.id}`;
-  const html = buildResumeHTML(candidate, label, customSummary, visibleFields);
+  const html = buildResumeHTML(candidate, label, customSummary, visibleFields, lang);
 
   const printWindow = window.open('', '_blank', 'width=800,height=1100');
   if (!printWindow) {
@@ -1210,8 +1419,10 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
   const [summary, setSummary] = React.useState(defaultSummary);
   const [visibleFields, setVisibleFields] = React.useState<ResumeVisibleFields>({ ...DEFAULT_VISIBLE_FIELDS });
   const [showPanel, setShowPanel] = React.useState(true);
+  const [lang, setLang] = React.useState<ResumeLanguage>('zh');
 
-  const html = buildResumeHTML(candidate, candidateLabel, summary, visibleFields);
+  const t = RESUME_I18N[lang];
+  const html = buildResumeHTML(candidate, candidateLabel, summary, visibleFields, lang);
 
   const toggleField = (key: keyof ResumeVisibleFields) => {
     setVisibleFields(prev => ({ ...prev, [key]: !prev[key] }));
@@ -1235,7 +1446,7 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
   };
 
   const handleDownload = () => {
-    generateResumePDF(candidate, candidateLabel, summary, visibleFields);
+    generateResumePDF(candidate, candidateLabel, summary, visibleFields, lang);
   };
 
   return (
@@ -1249,31 +1460,39 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-teal-600 to-cyan-600 text-white p-4 rounded-t-xl flex items-center justify-between">
-          <h3 className="text-lg font-semibold">匿名履歷預覽 — {candidateLabel}</h3>
+          <h3 className="text-lg font-semibold">{t.previewTitle} — {candidateLabel}</h3>
           <div className="flex items-center gap-2">
+            {/* 中/英文切換 */}
+            <button
+              onClick={() => setLang(prev => prev === 'zh' ? 'en' : 'zh')}
+              className="px-3 py-1.5 bg-amber-400 hover:bg-amber-500 text-amber-900 rounded-lg text-sm font-bold transition-colors"
+              title={lang === 'zh' ? 'Switch to English' : '切換為中文'}
+            >
+              {lang === 'zh' ? '中→EN' : 'EN→中'}
+            </button>
             <button
               onClick={() => setShowPanel(!showPanel)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showPanel ? 'bg-white text-teal-700' : 'bg-white/20 hover:bg-white/30'}`}
             >
-              {showPanel ? '隱藏面板' : '欄位設定'}
+              {showPanel ? t.hidePanel : t.fieldSettings}
             </button>
             <button
               onClick={() => setEditingSummary(!editingSummary)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${editingSummary ? 'bg-white text-teal-700' : 'bg-white/20 hover:bg-white/30'}`}
             >
-              編輯摘要
+              {t.editSummary}
             </button>
             <button
               onClick={handlePrint}
               className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors"
             >
-              列印
+              {t.print}
             </button>
             <button
               onClick={handleDownload}
               className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors"
             >
-              另開下載
+              {t.download}
             </button>
             <button
               onClick={onClose}
@@ -1288,12 +1507,12 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
         {editingSummary && (
           <div className="px-4 pt-3 pb-2 bg-amber-50 border-b border-amber-200">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-amber-700">推薦摘要（可自由編輯，即時更新預覽）</span>
+              <span className="text-xs font-bold text-amber-700">{t.summaryEditHint}</span>
               <button
                 onClick={() => setSummary(defaultSummary)}
                 className="text-xs text-amber-600 hover:text-amber-800 underline"
               >
-                重置為自動生成
+                {t.resetAuto}
               </button>
             </div>
             <textarea
@@ -1311,16 +1530,16 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
           {showPanel && (
             <div className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto p-3">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">顯示欄位</span>
+                <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">{t.displayFields}</span>
                 <div className="flex gap-1">
-                  <button onClick={handleSelectAll} className="text-[10px] px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded hover:bg-teal-200">全選</button>
-                  <button onClick={handleDeselectAll} className="text-[10px] px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300">全取消</button>
+                  <button onClick={handleSelectAll} className="text-[10px] px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded hover:bg-teal-200">{t.selectAll}</button>
+                  <button onClick={handleDeselectAll} className="text-[10px] px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300">{t.deselectAll}</button>
                 </div>
               </div>
 
               {/* Section toggles */}
               <div className="mb-3">
-                <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">區塊</div>
+                <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{t.sectionGroup}</div>
                 {SECTION_TOGGLES.map(t => (
                   <label key={t.key} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-white rounded px-1.5 transition-colors">
                     <input
@@ -1337,7 +1556,7 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
               {/* Basic info sub-field toggles */}
               {visibleFields.basicInfo && (
                 <div>
-                  <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 pt-2 border-t border-gray-200">基本資料子欄位</div>
+                  <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 pt-2 border-t border-gray-200">{t.subFieldGroup}</div>
                   {FIELD_TOGGLES.map(t => (
                     <label key={t.key} className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-white rounded px-1.5 transition-colors">
                       <input
