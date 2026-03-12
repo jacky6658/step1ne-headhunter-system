@@ -116,6 +116,11 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState((candidate as any).biography || '');
   const [savingBio, setSavingBio] = useState(false);
+  // 電話腳本
+  const [showPhoneScript, setShowPhoneScript] = useState(false);
+  const [phoneScriptLoading, setPhoneScriptLoading] = useState(false);
+  const [phoneScriptContent, setPhoneScriptContent] = useState('');
+  const [phoneScriptCopied, setPhoneScriptCopied] = useState(false);
   // 語音評估
   const [showAddVoice, setShowAddVoice] = useState(false);
   const [voiceAudioUrl, setVoiceAudioUrl] = useState('');
@@ -491,6 +496,150 @@ Step1ne Recruitment`;
     } finally {
       setSavingGithub(false);
     }
+  };
+
+  // 生成電話腳本
+  const handleGeneratePhoneScript = async () => {
+    if (!targetJobId) return;
+    setPhoneScriptLoading(true);
+    setShowPhoneScript(true);
+    setPhoneScriptCopied(false);
+    try {
+      // 取得完整職缺資料
+      const jobRes = await apiGet<any>(`/api/jobs/${targetJobId}`);
+      const job = jobRes?.data || jobRes || {};
+      // 取得 BD 客戶資料（如果有 client_id）
+      let client: any = {};
+      if (job.client_id) {
+        try {
+          const cRes = await apiGet<any>(`/api/clients/${job.client_id}`);
+          client = cRes?.data || cRes || {};
+        } catch {}
+      }
+      // 組裝變數
+      const cName = candidate.name || '候選人';
+      const cPos = candidate.position || '未知職位';
+      const cYears = candidate.years || 0;
+      const cSkillStr = Array.isArray(candidate.skills) ? candidate.skills.join(', ') : (candidate.skills || '');
+      const jTitle = job.position_name || '職缺';
+      const jLocation = job.location || '未提供';
+      const jSalary = job.salary_range || '面議';
+      const jSkillStr = job.key_skills || '';
+      const jResponsibilities = (job.job_description || '').split('\n').filter((l: string) => l.trim());
+      const jBenefits = (job.welfare_tags || '').split(/[,、]/).filter((b: string) => b.trim());
+      const clCompany = job.client_company || client.company_name || '公司';
+      const clIndustry = job.industry_background || client.industry || '未提供';
+      const clSize = client.company_size || '未提供';
+      const clWebsite = client.website || '';
+      // 候選人動機資料
+      const cSalary = candidate.currentSalary || '未提供';
+      const cExpectedSalary = candidate.expectedSalary || '未提供';
+      const cNoticePeriod = candidate.noticePeriod || '未提供';
+      const cJobSearchStatus = candidate.jobSearchStatus || '';
+      const cReasonForChange = candidate.reasonForChange || '';
+      const cDealBreakers = candidate.dealBreakers || '';
+
+      const script = `【結構化電話篩選 & 職缺介紹指南】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 目標職缺：${jTitle}（${clCompany}）
+👤 候選人：${cName}
+📋 目前：${cPos} ｜ ${cYears} 年經驗
+🔧 技能：${cSkillStr}
+
+═══════════════════════════════════
+📢 PART A — 公司 & 職缺介紹話術
+═══════════════════════════════════
+
+▎ A1. 公司介紹重點
+┌───────────────────────────────────────┐
+│ 🏢 公司：${clCompany}
+│ 🏭 產業：${clIndustry}
+│ 📏 規模：${clSize}${clWebsite ? `\n│ 🌐 官網：${clWebsite}` : ''}
+└───────────────────────────────────────┘
+
+📌 建議話術：
+「這是一間${clIndustry}領域的公司——${clCompany}，在業界的口碑很不錯。他們目前在積極擴編技術團隊，我覺得蠻適合跟你聊聊的。」
+
+▎ A2. 職缺介紹重點
+• 職位：${jTitle}
+• 地點：${jLocation}
+• 薪資範圍：${jSalary}
+• 核心技術需求：${jSkillStr}
+${jResponsibilities.length > 0 ? `• 主要職責：\n${jResponsibilities.slice(0, 3).map((r: string) => `  ‣ ${r.trim()}`).join('\n')}` : ''}
+${jBenefits.length > 0 ? `• 福利亮點：\n${jBenefits.slice(0, 3).map((b: string) => `  ✦ ${b.trim()}`).join('\n')}` : ''}
+
+📌 建議話術：
+「這個 ${jTitle} 的角色主要會負責 ${jSkillStr} 相關的開發，薪資的話客戶端給的範圍是 ${jSalary}，整體 package 可以再細談。」
+
+▎ A3. 關鍵賣點（吸引人選的角度）
+✅ 技術面：使用 ${jSkillStr}，技術棧有挑戰性
+✅ 發展面：${clCompany} 正在擴張，有升遷空間
+✅ 團隊文化：可在面試時進一步了解${jBenefits.length > 0 ? `\n✅ 福利面：${jBenefits[0].trim()}` : ''}
+
+═══════════════════════════════════
+👤 PART B — 已知人選資訊
+═══════════════════════════════════
+${cJobSearchStatus ? `• 求職狀態：${cJobSearchStatus}` : ''}
+${cReasonForChange ? `• 轉職原因：${cReasonForChange}` : ''}
+${cSalary !== '未提供' ? `• 目前薪資：${cSalary}` : ''}
+${cExpectedSalary !== '未提供' ? `• 期望薪資：${cExpectedSalary}` : ''}
+${cNoticePeriod !== '未提供' ? `• 可到職時間：${cNoticePeriod}` : ''}
+${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
+
+═══════════════════════════════════
+🎙️ PART C — 結構化電話篩選問題
+═══════════════════════════════════
+
+▎ C1. 開場（2 分鐘）
+• 簡單自我介紹 + 說明通話目的
+• 確認通話時間（約 25-30 分鐘）
+• 「在開始之前，我先簡單介紹一下這個機會...」→ 用 Part A 話術
+
+▎ C2. 動機探測（5 分鐘）
+1. 目前的工作狀態如何？有在看外面的機會嗎？
+2. 如果要換工作，最看重什麼？（技術、薪資、文化、遠端）
+3. 有什麼是「絕對不接受」的條件嗎？
+4. 聽完剛才介紹的機會，你的初步感覺如何？
+
+▎ C3. 技術驗證（8 分鐘）
+5. 能否用 1 分鐘描述你目前專案中最有挑戰的部分？
+6. ${jSkillStr} — 這些技術你的熟練程度如何？（1-5 分）
+7. 你在團隊中通常扮演什麼角色？（執行者/架構師/mentor）
+8. 有帶人的經驗嗎？帶過多少人的團隊？
+
+▎ C4. 條件確認（5 分鐘）
+9. 目前薪資大概在什麼範圍？（含年終、股票等）
+10. 期望薪資是多少？有什麼硬性底線嗎？
+11. 最快什麼時候可以到職？
+12. 對 ${jLocation} 的工作地點 OK 嗎？
+
+▎ C5. 收尾 & 興趣確認（3 分鐘）
+13. 目前手上有其他面試或 offer 嗎？
+14. 綜合剛才聊的，你對 ${clCompany} 這個機會有興趣進一步了解嗎？
+15. 如果安排面試，你的時間偏好？
+
+═══════════════════════════════════
+📝 通話後顧問 Checklist
+═══════════════════════════════════
+☐ 人選對公司/職缺的興趣程度（1-5）：__
+☐ 技術匹配度評估：__
+☐ 薪資期望 vs 客戶預算是否有落差：__
+☐ 預計到職時間：__
+☐ 下一步：□ 安排面試 □ 再考慮 □ 暫不適合`;
+
+      setPhoneScriptContent(script);
+    } catch (err) {
+      setPhoneScriptContent('⚠️ 無法載入職缺資料，請確認目標職缺已正確指定。');
+    } finally {
+      setPhoneScriptLoading(false);
+    }
+  };
+
+  const handleCopyPhoneScript = () => {
+    navigator.clipboard.writeText(phoneScriptContent).then(() => {
+      setPhoneScriptCopied(true);
+      setTimeout(() => setPhoneScriptCopied(false), 2000);
+    });
   };
 
   // 儲存作品集 URL
@@ -1150,6 +1299,57 @@ Step1ne Recruitment`;
                   </div>
                 )}
               </div>
+
+              {/* 📞 電話腳本按鈕 */}
+              {targetJobId && (
+                <button
+                  onClick={handleGeneratePhoneScript}
+                  disabled={phoneScriptLoading}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-teal-500 to-emerald-500 text-white rounded-lg hover:from-teal-600 hover:to-emerald-600 transition-all shadow-sm disabled:opacity-60 text-sm font-medium"
+                >
+                  <Phone className="w-4 h-4" />
+                  {phoneScriptLoading ? '生成電話腳本中...' : '📞 生成電話篩選腳本'}
+                </button>
+              )}
+
+              {/* 電話腳本面板 */}
+              {showPhoneScript && (
+                <div className="bg-teal-50 rounded-lg border border-teal-200 overflow-hidden">
+                  <div className="flex items-center justify-between p-3 border-b border-teal-100">
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-teal-600" />
+                      <span className="text-xs font-semibold text-teal-700">電話篩選腳本</span>
+                      <span className="text-xs text-teal-500">({targetJobInput})</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleCopyPhoneScript}
+                        disabled={!phoneScriptContent || phoneScriptLoading}
+                        className="text-xs px-3 py-1 bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-60 flex items-center gap-1"
+                      >
+                        <Copy className="w-3 h-3" />
+                        {phoneScriptCopied ? '已複製 ✓' : '複製腳本'}
+                      </button>
+                      <button
+                        onClick={() => { setShowPhoneScript(false); setPhoneScriptContent(''); }}
+                        className="text-teal-400 hover:text-teal-600 text-lg leading-none"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-3 max-h-96 overflow-y-auto">
+                    {phoneScriptLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
+                        <span className="ml-2 text-sm text-teal-600">正在載入職缺資料並生成腳本...</span>
+                      </div>
+                    ) : (
+                      <pre className="text-xs text-teal-900 whitespace-pre-wrap font-mono leading-relaxed">{phoneScriptContent}</pre>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* 基本資料卡片（可編輯） */}
               <div className="bg-gray-50 rounded-lg border border-gray-200">
@@ -2642,7 +2842,7 @@ Step1ne Recruitment`;
               
               {/* Add Progress Modal */}
               {addingProgress && (
-                <div 
+                <div
                   className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/50 backdrop-blur-sm"
                   onClick={() => {
                     setAddingProgress(false);
@@ -2657,21 +2857,106 @@ Step1ne Recruitment`;
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">
                       新增進度：{newProgressEvent}
                     </h3>
-                    
+
                     <div className="space-y-4">
+                      {/* 快速原因按鈕 */}
+                      {(() => {
+                        const quickReasons: Record<string, string[]> = {
+                          '聯繫階段': [
+                            '已加人選 LinkedIn 待回覆',
+                            '已發送 InMail 待回覆',
+                            '已電話聯繫，人選有興趣',
+                            '已電話聯繫，人選考慮中',
+                            '已 LINE 聯繫待回覆',
+                            '已 Email 寄出待回覆',
+                            '人選已讀未回，擇日再聯繫',
+                          ],
+                          '面試階段': [
+                            '已安排客戶面試',
+                            '第一輪面試完成，等待回饋',
+                            '第二輪面試安排中',
+                            '技術測驗已送出',
+                            '面試順利，客戶評價正面',
+                            '面試後人選需要考慮',
+                          ],
+                          'Offer': [
+                            '客戶已發 Offer',
+                            'Offer 條件確認中',
+                            '人選正在評估 Offer',
+                            '薪資議價中',
+                            'Counter Offer 處理中',
+                          ],
+                          'on board': [
+                            '人選已確認到職日',
+                            '已完成入職手續',
+                            '已正式到職',
+                          ],
+                          '婉拒': [
+                            '人選婉拒 — 薪資不符',
+                            '人選婉拒 — 接受其他 Offer',
+                            '人選婉拒 — 不想換工作',
+                            '人選婉拒 — 工作內容不符',
+                            '人選婉拒 — 地點不方便',
+                            '客戶端婉拒 — 技術不符',
+                            '客戶端婉拒 — 文化不符',
+                            '客戶端婉拒 — 薪資預算不符',
+                          ],
+                          '備選人才': [
+                            '暫不適合目前職缺，保持聯繫',
+                            '技能接近但經驗不足，列入備選',
+                            '人選暫時不看機會，未來跟進',
+                          ],
+                          'AI推薦': [
+                            'AI 評分推薦，待顧問確認',
+                            'AI 評分通過，準備聯繫',
+                          ],
+                          '未開始': [
+                            '新匯入人選，待分配顧問',
+                            '待 AI 評分',
+                            '資料補充中',
+                          ],
+                        };
+                        const reasons = quickReasons[newProgressEvent] || [];
+                        if (reasons.length === 0) return null;
+                        return (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-2">
+                              ⚡ 快速選擇原因
+                            </label>
+                            <div className="flex flex-wrap gap-1.5">
+                              {reasons.map(reason => (
+                                <button
+                                  key={reason}
+                                  onClick={() => {
+                                    setNewProgressNote(prev => prev ? `${prev}；${reason}` : reason);
+                                  }}
+                                  className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                                    newProgressNote.includes(reason)
+                                      ? 'bg-blue-100 border-blue-400 text-blue-700'
+                                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600'
+                                  }`}
+                                >
+                                  {reason}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          備註（選填）
+                          備註原因{newProgressNote ? '' : '（必填）'}
                         </label>
                         <textarea
                           value={newProgressNote}
                           onChange={(e) => setNewProgressNote(e.target.value)}
-                          placeholder="例如：電話聯繫順利，候選人有興趣..."
+                          placeholder="輸入原因，或點選上方快速按鈕..."
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                           rows={3}
                         />
                       </div>
-                      
+
                       <div className="flex gap-2">
                         <button
                           onClick={() => {
@@ -2685,7 +2970,8 @@ Step1ne Recruitment`;
                         </button>
                         <button
                           onClick={handleConfirmAddProgress}
-                          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          disabled={!newProgressNote.trim()}
+                          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           確認新增
                         </button>

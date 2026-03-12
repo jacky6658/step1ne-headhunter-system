@@ -43,6 +43,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     // 工具
     { id: 'prompt-library', label: '💡 提示詞資料庫', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'system-log', label: '📋 操作日誌', icon: ScrollText, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    { id: 'sop-guide', label: '📘 顧問 SOP 手冊', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    { id: 'ai-guide', label: '🤖 AI Bot 使用教學', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'help', label: '📖 使用說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'migration', label: '🛠️ 資料維護', icon: Database, roles: [Role.ADMIN], disabled: false },
   ];

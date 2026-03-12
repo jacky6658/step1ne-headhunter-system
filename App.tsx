@@ -8,6 +8,8 @@ import ProfileSettingsModal from './components/ProfileSettingsModal';
 import MembersPage from './pages/MembersPage';
 import MigrationPage from './pages/MigrationPage';
 import HelpPage from './pages/HelpPage';
+import SOPGuidePage from './pages/SOPGuidePage';
+import AIGuidePageNew from './pages/AIGuidePageNew';
 import LoginPage from './pages/LoginPage';
 // 新增: 候選人管理頁面
 import { CandidatesPage } from './pages/CandidatesPage';
@@ -140,6 +142,10 @@ const App: React.FC = () => {
       case 'help':
         // 所有用戶都可以查看使用說明
         return <HelpPage userProfile={profile} />;
+      case 'sop-guide':
+        return <SOPGuidePage userProfile={profile} />;
+      case 'ai-guide':
+        return <AIGuidePageNew userProfile={profile} />;
       case 'migration': 
         // 只有管理員可以訪問資料遷移
         if (profile.role !== Role.ADMIN) {
@@ -194,7 +200,9 @@ const App: React.FC = () => {
                activeTab === 'pipeline' ? '顧問人選追蹤表' :
                activeTab === 'system-log' ? '操作日誌' :
                activeTab === 'crawler-dashboard' ? '爬蟲整合儀表板' :
-               activeTab === 'ops-dashboard' ? '運營儀表板' : 'Step1ne 獵頭系統'}
+               activeTab === 'ops-dashboard' ? '運營儀表板' :
+               activeTab === 'sop-guide' ? '顧問 SOP 手冊' :
+               activeTab === 'ai-guide' ? 'AI Bot 使用教學' : 'Step1ne 獵頭系統'}
             </h1>
                 <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mt-0.5 hidden sm:block">Collaborative Workspace</p>
           </div>
