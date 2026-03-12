@@ -322,6 +322,40 @@ pool.query(`
   if (r.rowCount > 0) console.log(`✅ 顧問名稱合併：${r.rowCount} 位「Jacky Chen」已合併為「Jacky」`);
 }).catch(err => console.warn('consultant cleanup (alias):', err.message));
 
+// 確保 notifications 資料表存在（站內通知系統）
+pool.query(`
+  CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    recipient TEXT NOT NULL DEFAULT 'all',
+    type VARCHAR(50) NOT NULL DEFAULT 'system_update',
+    title VARCHAR(255) NOT NULL,
+    message TEXT,
+    link VARCHAR(500),
+    data JSONB,
+    actor VARCHAR(100),
+    is_read JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`).then(() => {
+  pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC)`).catch(() => {});
+  pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient)`).catch(() => {});
+}).catch(err => console.warn('notifications migration:', err.message));
+
+// 寫入 notifications 輔助函數
+async function writeNotification({ recipient, type, title, message, link, data, actor }) {
+  try {
+    await pool.query(
+      `INSERT INTO notifications (recipient, type, title, message, link, data, actor)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [recipient || 'all', type || 'system_update', title,
+       message || null, link || null,
+       data ? JSON.stringify(data) : null, actor || 'system']
+    );
+  } catch (err) {
+    console.warn('⚠️ writeNotification 失敗:', err.message);
+  }
+}
+
 // 寫入 system_logs 輔助函數
 async function writeLog({ action, actor, candidateId, candidateName, detail }) {
   // 判斷 AIBOT：包含 "aibot" 或以 "bot" 結尾（如 Jackeybot、Phoebebot）
@@ -991,14 +1025,19 @@ router.patch('/candidates/:id', async (req, res) => {
 
     const client = await pool.connect();
 
-    // 任何人更新 status 時（未同時傳入 progressTracking），預先抓目前的 progress_tracking 以自動附加紀錄
-    // 防護：不管是 AIBot 還是顧問或外部系統，只改 status 不補 progressTracking 會導致卡片不移動
+    // 預先抓取現有資料（用於 status 自動附加 + recruiter 轉派通知）
     let existingProgressForStatus = null;
-    if (status !== undefined && progressTracking === undefined) {
+    let oldRecruiter = null;
+    if (status !== undefined || recruiter !== undefined) {
       const pData = await client.query(
-        'SELECT progress_tracking FROM candidates_pipeline WHERE id = $1', [id]
+        'SELECT progress_tracking, recruiter, name FROM candidates_pipeline WHERE id = $1', [id]
       );
-      existingProgressForStatus = pData.rows[0]?.progress_tracking || [];
+      if (pData.rows[0]) {
+        if (status !== undefined && progressTracking === undefined) {
+          existingProgressForStatus = pData.rows[0].progress_tracking || [];
+        }
+        oldRecruiter = pData.rows[0].recruiter || '';
+      }
     }
 
     const setClauses = [];
@@ -1250,13 +1289,29 @@ router.patch('/candidates/:id', async (req, res) => {
     }
 
     // 寫入操作日誌
+    const candidateName = result.rows[0].name;
     writeLog({
       action: 'UPDATE',
       actor: req.body.actor || req.body.recruiter || 'system',
       candidateId: parseInt(id),
-      candidateName: result.rows[0].name,
+      candidateName,
       detail: { fields: Object.keys(req.body).filter(k => k !== 'actor') }
     });
+
+    // 人選轉派通知：recruiter 改變時通知新顧問
+    if (recruiter !== undefined && recruiter !== oldRecruiter && recruiter !== '待指派') {
+      const uidMap = { 'Phoebe': 'phoebe', 'Jacky': 'jacky', 'Jim': 'jim', 'Admin': 'admin' };
+      const recipientUid = uidMap[recruiter] || recruiter.toLowerCase();
+      writeNotification({
+        recipient: recipientUid,
+        type: 'candidate_assign',
+        title: `📋 新人選指派：${candidateName || '未知'}`,
+        message: `${actor || oldRecruiter || '系統'} 將人選「${candidateName}」指派給你`,
+        link: 'candidates',
+        data: { candidate_id: parseInt(id), candidate_name: candidateName, from: oldRecruiter },
+        actor: actor || 'system'
+      });
+    }
 
     // 清除該候選人的職缺匹配快取
     pool.query('DELETE FROM candidate_job_rankings_cache WHERE candidate_id = $1', [id]).catch(() => {});
@@ -4543,6 +4598,184 @@ router.post('/prompts/:id/pin', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   } finally {
     client.release();
+  }
+});
+
+// ==================== 站內通知 API ====================
+
+/**
+ * GET /api/notifications?uid=phoebe
+ * 取得指定用戶的通知（recipient='all' 或 recipient=uid），最新 50 筆
+ * 可選 ?unread_only=true 只取未讀
+ */
+router.get('/notifications', async (req, res) => {
+  try {
+    const { uid, unread_only } = req.query;
+    if (!uid) return res.status(400).json({ success: false, error: 'uid is required' });
+
+    const result = await pool.query(`
+      SELECT id, recipient, type, title, message, link, data, actor, is_read, created_at
+      FROM notifications
+      WHERE recipient = 'all' OR recipient = $1
+      ORDER BY created_at DESC
+      LIMIT 50
+    `, [uid]);
+
+    const notifications = result.rows.map(row => {
+      const isReadMap = row.is_read || {};
+      const isRead = row.recipient === 'all' ? (isReadMap[uid] === true) : (isReadMap[uid] === true);
+      return {
+        id: row.id,
+        recipient: row.recipient,
+        type: row.type,
+        title: row.title,
+        message: row.message || '',
+        link: row.link || null,
+        data: row.data || null,
+        actor: row.actor || 'system',
+        isRead: isRead,
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString()
+      };
+    });
+
+    // 過濾未讀
+    const filtered = unread_only === 'true'
+      ? notifications.filter(n => !n.isRead)
+      : notifications;
+
+    const unreadCount = notifications.filter(n => !n.isRead).length;
+
+    res.json({ success: true, data: filtered, unreadCount });
+  } catch (err) {
+    console.error('❌ GET /notifications error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/notifications
+ * 管理員手動發布通知
+ * Body: { title, message, type?, recipient?, link?, actor? }
+ */
+router.post('/notifications', async (req, res) => {
+  try {
+    const { title, message, type, recipient, link, data, actor } = req.body;
+    if (!title) return res.status(400).json({ success: false, error: 'title is required' });
+
+    await writeNotification({
+      recipient: recipient || 'all',
+      type: type || 'system_update',
+      title,
+      message,
+      link,
+      data,
+      actor: actor || 'admin'
+    });
+
+    res.json({ success: true, message: '通知已發布' });
+  } catch (err) {
+    console.error('❌ POST /notifications error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/notifications/:id/read?uid=phoebe
+ * 標記單則通知已讀
+ */
+router.patch('/notifications/:id/read', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const uid = req.query.uid || req.body.uid;
+    if (!uid) return res.status(400).json({ success: false, error: 'uid is required' });
+
+    await pool.query(`
+      UPDATE notifications
+      SET is_read = COALESCE(is_read, '{}'::jsonb) || $1::jsonb
+      WHERE id = $2
+    `, [JSON.stringify({ [uid]: true }), id]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ PATCH /notifications/:id/read error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/notifications/read-all?uid=phoebe
+ * 全部標記已讀
+ */
+router.patch('/notifications/read-all', async (req, res) => {
+  try {
+    const uid = req.query.uid || req.body.uid;
+    if (!uid) return res.status(400).json({ success: false, error: 'uid is required' });
+
+    await pool.query(`
+      UPDATE notifications
+      SET is_read = COALESCE(is_read, '{}'::jsonb) || $1::jsonb
+      WHERE (recipient = 'all' OR recipient = $2)
+        AND NOT (COALESCE(is_read, '{}'::jsonb) ? $2 AND (is_read->>$2)::boolean = true)
+    `, [JSON.stringify({ [uid]: true }), uid]);
+
+    res.json({ success: true, message: '已全部標記已讀' });
+  } catch (err) {
+    console.error('❌ PATCH /notifications/read-all error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/webhooks/github
+ * GitHub Webhook — 接收 push event，自動產生站內通知
+ * GitHub repo Settings → Webhooks → Payload URL: https://backendstep1ne.zeabur.app/api/webhooks/github
+ * Content type: application/json, Events: Just the push event
+ */
+router.post('/webhooks/github', async (req, res) => {
+  try {
+    const event = req.headers['x-github-event'];
+
+    if (event === 'push') {
+      const { commits, pusher, ref } = req.body;
+      const branch = (ref || '').replace('refs/heads/', '');
+
+      // 只處理 main branch
+      if (branch !== 'main') {
+        return res.json({ success: true, skipped: true, reason: 'not main branch' });
+      }
+
+      const commitList = commits || [];
+      const commitMessages = commitList.map(c => c.message.split('\n')[0]).slice(0, 10).join('\n');
+
+      await writeNotification({
+        recipient: 'all',
+        type: 'github_push',
+        title: `🚀 系統更新（${commitList.length} 項變更）`,
+        message: commitMessages,
+        actor: (pusher && pusher.name) || 'github',
+        data: {
+          branch,
+          commits_count: commitList.length,
+          commits: commitList.slice(0, 5).map(c => ({
+            id: c.id ? c.id.substring(0, 7) : '',
+            message: c.message.split('\n')[0],
+            author: c.author ? c.author.name : ''
+          }))
+        }
+      });
+
+      console.log(`✅ GitHub webhook: ${commitList.length} commits on ${branch} → 通知已發送`);
+    }
+
+    // ping event（GitHub 設定 webhook 時會發送）
+    if (event === 'ping') {
+      console.log('✅ GitHub webhook ping received');
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ POST /webhooks/github error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

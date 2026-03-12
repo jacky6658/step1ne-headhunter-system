@@ -5,6 +5,7 @@ import { getUserProfile } from './services/userService';
 import { UserProfile, Role } from './types';
 import Sidebar from './components/Sidebar';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
+import NotificationBell from './components/NotificationBell';
 import MembersPage from './pages/MembersPage';
 import MigrationPage from './pages/MigrationPage';
 import HelpPage from './pages/HelpPage';
@@ -208,10 +209,15 @@ const App: React.FC = () => {
           </div>
             </div>
 
-            {/* 右側：當前用戶 */}
+            {/* 右側：通知 + 當前用戶 */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {/* 通知鈴鐺 */}
+              <NotificationBell
+                uid={profile.uid}
+                onNavigate={(tab) => setActiveTab(tab)}
+              />
               {/* 當前用戶 */}
-              <div 
+              <div
                 onClick={() => setShowProfileModal(true)}
                 className="flex items-center gap-2 sm:gap-3 md:gap-4 p-1.5 sm:p-2 bg-slate-50 rounded-xl sm:rounded-2xl border border-slate-100 shadow-inner cursor-pointer hover:bg-slate-100 transition-all active:scale-95"
               >

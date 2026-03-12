@@ -574,3 +574,20 @@ export interface Prompt {
   created_at: string;
   updated_at: string;
 }
+
+// ==================== 站內通知 ====================
+
+export type NotificationType = 'system_update' | 'candidate_assign' | 'ai_bot' | 'github_push';
+
+export interface Notification {
+  id: number;
+  recipient: string;            // 'all' 或 uid
+  type: NotificationType;
+  title: string;
+  message?: string;
+  link?: string;                // 可選：跳轉目標 tab
+  data?: Record<string, any>;   // 附加資料
+  actor?: string;               // 發送者
+  isRead: boolean;              // 前端依當前 uid 計算
+  createdAt: string;
+}
