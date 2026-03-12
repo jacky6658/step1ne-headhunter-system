@@ -488,16 +488,6 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleStartMatching(job.id.toString());
-                  }}
-                  className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
-                >
-                  <Sparkles size={14} />
-                  AI 配對
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
                     if (confirm(`確定要刪除「${job.position_name}」？此操作無法復原。`)) {
                       handleDeleteJob(job.id);
                     }
@@ -565,16 +555,6 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStartMatching(job.id.toString());
-                          }}
-                          className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
-                        >
-                          <Sparkles size={14} />
-                          AI 配對
-                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1210,18 +1190,6 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                 )}
               </div>
 
-              <div className="pt-4 border-t border-slate-200">
-                <button
-                  onClick={() => {
-                    handleStartMatching(selectedJob.id.toString());
-                    setSelectedJob(null);
-                  }}
-                  className="w-full px-4 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-                >
-                  <Sparkles size={18} />
-                  開始 AI 配對
-                </button>
-              </div>
             </div>
           </div>
         </div>
