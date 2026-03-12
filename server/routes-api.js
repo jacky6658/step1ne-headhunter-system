@@ -4268,7 +4268,8 @@ router.post('/candidates/:id/enrich', async (req, res) => {
   try {
     // 1. 取得候選人現有資料
     const candidateResult = await pool.query(
-      `SELECT id, name, current_position, linkedin_url, github_url, location, skills, email
+      `SELECT id, name, current_position, linkedin_url, github_url, location, skills, email,
+              biography, portfolio_url, voice_assessments
        FROM candidates_pipeline WHERE id = $1`,
       [id]
     );
@@ -4332,7 +4333,8 @@ router.post('/candidates/enrich-batch', async (req, res) => {
   for (const id of ids) {
     try {
       const candidateResult = await pool.query(
-        `SELECT id, name, current_position, linkedin_url, github_url, location, skills, email
+        `SELECT id, name, current_position, linkedin_url, github_url, location, skills, email,
+                biography, portfolio_url, voice_assessments
          FROM candidates_pipeline WHERE id = $1`,
         [id]
       );
