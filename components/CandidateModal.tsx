@@ -1,6 +1,6 @@
 // Step1ne Headhunter System - 候選人詳情 Modal
 import React, { useState } from 'react';
-import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion, ConsultantEvaluation } from '../types';
+import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion, ConsultantEvaluation, VoiceAssessment } from '../types';
 import { ResumePreview } from './ResumeGenerator';
 import { RadarChart, RADAR_DIMENSIONS, computeAutoScores, computeOverallRating } from './RadarChart';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
@@ -9,7 +9,7 @@ import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
   CheckCircle2, AlertCircle, Bot, Star, ThumbsUp, ThumbsDown,
-  HelpCircle, Sparkles, Target, Globe, Trash2, Brain, Copy
+  HelpCircle, Sparkles, Target, Globe, Trash2, Brain, Copy, ChevronDown
 } from 'lucide-react';
 
 // ── 系統外職缺建議：rule-based 技能→產業/職缺對照 ──────────────────────────
@@ -108,6 +108,20 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [githubInput, setGithubInput] = useState((candidate as any).githubUrl || '');
   const [savingLinkedin, setSavingLinkedin] = useState(false);
   const [savingGithub, setSavingGithub] = useState(false);
+  // 作品集
+  const [editingPortfolio, setEditingPortfolio] = useState(false);
+  const [portfolioInput, setPortfolioInput] = useState((candidate as any).portfolioUrl || (candidate as any).portfolio_url || '');
+  const [savingPortfolio, setSavingPortfolio] = useState(false);
+  // 自傳
+  const [editingBio, setEditingBio] = useState(false);
+  const [bioInput, setBioInput] = useState((candidate as any).biography || '');
+  const [savingBio, setSavingBio] = useState(false);
+  // 語音評估
+  const [showAddVoice, setShowAddVoice] = useState(false);
+  const [voiceAudioUrl, setVoiceAudioUrl] = useState('');
+  const [voiceAnalysis, setVoiceAnalysis] = useState('');
+  const [savingVoice, setSavingVoice] = useState(false);
+  const [expandedVoiceId, setExpandedVoiceId] = useState<string | null>(null);
   const [enrichedCandidate, setEnrichedCandidate] = useState(candidate);
 
   // 基本資料編輯
@@ -476,6 +490,86 @@ Step1ne Recruitment`;
       alert('❌ 儲存 GitHub 失敗，請稍後再試');
     } finally {
       setSavingGithub(false);
+    }
+  };
+
+  // 儲存作品集 URL
+  const handleSavePortfolio = async () => {
+    setSavingPortfolio(true);
+    try {
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        portfolio_url: portfolioInput.trim(),
+        actor: currentUserName || 'system',
+      });
+      (candidate as any).portfolioUrl = portfolioInput.trim();
+      setEditingPortfolio(false);
+    } catch (err) {
+      alert('❌ 儲存作品集失敗，請稍後再試');
+    } finally {
+      setSavingPortfolio(false);
+    }
+  };
+
+  // 儲存自傳
+  const handleSaveBio = async () => {
+    setSavingBio(true);
+    try {
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        biography: bioInput.trim(),
+        actor: currentUserName || 'system',
+      });
+      (candidate as any).biography = bioInput.trim();
+      setEditingBio(false);
+    } catch (err) {
+      alert('❌ 儲存自傳失敗，請稍後再試');
+    } finally {
+      setSavingBio(false);
+    }
+  };
+
+  // 新增語音評估
+  const handleAddVoiceAssessment = async () => {
+    if (!voiceAnalysis.trim()) return;
+    setSavingVoice(true);
+    try {
+      const existing: any[] = (candidate as any).voiceAssessments || (candidate as any).voice_assessments || [];
+      const newEntry = {
+        id: `va_${Date.now()}`,
+        audio_url: voiceAudioUrl.trim() || undefined,
+        analysis: voiceAnalysis.trim(),
+        created_at: new Date().toISOString(),
+        evaluator: currentUserName || 'system',
+      };
+      const updated = [newEntry, ...existing];
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        voice_assessments: updated,
+        actor: currentUserName || 'system',
+      });
+      (candidate as any).voiceAssessments = updated;
+      setShowAddVoice(false);
+      setVoiceAudioUrl('');
+      setVoiceAnalysis('');
+    } catch (err) {
+      alert('❌ 儲存語音評估失敗，請稍後再試');
+    } finally {
+      setSavingVoice(false);
+    }
+  };
+
+  // 刪除語音評估
+  const handleDeleteVoice = async (voiceId: string) => {
+    if (!confirm('確定要刪除此語音評估記錄嗎？')) return;
+    try {
+      const existing: any[] = (candidate as any).voiceAssessments || (candidate as any).voice_assessments || [];
+      const updated = existing.filter((v: any) => v.id !== voiceId);
+      await apiPatch(`/api/candidates/${candidate.id}`, {
+        voice_assessments: updated,
+        actor: currentUserName || 'system',
+      });
+      (candidate as any).voiceAssessments = updated;
+      setExpandedVoiceId(null);
+    } catch (err) {
+      alert('❌ 刪除失敗');
     }
   };
 
@@ -1640,8 +1734,81 @@ Step1ne Recruitment`;
                     </div>
                   </div>
                 )}
+
+                {/* 作品集 */}
+                <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <svg className="w-5 h-5 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs text-gray-500 mb-1">作品集</div>
+                    {editingPortfolio ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={portfolioInput}
+                          onChange={e => setPortfolioInput(e.target.value)}
+                          placeholder="https://portfolio.example.com"
+                          className="flex-1 border border-purple-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          autoFocus
+                        />
+                        <button onClick={handleSavePortfolio} disabled={savingPortfolio} className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-60">儲存</button>
+                        <button onClick={() => { setEditingPortfolio(false); setPortfolioInput((candidate as any).portfolioUrl || (candidate as any).portfolio_url || ''); }} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
+                      </div>
+                    ) : portfolioInput ? (
+                      <div className="flex items-center gap-2">
+                        <a href={portfolioInput} target="_blank" rel="noopener noreferrer"
+                          className="text-sm font-medium text-purple-600 hover:underline truncate flex-1">
+                          {portfolioInput}
+                        </a>
+                        <button onClick={() => setEditingPortfolio(true)} className="text-xs px-2 py-0.5 border border-purple-200 rounded text-purple-600 hover:bg-purple-100 shrink-0">編輯</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-400 italic flex-1">未設定</span>
+                        <button onClick={() => setEditingPortfolio(true)} className="text-xs px-2 py-0.5 border border-purple-200 rounded text-purple-600 hover:bg-purple-100 shrink-0">+ 新增</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              
+
+              {/* 自傳 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">📝 自傳 / 自我介紹</h3>
+                  {!editingBio && (
+                    <button onClick={() => setEditingBio(true)} className="text-xs px-2 py-0.5 border border-orange-200 rounded text-orange-600 hover:bg-orange-50">
+                      {bioInput ? '編輯' : '+ 新增'}
+                    </button>
+                  )}
+                </div>
+                {editingBio ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={bioInput}
+                      onChange={e => setBioInput(e.target.value)}
+                      placeholder="輸入人選的自傳或自我介紹..."
+                      rows={6}
+                      className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 resize-y"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => { setEditingBio(false); setBioInput((candidate as any).biography || ''); }} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">取消</button>
+                      <button onClick={handleSaveBio} disabled={savingBio} className="text-xs px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-60">
+                        {savingBio ? '儲存中...' : '儲存'}
+                      </button>
+                    </div>
+                  </div>
+                ) : bioInput ? (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans leading-relaxed max-h-[200px] overflow-y-auto">{bioInput}</pre>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-400 italic p-3 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                    尚未填寫自傳
+                  </div>
+                )}
+              </div>
+
               {/* 穩定度 & 綜合評級 並排 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* 穩定度 */}
@@ -1881,6 +2048,142 @@ Step1ne Recruitment`;
                       <div className="text-[10px] text-emerald-500">系統將自動預填技術深度、穩定度、產業匹配 3 項</div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* 🎙 語音評估 */}
+              <div className="bg-violet-50/50 rounded-lg border border-violet-200">
+                <div className="flex items-center justify-between p-3 border-b border-violet-100">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🎙</span>
+                    <span className="text-sm font-bold text-violet-800">語音評估</span>
+                    {(() => {
+                      const vas: any[] = (candidate as any).voiceAssessments || (candidate as any).voice_assessments || [];
+                      return vas.length > 0 ? <span className="text-[10px] px-1.5 py-0.5 bg-violet-100 text-violet-600 rounded-full font-medium">{vas.length} 筆</span> : null;
+                    })()}
+                  </div>
+                  <button
+                    onClick={() => setShowAddVoice(!showAddVoice)}
+                    className="text-xs px-2 py-1 border border-violet-200 rounded text-violet-600 hover:bg-violet-100"
+                  >
+                    {showAddVoice ? '取消' : '+ 新增'}
+                  </button>
+                </div>
+                <div className="p-3 space-y-3">
+                  {/* 新增表單 */}
+                  {showAddVoice && (
+                    <div className="bg-white rounded-lg border border-violet-200 p-3 space-y-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">音檔 URL（選填）</label>
+                        <input
+                          value={voiceAudioUrl}
+                          onChange={e => setVoiceAudioUrl(e.target.value)}
+                          placeholder="https://... 音檔連結"
+                          className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">分析結果 *</label>
+                        <textarea
+                          value={voiceAnalysis}
+                          onChange={e => setVoiceAnalysis(e.target.value)}
+                          placeholder="貼上 OpenClaw 的語音分析結果..."
+                          rows={4}
+                          className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-400 resize-y"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => { setShowAddVoice(false); setVoiceAudioUrl(''); setVoiceAnalysis(''); }} className="text-xs px-3 py-1.5 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
+                        <button
+                          onClick={handleAddVoiceAssessment}
+                          disabled={savingVoice || !voiceAnalysis.trim()}
+                          className="text-xs px-3 py-1.5 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-60"
+                        >
+                          {savingVoice ? '儲存中...' : '儲存評估'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 歷史記錄 */}
+                  {(() => {
+                    const vas: any[] = (candidate as any).voiceAssessments || (candidate as any).voice_assessments || [];
+                    if (vas.length === 0) return (
+                      <div className="text-center py-4">
+                        <div className="text-xs text-gray-400">尚無語音評估記錄</div>
+                        <div className="text-[10px] text-violet-400 mt-1">可透過 OpenClaw AI 分析後上傳，或手動新增</div>
+                      </div>
+                    );
+                    return vas.map((va: any) => {
+                      const isExpanded = expandedVoiceId === va.id;
+                      const scores = va.scores;
+                      return (
+                        <div key={va.id} className="bg-white rounded-lg border border-violet-100 overflow-hidden">
+                          <div
+                            className="flex items-center gap-3 p-3 cursor-pointer hover:bg-violet-50/50"
+                            onClick={() => setExpandedVoiceId(isExpanded ? null : va.id)}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500">{va.created_at ? new Date(va.created_at).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '未知時間'}</span>
+                                <span className="text-xs text-violet-500 font-medium">{va.evaluator || '系統'}</span>
+                                {scores?.overall && (
+                                  <span className="text-xs px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded font-bold">{scores.overall}/10</span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-700 truncate mt-0.5">{(va.analysis || '').slice(0, 80)}{(va.analysis || '').length > 80 ? '...' : ''}</div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {va.audio_url && <span className="text-violet-400 text-xs">🔊</span>}
+                              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            </div>
+                          </div>
+                          {isExpanded && (
+                            <div className="border-t border-violet-100 p-3 space-y-2 bg-violet-50/30">
+                              {/* 音檔播放 */}
+                              {va.audio_url && (
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">音檔</div>
+                                  <audio controls src={va.audio_url} className="w-full h-8" preload="none" />
+                                </div>
+                              )}
+                              {/* 評分 */}
+                              {scores && (
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">評分</div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {scores.fluency != null && <span className="text-xs px-2 py-1 bg-white rounded border border-violet-100">流暢度 <b>{scores.fluency}</b>/10</span>}
+                                    {scores.terminology != null && <span className="text-xs px-2 py-1 bg-white rounded border border-violet-100">專業度 <b>{scores.terminology}</b>/10</span>}
+                                    {scores.logic != null && <span className="text-xs px-2 py-1 bg-white rounded border border-violet-100">邏輯性 <b>{scores.logic}</b>/10</span>}
+                                    {scores.confidence != null && <span className="text-xs px-2 py-1 bg-white rounded border border-violet-100">自信度 <b>{scores.confidence}</b>/10</span>}
+                                    {scores.overall != null && <span className="text-xs px-2 py-1 bg-violet-200 rounded border border-violet-300 font-bold text-violet-800">綜合 {scores.overall}/10</span>}
+                                  </div>
+                                </div>
+                              )}
+                              {/* 分析文字 */}
+                              {va.analysis && (
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">分析結果</div>
+                                  <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed bg-white rounded p-2 border border-gray-100 max-h-[300px] overflow-y-auto">{va.analysis}</pre>
+                                </div>
+                              )}
+                              {/* 轉錄文字 */}
+                              {va.transcript && (
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">轉錄文字</div>
+                                  <pre className="whitespace-pre-wrap text-xs text-gray-600 font-sans leading-relaxed bg-white rounded p-2 border border-gray-100 max-h-[200px] overflow-y-auto">{va.transcript}</pre>
+                                </div>
+                              )}
+                              {/* 刪除 */}
+                              <div className="flex justify-end">
+                                <button onClick={() => handleDeleteVoice(va.id)} className="text-xs text-red-400 hover:text-red-600">刪除此筆</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
 

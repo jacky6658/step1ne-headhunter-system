@@ -942,6 +942,10 @@ router.patch('/candidates/:id', async (req, res) => {
     const deal_breakers = req.body.deal_breakers !== undefined ? req.body.deal_breakers : req.body.dealBreakers;
     const competing_offers = req.body.competing_offers !== undefined ? req.body.competing_offers : req.body.competingOffers;
     const relationship_level = req.body.relationship_level !== undefined ? req.body.relationship_level : req.body.relationshipLevel;
+    // 語音評估 + 自傳 + 作品集
+    const voice_assessments = req.body.voice_assessments !== undefined ? req.body.voice_assessments : req.body.voiceAssessments;
+    const biography = req.body.biography;
+    const portfolio_url = req.body.portfolio_url !== undefined ? req.body.portfolio_url : req.body.portfolioUrl;
     const actor = req.body.actor || req.body.by || '';
     const isAIBot = /aibot|bot$|openclaw|yuqi|ai$/i.test(actor);
 
@@ -1109,6 +1113,10 @@ router.patch('/candidates/:id', async (req, res) => {
     if (deal_breakers !== undefined) { setClauses.push(`deal_breakers = $${idx++}`); values.push(deal_breakers); }
     if (competing_offers !== undefined) { setClauses.push(`competing_offers = $${idx++}`); values.push(competing_offers); }
     if (relationship_level !== undefined) { setClauses.push(`relationship_level = $${idx++}`); values.push(relationship_level); }
+    // 語音評估 + 自傳 + 作品集
+    if (voice_assessments !== undefined) { setClauses.push(`voice_assessments = $${idx++}`); values.push(JSON.stringify(voice_assessments)); }
+    if (biography !== undefined) { setClauses.push(`biography = $${idx++}`); values.push(biography); }
+    if (portfolio_url !== undefined) { setClauses.push(`portfolio_url = $${idx++}`); values.push(portfolio_url); }
     // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析
     let resolvedAiMatch = ai_match_result;
 

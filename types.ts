@@ -393,6 +393,23 @@ export interface ProgressEvent {
   note?: string;  // 額外備註
 }
 
+// 語音評估記錄
+export interface VoiceAssessment {
+  id: string;
+  audio_url?: string;       // 音檔 URL（外部連結或 base64 data URI）
+  transcript?: string;      // 轉錄文字
+  analysis?: string;        // AI 分析結果文字
+  scores?: {                // 結構化評分（可選）
+    fluency?: number;       // 語言流暢度 1-10
+    terminology?: number;   // 專業術語使用 1-10
+    logic?: number;         // 溝通邏輯性 1-10
+    confidence?: number;    // 自信程度 1-10
+    overall?: number;       // 綜合分數 1-10
+  };
+  created_at: string;       // ISO 時間戳
+  evaluator: string;        // 評估者名稱
+}
+
 // 顧問評估（5 維度：3 自動 + 2 手動）
 export interface ConsultantEvaluation {
   // ── 系統自動預填（可被顧問覆蓋）──
@@ -464,6 +481,10 @@ export interface Candidate {
   dealBreakers?: string;                  // 不適配條件（不接受的工作類型/環境）
   competingOffers?: string;               // 競爭 Offer
   relationshipLevel?: string;             // 顧問關係程度：初次接觸/已建立關係/深度信任
+  // ── 語音評估 + 自傳 + 作品集 ──
+  voiceAssessments?: VoiceAssessment[];   // 語音評估記錄（JSONB 陣列）
+  biography?: string;                     // 自傳 / 自我介紹
+  portfolioUrl?: string;                  // 作品集連結
   createdAt: string;
   updatedAt: string;
   createdBy: string;
