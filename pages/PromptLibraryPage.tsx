@@ -1117,26 +1117,26 @@ export function PromptLibraryPage({ userProfile }: Props) {
   return (
     <div className="max-w-6xl mx-auto">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">💡 提示詞資料庫</h1>
-          <p className="text-sm text-slate-500 mt-1">團隊共享最佳提示詞，按工作流程分類</p>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900">💡 提示詞資料庫</h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">團隊共享最佳提示詞，按工作流程分類</p>
         </div>
         <button
           onClick={() => { setAddForm({ title: '', content: '' }); setShowAddModal(true); }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm w-full sm:w-auto shrink-0"
         >
           <Plus size={18} /> 新增提示詞
         </button>
       </div>
 
       {/* ── Category Tabs ── */}
-      <div className="flex gap-2 overflow-x-auto pb-3 mb-6 scrollbar-hide">
+      <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-3 mb-4 sm:mb-6 scrollbar-hide -mx-1 px-1">
         {CATEGORIES.map(cat => (
           <button
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
-            className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+            className={`flex-shrink-0 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
               activeCategory === cat.id
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -1159,10 +1159,10 @@ export function PromptLibraryPage({ userProfile }: Props) {
               </h2>
 
               {/* 操作列 */}
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <button
                   onClick={() => handleUpvote(pinnedPrompt.id)}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                     pinnedPrompt.has_voted
                       ? 'bg-indigo-100 text-indigo-700'
                       : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-200'
@@ -1170,14 +1170,14 @@ export function PromptLibraryPage({ userProfile }: Props) {
                 >
                   <ThumbsUp size={14} /> {pinnedPrompt.upvote_count}
                 </button>
-                <span className="text-xs text-slate-400">
+                <span className="text-[10px] sm:text-xs text-slate-400">
                   by {pinnedPrompt.author} · {new Date(pinnedPrompt.created_at).toLocaleDateString('zh-TW')}
                 </span>
                 <div className="flex-1" />
                 {isAdmin && (
                   <button
                     onClick={() => handlePin(pinnedPrompt.id, 'unpin')}
-                    className="px-3 py-1.5 bg-white hover:bg-red-50 text-red-500 rounded-lg text-sm transition-colors border border-red-200"
+                    className="px-2.5 sm:px-3 py-1.5 bg-white hover:bg-red-50 text-red-500 rounded-lg text-xs sm:text-sm transition-colors border border-red-200"
                   >
                     取消置頂
                   </button>
@@ -1185,15 +1185,15 @@ export function PromptLibraryPage({ userProfile }: Props) {
               </div>
 
               {/* ── 🔗 連結系統資料 ── */}
-              <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-4 mb-4">
-                <div className="flex items-center gap-2 mb-3">
+              <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-3 sm:p-4 mb-4">
+                <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-3">
                   <Link2 size={14} className="text-indigo-500" />
-                  <span className="text-sm font-bold text-indigo-700">連結系統資料</span>
-                  <span className="text-xs text-indigo-400">— 選擇資料後自動套入提示詞佔位符，範例輸出也會對應更新</span>
+                  <span className="text-xs sm:text-sm font-bold text-indigo-700">連結系統資料</span>
+                  <span className="text-[10px] sm:text-xs text-indigo-400 hidden sm:inline">— 選擇資料後自動套入提示詞佔位符，範例輸出也會對應更新</span>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
                   {dataSrc.needsCandidate && (
-                    <div className="flex-1 min-w-[200px]" ref={candidateComboRef}>
+                    <div className="flex-1 min-w-0 sm:min-w-[200px]" ref={candidateComboRef}>
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">👤 候選人</label>
                       <div className="relative">
                         <input
@@ -1261,7 +1261,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
                     </div>
                   )}
                   {dataSrc.needsJob && (
-                    <div className="flex-1 min-w-[200px]" ref={jobComboRef}>
+                    <div className="flex-1 min-w-0 sm:min-w-[200px]" ref={jobComboRef}>
                       <div className="flex items-center gap-2 mb-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">💼 職缺</label>
                         {dataSrc.needsClient && (
@@ -1484,7 +1484,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
                     </div>
                   )}
                   {dataSrc.needsClient && (
-                    <div className="flex-1 min-w-[200px]" ref={clientComboRef}>
+                    <div className="flex-1 min-w-0 sm:min-w-[200px]" ref={clientComboRef}>
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">🏢 客戶</label>
                       <div className="relative">
                         <input
@@ -1553,8 +1553,8 @@ export function PromptLibraryPage({ userProfile }: Props) {
                   )}
                 </div>
                 {/* 支援的佔位符提示 */}
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  <span className="text-[10px] text-slate-400 mr-1">可用佔位符：</span>
+                <div className="mt-2 sm:mt-3 flex flex-wrap gap-1 sm:gap-1.5">
+                  <span className="text-[10px] text-slate-400 mr-1 w-full sm:w-auto">可用佔位符：</span>
                   {dataSrc.needsCandidate && ['候選人姓名', '目前職稱', '年資', '技能', '候選人產業', '目前薪資', '期望薪資'].map(p => (
                     <code key={p} className="text-[10px] px-1.5 py-0.5 bg-white border border-slate-200 rounded text-indigo-600 font-mono">{`{${p}}`}</code>
                   ))}
@@ -1571,16 +1571,16 @@ export function PromptLibraryPage({ userProfile }: Props) {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* 左欄 — 提示詞（含資料套入） */}
                 <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl overflow-hidden shadow-sm">
-                  <div className="px-5 py-3 bg-amber-100/60 border-b border-amber-200 flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-amber-800 flex items-center gap-2">
-                      ⭐ {pinnedPrompt.title}
+                  <div className="px-3 sm:px-5 py-2 sm:py-3 bg-amber-100/60 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+                    <h3 className="text-xs sm:text-sm font-bold text-amber-800 flex items-center gap-1.5 sm:gap-2 truncate">
+                      <span className="shrink-0">⭐</span> <span className="truncate">{pinnedPrompt.title}</span>
                       {filledResult.count > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full font-medium shrink-0">
                           已套入 {filledResult.count} 項
                         </span>
                       )}
                     </h3>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {(selectedCandidate || selectedJob || selectedClient || selectedMultiJobs.length > 0) && (
                         <button
                           onClick={handleCopyFilled}
@@ -1597,15 +1597,15 @@ export function PromptLibraryPage({ userProfile }: Props) {
                       </button>
                     </div>
                   </div>
-                  <pre className="whitespace-pre-wrap text-sm text-slate-700 p-5 font-sans leading-relaxed max-h-[500px] overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-xs sm:text-sm text-slate-700 p-3 sm:p-5 font-sans leading-relaxed max-h-[350px] sm:max-h-[500px] overflow-y-auto">
                     {filledResult.count > 0 ? filledResult.filled : pinnedPrompt.content}
                   </pre>
                 </div>
 
                 {/* 右欄 — 範例輸出 */}
                 <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl overflow-hidden shadow-sm">
-                  <div className="px-5 py-3 bg-emerald-100/60 border-b border-emerald-200 flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-emerald-800 flex items-center gap-2">
+                  <div className="px-3 sm:px-5 py-2 sm:py-3 bg-emerald-100/60 border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+                    <h3 className="text-xs sm:text-sm font-bold text-emerald-800 flex items-center gap-2">
                       🤖 範例輸出
                       {(selectedCandidate || selectedJob) ? (
                         <span className="text-[10px] px-1.5 py-0.5 bg-emerald-200 text-emerald-800 rounded-full font-medium">
@@ -1617,7 +1617,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
                         </span>
                       )}
                     </h3>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {!selectedCandidate && !selectedJob && (
                         <button
                           onClick={handleRefreshExample}
@@ -1635,7 +1635,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
                       </button>
                     </div>
                   </div>
-                  <pre className="whitespace-pre-wrap text-sm text-slate-700 p-5 font-sans leading-relaxed max-h-[500px] overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-xs sm:text-sm text-slate-700 p-3 sm:p-5 font-sans leading-relaxed max-h-[350px] sm:max-h-[500px] overflow-y-auto">
                     {exampleOutput || '載入系統資料中...'}
                   </pre>
                 </div>
@@ -1645,27 +1645,27 @@ export function PromptLibraryPage({ userProfile }: Props) {
               <div className="mt-3 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
                 <button
                   onClick={() => setShowEndpoints(!showEndpoints)}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
                 >
-                  <Server size={12} className="text-slate-400" />
-                  API 端點參考（AI 可呼叫取得即時資料）
-                  <span className="text-[10px] text-slate-400 font-normal">共 {dataSrc.endpoints.length} 個端點</span>
+                  <Server size={12} className="text-slate-400 shrink-0" />
+                  <span className="truncate">API 端點參考</span>
+                  <span className="text-[10px] text-slate-400 font-normal shrink-0">({dataSrc.endpoints.length})</span>
                   <div className="flex-1" />
-                  <ChevronDown size={12} className={`text-slate-400 transition-transform ${showEndpoints ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={12} className={`text-slate-400 transition-transform shrink-0 ${showEndpoints ? 'rotate-180' : ''}`} />
                 </button>
                 {showEndpoints && (
-                  <div className="px-4 pb-3 space-y-1.5 border-t border-slate-200 pt-2">
-                    <p className="text-[10px] text-slate-400 mb-2">以下端點可供 AI 呼叫，基底 URL: <code className="text-indigo-600">https://backendstep1ne.zeabur.app</code></p>
+                  <div className="px-3 sm:px-4 pb-3 space-y-1.5 border-t border-slate-200 pt-2">
+                    <p className="text-[10px] text-slate-400 mb-2 break-all">基底 URL: <code className="text-indigo-600">https://backendstep1ne.zeabur.app</code></p>
                     {dataSrc.endpoints.map((ep, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] ${
+                      <div key={i} className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs">
+                        <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] shrink-0 ${
                           ep.method === 'GET' ? 'bg-green-100 text-green-700' :
                           ep.method === 'POST' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
                         }`}>
                           {ep.method}
                         </span>
-                        <code className="text-indigo-600 font-mono">{ep.path}</code>
-                        <span className="text-slate-400">— {ep.desc}</span>
+                        <code className="text-indigo-600 font-mono text-[10px] sm:text-xs break-all">{ep.path}</code>
+                        <span className="text-slate-400 text-[10px] sm:text-xs w-full sm:w-auto">— {ep.desc}</span>
                       </div>
                     ))}
                   </div>
@@ -1676,7 +1676,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
 
           {/* ── 社群提示詞 ── */}
           <div>
-            <h2 className="text-sm font-bold text-slate-500 mb-3 flex items-center gap-2">
+            <h2 className="text-xs sm:text-sm font-bold text-slate-500 mb-3 flex items-center gap-2">
               💬 社群提示詞 ({communityPrompts.length})
             </h2>
 
@@ -1698,15 +1698,15 @@ export function PromptLibraryPage({ userProfile }: Props) {
                     key={prompt.id}
                     className="bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-all shadow-sm"
                   >
-                    <div className="p-4">
-                      <div className="flex items-start justify-between">
+                    <div className="p-3 sm:p-4">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : prompt.id)}>
-                          <h3 className="font-bold text-slate-900 truncate">{prompt.title}</h3>
-                          <span className="text-xs text-slate-400">
+                          <h3 className="font-bold text-slate-900 text-sm sm:text-base truncate">{prompt.title}</h3>
+                          <span className="text-[10px] sm:text-xs text-slate-400">
                             by {prompt.author} · {new Date(prompt.created_at).toLocaleDateString('zh-TW')}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 ml-3 flex-shrink-0">
+                        <div className="flex items-center gap-1 sm:gap-1.5 ml-1 sm:ml-3 flex-shrink-0">
                           <button
                             onClick={() => handleUpvote(prompt.id)}
                             className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
@@ -1762,11 +1762,11 @@ export function PromptLibraryPage({ userProfile }: Props) {
 
                       {/* 預覽 / 展開 */}
                       {isExpanded ? (
-                        <pre className="whitespace-pre-wrap text-sm text-slate-700 bg-slate-50 rounded-xl p-4 mt-3 font-sans leading-relaxed max-h-[400px] overflow-y-auto">
+                        <pre className="whitespace-pre-wrap text-xs sm:text-sm text-slate-700 bg-slate-50 rounded-xl p-3 sm:p-4 mt-2 sm:mt-3 font-sans leading-relaxed max-h-[300px] sm:max-h-[400px] overflow-y-auto">
                           {prompt.content}
                         </pre>
                       ) : (
-                        <p className="text-sm text-slate-500 mt-2 line-clamp-2">{prompt.content}</p>
+                        <p className="text-xs sm:text-sm text-slate-500 mt-1.5 sm:mt-2 line-clamp-2">{prompt.content}</p>
                       )}
                     </div>
                   </div>
@@ -1779,13 +1779,13 @@ export function PromptLibraryPage({ userProfile }: Props) {
 
       {/* ── 新增 Modal ── */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-bold text-slate-900">新增提示詞</h3>
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-end sm:items-center justify-center sm:p-4" onClick={() => setShowAddModal(false)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] sm:max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b sticky top-0 bg-white z-10">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900">新增提示詞</h3>
               <button onClick={() => setShowAddModal(false)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} /></button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               <div>
                 <label className="text-sm font-semibold text-slate-700 mb-1 block">分類</label>
                 <div className="px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium">
@@ -1813,12 +1813,12 @@ export function PromptLibraryPage({ userProfile }: Props) {
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-3 p-6 border-t bg-slate-50 rounded-b-2xl">
-              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl text-sm">取消</button>
+            <div className="flex justify-end gap-3 p-4 sm:p-6 border-t bg-slate-50 rounded-b-2xl sticky bottom-0">
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2.5 sm:py-2 text-slate-600 hover:bg-slate-200 rounded-xl text-sm">取消</button>
               <button
                 onClick={handleAdd}
                 disabled={saving || !addForm.title.trim() || !addForm.content.trim()}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors"
+                className="px-6 py-2.5 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors"
               >
                 {saving ? '儲存中...' : '新增'}
               </button>
@@ -1829,13 +1829,13 @@ export function PromptLibraryPage({ userProfile }: Props) {
 
       {/* ── 編輯 Modal ── */}
       {editingPrompt && (
-        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" onClick={() => setEditingPrompt(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-bold text-slate-900">編輯提示詞</h3>
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-end sm:items-center justify-center sm:p-4" onClick={() => setEditingPrompt(null)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] sm:max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b sticky top-0 bg-white z-10">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900">編輯提示詞</h3>
               <button onClick={() => setEditingPrompt(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} /></button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               <div>
                 <label className="text-sm font-semibold text-slate-700 mb-1 block">標題</label>
                 <input
@@ -1855,12 +1855,12 @@ export function PromptLibraryPage({ userProfile }: Props) {
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-3 p-6 border-t bg-slate-50 rounded-b-2xl">
-              <button onClick={() => setEditingPrompt(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl text-sm">取消</button>
+            <div className="flex justify-end gap-3 p-4 sm:p-6 border-t bg-slate-50 rounded-b-2xl sticky bottom-0">
+              <button onClick={() => setEditingPrompt(null)} className="px-4 py-2.5 sm:py-2 text-slate-600 hover:bg-slate-200 rounded-xl text-sm">取消</button>
               <button
                 onClick={handleEdit}
                 disabled={saving}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors"
+                className="px-6 py-2.5 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors"
               >
                 {saving ? '儲存中...' : '儲存'}
               </button>
