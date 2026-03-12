@@ -64,10 +64,11 @@ const CATEGORY_DATA_SOURCES: Record<PromptCategory, {
     ],
   },
   '人選訪談': {
-    needsCandidate: true, needsJob: true, needsClient: false,
+    needsCandidate: true, needsJob: true, needsClient: true,
     endpoints: [
       { method: 'GET', path: '/api/candidates/:id', desc: '取得候選人完整資料' },
-      { method: 'GET', path: '/api/jobs/:id', desc: '取得目標職缺需求' },
+      { method: 'GET', path: '/api/jobs/:id', desc: '取得目標職缺需求、福利、職責' },
+      { method: 'GET', path: '/api/clients/:id', desc: '取得客戶公司產業、規模、介紹' },
     ],
   },
   '人選評估': {
@@ -103,6 +104,7 @@ const CATEGORY_DATA_SOURCES: Record<PromptCategory, {
 interface SampleData {
   candidate: Candidate | null;
   job: Job | null;
+  client: Client | null;
 }
 
 function pickRandom<T>(arr: T[]): T | null {
@@ -196,7 +198,7 @@ function fillPromptPlaceholders(
 }
 
 function generateExampleOutput(category: PromptCategory, data: SampleData): string {
-  const { candidate, job } = data;
+  const { candidate, job, client } = data;
   const cName = candidate?.name || '王小明';
   const cPos = candidate?.position || 'Senior Engineer';
   const cYears = candidate?.years || 5;
@@ -213,6 +215,17 @@ function generateExampleOutput(category: PromptCategory, data: SampleData): stri
   const jSkills = getJobSkills(job).slice(0, 4);
   const jSkillStr = jSkills.length > 0 ? jSkills.join('、') : 'React、TypeScript、CI/CD';
   const jSalary = getJobSalary(job) || '面議';
+
+  // Client data
+  const clCompany = client?.company_name || jCompany;
+  const clIndustry = client?.industry || '科技業';
+  const clSize = client?.company_size || '中大型企業';
+  const clWebsite = client?.website || '';
+
+  // Job details
+  const jDesc = (job as any)?.description || '';
+  const jBenefits = ((job as any)?.benefits || []) as string[];
+  const jResponsibilities = ((job as any)?.responsibilities || []) as string[];
 
   switch (category) {
     case '客戶需求理解':
@@ -367,37 +380,82 @@ ${cName.split(/[\s(（]/)[0]} 你好！
 有興趣的話回我一下，我們約個方便的時間聊！`;
 
     case '人選訪談':
-      return `【結構化電話篩選問題清單】
+      return `【結構化電話篩選 & 職缺介紹指南】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 目標職缺：${jTitle}（${jCompany}）
+🎯 目標職缺：${jTitle}（${clCompany}）
 👤 候選人：${cName}
 📋 目前：${cPos} ｜ ${cYears} 年經驗
 
-▎ 一、開場（2 分鐘）
-• 簡單自我介紹 + 說明通話目的
-• 確認通話時間（約 20-25 分鐘）
+═══════════════════════════════════
+📢 PART A — 公司 & 職缺介紹話術
+═══════════════════════════════════
 
-▎ 二、動機探測（5 分鐘）
+▎ A1. 公司介紹重點
+┌───────────────────────────────────────┐
+│ 🏢 公司：${clCompany}
+│ 🏭 產業：${clIndustry}
+│ 📏 規模：${clSize}${clWebsite ? `\n│ 🌐 官網：${clWebsite}` : ''}
+└───────────────────────────────────────┘
+
+📌 建議話術：
+「這是一間${clIndustry}領域的${clSize}，${clCompany}在業界的口碑很不錯。他們目前在積極擴編技術團隊，我覺得蠻適合跟你聊聊的。」
+
+▎ A2. 職缺介紹重點
+• 職位：${jTitle}
+• 地點：${jLocation}
+• 薪資範圍：${jSalary}
+• 核心技術需求：${jSkillStr}
+${jResponsibilities.length > 0 ? `• 主要職責：\n${jResponsibilities.slice(0, 3).map(r => `  ‣ ${r}`).join('\n')}` : ''}
+${jBenefits.length > 0 ? `• 福利亮點：\n${jBenefits.slice(0, 3).map(b => `  ✦ ${b}`).join('\n')}` : ''}
+
+📌 建議話術：
+「這個 ${jTitle} 的角色主要會負責 ${jSkillStr} 相關的開發，團隊技術棧蠻現代的。薪資的話客戶端給的範圍是 ${jSalary}，整體 package 可以再細談。」
+
+▎ A3. 關鍵賣點（吸引人選的角度）
+✅ 技術面：使用 ${jSkillStr}，技術棧有挑戰性
+✅ 發展面：${clCompany} 正在擴張，有升遷空間
+✅ 團隊文化：可在面試時進一步了解${jBenefits.length > 0 ? `\n✅ 福利面：${jBenefits[0]}` : ''}
+
+═══════════════════════════════════
+🎙️ PART B — 結構化電話篩選問題
+═══════════════════════════════════
+
+▎ B1. 開場（2 分鐘）
+• 簡單自我介紹 + 說明通話目的
+• 確認通話時間（約 25-30 分鐘）
+• 「在開始之前，我先簡單介紹一下這個機會...」→ 用 Part A 話術
+
+▎ B2. 動機探測（5 分鐘）
 1. 目前的工作狀態如何？有在看外面的機會嗎？
 2. 如果要換工作，最看重什麼？（技術、薪資、文化、遠端）
 3. 有什麼是「絕對不接受」的條件嗎？
+4. 聽完剛才介紹的機會，你的初步感覺如何？
 
-▎ 三、技術驗證（8 分鐘）
-4. 能否用 1 分鐘描述你目前專案中最有挑戰的部分？
-5. ${jSkillStr} — 這些技術你的熟練程度如何？（1-5 分）
-6. 你在團隊中通常扮演什麼角色？（執行者/架構師/mentor）
-7. 有帶人的經驗嗎？帶過多少人的團隊？
+▎ B3. 技術驗證（8 分鐘）
+5. 能否用 1 分鐘描述你目前專案中最有挑戰的部分？
+6. ${jSkillStr} — 這些技術你的熟練程度如何？（1-5 分）
+7. 你在團隊中通常扮演什麼角色？（執行者/架構師/mentor）
+8. 有帶人的經驗嗎？帶過多少人的團隊？
 
-▎ 四、條件確認（5 分鐘）
-8. 目前薪資大概在什麼範圍？（含年終、股票等）
-9. 期望薪資是多少？有什麼硬性底線嗎？
-10. 最快什麼時候可以到職？
-11. 對 ${jLocation} 的工作地點 OK 嗎？
+▎ B4. 條件確認（5 分鐘）
+9. 目前薪資大概在什麼範圍？（含年終、股票等）
+10. 期望薪資是多少？有什麼硬性底線嗎？
+11. 最快什麼時候可以到職？
+12. 對 ${jLocation} 的工作地點 OK 嗎？
 
-▎ 五、收尾（3 分鐘）
-12. 目前手上有其他面試或 offer 嗎？
-13. 對 ${jCompany} 有什麼了解或疑問？
-14. 如果安排面試，你的時間偏好？`;
+▎ B5. 收尾 & 興趣確認（3 分鐘）
+13. 目前手上有其他面試或 offer 嗎？
+14. 綜合剛才聊的，你對 ${clCompany} 這個機會有興趣進一步了解嗎？
+15. 如果安排面試，你的時間偏好？
+
+═══════════════════════════════════
+📝 通話後顧問 Checklist
+═══════════════════════════════════
+☐ 人選對公司/職缺的興趣程度（1-5）：__
+☐ 技術匹配度評估：__
+☐ 薪資期望 vs 客戶預算是否有落差：__
+☐ 預計到職時間：__
+☐ 下一步：□ 安排面試 □ 再考慮 □ 暫不適合`;
 
     case '人選評估':
       return `【候選人完整評估報告】
@@ -636,12 +694,14 @@ export function PromptLibraryPage({ userProfile }: Props) {
     // 如果有選定資料，使用選定的；否則隨機取用
     const sampleCandidate = selectedCandidate || pickRandom(candidates);
     const sampleJob = selectedJob || pickRandom(jobs);
+    const sampleClient = selectedClient || pickRandom(clients);
     const output = generateExampleOutput(activeCategory, {
       candidate: sampleCandidate,
       job: sampleJob,
+      client: sampleClient,
     });
     setExampleOutput(output);
-  }, [pinnedPrompt?.id, activeCategory, exampleSeed, candidates.length, jobs.length, selectedCandidateId, selectedJobId]);
+  }, [pinnedPrompt?.id, activeCategory, exampleSeed, candidates.length, jobs.length, clients.length, selectedCandidateId, selectedJobId, selectedClientId]);
 
   const handleRefreshExample = () => {
     setExampleSeed(prev => prev + 1);
