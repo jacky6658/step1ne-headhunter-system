@@ -94,6 +94,32 @@ pool.query(`
   )
 `).catch(err => console.warn('user_contacts migration:', err.message));
 
+// 確保 TG 通知欄位存在（telegram_bot_token + telegram_chat_id）
+pool.query(`
+  ALTER TABLE user_contacts
+  ADD COLUMN IF NOT EXISTS telegram_bot_token VARCHAR(500),
+  ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(100)
+`).catch(err => console.warn('telegram columns migration:', err.message));
+
+// 確保系統級 TG 群組設定存在
+pool.query(`
+  CREATE TABLE IF NOT EXISTS system_config (
+    key VARCHAR(100) PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMP DEFAULT NOW()
+  )
+`).then(() => {
+  // 預設空值，管理員可在 ProfileSettings 裡設定
+  pool.query(`
+    INSERT INTO system_config (key, value) VALUES ('telegram_group_chat_id', '')
+    ON CONFLICT (key) DO NOTHING
+  `).catch(() => {});
+  pool.query(`
+    INSERT INTO system_config (key, value) VALUES ('telegram_group_bot_token', '')
+    ON CONFLICT (key) DO NOTHING
+  `).catch(() => {});
+}).catch(err => console.warn('system_config migration:', err.message));
+
 // 確保 candidate_job_rankings_cache 資料表存在（職缺匹配推薦 v2 快取）
 pool.query(`
   CREATE TABLE IF NOT EXISTS candidate_job_rankings_cache (
@@ -341,7 +367,35 @@ pool.query(`
   pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient)`).catch(() => {});
 }).catch(err => console.warn('notifications migration:', err.message));
 
-// 寫入 notifications 輔助函數
+// Telegram 發送輔助函數
+async function sendTelegram(botToken, chatId, text) {
+  if (!botToken || !chatId) return;
+  try {
+    const https = require('https');
+    const postData = JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' });
+    const options = {
+      hostname: 'api.telegram.org',
+      path: `/bot${botToken}/sendMessage`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
+    };
+    await new Promise((resolve, reject) => {
+      const req = https.request(options, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => resolve(body));
+      });
+      req.on('error', reject);
+      req.write(postData);
+      req.end();
+    });
+  } catch (err) {
+    console.warn('⚠️ Telegram 發送失敗:', err.message);
+  }
+}
+
+// 寫入 notifications 輔助函數（同時推送 Telegram 重要通知）
+// TG 推送規則：system_update / github_push → 群組；candidate_assign → 個人私訊
 async function writeNotification({ recipient, type, title, message, link, data, actor }) {
   try {
     await pool.query(
@@ -353,6 +407,41 @@ async function writeNotification({ recipient, type, title, message, link, data, 
     );
   } catch (err) {
     console.warn('⚠️ writeNotification 失敗:', err.message);
+  }
+
+  // Telegram 推送（非阻塞）
+  const tgTypes = ['system_update', 'github_push', 'candidate_assign'];
+  if (!tgTypes.includes(type)) return;
+
+  try {
+    const tgText = `<b>${title}</b>\n${message || ''}`;
+
+    if (type === 'system_update' || type === 'github_push') {
+      // 全體通知 → 推群組
+      const cfg = await pool.query(
+        `SELECT key, value FROM system_config WHERE key IN ('telegram_group_bot_token', 'telegram_group_chat_id')`
+      );
+      const cfgMap = {};
+      cfg.rows.forEach(r => { cfgMap[r.key] = r.value; });
+      if (cfgMap.telegram_group_bot_token && cfgMap.telegram_group_chat_id) {
+        sendTelegram(cfgMap.telegram_group_bot_token, cfgMap.telegram_group_chat_id, tgText);
+      }
+    }
+
+    if (type === 'candidate_assign' && recipient && recipient !== 'all') {
+      // 個人通知 → 查該用戶的 TG 設定
+      const uidToName = { 'phoebe': 'Phoebe', 'jacky': 'Jacky', 'jim': 'Jim', 'admin': 'Admin' };
+      const displayName = uidToName[recipient] || recipient;
+      const userTg = await pool.query(
+        `SELECT telegram_bot_token, telegram_chat_id FROM user_contacts WHERE display_name = $1`,
+        [displayName]
+      );
+      if (userTg.rows[0] && userTg.rows[0].telegram_bot_token && userTg.rows[0].telegram_chat_id) {
+        sendTelegram(userTg.rows[0].telegram_bot_token, userTg.rows[0].telegram_chat_id, tgText);
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ TG 推送查詢失敗（非阻塞）:', err.message);
   }
 }
 
@@ -2683,6 +2772,8 @@ router.get('/users/:displayName/contact', async (req, res) => {
         githubToken: row.github_token,
         linkedinToken: row.linkedin_token,
         braveApiKey: row.brave_api_key,
+        telegramBotToken: row.telegram_bot_token || '',
+        telegramChatId: row.telegram_chat_id || '',
       }
     });
   } catch (error) {
@@ -2698,11 +2789,12 @@ router.get('/users/:displayName/contact', async (req, res) => {
 router.put('/users/:displayName/contact', async (req, res) => {
   try {
     const { displayName } = req.params;
-    const { contactPhone, contactEmail, lineId, telegramHandle, githubToken, linkedinToken, braveApiKey } = req.body;
+    const { contactPhone, contactEmail, lineId, telegramHandle, githubToken, linkedinToken, braveApiKey,
+            telegramBotToken, telegramChatId } = req.body;
 
     await pool.query(`
-      INSERT INTO user_contacts (display_name, contact_phone, contact_email, line_id, telegram_handle, github_token, linkedin_token, brave_api_key, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      INSERT INTO user_contacts (display_name, contact_phone, contact_email, line_id, telegram_handle, github_token, linkedin_token, brave_api_key, telegram_bot_token, telegram_chat_id, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
       ON CONFLICT (display_name) DO UPDATE SET
         contact_phone = EXCLUDED.contact_phone,
         contact_email = EXCLUDED.contact_email,
@@ -2711,8 +2803,12 @@ router.put('/users/:displayName/contact', async (req, res) => {
         github_token = EXCLUDED.github_token,
         linkedin_token = EXCLUDED.linkedin_token,
         brave_api_key = EXCLUDED.brave_api_key,
+        telegram_bot_token = EXCLUDED.telegram_bot_token,
+        telegram_chat_id = EXCLUDED.telegram_chat_id,
         updated_at = NOW()
-    `, [displayName, contactPhone || null, contactEmail || null, lineId || null, telegramHandle || null, githubToken || null, linkedinToken || null, braveApiKey || null]);
+    `, [displayName, contactPhone || null, contactEmail || null, lineId || null, telegramHandle || null,
+        githubToken || null, linkedinToken || null, braveApiKey || null,
+        telegramBotToken || null, telegramChatId || null]);
 
     res.json({ success: true, message: '聯絡資訊已儲存' });
   } catch (error) {
@@ -4775,6 +4871,40 @@ router.post('/webhooks/github', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('❌ POST /webhooks/github error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==================== 系統設定 API ====================
+
+/**
+ * GET /api/system-config/:key
+ * 取得系統設定值
+ */
+router.get('/system-config/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+    const result = await pool.query('SELECT value FROM system_config WHERE key = $1', [key]);
+    res.json({ success: true, value: result.rows[0]?.value || '' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * PUT /api/system-config/:key
+ * 更新系統設定值
+ */
+router.put('/system-config/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+    await pool.query(`
+      INSERT INTO system_config (key, value, updated_at) VALUES ($1, $2, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()
+    `, [key, value || '']);
+    res.json({ success: true, message: '設定已更新' });
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
