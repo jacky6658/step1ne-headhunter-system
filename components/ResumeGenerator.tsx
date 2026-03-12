@@ -559,10 +559,15 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   const hasEvalData = RADAR_DIMENSIONS.some(d => (mergedEval[d.key] as number) > 0);
   const radarSVG = hasEvalData ? generateRadarSVG(mergedEval) : '';
 
+  // 使用完整 URL 確保新視窗也能載入 logo
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const logoFullUrl = LOGO_URL.startsWith('http') ? LOGO_URL : `${baseUrl}${LOGO_URL}`;
+
   return `<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
+<base href="${baseUrl}/">
 <title>候選人摘要 — ${candidateLabel}</title>
 <style>
   @page {
@@ -571,7 +576,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", "Helvetica Neue", Arial, sans-serif;
+    font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", "Helvetica Neue", Arial, "微軟正黑體", sans-serif;
     font-size: 10.5pt;
     color: #2d3748;
     line-height: 1.65;
@@ -635,8 +640,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   }
   .info-pill {
     display: inline-block;
-    background: rgba(255,255,255,0.2);
-    backdrop-filter: blur(4px);
+    background: rgba(255,255,255,0.25);
     padding: 3px 12px;
     border-radius: 20px;
     font-size: 9pt;
@@ -947,9 +951,44 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   }
 
   @media print {
-    body { background: white; }
+    body { background: white; margin: 0; padding: 0; }
     .page { padding: 0; }
-    .header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* 保留所有背景色和漸層 */
+    *, *::before, *::after {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+
+    /* 防止區塊被頁面切斷 */
+    .header, .summary-card, .work-item, .edu-item, .deal-item, .section {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .section-title {
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+
+    /* 確保漸層背景在列印時保留 */
+    .header {
+      background: linear-gradient(135deg, #0d9488, #0891b2, #2563eb) !important;
+      color: #fff !important;
+    }
+    .section-icon {
+      background: linear-gradient(135deg, #0d9488, #0891b2) !important;
+      color: #fff !important;
+    }
+    .summary-card {
+      background: linear-gradient(135deg, #f0fdfa, #ecfeff) !important;
+    }
+
+    /* 頁尾 */
+    .footer {
+      position: fixed;
+      bottom: 0;
+    }
   }
 </style>
 </head>
@@ -958,7 +997,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   <!-- Header -->
   <div class="header">
     <div class="header-logo">
-      <img src="${LOGO_URL}" alt="Step1ne" />
+      <img src="${LOGO_URL}" alt="Step1ne" onerror="this.style.display='none'" />
     </div>
     <div class="header-info">
       <div class="header-title">CANDIDATE PROFILE</div>
@@ -1121,10 +1160,11 @@ export function generateResumePDF(candidate: Candidate, candidateLabel?: string,
   printWindow.document.write(html);
   printWindow.document.close();
 
+  // 等待圖片和樣式完全渲染後再列印（Windows 需要更長時間）
   printWindow.onload = () => {
     setTimeout(() => {
       printWindow.print();
-    }, 500);
+    }, 1500);
   };
 }
 

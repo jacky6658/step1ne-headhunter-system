@@ -447,10 +447,10 @@ export const AIProgressPage: React.FC<Props> = ({ userProfile }) => {
         <CandidateModal
           candidate={selectedCandidate}
           onClose={() => setSelectedCandidate(null)}
-          userProfile={userProfile}
-          onUpdate={(updated) => {
-            setCandidates(prev => prev.map(c => c.id === updated.id ? updated : c));
-            setSelectedCandidate(updated);
+          currentUserName={userProfile.displayName}
+          onCandidateUpdate={(candidateId, updates) => {
+            setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, ...updates } : c));
+            setSelectedCandidate(prev => prev ? { ...prev, ...updates } : prev);
           }}
         />
       )}

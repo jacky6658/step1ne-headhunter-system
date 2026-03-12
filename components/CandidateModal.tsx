@@ -326,7 +326,11 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
       });
 
       alert('✅ 進度新增成功！看板與 Pipeline 欄位已同步更新');
-      window.location.reload();
+      // 即時更新 UI 而非整頁重載
+      onCandidateUpdate?.(candidate.id, {
+        status: newStatus,
+        progressTracking: updatedProgress,
+      } as Partial<Candidate>);
 
     } catch (error) {
       console.error('❌ 新增進度失敗:', error);
@@ -375,8 +379,8 @@ Step1ne Recruitment`;
         recruiter: recruiterInput,
         actor: currentUserName || 'system',
       });
-      candidate.consultant = recruiterInput;
       onAssignRecruiter?.(candidate.id, recruiterInput);
+      onCandidateUpdate?.(candidate.id, { consultant: recruiterInput });
       setEditingRecruiter(false);
     } catch (err) {
       alert('❌ 指派失敗，請稍後再試');
@@ -627,34 +631,9 @@ Step1ne Recruitment`;
         actor: currentUserName || 'system',
       };
       await apiPatch(`/api/candidates/${candidate.id}`, updates);
-      onCandidateUpdate?.(candidate.id, {
-        name: updates.name,
-        position: updates.position,
-        location: updates.location,
-        phone: updates.phone,
-        email: updates.email,
-        years: updates.years,
-        skills: updates.skills,
-        englishName: updates.english_name,
-        consultantNote: updates.consultant_note,
-        education: updates.education,
-        age: updates.age,
-        gender: updates.gender,
-        industry: updates.industry,
-        languages: updates.languages,
-        certifications: updates.certifications,
-        currentSalary: updates.current_salary,
-        expectedSalary: updates.expected_salary,
-        noticePeriod: updates.notice_period,
-        managementExperience: updates.management_experience,
-        teamSize: updates.team_size,
-        jobSearchStatus: updates.job_search_status,
-        reasonForChange: updates.reason_for_change,
-        motivation: updates.motivation,
-        dealBreakers: updates.deal_breakers,
-        competingOffers: updates.competing_offers,
-        relationshipLevel: updates.relationship_level,
-      });
+      // 傳送所有更新的欄位，確保 UI 即時同步
+      const { actor, ...uiUpdates } = updates;
+      onCandidateUpdate?.(candidate.id, uiUpdates);
       setEditingBasicInfo(false);
     } catch (err) {
       alert('❌ 儲存基本資料失敗，請稍後再試');

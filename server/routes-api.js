@@ -14,7 +14,14 @@ const { enrichCandidate, saveEnrichment } = require('./perplexityService');
 const DATABASE_URL = process.env.DATABASE_URL || 
   'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur';
 
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  max: 30,
+  min: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+  allowExitOnIdle: true,
+});
 
 /**
  * 清洗 URL param 中的 id：移除 AI Bot 可能帶來的多餘 JSON 引號
@@ -388,8 +395,8 @@ async function syncSQLToSheets(candidateRows) {
         console.log(`  ✅ Sheets 新增: ${c.name}`);
       }
 
-      // 延遲 2 秒，避免 Google API 限流
-      await new Promise(r => setTimeout(r, 2000));
+      // 延遲 500ms，避免 Google API 限流（原 2 秒太久）
+      await new Promise(r => setTimeout(r, 500));
     } catch (err) {
       console.warn(`  ⚠️ Sheets 同步 ${row.name} 失敗: ${err.message}`);
     }
