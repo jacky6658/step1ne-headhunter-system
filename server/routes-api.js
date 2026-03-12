@@ -3941,9 +3941,10 @@ router.post('/resume/parse', (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, error: '請上傳 PDF 檔案（欄位名稱：file）' });
 
     const useAI = req.body.useAI === 'true';
+    const format = req.body.format || 'auto';
     try {
-      const parsed = await parseResumePDF(req.file.buffer, useAI);
-      console.log('[/api/resume/parse] source:', parsed.source, 'workHistory:', parsed.workHistory?.length, 'confidence:', parsed._meta?.confidence);
+      const parsed = await parseResumePDF(req.file.buffer, useAI, format);
+      console.log('[/api/resume/parse] format:', format, 'source:', parsed.source, 'workHistory:', parsed.workHistory?.length, 'confidence:', parsed._meta?.confidence);
       res.json({
         success: true,
         filename: req.file.originalname,

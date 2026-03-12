@@ -22,23 +22,37 @@ const axios = require('axios');
  * @param {boolean} useAI  - 是否呼叫 OpenClaw 做技能增強
  * @returns {object}       - 候選人欄位物件
  */
-async function parseResumePDF(buffer, useAI = false) {
+async function parseResumePDF(buffer, useAI = false, format = 'auto') {
   const rawText = await extractPDFText(buffer);
 
-  // 自動偵測格式：104 vs LinkedIn vs 通用
-  const is104 = detect104Format(rawText);
-  const isLinkedIn = detectLinkedInFormat(rawText);
   let parsed;
-  if (is104) {
+  if (format === '104') {
+    // 使用者指定 104 人力銀行格式
+    console.log('[resumePDF] User selected format: 104');
     parsed = parse104PDF(rawText);
-  } else if (isLinkedIn) {
+  } else if (format === 'linkedin') {
+    // 使用者指定 LinkedIn 格式
+    console.log('[resumePDF] User selected format: LinkedIn');
     parsed = parseLinkedInPDF(rawText);
+  } else if (format === 'generic') {
+    // 使用者指定通用格式
+    console.log('[resumePDF] User selected format: generic');
+    parsed = parseGenericPDF(rawText);
   } else {
-    // 通用格式 fallback（先嘗試 LinkedIn parser，若工作經歷為空再用通用）
-    parsed = parseLinkedInPDF(rawText);
-    if (parsed.workHistory.length === 0) {
-      console.log('[resumePDF] LinkedIn parser found 0 work entries, trying generic parser...');
-      parsed = parseGenericPDF(rawText);
+    // 自動偵測格式：104 vs LinkedIn vs 通用
+    const is104 = detect104Format(rawText);
+    const isLinkedIn = detectLinkedInFormat(rawText);
+    if (is104) {
+      parsed = parse104PDF(rawText);
+    } else if (isLinkedIn) {
+      parsed = parseLinkedInPDF(rawText);
+    } else {
+      // 通用格式 fallback（先嘗試 LinkedIn parser，若工作經歷為空再用通用）
+      parsed = parseLinkedInPDF(rawText);
+      if (parsed.workHistory.length === 0) {
+        console.log('[resumePDF] LinkedIn parser found 0 work entries, trying generic parser...');
+        parsed = parseGenericPDF(rawText);
+      }
     }
   }
 

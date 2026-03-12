@@ -171,6 +171,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [importSelected, setImportSelected] = useState<Set<string>>(new Set());
   const [applyingImport, setApplyingImport] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [importFormat, setImportFormat] = useState<string>('auto');
 
   // 工作經歷本地狀態（支援新增/編輯/刪除）
   const [workItems, setWorkItems] = useState<any[]>(() => {
@@ -496,6 +497,7 @@ Step1ne Recruitment`;
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('format', importFormat);
       const resp = await fetch(getApiUrl('/api/resume/parse'), { method: 'POST', body: formData });
       const json = await resp.json();
       if (!json.success) throw new Error(json.error || '解析失敗');
@@ -1062,7 +1064,7 @@ Step1ne Recruitment`;
                   {!editingBasicInfo ? (
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => { setShowImport(v => !v); setImportParsed(null); setImportError(null); }}
+                        onClick={() => { setShowImport(v => !v); setImportParsed(null); setImportError(null); setImportFormat('auto'); }}
                         className="text-xs px-2 py-1 border border-blue-200 rounded text-blue-600 hover:bg-blue-50"
                       >
                         📄 匯入履歷
@@ -1084,9 +1086,36 @@ Step1ne Recruitment`;
                 {showImport && (
                   <div className="border-b border-blue-200 bg-blue-50/40 p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-blue-700">📄 匯入 PDF 履歷（LinkedIn / 104）</span>
-                      <button onClick={() => { setShowImport(false); setImportParsed(null); setImportError(null); setIsDragging(false); }} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+                      <span className="text-sm font-semibold text-blue-700">📄 匯入 PDF 履歷</span>
+                      <button onClick={() => { setShowImport(false); setImportParsed(null); setImportError(null); setIsDragging(false); setImportFormat('auto'); }} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
                     </div>
+
+                    {/* 格式選擇器 */}
+                    {!importParsed && !importLoading && (
+                      <div className="space-y-1.5">
+                        <span className="text-xs text-gray-500">選擇履歷格式：</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {([
+                            { value: 'auto', label: '🔍 自動偵測' },
+                            { value: '104', label: '📋 104 人力銀行' },
+                            { value: 'linkedin', label: '💼 LinkedIn' },
+                            { value: 'generic', label: '📄 通用格式' },
+                          ] as const).map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setImportFormat(opt.value)}
+                              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                                importFormat === opt.value
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* 檔案選擇 + 拖曳 */}
                     {!importParsed && !importLoading && (
@@ -1137,9 +1166,12 @@ Step1ne Recruitment`;
 
                     {/* 錯誤 */}
                     {importError && (
-                      <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
-                        ❌ {importError}
-                        <button onClick={() => setImportError(null)} className="ml-3 text-xs underline">重試</button>
+                      <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3 space-y-1">
+                        <div>❌ {importError}</div>
+                        {importFormat === 'auto' && (
+                          <div className="text-xs text-orange-600">💡 若自動偵測失敗，請選擇正確的履歷格式後重試</div>
+                        )}
+                        <button onClick={() => setImportError(null)} className="text-xs underline">重試</button>
                       </div>
                     )}
 

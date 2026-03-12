@@ -501,6 +501,9 @@ export interface ResumeVisibleFields {
   field_jobSearchStatus: boolean;
   field_motivation: boolean;
   field_reasonForChange: boolean;
+  // 匿名設定
+  field_showChineseName: boolean;   // 顯示中文姓名
+  field_showCompanyName: boolean;   // 顯示公司名稱
 }
 
 export const DEFAULT_VISIBLE_FIELDS: ResumeVisibleFields = {
@@ -514,6 +517,7 @@ export const DEFAULT_VISIBLE_FIELDS: ResumeVisibleFields = {
   field_noticePeriod: true, field_management: true,
   field_jobSearchStatus: true, field_motivation: true,
   field_reasonForChange: true,
+  field_showChineseName: false, field_showCompanyName: false,
 };
 
 function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSummary?: string, visibleFields?: ResumeVisibleFields, lang: ResumeLanguage = 'zh'): string {
@@ -552,7 +556,10 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
 
   // 匿名處理：優先使用 englishName 欄位，否則從姓名萃取英文名
   const englishName = (candidate.englishName || '').trim() || extractEnglishName(candidate.name || '');
-  const displayName = englishName || '';
+  const chineseName = (candidate.name || '').replace(/[A-Za-z]/g, '').trim();
+  const displayName = vf.field_showChineseName && chineseName
+    ? (englishName ? `${chineseName}（${englishName}）` : chineseName)
+    : (englishName || '');
 
   // Headline: Position | N年 | key skills
   const topSkills = skills.slice(0, 3).join(' × ');
@@ -652,7 +659,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     const desc = w.description
       ? w.description.split(/[;\n]/).filter(Boolean).map(d => `<li>${d.trim()}</li>`).join('')
       : '';
-    const anonCompany = anonymizeCompany(w.company || '');
+    const anonCompany = vf.field_showCompanyName ? (w.company || t.fallbackCompany) : anonymizeCompany(w.company || '');
     return `
       <div class="work-item">
         <div class="work-role">${w.title || t.noTitle}</div>
@@ -1413,6 +1420,11 @@ const FIELD_TOGGLES: Array<{ key: keyof ResumeVisibleFields; label: string }> = 
   { key: 'field_reasonForChange', label: '轉職原因' },
 ];
 
+const ANON_TOGGLES: Array<{ key: keyof ResumeVisibleFields; label: string }> = [
+  { key: 'field_showChineseName', label: '顯示中文姓名' },
+  { key: 'field_showCompanyName', label: '顯示公司名稱' },
+];
+
 export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: string; onClose: () => void; targetJobId?: number | null }> = ({
   candidate, candidateLabel, onClose, targetJobId
 }) => {
@@ -1618,6 +1630,22 @@ export const ResumePreview: React.FC<ResumeGeneratorProps & { candidateLabel: st
                   ))}
                 </div>
               )}
+
+              {/* 匿名設定 toggles */}
+              <div>
+                <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 pt-2 border-t border-gray-200">匿名設定</div>
+                {ANON_TOGGLES.map(t => (
+                  <label key={t.key} className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-white rounded px-1.5 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={visibleFields[t.key] as boolean}
+                      onChange={() => toggleField(t.key)}
+                      className="rounded border-gray-300 text-orange-500 focus:ring-orange-400 w-3 h-3"
+                    />
+                    <span className="text-[11px] text-gray-600">{t.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
 
