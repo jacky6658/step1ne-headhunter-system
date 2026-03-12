@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { UserProfile } from '../types';
 import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles, FileText, Edit3, Save, X as XIcon, Bot, Plus, Trash2 } from 'lucide-react';
 import { apiGet, apiPut, apiDelete } from '../config/api';
@@ -51,6 +51,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [clientFilter, setClientFilter] = useState('');
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [editingJD, setEditingJD] = useState(false);
   const [jdDraft, setJdDraft] = useState('');
@@ -81,12 +82,23 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     fetchJobs();
   }, []);
 
+  // 從職缺清單萃取不重複客戶公司名（供篩選用）
+  const uniqueClients = useMemo(() => {
+    const set = new Set<string>();
+    jobs.forEach(j => { if (j.client_company) set.add(j.client_company); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'zh-TW'));
+  }, [jobs]);
+
   useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setFilteredJobs(jobs);
-    } else {
+    let result = jobs;
+    // 客戶篩選
+    if (clientFilter) {
+      result = result.filter(job => job.client_company === clientFilter);
+    }
+    // 文字搜尋
+    if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const filtered = jobs.filter(job => {
+      result = result.filter(job => {
         try {
           return (
             (job.position_name && job.position_name.toLowerCase().includes(query)) ||
@@ -98,9 +110,9 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
           return false;
         }
       });
-      setFilteredJobs(filtered);
     }
-  }, [searchQuery, jobs]);
+    setFilteredJobs(result);
+  }, [searchQuery, clientFilter, jobs]);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -404,9 +416,9 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
         </div>
       </div>
 
-      {/* 搜尋列 */}
-      <div className="mb-6">
-        <div className="relative">
+      {/* 搜尋列 + 客戶篩選 */}
+      <div className="mb-6 flex gap-3 items-center">
+        <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
           <input
             type="text"
@@ -415,6 +427,24 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
+        </div>
+        <div className="relative min-w-[200px]">
+          <select
+            value={clientFilter}
+            onChange={e => setClientFilter(e.target.value)}
+            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm appearance-none bg-white"
+          >
+            <option value="">🏢 全部客戶 ({jobs.length})</option>
+            {uniqueClients.map(c => (
+              <option key={c} value={c}>{c} ({jobs.filter(j => j.client_company === c).length})</option>
+            ))}
+          </select>
+          {clientFilter && (
+            <button
+              onClick={() => setClientFilter('')}
+              className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+            >&times;</button>
+          )}
         </div>
       </div>
 
