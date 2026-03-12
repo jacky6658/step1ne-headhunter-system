@@ -105,6 +105,7 @@ interface SampleData {
   candidate: Candidate | null;
   job: Job | null;
   client: Client | null;
+  jobs?: Job[];  // 多職缺模式
 }
 
 function pickRandom<T>(arr: T[]): T | null {
@@ -152,6 +153,7 @@ function fillPromptPlaceholders(
   candidate: Candidate | null,
   job: Job | null,
   client: Client | null,
+  multiJobs?: Job[],
 ): { filled: string; count: number } {
   let result = content;
   let count = 0;
@@ -185,6 +187,18 @@ function fillPromptPlaceholders(
     replace(/\{必要技能\}|\{技術需求\}/g, getJobSkills(job).join('、'));
     replace(/\{年資要求\}/g, getJobYears(job));
     replace(/\{學歷要求\}/g, getJobEducation(job));
+  }
+
+  // 多職缺模式：覆寫職缺相關佔位符為聯集
+  if (multiJobs && multiJobs.length > 1) {
+    const titles = multiJobs.map(j => getJobTitle(j)).filter(Boolean);
+    const allSkills = [...new Set(multiJobs.flatMap(j => getJobSkills(j)))];
+    const salaries = multiJobs.map(j => `${getJobTitle(j)}：${getJobSalary(j) || '面議'}`);
+    if (titles.length > 0) {
+      result = result.replace(/\{職缺名稱\}|\{職位名稱\}|\{職缺\}/g, titles.join(' / '));
+      result = result.replace(/\{必要技能\}|\{技術需求\}/g, allSkills.join('、'));
+      result = result.replace(/\{職缺薪資\}|\{薪資範圍\}/g, salaries.join(' ｜ '));
+    }
   }
 
   if (client) {
@@ -582,6 +596,236 @@ Step1ne 德仁管理顧問 | Confidential`;
 }
 
 // ═══════════════════════════════════════════════════════════════
+// 多職缺範例輸出生成器
+// ═══════════════════════════════════════════════════════════════
+
+function generateMultiJobOutput(category: PromptCategory, data: SampleData): string {
+  const { candidate, client, jobs: multiJobs } = data;
+  if (!multiJobs || multiJobs.length === 0) return generateExampleOutput(category, data);
+  if (multiJobs.length === 1) return generateExampleOutput(category, { ...data, job: multiJobs[0] });
+
+  const clCompany = client?.company_name || getJobCompany(multiJobs[0]) || '某科技公司';
+  const clIndustry = client?.industry || '科技業';
+  const clSize = client?.company_size || '中大型企業';
+  const cName = candidate?.name || '王小明';
+  const cPos = candidate?.position || 'Senior Engineer';
+  const cYears = candidate?.years || 5;
+
+  const jobCount = multiJobs.length;
+  const jobList = multiJobs.map(j => getJobTitle(j) || 'N/A');
+
+  // Header
+  let output = `【${clCompany} — ${jobCount} 個職缺綜合分析】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏢 客戶：${clCompany}
+🏭 產業：${clIndustry}
+📏 規模：${clSize}
+📋 職缺數：${jobCount} 個
+📌 職缺列表：${jobList.join(' / ')}
+`;
+
+  switch (category) {
+    case '客戶需求理解':
+      multiJobs.forEach((job, idx) => {
+        const jTitle = getJobTitle(job);
+        const jSkillStr = getJobSkills(job).slice(0, 4).join('、') || 'React、TypeScript';
+        const jSalary = getJobSalary(job) || '面議';
+        output += `
+━━━ 職缺 ${idx + 1}/${jobCount}：${jTitle} ━━━
+
+▎ 職位核心需求
+1. ${jTitle} 這個角色最重要的 3 個 KPI 是什麼？
+2. 前 90 天希望新人完成哪些里程碑？
+3. 技術能力（${jSkillStr}）vs 軟實力，更看重哪邊？
+
+▎ 人選畫像
+4. 理想候選人的背景？（產業、公司規模、管理經驗）
+5. 預算範圍 ${jSalary} 是否有彈性？
+`;
+      });
+      output += `
+━━━ 跨職缺共同問題 ━━━
+
+1. 這 ${jobCount} 個職缺之間有哪些跨部門協作需求？
+2. 錄取優先順序如何？哪個職缺最急？
+3. 同一位候選人是否可以跨職缺轉推？
+4. 是否有統一的面試流程，還是各職缺獨立面試？
+5. 決策者是否相同？最終 offer 誰拍板？`;
+      break;
+
+    case '職缺分析':
+      multiJobs.forEach((job, idx) => {
+        const jTitle = getJobTitle(job);
+        const jSkillStr = getJobSkills(job).slice(0, 4).join('、') || 'React、TypeScript';
+        const jSalary = getJobSalary(job) || '面議';
+        const jYears = getJobYears(job) || '3';
+        const jEdu = getJobEducation(job) || '大學以上';
+        const jLoc = getJobLocation(job) || '台北';
+        output += `
+━━━ 職缺 ${idx + 1}/${jobCount}：${jTitle} ━━━
+📍 地點：${jLoc}
+┌──────────────┬─────────────────────────┐
+│ 技術能力      │ ${jSkillStr}            │
+│ 經驗年資      │ ${jYears}+ 年           │
+│ 學歷要求      │ ${jEdu}                 │
+│ 薪資範圍      │ ${jSalary}              │
+└──────────────┴─────────────────────────┘
+`;
+      });
+      // 跨職缺比較
+      output += `
+━━━ 跨職缺比較總覽 ━━━
+┌─────────────────┬───────────────┬──────────┬──────────┐
+│ 職缺             │ 核心技能       │ 薪資      │ 年資要求  │
+├─────────────────┼───────────────┼──────────┼──────────┤`;
+      multiJobs.forEach(job => {
+        const t = getJobTitle(job).slice(0, 15).padEnd(15);
+        const s = getJobSkills(job).slice(0, 2).join('、').slice(0, 13).padEnd(13);
+        const sal = (getJobSalary(job) || '面議').slice(0, 8).padEnd(8);
+        const y = ((getJobYears(job) || '3') + '+ 年').padEnd(8);
+        output += `\n│ ${t} │ ${s} │ ${sal} │ ${y} │`;
+      });
+      output += `\n└─────────────────┴───────────────┴──────────┴──────────┘
+
+▎ 搜尋策略建議
+• 技能重疊度高的職缺可共用人才池
+• 所有職缺技能聯集：${[...new Set(multiJobs.flatMap(j => getJobSkills(j)))].join('、')}
+• 建議優先從共用技能人才開始搜尋，再分流至各職缺`;
+      break;
+
+    case '人選訪談':
+      output += `\n👤 候選人：${cName}（${cPos}，${cYears}年經驗）
+
+═══════════════════════════════════
+📢 PART A — 公司 & 多職缺介紹話術
+═══════════════════════════════════
+
+📌 建議話術：
+「${cName}你好，今天想跟你聊聊 ${clCompany} 目前開出的幾個機會。他們是${clIndustry}領域的${clSize}，目前有 ${jobCount} 個職缺在積極招募，我覺得以你的背景蠻適合了解看看的。」
+
+▎ 各職缺介紹：`;
+      multiJobs.forEach((job, idx) => {
+        const jTitle = getJobTitle(job);
+        const jSkillStr = getJobSkills(job).slice(0, 4).join('、') || 'React、TypeScript';
+        const jSalary = getJobSalary(job) || '面議';
+        const jLoc = getJobLocation(job) || '台北';
+        output += `
+
+── 機會 ${idx + 1}：${jTitle} ──
+• 地點：${jLoc} ｜ 薪資：${jSalary}
+• 核心技術：${jSkillStr}
+📌 話術：「第${idx + 1}個是 ${jTitle}，主要會用到 ${jSkillStr}，薪資範圍 ${jSalary}。」`;
+      });
+      output += `
+
+═══════════════════════════════════
+🎙️ PART B — 結構化電話篩選
+═══════════════════════════════════
+
+▎ B1. 動機探測（5 分鐘）
+1. 聽完這 ${jobCount} 個機會，哪個最感興趣？為什麼？
+2. 有沒有哪個職缺是明確不考慮的？
+3. 如果換工作，最看重什麼？
+
+▎ B2. 技術驗證（8 分鐘）
+4. 能否用 1 分鐘描述目前專案中最有挑戰的部分？
+5. ${[...new Set(multiJobs.flatMap(j => getJobSkills(j)))].slice(0, 5).join('、')} — 這些技術的熟練程度？
+6. 偏好的技術方向？（前端/後端/全端/管理）
+
+▎ B3. 條件確認（5 分鐘）
+7. 目前薪資大概在什麼範圍？期望是？
+8. 最快什麼時候可以到職？
+
+═══════════════════════════════════
+📝 通話後顧問 Checklist
+═══════════════════════════════════`;
+      multiJobs.forEach((job, idx) => {
+        output += `\n☐ 職缺 ${idx + 1}（${getJobTitle(job)}）：興趣程度 __/5 ｜ 技術匹配度 __/5`;
+      });
+      output += `\n☐ 候選人偏好的職缺排序：__
+☐ 薪資期望 vs 各職缺預算是否有落差：__
+☐ 下一步：□ 安排面試 □ 再考慮 □ 暫不適合`;
+      break;
+
+    case '客戶推薦':
+      output += `\n📅 推薦日期：${new Date().toLocaleDateString('zh-TW')}
+👤 推薦顧問：${candidate?.consultant || '[顧問名字]'}
+
+▎ 候選人概要
+┌──────────────┬─────────────────────────┐
+│ 姓名          │ ${cName}               │
+│ 現職          │ ${cPos}                │
+│ 年資          │ ${cYears} 年           │
+│ 核心技能      │ ${getSkillsArray(candidate?.skills).slice(0, 5).join('、') || 'React、Node.js'} │
+│ 到職時間      │ ${candidate?.noticePeriod || '1 個月'} │
+└──────────────┴─────────────────────────┘
+`;
+      multiJobs.forEach((job, idx) => {
+        const jTitle = getJobTitle(job);
+        const jSkillStr = getJobSkills(job).slice(0, 4).join('、') || 'React、TypeScript';
+        const jSalary = getJobSalary(job) || '面議';
+        const cSkills = getSkillsArray(candidate?.skills);
+        const jSkills = getJobSkills(job);
+        const matched = cSkills.filter(s => jSkills.some(js => js.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(js.toLowerCase())));
+        output += `
+━━━ 推薦職缺 ${idx + 1}/${jobCount}：${jTitle} ━━━
+▎ 匹配分析
+• 職缺技能需求：${jSkillStr}
+• 候選人匹配技能：${matched.length > 0 ? matched.join('、') : '需進一步確認'}
+• 薪資對比：候選人期望 ${candidate?.expectedSalary || '面議'} vs 職缺 ${jSalary}
+
+▎ 推薦理由
+1. ${cYears} 年經驗符合職缺要求
+2. 技術背景與 ${jTitle} 需求對標
+3. 溝通能力佳，面試表現預期良好`;
+      });
+      output += `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Step1ne 德仁管理顧問 | Confidential`;
+      break;
+
+    case '面試與 Offer 管理':
+      output += `\n👤 候選人：${cName}
+
+▎ 情報總覽
+• 候選人現職：${cPos}
+• 目前薪資：${candidate?.currentSalary || '70K'}
+• 期望薪資：${candidate?.expectedSalary || '85K+'}
+• 求職狀態：${candidate?.jobSearchStatus || '被動觀望'}
+• 其他 Offer：${candidate?.competingOffers || '無'}
+`;
+      multiJobs.forEach((job, idx) => {
+        const jTitle = getJobTitle(job);
+        const jSalary = getJobSalary(job) || '面議';
+        output += `
+━━━ 職缺 ${idx + 1}/${jobCount}：${jTitle} ━━━
+• 薪資範圍：${jSalary}
+• 策略：${jSalary ? `薪資 ${jSalary}，需評估是否匹配期望` : '需確認預算'}
+`;
+      });
+      output += `
+▎ 多 Offer 談判策略
+📌 如果候選人同時拿到 ${clCompany} 多個職缺的面試/Offer：
+1. 協助候選人釐清職涯方向偏好
+2. 與客戶溝通，避免內部職缺互相搶人
+3. 建議客戶端統一窗口協調面試時程
+4. 若其中一個職缺更急迫，優先推進該流程`;
+      break;
+
+    default:
+      // 不特別支援多職缺的分類，逐一生成
+      multiJobs.forEach((job, idx) => {
+        output += `\n━━━ 職缺 ${idx + 1}/${jobCount}：${getJobTitle(job)} ━━━\n`;
+        output += generateExampleOutput(category, { ...data, job });
+      });
+      break;
+  }
+
+  return output;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // 主元件
 // ═══════════════════════════════════════════════════════════════
 
@@ -610,6 +854,8 @@ export function PromptLibraryPage({ userProfile }: Props) {
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [multiJobMode, setMultiJobMode] = useState(false);
+  const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [showEndpoints, setShowEndpoints] = useState(false);
   const [copiedFilled, setCopiedFilled] = useState(false);
   // 搜尋 combobox 狀態
@@ -692,11 +938,16 @@ export function PromptLibraryPage({ userProfile }: Props) {
     setSelectedCandidateId('');
     setSelectedJobId('');
     setSelectedClientId('');
+    setMultiJobMode(false);
+    setSelectedJobIds([]);
     setShowEndpoints(false);
   }, [activeCategory]);
 
   // ── 生成範例輸出（當分類、資料、或 seed 改變時）──
   const pinnedPrompt = prompts.find(p => p.is_pinned);
+
+  // 多職缺模式：解析已選的 Job 物件
+  const selectedMultiJobs = selectedJobIds.map(id => jobs.find(j => String(j.id) === id)).filter(Boolean) as Job[];
 
   useEffect(() => {
     if (!pinnedPrompt) {
@@ -707,13 +958,25 @@ export function PromptLibraryPage({ userProfile }: Props) {
     const sampleCandidate = selectedCandidate || pickRandom(candidates);
     const sampleJob = selectedJob || pickRandom(jobs);
     const sampleClient = selectedClient || pickRandom(clients);
-    const output = generateExampleOutput(activeCategory, {
-      candidate: sampleCandidate,
-      job: sampleJob,
-      client: sampleClient,
-    });
-    setExampleOutput(output);
-  }, [pinnedPrompt?.id, activeCategory, exampleSeed, candidates.length, jobs.length, clients.length, selectedCandidateId, selectedJobId, selectedClientId]);
+
+    // 多職缺模式
+    if (multiJobMode && selectedMultiJobs.length > 0) {
+      const output = generateMultiJobOutput(activeCategory, {
+        candidate: sampleCandidate,
+        job: selectedMultiJobs[0],
+        client: sampleClient,
+        jobs: selectedMultiJobs,
+      });
+      setExampleOutput(output);
+    } else {
+      const output = generateExampleOutput(activeCategory, {
+        candidate: sampleCandidate,
+        job: sampleJob,
+        client: sampleClient,
+      });
+      setExampleOutput(output);
+    }
+  }, [pinnedPrompt?.id, activeCategory, exampleSeed, candidates.length, jobs.length, clients.length, selectedCandidateId, selectedJobId, selectedClientId, multiJobMode, selectedJobIds.length]);
 
   const handleRefreshExample = () => {
     setExampleSeed(prev => prev + 1);
@@ -721,7 +984,13 @@ export function PromptLibraryPage({ userProfile }: Props) {
 
   // ── 佔位符套入 ──
   const filledResult = pinnedPrompt
-    ? fillPromptPlaceholders(pinnedPrompt.content, selectedCandidate, selectedJob, selectedClient)
+    ? fillPromptPlaceholders(
+        pinnedPrompt.content,
+        selectedCandidate,
+        multiJobMode && selectedMultiJobs.length > 0 ? selectedMultiJobs[0] : selectedJob,
+        selectedClient,
+        multiJobMode ? selectedMultiJobs : undefined,
+      )
     : { filled: '', count: 0 };
 
   // ── 複製完整 Prompt（含資料上下文）──
@@ -731,7 +1000,13 @@ export function PromptLibraryPage({ userProfile }: Props) {
     // 附加資料來源上下文
     const contextLines: string[] = [];
     if (selectedCandidate) contextLines.push(`• 候選人：${selectedCandidate.name}（${selectedCandidate.position}，${selectedCandidate.years}年經驗）→ GET /api/candidates/${selectedCandidate.id}`);
-    if (selectedJob) contextLines.push(`• 職缺：${getJobTitle(selectedJob)}（${getJobCompany(selectedJob)}）→ GET /api/jobs/${selectedJob.id}`);
+    if (multiJobMode && selectedMultiJobs.length > 0) {
+      selectedMultiJobs.forEach(j => {
+        contextLines.push(`• 職缺：${getJobTitle(j)}（${getJobCompany(j)}）→ GET /api/jobs/${j.id}`);
+      });
+    } else if (selectedJob) {
+      contextLines.push(`• 職缺：${getJobTitle(selectedJob)}（${getJobCompany(selectedJob)}）→ GET /api/jobs/${selectedJob.id}`);
+    }
     if (selectedClient) contextLines.push(`• 客戶：${selectedClient.company_name}（${selectedClient.industry || ''}）→ GET /api/clients/${selectedClient.id}`);
 
     if (contextLines.length > 0) {
@@ -987,70 +1262,225 @@ export function PromptLibraryPage({ userProfile }: Props) {
                   )}
                   {dataSrc.needsJob && (
                     <div className="flex-1 min-w-[200px]" ref={jobComboRef}>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">💼 職缺</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={jobSearch}
-                          onChange={e => {
-                            setJobSearch(e.target.value);
-                            setJobDropdownOpen(true);
-                            if (!e.target.value) { setSelectedJobId(''); }
-                          }}
-                          onFocus={() => setJobDropdownOpen(true)}
-                          placeholder={selectedJobId ? '' : '搜尋職缺名稱或公司...'}
-                          className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
-                        />
-                        {selectedJobId && !jobSearch && (
-                          <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
-                            <span className="text-sm text-gray-700 truncate">
-                              {(() => { const j = jobs.find(j => String(j.id) === selectedJobId); return j ? `${getJobTitle(j)} (${getJobCompany(j)})` : ''; })()}
-                            </span>
+                      <div className="flex items-center gap-2 mb-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">💼 職缺</label>
+                        {dataSrc.needsClient && (
+                          <div className="flex bg-slate-100 rounded-md p-0.5">
+                            <button
+                              onClick={() => { setMultiJobMode(false); setSelectedJobIds([]); }}
+                              className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${!multiJobMode ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            >單一</button>
+                            <button
+                              onClick={() => { setMultiJobMode(true); setSelectedJobId(''); setJobSearch(''); }}
+                              className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${multiJobMode ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            >多職缺</button>
                           </div>
                         )}
-                        {selectedJobId && (
-                          <button
-                            onClick={() => { setSelectedJobId(''); setJobSearch(''); }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
-                          >&times;</button>
+                        {multiJobMode && selectedJobIds.length > 0 && (
+                          <span className="text-[10px] text-indigo-500 font-bold">{selectedJobIds.length} 個已選</span>
                         )}
-                        {jobDropdownOpen && (
-                          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                            <div
-                              onClick={() => { setSelectedJobId(''); setJobSearch(''); setJobDropdownOpen(false); }}
-                              className="px-3 py-2 text-sm text-gray-400 hover:bg-indigo-50 cursor-pointer"
-                            >隨機取用...</div>
-                            {jobs
-                              .filter(j => {
+                      </div>
+
+                      {/* 單一職缺模式 */}
+                      {!multiJobMode && (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={jobSearch}
+                            onChange={e => {
+                              setJobSearch(e.target.value);
+                              setJobDropdownOpen(true);
+                              if (!e.target.value) { setSelectedJobId(''); }
+                            }}
+                            onFocus={() => setJobDropdownOpen(true)}
+                            placeholder={selectedJobId ? '' : '搜尋職缺名稱或公司...'}
+                            className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+                          />
+                          {selectedJobId && !jobSearch && (
+                            <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
+                              <span className="text-sm text-gray-700 truncate">
+                                {(() => { const j = jobs.find(j => String(j.id) === selectedJobId); return j ? `${getJobTitle(j)} (${getJobCompany(j)})` : ''; })()}
+                              </span>
+                            </div>
+                          )}
+                          {selectedJobId && (
+                            <button
+                              onClick={() => { setSelectedJobId(''); setJobSearch(''); }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                            >&times;</button>
+                          )}
+                          {jobDropdownOpen && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                              <div
+                                onClick={() => { setSelectedJobId(''); setJobSearch(''); setJobDropdownOpen(false); }}
+                                className="px-3 py-2 text-sm text-gray-400 hover:bg-indigo-50 cursor-pointer"
+                              >隨機取用...</div>
+                              {jobs
+                                .filter(j => {
+                                  if (!jobSearch) return true;
+                                  const q = jobSearch.toLowerCase();
+                                  return String(j.id).includes(q) || getJobTitle(j).toLowerCase().includes(q) || getJobCompany(j).toLowerCase().includes(q);
+                                })
+                                .slice(0, 50)
+                                .map(j => (
+                                  <div
+                                    key={j.id}
+                                    onClick={() => {
+                                      setSelectedJobId(String(j.id));
+                                      setJobSearch('');
+                                      setJobDropdownOpen(false);
+                                    }}
+                                    className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${String(j.id) === selectedJobId ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-gray-700'}`}
+                                  >
+                                    <span className="text-gray-400 mr-1.5">#{j.id}</span>
+                                    {getJobTitle(j)} <span className="text-gray-400">({getJobCompany(j)})</span>
+                                  </div>
+                                ))}
+                              {jobs.filter(j => {
                                 if (!jobSearch) return true;
                                 const q = jobSearch.toLowerCase();
                                 return String(j.id).includes(q) || getJobTitle(j).toLowerCase().includes(q) || getJobCompany(j).toLowerCase().includes(q);
-                              })
-                              .slice(0, 50)
-                              .map(j => (
-                                <div
-                                  key={j.id}
-                                  onClick={() => {
-                                    setSelectedJobId(String(j.id));
-                                    setJobSearch('');
-                                    setJobDropdownOpen(false);
-                                  }}
-                                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${String(j.id) === selectedJobId ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-gray-700'}`}
-                                >
-                                  <span className="text-gray-400 mr-1.5">#{j.id}</span>
-                                  {getJobTitle(j)} <span className="text-gray-400">({getJobCompany(j)})</span>
-                                </div>
-                              ))}
-                            {jobs.filter(j => {
-                              if (!jobSearch) return true;
-                              const q = jobSearch.toLowerCase();
-                              return String(j.id).includes(q) || getJobTitle(j).toLowerCase().includes(q) || getJobCompany(j).toLowerCase().includes(q);
-                            }).length === 0 && (
-                              <div className="px-3 py-3 text-sm text-gray-400 text-center">找不到符合的職缺</div>
+                              }).length === 0 && (
+                                <div className="px-3 py-3 text-sm text-gray-400 text-center">找不到符合的職缺</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 多職缺模式 */}
+                      {multiJobMode && (
+                        <div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={jobSearch}
+                              onChange={e => {
+                                setJobSearch(e.target.value);
+                                setJobDropdownOpen(true);
+                              }}
+                              onFocus={() => setJobDropdownOpen(true)}
+                              placeholder={selectedClientId ? '搜尋該客戶的職缺...' : '搜尋職缺（建議先選客戶）...'}
+                              className="w-full px-3 py-2 text-sm bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+                            />
+                            {selectedJobIds.length > 0 && (
+                              <button
+                                onClick={() => { setSelectedJobIds([]); setJobSearch(''); }}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                              >全清</button>
+                            )}
+                            {jobDropdownOpen && (
+                              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                {(() => {
+                                  // 多職缺模式：如果已選客戶，優先顯示該客戶的職缺
+                                  const clientName = selectedClient?.company_name || '';
+                                  const filtered = jobs.filter(j => {
+                                    const matchSearch = !jobSearch || (() => {
+                                      const q = jobSearch.toLowerCase();
+                                      return String(j.id).includes(q) || getJobTitle(j).toLowerCase().includes(q) || getJobCompany(j).toLowerCase().includes(q);
+                                    })();
+                                    const matchClient = !clientName || getJobCompany(j).toLowerCase() === clientName.toLowerCase();
+                                    return matchSearch && matchClient;
+                                  }).slice(0, 50);
+
+                                  const otherJobs = clientName ? jobs.filter(j => {
+                                    const matchSearch = !jobSearch || (() => {
+                                      const q = jobSearch.toLowerCase();
+                                      return String(j.id).includes(q) || getJobTitle(j).toLowerCase().includes(q) || getJobCompany(j).toLowerCase().includes(q);
+                                    })();
+                                    return matchSearch && getJobCompany(j).toLowerCase() !== clientName.toLowerCase();
+                                  }).slice(0, 20) : [];
+
+                                  return (
+                                    <>
+                                      {clientName && filtered.length > 0 && (
+                                        <div className="px-3 py-1.5 text-[10px] font-bold text-indigo-500 uppercase bg-indigo-50 sticky top-0">
+                                          {clientName} 的職缺 ({filtered.length})
+                                        </div>
+                                      )}
+                                      {filtered.map(j => {
+                                        const jId = String(j.id);
+                                        const isChecked = selectedJobIds.includes(jId);
+                                        return (
+                                          <div
+                                            key={j.id}
+                                            onClick={() => {
+                                              if (isChecked) {
+                                                setSelectedJobIds(prev => prev.filter(id => id !== jId));
+                                              } else if (selectedJobIds.length < 10) {
+                                                setSelectedJobIds(prev => [...prev, jId]);
+                                              }
+                                            }}
+                                            className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 flex items-center gap-2 ${isChecked ? 'bg-indigo-50' : ''}`}
+                                          >
+                                            <input type="checkbox" checked={isChecked} readOnly className="rounded border-slate-300 text-indigo-600 pointer-events-none" />
+                                            <span className="text-gray-400 text-xs">#{j.id}</span>
+                                            <span className={isChecked ? 'text-indigo-700 font-medium' : 'text-gray-700'}>{getJobTitle(j)}</span>
+                                            <span className="text-gray-400 text-xs">({getJobCompany(j)})</span>
+                                          </div>
+                                        );
+                                      })}
+                                      {clientName && otherJobs.length > 0 && (
+                                        <>
+                                          <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 sticky top-0 border-t border-slate-200">
+                                            其他客戶 ({otherJobs.length})
+                                          </div>
+                                          {otherJobs.map(j => {
+                                            const jId = String(j.id);
+                                            const isChecked = selectedJobIds.includes(jId);
+                                            return (
+                                              <div
+                                                key={j.id}
+                                                onClick={() => {
+                                                  if (isChecked) {
+                                                    setSelectedJobIds(prev => prev.filter(id => id !== jId));
+                                                  } else if (selectedJobIds.length < 10) {
+                                                    setSelectedJobIds(prev => [...prev, jId]);
+                                                  }
+                                                }}
+                                                className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 flex items-center gap-2 ${isChecked ? 'bg-indigo-50' : ''}`}
+                                              >
+                                                <input type="checkbox" checked={isChecked} readOnly className="rounded border-slate-300 text-indigo-600 pointer-events-none" />
+                                                <span className="text-gray-400 text-xs">#{j.id}</span>
+                                                <span className={isChecked ? 'text-indigo-700 font-medium' : 'text-gray-700'}>{getJobTitle(j)}</span>
+                                                <span className="text-gray-400 text-xs">({getJobCompany(j)})</span>
+                                              </div>
+                                            );
+                                          })}
+                                        </>
+                                      )}
+                                      {filtered.length === 0 && otherJobs.length === 0 && (
+                                        <div className="px-3 py-3 text-sm text-gray-400 text-center">找不到符合的職缺</div>
+                                      )}
+                                      {selectedJobIds.length >= 10 && (
+                                        <div className="px-3 py-2 text-xs text-orange-500 text-center bg-orange-50 sticky bottom-0">最多選擇 10 個職缺</div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
+                          {/* 已選職缺 tags */}
+                          {selectedJobIds.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {selectedJobIds.map(jId => {
+                                const j = jobs.find(j => String(j.id) === jId);
+                                if (!j) return null;
+                                return (
+                                  <span key={jId} className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 rounded-md text-xs font-medium">
+                                    {getJobTitle(j)}
+                                    <button
+                                      onClick={() => setSelectedJobIds(prev => prev.filter(id => id !== jId))}
+                                      className="text-indigo-400 hover:text-indigo-600 ml-0.5"
+                                    >&times;</button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                   {dataSrc.needsClient && (
@@ -1151,7 +1581,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
                       )}
                     </h3>
                     <div className="flex items-center gap-1.5">
-                      {(selectedCandidate || selectedJob || selectedClient) && (
+                      {(selectedCandidate || selectedJob || selectedClient || selectedMultiJobs.length > 0) && (
                         <button
                           onClick={handleCopyFilled}
                           className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-xs text-white transition-colors font-medium"
