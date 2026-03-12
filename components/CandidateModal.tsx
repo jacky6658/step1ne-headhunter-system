@@ -3265,7 +3265,66 @@ ${c.aiMatchResult ? `### 系統既有 AI 評分（僅供參考）
 - ⚠️ 風險確認題（針對履歷中的疑點）
 
 ### 7️⃣ 顧問行動建議
-給獵頭顧問的具體下一步行動方案（安排面試 / 補充資料 / 先釐清疑點 / 暫不推薦等）`;
+給獵頭顧問的具體下一步行動方案（安排面試 / 補充資料 / 先釐清疑點 / 暫不推薦等）
+
+---
+
+## Step 4：將分析結果回寫系統 ⚠️ 必做
+
+分析完成後，你**必須**呼叫以下 API 將結果寫入系統：
+
+\`\`\`
+PATCH https://backendstep1ne.zeabur.app/api/candidates/${c.id}
+Content-Type: application/json
+
+{
+  "ai_summary": {
+    "one_liner": "一句話定位（20字內精準描述此人核心價值）",
+    "top_matches": [
+      {
+        "job_title": "最匹配職缺1名稱",
+        "company": "公司名",
+        "match_score": 85,
+        "match_reason": "匹配原因簡述",
+        "gaps": "可能落差"
+      },
+      {
+        "job_title": "最匹配職缺2名稱",
+        "company": "公司名",
+        "match_score": 72,
+        "match_reason": "匹配原因簡述",
+        "gaps": "可能落差"
+      },
+      {
+        "job_title": "最匹配職缺3名稱",
+        "company": "公司名",
+        "match_score": 65,
+        "match_reason": "匹配原因簡述",
+        "gaps": "可能落差"
+      }
+    ],
+    "strengths": ["核心優勢1", "核心優勢2", "核心優勢3"],
+    "risks": ["風險1", "風險2"],
+    "deep_insight": "從自傳/作品集/面談中提取的深度洞察（若無則設為 null）",
+    "suggested_questions": ["建議顧問提問1", "建議顧問提問2", "建議顧問提問3"],
+    "next_steps": "顧問行動建議一句話",
+    "evaluated_at": "當前 ISO 8601 時間戳",
+    "evaluated_by": "AI 模型名稱"
+  },
+  "actor": "AI-summary"
+}
+\`\`\`
+
+> ⚠️ \`ai_summary\` 必須是 JSON 物件，不是字串。各欄位說明：
+> - \`one_liner\`: 一句話定位（必填）
+> - \`top_matches\`: 最匹配的 Top 3 職缺（必填，從 Step 1 取得的職缺中選取）
+> - \`strengths\`: 核心優勢陣列，3-5 項（必填）
+> - \`risks\`: 風險/劣勢陣列，2-4 項（必填）
+> - \`deep_insight\`: 自傳/作品集/面談的深度洞察（若無深度資訊則填 null）
+> - \`suggested_questions\`: 建議顧問提問，3-5 題（必填）
+> - \`next_steps\`: 行動建議一句話（必填）
+
+**分析結果寫回系統後，再將完整分析報告（含 1️⃣ 到 7️⃣ 所有內容）輸出給顧問閱讀。**`;
             };
 
             const handleCopyAiPrompt = () => {
@@ -3282,8 +3341,88 @@ ${c.aiMatchResult ? `### 系統既有 AI 評分（僅供參考）
               'bg-indigo-100 text-indigo-700', 'bg-orange-100 text-orange-700',
             ];
 
+            const aiSummaryData = c.aiSummary || null;
+
             return (
               <div className="space-y-5">
+
+                {/* ━━━ AI 總結結果（AI 回寫後顯示）━━━ */}
+                {aiSummaryData && (
+                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">🤖 AI 總結分析結果</span>
+                      </div>
+                      <span className="text-[10px] text-emerald-500">
+                        {aiSummaryData.evaluated_by || 'AI'} · {aiSummaryData.evaluated_at ? new Date(aiSummaryData.evaluated_at).toLocaleDateString('zh-TW') : ''}
+                      </span>
+                    </div>
+
+                    {/* 一句話定位 */}
+                    {aiSummaryData.one_liner && (
+                      <div className="bg-white/70 rounded-lg p-3">
+                        <p className="text-sm font-bold text-slate-800">📌 {aiSummaryData.one_liner}</p>
+                      </div>
+                    )}
+
+                    {/* Top 匹配職缺 */}
+                    {aiSummaryData.top_matches && aiSummaryData.top_matches.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-emerald-600 mb-1.5">🎯 Top 匹配職缺</p>
+                        <div className="space-y-1.5">
+                          {aiSummaryData.top_matches.map((m: any, i: number) => (
+                            <div key={i} className="bg-white/70 rounded-lg px-3 py-2 flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <span className="text-xs font-bold text-slate-700">#{i + 1} {m.job_title}</span>
+                                {m.company && <span className="text-xs text-slate-500 ml-1">({m.company})</span>}
+                                {m.match_reason && <p className="text-[10px] text-slate-500 mt-0.5 truncate">{m.match_reason}</p>}
+                              </div>
+                              <span className={`text-sm font-black ml-2 ${m.match_score >= 80 ? 'text-emerald-600' : m.match_score >= 65 ? 'text-blue-600' : 'text-amber-600'}`}>
+                                {m.match_score}分
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 優勢 & 風險 */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {aiSummaryData.strengths && aiSummaryData.strengths.length > 0 && (
+                        <div className="bg-white/70 rounded-lg p-2.5">
+                          <p className="text-xs font-semibold text-emerald-600 mb-1">✅ 核心優勢</p>
+                          {aiSummaryData.strengths.map((s: string, i: number) => (
+                            <p key={i} className="text-[11px] text-slate-700">• {s}</p>
+                          ))}
+                        </div>
+                      )}
+                      {aiSummaryData.risks && aiSummaryData.risks.length > 0 && (
+                        <div className="bg-white/70 rounded-lg p-2.5">
+                          <p className="text-xs font-semibold text-rose-600 mb-1">⚠️ 風險/待確認</p>
+                          {aiSummaryData.risks.map((r: string, i: number) => (
+                            <p key={i} className="text-[11px] text-slate-700">• {r}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 深度洞察 */}
+                    {aiSummaryData.deep_insight && (
+                      <div className="bg-white/70 rounded-lg p-2.5">
+                        <p className="text-xs font-semibold text-purple-600 mb-1">🔍 深度洞察（自傳/作品集/面談）</p>
+                        <p className="text-[11px] text-slate-700">{aiSummaryData.deep_insight}</p>
+                      </div>
+                    )}
+
+                    {/* 行動建議 */}
+                    {aiSummaryData.next_steps && (
+                      <div className="bg-emerald-100/50 rounded-lg p-2.5">
+                        <p className="text-xs font-semibold text-emerald-700">💡 行動建議：{aiSummaryData.next_steps}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* ━━━ 一句話定位 ━━━ */}
                 <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4">
@@ -3688,7 +3827,45 @@ ${workHistoryText || '無資料'}
 ### 8️⃣ 顧問行動建議（Next Steps）
 - 接下來顧問應該做什麼？（安排面試 / 補充資料 / 先釐清疑點 / 暫不推薦等）
 - 如果推薦，建議的推薦順序和時間點
-- 若有自傳中提到的動機線索，建議如何作為切入點`;
+- 若有自傳中提到的動機線索，建議如何作為切入點
+
+---
+
+## Step 4：將匹配分析結果回寫系統 ⚠️ 必做
+
+分析完成後，你**必須**呼叫以下 API 將結果寫入系統：
+
+\`\`\`
+PATCH https://backendstep1ne.zeabur.app/api/candidates/${c.id}
+Content-Type: application/json
+
+{
+  "ai_match_result": {
+    "score": 匹配度總分(0-100整數),
+    "recommendation": "強力推薦|推薦|觀望|不推薦",
+    "job_title": "${targetJobInput || '目標職缺名稱'}",
+    "matched_skills": ["匹配技能1", "匹配技能2", "匹配技能3"],
+    "missing_skills": ["缺少技能1", "缺少技能2"],
+    "strengths": ["核心優勢1", "核心優勢2", "核心優勢3"],
+    "probing_questions": ["建議提問1", "建議提問2", "建議提問3"],
+    "conclusion": "顧問建議一句話，說明切入點與推薦理由",
+    "biography_insight": "從自傳提取的洞察（若無自傳設為 null）",
+    "portfolio_assessment": "作品集評估（若無設為 null）",
+    "voice_summary": "面談評估摘要（若無設為 null）",
+    "evaluated_at": "當前 ISO 8601 時間戳",
+    "evaluated_by": "AI 模型名稱"
+  },
+  "actor": "AI-match"
+}
+\`\`\`
+
+> ⚠️ \`ai_match_result\` 必須是 JSON 物件，不是字串。
+> - \`score\` 85-100 → recommendation 填 "強力推薦"
+> - \`score\` 70-84 → recommendation 填 "推薦"
+> - \`score\` 55-69 → recommendation 填 "觀望"
+> - \`score\` < 55 → recommendation 填 "不推薦"
+
+**寫入系統後，再將完整分析報告（含 1️⃣ 到 8️⃣ 所有內容）輸出給顧問閱讀。**`;
 
                   const handleCopyMatchPrompt = () => {
                     navigator.clipboard.writeText(generateMatchPrompt()).then(() => {

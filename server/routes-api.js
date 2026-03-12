@@ -246,6 +246,11 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS english_name TEXT;
 `).catch(err => console.warn('english_name migration:', err.message));
 
+// AI 總結結果欄位（AI 分析後回寫的結構化總結）
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS ai_summary JSONB;
+`).catch(err => console.warn('ai_summary migration:', err.message));
+
 // 顧問備註欄位（顧問與人選聊過後的重點記錄）
 pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS consultant_note TEXT;
@@ -638,7 +643,7 @@ router.get('/candidates', async (req, res) => {
         c.management_experience, c.team_size, c.consultant_evaluation,
         c.job_search_status, c.reason_for_change, c.motivation,
         c.deal_breakers, c.competing_offers, c.relationship_level,
-        c.voice_assessments, c.biography, c.portfolio_url,
+        c.voice_assessments, c.biography, c.portfolio_url, c.ai_summary,
         j.position_name AS target_job_label, j.client_company AS target_job_company
       FROM candidates_pipeline c
       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
@@ -749,6 +754,7 @@ router.get('/candidates', async (req, res) => {
       voiceAssessments: (() => { const v = row.voice_assessments; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       biography: row.biography || '',
       portfolioUrl: row.portfolio_url || '',
+      aiSummary: row.ai_summary || null,
     }));
 
     client.release();
@@ -1114,6 +1120,8 @@ router.patch('/candidates/:id', async (req, res) => {
     const voice_assessments = req.body.voice_assessments !== undefined ? req.body.voice_assessments : req.body.voiceAssessments;
     const biography = req.body.biography;
     const portfolio_url = req.body.portfolio_url !== undefined ? req.body.portfolio_url : req.body.portfolioUrl;
+    // AI 總結結果
+    const ai_summary = req.body.ai_summary !== undefined ? req.body.ai_summary : req.body.aiSummary;
     const actor = req.body.actor || req.body.by || '';
     const isAIBot = /aibot|bot$|openclaw|yuqi|ai$/i.test(actor);
 
@@ -1290,6 +1298,8 @@ router.patch('/candidates/:id', async (req, res) => {
     if (voice_assessments !== undefined) { setClauses.push(`voice_assessments = $${idx++}`); values.push(JSON.stringify(voice_assessments)); }
     if (biography !== undefined) { setClauses.push(`biography = $${idx++}`); values.push(biography); }
     if (portfolio_url !== undefined) { setClauses.push(`portfolio_url = $${idx++}`); values.push(portfolio_url); }
+    // AI 總結結果
+    if (ai_summary !== undefined) { setClauses.push(`ai_summary = $${idx++}`); values.push(JSON.stringify(ai_summary)); }
     // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析
     let resolvedAiMatch = ai_match_result;
 
@@ -2947,6 +2957,26 @@ router.post('/migrate/extract-links', async (req, res) => {
     });
   } catch (error) {
     console.error('extract-links migration error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/consultant-sop — 回傳顧問 SOP 操作手冊
+router.get('/consultant-sop', (req, res) => {
+  try {
+    const guidePath = path.join(__dirname, 'guides/CONSULTANT-SOP-GUIDE.md');
+    if (!fs.existsSync(guidePath)) {
+      return res.status(404).json({ success: false, error: 'Consultant SOP guide not found' });
+    }
+    const content = fs.readFileSync(guidePath, 'utf-8');
+    const accept = req.headers['accept'] || '';
+    if (accept.includes('application/json')) {
+      res.json({ success: true, content });
+    } else {
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.send(content);
+    }
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
