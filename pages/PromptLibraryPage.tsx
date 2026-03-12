@@ -554,6 +554,10 @@ export function PromptLibraryPage({ userProfile }: Props) {
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [showEndpoints, setShowEndpoints] = useState(false);
   const [copiedFilled, setCopiedFilled] = useState(false);
+  // 候選人搜尋 combobox
+  const [candidateSearch, setCandidateSearch] = useState('');
+  const [candidateDropdownOpen, setCandidateDropdownOpen] = useState(false);
+  const candidateComboRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = userProfile.role === Role.ADMIN;
   const viewer = userProfile.displayName;
@@ -578,6 +582,17 @@ export function PromptLibraryPage({ userProfile }: Props) {
       }
     };
     loadSystemData();
+  }, []);
+
+  // 候選人 combobox — 點擊外部關閉
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (candidateComboRef.current && !candidateComboRef.current.contains(e.target as Node)) {
+        setCandidateDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const loadPrompts = useCallback(async () => {
@@ -831,18 +846,71 @@ export function PromptLibraryPage({ userProfile }: Props) {
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {dataSrc.needsCandidate && (
-                    <div className="flex-1 min-w-[200px]">
+                    <div className="flex-1 min-w-[200px]" ref={candidateComboRef}>
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">👤 候選人</label>
-                      <select
-                        value={selectedCandidateId}
-                        onChange={e => setSelectedCandidateId(e.target.value)}
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
-                      >
-                        <option value="">隨機取用...</option>
-                        {candidates.map(c => (
-                          <option key={c.id} value={c.id}>{c.name} — {c.position} ({c.years}年)</option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={candidateSearch}
+                          onChange={e => {
+                            setCandidateSearch(e.target.value);
+                            setCandidateDropdownOpen(true);
+                            if (!e.target.value) { setSelectedCandidateId(''); }
+                          }}
+                          onFocus={() => setCandidateDropdownOpen(true)}
+                          placeholder={selectedCandidateId ? '' : '搜尋 ID 或姓名...'}
+                          className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+                        />
+                        {selectedCandidateId && !candidateSearch && (
+                          <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
+                            <span className="text-sm text-gray-700 truncate">
+                              {(() => { const c = candidates.find(c => String(c.id) === selectedCandidateId); return c ? `${c.name} — ${c.position} (${c.years}年)` : ''; })()}
+                            </span>
+                          </div>
+                        )}
+                        {selectedCandidateId && (
+                          <button
+                            onClick={() => { setSelectedCandidateId(''); setCandidateSearch(''); }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                          >&times;</button>
+                        )}
+                        {candidateDropdownOpen && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            <div
+                              onClick={() => { setSelectedCandidateId(''); setCandidateSearch(''); setCandidateDropdownOpen(false); }}
+                              className="px-3 py-2 text-sm text-gray-400 hover:bg-indigo-50 cursor-pointer"
+                            >隨機取用...</div>
+                            {candidates
+                              .filter(c => {
+                                if (!candidateSearch) return true;
+                                const q = candidateSearch.toLowerCase();
+                                return String(c.id).includes(q) || (c.name || '').toLowerCase().includes(q);
+                              })
+                              .slice(0, 50)
+                              .map(c => (
+                                <div
+                                  key={c.id}
+                                  onClick={() => {
+                                    setSelectedCandidateId(String(c.id));
+                                    setCandidateSearch('');
+                                    setCandidateDropdownOpen(false);
+                                  }}
+                                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${String(c.id) === selectedCandidateId ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-gray-700'}`}
+                                >
+                                  <span className="text-gray-400 mr-1.5">#{c.id}</span>
+                                  {c.name} — {c.position} ({c.years}年)
+                                </div>
+                              ))}
+                            {candidates.filter(c => {
+                              if (!candidateSearch) return true;
+                              const q = candidateSearch.toLowerCase();
+                              return String(c.id).includes(q) || (c.name || '').toLowerCase().includes(q);
+                            }).length === 0 && (
+                              <div className="px-3 py-3 text-sm text-gray-400 text-center">找不到符合的人選</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                   {dataSrc.needsJob && (
