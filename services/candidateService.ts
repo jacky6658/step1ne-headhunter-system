@@ -27,15 +27,41 @@ export function filterCandidatesByPermission(
 }
 
 /**
- * 從 API 或 Mock 資料取得候選人（支援權限過濾）
+ * 從 API 取得候選人（自動分頁，一次載入全部）
+ * 後端每頁最多 2000 筆，前端自動翻頁直到 hasMore=false
  */
 export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
-  const result = await apiGet<{ success: boolean; data: any[] }>('/candidates?limit=2000');
-  const candidates = (result.data || []).map((c: any) => ({
-    ...c,
-    aiMatchResult: c.ai_match_result || c.aiMatchResult || null
-  }));
-  return candidates;
+  const PAGE_SIZE = 2000;
+  let allCandidates: Candidate[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const result = await apiGet<{
+      success: boolean;
+      data: any[];
+      total: number;
+      pagination?: { limit: number; offset: number; hasMore: boolean };
+    }>(`/candidates?limit=${PAGE_SIZE}&offset=${offset}`);
+
+    const page = (result.data || []).map((c: any) => ({
+      ...c,
+      aiMatchResult: c.ai_match_result || c.aiMatchResult || null
+    }));
+
+    allCandidates = allCandidates.concat(page);
+
+    // 判斷是否還有下一頁
+    if (result.pagination) {
+      hasMore = result.pagination.hasMore;
+    } else {
+      // 向後相容：舊版後端沒有 pagination 欄位
+      hasMore = false;
+    }
+    offset += PAGE_SIZE;
+  }
+
+  return allCandidates;
 }
 
 /**

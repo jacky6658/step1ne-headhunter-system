@@ -517,7 +517,7 @@ PUT /api/candidates/:id/pipeline-status 更新進度
 聯繫與面試安排
 ```
 
-> ⚠️ 查詢候選人時請帶 `?limit=2000`：`GET /api/candidates?limit=2000`
+> 💡 查詢候選人支援分頁：`GET /api/candidates?limit=2000&offset=0`，若 `pagination.hasMore=true` 則繼續 offset=2000, 4000... 直到取完全部。
 
 ---
 

@@ -27,7 +27,7 @@ GET https://backendstep1ne.zeabur.app/api/candidates?created_today=true
 
 若清單為空，或全部都不是「未開始」或「爬蟲初篩」→ 回報「今日無待評分候選人，任務結束」，停止執行。
 
-> ⚠️ **重要**：若需查詢所有候選人（非今日新增），請帶 `?limit=2000`，否則預設只回傳前 1000 筆。
+> 💡 **分頁機制**：若需查詢所有候選人（非今日新增），請帶 `?limit=2000&offset=0`。回應的 `pagination.hasMore` 為 `true` 時，需繼續用 offset 翻頁（offset=2000, 4000...）直到取完。
 
 **每筆候選人資料結構：**
 ```json

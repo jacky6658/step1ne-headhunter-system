@@ -264,27 +264,47 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
 
 ## 一、候選人查詢
 
-### 取得所有候選人
+### 取得所有候選人（支援分頁）
 
 ```
-GET /api/candidates?limit=2000
+GET /api/candidates?limit=500&offset=0
 ```
 
-> ⚠️ **重要：請務必帶 `?limit=2000`**，否則預設只回傳前 1000 筆，會漏掉較新的候選人。
+> 💡 **分頁機制**：後端預設每頁 500 筆，最大 2000 筆。若人選超過一頁，需用 `offset` 翻頁取得全部。
+> 回應中的 `pagination.hasMore` 為 `true` 表示還有下一頁。
 
 **支援查詢參數（Query Parameters）：**
 
 | 參數 | 類型 | 說明 | 範例 |
 |------|------|------|------|
-| `limit` | 整數 | 最多回傳筆數（預設 1000，**建議帶 2000 以取得全部**） | `?limit=2000` |
+| `limit` | 整數 | 每頁回傳筆數（預設 500，最大 2000） | `?limit=2000` |
+| `offset` | 整數 | 偏移量，用於分頁（預設 0） | `?offset=2000` |
+| `page` | 整數 | 頁碼（從 1 開始），與 offset 二擇一 | `?page=2` |
 | `created_today` | `true` | 只回傳今日（台北時間）建立的候選人 | `?created_today=true` |
+
+**分頁範例（取得全部候選人）：**
+```
+# 第一頁
+GET /api/candidates?limit=2000&offset=0
+# → pagination.hasMore = true → 繼續
+
+# 第二頁
+GET /api/candidates?limit=2000&offset=2000
+# → pagination.hasMore = true → 繼續
+
+# 第三頁
+GET /api/candidates?limit=2000&offset=4000
+# → pagination.hasMore = false → 結束，已取得全部
+```
 
 **回應範例：**
 
 ```json
 {
   "success": true,
-  "count": 42,
+  "count": 500,
+  "total": 3200,
+  "pagination": { "limit": 500, "offset": 0, "hasMore": true },
   "data": [
     {
       "id": "123",
@@ -328,8 +348,16 @@ GET /api/candidates?created_today=true
 import requests
 from datetime import datetime
 
-resp = requests.get('https://backendstep1ne.zeabur.app/api/candidates?limit=2000')
-all_cands = resp.json()['data']
+# 自動分頁取得全部候選人
+all_cands = []
+offset = 0
+while True:
+    resp = requests.get(f'https://backendstep1ne.zeabur.app/api/candidates?limit=2000&offset={offset}')
+    result = resp.json()
+    all_cands.extend(result['data'])
+    if not result.get('pagination', {}).get('hasMore', False):
+        break
+    offset += 2000
 
 today = datetime.now().strftime('%Y-%m-%d')  # 台北時間今天日期
 
@@ -1501,8 +1529,9 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
 ### 情境四：查詢某顧問的所有候選人並找出 SLA 逾期
 
 ```bash
-# 1. 取得所有候選人（務必帶 limit=2000）
-curl https://backendstep1ne.zeabur.app/api/candidates?limit=2000
+# 1. 取得候選人（支援分頁，每頁最多 2000 筆）
+curl "https://backendstep1ne.zeabur.app/api/candidates?limit=2000&offset=0"
+# 若 pagination.hasMore=true，繼續 offset=2000, 4000... 直到 hasMore=false
 
 # 2. AIbot 在本地過濾：
 #    - consultant === "Phoebe"

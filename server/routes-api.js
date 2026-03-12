@@ -441,14 +441,25 @@ async function syncSQLToSheets(candidateRows) {
 
 /**
  * GET /api/candidates
- * 列出所有候選人（從 SQL）
+ * 列出候選人（支援分頁）
+ *
+ * Query params:
+ *   limit   - 每頁筆數，預設 500，最大 2000
+ *   offset  - 偏移量，預設 0（用於分頁）
+ *   page    - 頁碼（從 1 開始），與 offset 二擇一
+ *   status  - 依狀態篩選
+ *   source  - 依來源篩選
+ *   created_today - 只取今日新增
+ *
+ * Response 新增 pagination 欄位：
+ *   { success, data, count, total, pagination: { limit, offset, hasMore } }
  */
 router.get('/candidates', async (req, res) => {
   try {
     const client = await pool.connect();
 
     // 支援查詢參數篩選
-    const { status, source, limit, created_today } = req.query;
+    const { status, source, limit: rawLimit, offset: rawOffset, page, created_today } = req.query;
     const conditions = [];
     const params = [];
 
@@ -465,7 +476,30 @@ router.get('/candidates', async (req, res) => {
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const limitClause = limit ? `LIMIT ${Math.min(Math.max(1, parseInt(limit)), 10000)}` : '';
+
+    // 分頁參數
+    const parsedLimit = rawLimit ? Math.min(Math.max(1, parseInt(rawLimit)), 2000) : 500;
+    let parsedOffset = 0;
+    if (rawOffset) {
+      parsedOffset = Math.max(0, parseInt(rawOffset) || 0);
+    } else if (page) {
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      parsedOffset = (pageNum - 1) * parsedLimit;
+    }
+
+    // 先取 total count
+    const countResult = await client.query(
+      `SELECT COUNT(*) AS total FROM candidates_pipeline c ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    // 加入分頁 params
+    const dataParams = [...params];
+    dataParams.push(parsedLimit);
+    const limitIdx = dataParams.length;
+    dataParams.push(parsedOffset);
+    const offsetIdx = dataParams.length;
 
     const result = await client.query(`
       SELECT
@@ -486,8 +520,8 @@ router.get('/candidates', async (req, res) => {
       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
       ${whereClause}
       ORDER BY c.id ASC
-      ${limitClause}
-    `, params);
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `, dataParams);
 
     const candidates = result.rows.map(row => ({
       // 基本必需欄位（Candidate interface）
@@ -594,7 +628,13 @@ router.get('/candidates', async (req, res) => {
     res.json({
       success: true,
       data: candidates,
-      count: candidates.length
+      count: candidates.length,
+      total,
+      pagination: {
+        limit: parsedLimit,
+        offset: parsedOffset,
+        hasMore: (parsedOffset + candidates.length) < total
+      }
     });
   } catch (error) {
     console.error('❌ GET /candidates error:', error.message);
