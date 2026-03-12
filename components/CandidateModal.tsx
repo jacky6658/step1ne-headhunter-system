@@ -1973,12 +1973,15 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
               </div>
 
               {/* 自傳 */}
-              <div className="space-y-2">
+              <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">📝 自傳 / 自我介紹</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">📝</span>
+                    <h3 className="text-sm font-bold text-orange-800">自傳 / 自我介紹</h3>
+                  </div>
                   {!editingBio && (
-                    <button onClick={() => setEditingBio(true)} className="text-xs px-2 py-0.5 border border-orange-200 rounded text-orange-600 hover:bg-orange-50">
-                      {bioInput ? '編輯' : '+ 新增'}
+                    <button onClick={() => setEditingBio(true)} className="text-xs px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 shadow-sm transition-all">
+                      {bioInput ? '✏️ 編輯' : '+ 新增自傳'}
                     </button>
                   )}
                 </div>
@@ -1989,22 +1992,22 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       onChange={e => setBioInput(e.target.value)}
                       placeholder="輸入人選的自傳或自我介紹..."
                       rows={6}
-                      className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 resize-y"
+                      className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 resize-y bg-white"
                     />
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => { setEditingBio(false); setBioInput((candidate as any).biography || ''); }} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">取消</button>
-                      <button onClick={handleSaveBio} disabled={savingBio} className="text-xs px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-60">
-                        {savingBio ? '儲存中...' : '儲存'}
+                      <button onClick={() => { setEditingBio(false); setBioInput((candidate as any).biography || ''); }} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-white transition-all">取消</button>
+                      <button onClick={handleSaveBio} disabled={savingBio} className="text-xs px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-60 shadow-sm">
+                        {savingBio ? '儲存中...' : '💾 儲存'}
                       </button>
                     </div>
                   </div>
                 ) : bioInput ? (
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <div className="bg-white/80 border border-orange-100 rounded-lg p-4">
                     <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans leading-relaxed max-h-[200px] overflow-y-auto">{bioInput}</pre>
                   </div>
                 ) : (
-                  <div className="text-sm text-gray-400 italic p-3 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                    尚未填寫自傳
+                  <div className="text-sm text-orange-400 italic p-3 bg-white/60 rounded-lg border border-dashed border-orange-200 text-center">
+                    尚未填寫自傳，點擊右上角「+ 新增自傳」開始編輯
                   </div>
                 )}
               </div>
