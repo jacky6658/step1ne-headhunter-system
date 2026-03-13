@@ -256,6 +256,13 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS resume_files JSONB DEFAULT '[]';
 `).catch(err => console.warn('resume_files migration:', err.message));
 
+// 語音評估 + 自傳 + 作品集欄位
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS voice_assessments JSONB DEFAULT '[]';
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS biography TEXT;
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS portfolio_url VARCHAR(500);
+`).catch(err => console.warn('voice/bio/portfolio migration:', err.message));
+
 // 顧問備註欄位（顧問與人選聊過後的重點記錄）
 pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS consultant_note TEXT;
