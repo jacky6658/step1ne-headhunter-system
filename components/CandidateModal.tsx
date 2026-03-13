@@ -1,6 +1,6 @@
 // Step1ne Headhunter System - 候選人詳情 Modal
-import React, { useState } from 'react';
-import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion, ConsultantEvaluation, VoiceAssessment } from '../types';
+import React, { useState, useRef } from 'react';
+import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion, ConsultantEvaluation, VoiceAssessment, ResumeFile } from '../types';
 import { ResumePreview } from './ResumeGenerator';
 import { RadarChart, RADAR_DIMENSIONS, computeAutoScores, computeOverallRating } from './RadarChart';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
@@ -9,7 +9,8 @@ import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
   CheckCircle2, AlertCircle, Bot, Star, ThumbsUp, ThumbsDown,
-  HelpCircle, Sparkles, Target, Globe, Trash2, Brain, Copy, ChevronDown
+  HelpCircle, Sparkles, Target, Globe, Trash2, Brain, Copy, ChevronDown,
+  Download, Eye, Upload
 } from 'lucide-react';
 
 // ── 系統外職缺建議：rule-based 技能→產業/職缺對照 ──────────────────────────
@@ -127,6 +128,12 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [voiceAnalysis, setVoiceAnalysis] = useState('');
   const [savingVoice, setSavingVoice] = useState(false);
   const [expandedVoiceId, setExpandedVoiceId] = useState<string | null>(null);
+  // ── 履歷 PDF 附件 ──
+  const [resumeFiles, setResumeFiles] = useState<ResumeFile[]>(candidate.resumeFiles || []);
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDraggingResume, setIsDraggingResume] = useState(false);
+  const resumeInputRef = useRef<HTMLInputElement>(null);
   const [enrichedCandidate, setEnrichedCandidate] = useState(candidate);
 
   // 基本資料編輯
@@ -720,6 +727,75 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
     } catch (err) {
       alert('❌ 刪除失敗');
     }
+  };
+
+  // ── 履歷 PDF 附件上傳 / 預覽 / 下載 / 刪除 ──
+  const handleResumeUpload = async (file: File) => {
+    if (file.type !== 'application/pdf') { alert('僅接受 PDF 檔案'); return; }
+    if (file.size > 10 * 1024 * 1024) { alert('檔案大小不可超過 10MB'); return; }
+    if (resumeFiles.length >= 3) { alert('每位候選人最多上傳 3 個 PDF 檔案'); return; }
+
+    setUploadingResume(true);
+    setUploadProgress(0);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('uploaded_by', currentUserName || 'system');
+
+      const result = await new Promise<any>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', getApiUrl(`/api/candidates/${candidate.id}/resume`));
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+          try {
+            const json = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300 && json.success) resolve(json);
+            else reject(new Error(json.error || '上傳失敗'));
+          } catch { reject(new Error('回應格式錯誤')); }
+        };
+        xhr.onerror = () => reject(new Error('網路錯誤'));
+        xhr.send(formData);
+      });
+
+      setResumeFiles(prev => [...prev, result.file]);
+      (candidate as any).resumeFiles = [...resumeFiles, result.file];
+    } catch (err: any) {
+      alert('❌ 上傳失敗：' + err.message);
+    } finally {
+      setUploadingResume(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handlePreviewResume = (fileId: string) => {
+    window.open(getApiUrl(`/api/candidates/${candidate.id}/resume/${fileId}`), '_blank');
+  };
+  const handleDownloadResume = (fileId: string) => {
+    window.open(getApiUrl(`/api/candidates/${candidate.id}/resume/${fileId}?download=true`), '_blank');
+  };
+  const handleDeleteResume = async (fileId: string) => {
+    if (!confirm('確定要刪除此履歷檔案嗎？')) return;
+    try {
+      const resp = await fetch(getApiUrl(`/api/candidates/${candidate.id}/resume/${fileId}`), { method: 'DELETE' });
+      const json = await resp.json();
+      if (!json.success) throw new Error(json.error || '刪除失敗');
+      const updated = resumeFiles.filter(f => f.id !== fileId);
+      setResumeFiles(updated);
+      (candidate as any).resumeFiles = updated;
+    } catch (err: any) {
+      alert('❌ 刪除失敗：' + err.message);
+    }
+  };
+
+  const handleResumeDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDraggingResume(true); };
+  const handleResumeDragLeave = () => setIsDraggingResume(false);
+  const handleResumeDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingResume(false);
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+    if (files.length > 0) handleResumeUpload(files[0]);
   };
 
   // PDF 履歷匯入處理
@@ -1971,6 +2047,89 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* 📄 履歷 PDF 附件 */}
+              <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-3 sm:p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Upload className="w-4 h-4 text-rose-500" />
+                    <h3 className="text-xs sm:text-sm font-bold text-rose-800">履歷附件</h3>
+                    <span className="text-[10px] text-rose-400 font-normal">PDF，最多 3 份</span>
+                  </div>
+                  <span className="text-[10px] text-rose-400 font-medium">{resumeFiles.length}/3</span>
+                </div>
+
+                {/* 拖放 / 選擇上傳區域 */}
+                {resumeFiles.length < 3 && (
+                  <div
+                    onDragOver={handleResumeDragOver}
+                    onDragLeave={handleResumeDragLeave}
+                    onDrop={handleResumeDrop}
+                    onClick={() => !uploadingResume && resumeInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-lg p-3 sm:p-4 text-center cursor-pointer transition-colors ${
+                      isDraggingResume
+                        ? 'border-rose-400 bg-rose-100/50'
+                        : 'border-rose-200 hover:border-rose-300 hover:bg-rose-100/30'
+                    }`}
+                  >
+                    {uploadingResume ? (
+                      <div className="space-y-2">
+                        <div className="text-xs sm:text-sm text-rose-600 font-medium">上傳中... {uploadProgress}%</div>
+                        <div className="w-full bg-rose-200 rounded-full h-1.5">
+                          <div className="bg-rose-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-rose-300 mx-auto mb-1" />
+                        <div className="text-[10px] sm:text-xs text-gray-500">
+                          拖放 PDF 至此，或<span className="text-rose-500 font-medium">點擊選擇</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">最大 10MB</div>
+                      </>
+                    )}
+                    <input
+                      ref={resumeInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleResumeUpload(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* 已上傳檔案列表 */}
+                {resumeFiles.length > 0 && (
+                  <div className="space-y-1.5">
+                    {resumeFiles.map((rf) => (
+                      <div key={rf.id} className="flex items-center gap-2 p-2 sm:p-2.5 bg-white/80 rounded-lg border border-rose-200">
+                        <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs sm:text-sm text-gray-800 truncate" title={rf.filename}>{rf.filename}</div>
+                          <div className="text-[10px] text-gray-400">
+                            {(rf.size / 1024).toFixed(0)} KB · {rf.uploaded_by} · {new Date(rf.uploaded_at).toLocaleDateString('zh-TW')}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                          <button onClick={() => handlePreviewResume(rf.id)} title="預覽" className="p-1 sm:p-1.5 text-rose-500 hover:bg-rose-100 rounded transition-colors">
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDownloadResume(rf.id)} title="下載" className="p-1 sm:p-1.5 text-rose-500 hover:bg-rose-100 rounded transition-colors">
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteResume(rf.id)} title="刪除" className="p-1 sm:p-1.5 text-red-400 hover:bg-red-100 rounded transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 自傳 */}

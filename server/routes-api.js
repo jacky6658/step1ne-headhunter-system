@@ -251,6 +251,11 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS ai_summary JSONB;
 `).catch(err => console.warn('ai_summary migration:', err.message));
 
+// 履歷 PDF 附件（base64 存於 JSONB 陣列，最多 3 個）
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS resume_files JSONB DEFAULT '[]';
+`).catch(err => console.warn('resume_files migration:', err.message));
+
 // 顧問備註欄位（顧問與人選聊過後的重點記錄）
 pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS consultant_note TEXT;
@@ -644,6 +649,15 @@ router.get('/candidates', async (req, res) => {
         c.job_search_status, c.reason_for_change, c.motivation,
         c.deal_breakers, c.competing_offers, c.relationship_level,
         c.voice_assessments, c.biography, c.portfolio_url, c.ai_summary,
+        (SELECT COALESCE(jsonb_agg(
+          jsonb_build_object(
+            'id', elem->>'id', 'filename', elem->>'filename',
+            'mimetype', elem->>'mimetype', 'size', (elem->>'size')::int,
+            'uploaded_at', elem->>'uploaded_at', 'uploaded_by', elem->>'uploaded_by'
+          )
+        ), '[]'::jsonb)
+        FROM jsonb_array_elements(COALESCE(c.resume_files, '[]'::jsonb)) elem
+        ) AS resume_files,
         j.position_name AS target_job_label, j.client_company AS target_job_company
       FROM candidates_pipeline c
       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
@@ -755,6 +769,7 @@ router.get('/candidates', async (req, res) => {
       biography: row.biography || '',
       portfolioUrl: row.portfolio_url || '',
       aiSummary: row.ai_summary || null,
+      resumeFiles: row.resume_files || [],
     }));
 
     client.release();
@@ -4280,6 +4295,145 @@ router.post('/resume/batch-parse', (req, res) => {
       results,
     });
   });
+});
+
+// ═══════════════════════════════════════════════════
+// 履歷 PDF 附件上傳 / 下載 / 刪除
+// ═══════════════════════════════════════════════════
+
+/**
+ * POST /api/candidates/:id/resume
+ * 上傳 PDF 履歷附件（最多 3 個）
+ * Body: multipart/form-data  file=<PDF>  uploaded_by=<string>
+ */
+router.post('/candidates/:id/resume', async (req, res) => {
+  const upload = req.app.locals.upload;
+  if (!upload) return res.status(500).json({ success: false, error: 'multer 未初始化' });
+
+  upload.single('file')(req, res, async (err) => {
+    if (err) return res.status(400).json({ success: false, error: err.message });
+    if (!req.file) return res.status(400).json({ success: false, error: '請上傳 PDF 檔案' });
+
+    try {
+      const { id } = req.params;
+
+      // 1. 取得現有附件
+      const existing = await pool.query(
+        'SELECT resume_files FROM candidates_pipeline WHERE id = $1', [id]
+      );
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ success: false, error: '找不到此候選人' });
+      }
+
+      const files = existing.rows[0].resume_files || [];
+
+      // 2. 檢查上限 3 個
+      if (files.length >= 3) {
+        return res.status(400).json({
+          success: false,
+          error: '每位候選人最多上傳 3 個 PDF 檔案，請先刪除舊檔案'
+        });
+      }
+
+      // 3. 建立新檔案紀錄
+      const newFile = {
+        id: `rf_${Date.now()}`,
+        filename: req.file.originalname,
+        data: req.file.buffer.toString('base64'),
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        uploaded_at: new Date().toISOString(),
+        uploaded_by: req.body.uploaded_by || 'system',
+      };
+
+      // 4. 寫入 DB
+      const updated = [...files, newFile];
+      await pool.query(
+        'UPDATE candidates_pipeline SET resume_files = $1, updated_at = NOW() WHERE id = $2',
+        [JSON.stringify(updated), id]
+      );
+
+      // 5. 回傳 metadata（不含 base64）
+      const { data: _data, ...metadata } = newFile;
+      res.json({ success: true, file: metadata, total: updated.length });
+    } catch (e) {
+      console.error('[POST /candidates/:id/resume]', e.message);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+});
+
+/**
+ * GET /api/candidates/:id/resume/:fileId
+ * 下載/預覽 PDF（回傳二進位 PDF）
+ * Query: ?download=true → 強制下載
+ */
+router.get('/candidates/:id/resume/:fileId', async (req, res) => {
+  try {
+    const { id, fileId } = req.params;
+
+    const result = await pool.query(
+      'SELECT resume_files FROM candidates_pipeline WHERE id = $1', [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '找不到此候選人' });
+    }
+
+    const files = result.rows[0].resume_files || [];
+    const file = files.find(f => f.id === fileId);
+    if (!file) {
+      return res.status(404).json({ success: false, error: '找不到此檔案' });
+    }
+
+    const buffer = Buffer.from(file.data, 'base64');
+    const disposition = req.query.download === 'true'
+      ? `attachment; filename*=UTF-8''${encodeURIComponent(file.filename)}`
+      : `inline; filename*=UTF-8''${encodeURIComponent(file.filename)}`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': disposition,
+      'Content-Length': buffer.length,
+    });
+    res.send(buffer);
+  } catch (e) {
+    console.error('[GET /candidates/:id/resume/:fileId]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * DELETE /api/candidates/:id/resume/:fileId
+ * 刪除單一 PDF 附件
+ */
+router.delete('/candidates/:id/resume/:fileId', async (req, res) => {
+  try {
+    const { id, fileId } = req.params;
+
+    const result = await pool.query(
+      'SELECT resume_files FROM candidates_pipeline WHERE id = $1', [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '找不到此候選人' });
+    }
+
+    const files = result.rows[0].resume_files || [];
+    const idx = files.findIndex(f => f.id === fileId);
+    if (idx === -1) {
+      return res.status(404).json({ success: false, error: '找不到此檔案' });
+    }
+
+    const updated = files.filter(f => f.id !== fileId);
+    await pool.query(
+      'UPDATE candidates_pipeline SET resume_files = $1, updated_at = NOW() WHERE id = $2',
+      [JSON.stringify(updated), id]
+    );
+
+    res.json({ success: true, message: '檔案已刪除', remaining: updated.length });
+  } catch (e) {
+    console.error('[DELETE /candidates/:id/resume/:fileId]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════

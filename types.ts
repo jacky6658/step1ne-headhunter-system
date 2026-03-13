@@ -410,6 +410,16 @@ export interface VoiceAssessment {
   evaluator: string;        // 評估者名稱
 }
 
+// 履歷 PDF 附件（metadata，不含 base64 data）
+export interface ResumeFile {
+  id: string;                   // 唯一 ID（rf_ 前綴 + timestamp）
+  filename: string;             // 原始檔名
+  mimetype: string;             // MIME type（application/pdf）
+  size: number;                 // 檔案大小 bytes
+  uploaded_at: string;          // 上傳時間 ISO 8601
+  uploaded_by: string;          // 上傳者名稱
+}
+
 // 顧問評估（5 維度：3 自動 + 2 手動）
 export interface ConsultantEvaluation {
   // ── 系統自動預填（可被顧問覆蓋）──
@@ -485,6 +495,7 @@ export interface Candidate {
   voiceAssessments?: VoiceAssessment[];   // 語音評估記錄（JSONB 陣列）
   biography?: string;                     // 自傳 / 自我介紹
   portfolioUrl?: string;                  // 作品集連結
+  resumeFiles?: ResumeFile[];             // 履歷 PDF 附件（最多 3 個）
   createdAt: string;
   updatedAt: string;
   createdBy: string;
