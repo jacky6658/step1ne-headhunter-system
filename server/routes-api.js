@@ -958,12 +958,12 @@ router.put('/candidates/:id', async (req, res) => {
     }
     const { status, notes, consultant, name, progressTracking, aiMatchResult } = req.body;
 
+    // 支援 aiMatchResult 或 ai_match_result
+    const matchResult = aiMatchResult || req.body.ai_match_result || null;
+
     const client = await pool.connect();
     let result;
     try {
-
-    // 支援 aiMatchResult 或 ai_match_result
-    const matchResult = aiMatchResult || req.body.ai_match_result || null;
 
     // 如果沒有傳遞 status，保留原本值；否則使用傳遞的值
     const hasStatus = status !== undefined && status !== null;
