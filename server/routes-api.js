@@ -217,6 +217,17 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS interview_round INTEGER;
 `).catch(err => console.warn('interview_round migration:', err.message));
 
+// 確保職缺卡片新增欄位存在（送人條件、面試階段、優先級、薪資上下限、淘汰條件）
+pool.query(`
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS submission_criteria TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS interview_stages INTEGER DEFAULT 0;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS interview_stage_detail TEXT;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT '一般';
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS salary_min INTEGER;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS salary_max INTEGER;
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS rejection_criteria TEXT;
+`).catch(err => console.warn('job card new fields migration:', err.message));
+
 // 擴充 VARCHAR(100) 欄位，避免爬蟲匯入資料超長
 pool.query(`
   ALTER TABLE candidates_pipeline ALTER COLUMN location TYPE VARCHAR(255);
@@ -1961,7 +1972,7 @@ router.get('/jobs', async (req, res) => {
     const client = await pool.connect();
     
     const result = await client.query(`
-      SELECT 
+      SELECT
         id,
         position_name,
         client_company,
@@ -1994,6 +2005,13 @@ router.get('/jobs', async (req, res) => {
         remote_work,
         business_trip,
         job_url,
+        submission_criteria,
+        interview_stages,
+        interview_stage_detail,
+        priority,
+        salary_min,
+        salary_max,
+        rejection_criteria,
         created_at,
         updated_at
       FROM jobs_pipeline
@@ -2034,6 +2052,14 @@ router.get('/jobs', async (req, res) => {
       remote_work: row.remote_work,
       business_trip: row.business_trip,
       job_url: row.job_url,
+      submission_criteria: row.submission_criteria,
+      interview_stages: row.interview_stages || 0,
+      interview_stage_detail: row.interview_stage_detail,
+      priority: row.priority || '一般',
+      salary_min: row.salary_min,
+      salary_max: row.salary_max,
+      rejection_criteria: row.rejection_criteria,
+      created_at: row.created_at,
       lastUpdated: row.updated_at
     }));
 
@@ -2106,6 +2132,8 @@ router.put('/jobs/:id', async (req, res) => {
       company_profile, talent_profile, search_primary, search_secondary,
       welfare_tags, welfare_detail, work_hours, vacation_policy,
       remote_work, business_trip, job_url,
+      submission_criteria, interview_stages, interview_stage_detail,
+      priority, salary_min, salary_max, rejection_criteria,
     } = req.body;
 
     const client = await pool.connect();
@@ -2133,6 +2161,9 @@ router.put('/jobs/:id', async (req, res) => {
            special_conditions = $26, industry_background = $27, team_size = $28,
            key_challenges = $29, attractive_points = $30, recruitment_difficulty = $31,
            interview_process = $32,
+           submission_criteria = $33, interview_stages = $34,
+           interview_stage_detail = $35, priority = $36,
+           salary_min = $37, salary_max = $38, rejection_criteria = $39,
            last_updated = NOW()
        WHERE id = $16
        RETURNING *`,
@@ -2169,6 +2200,13 @@ router.put('/jobs/:id', async (req, res) => {
         attractive_points    !== undefined ? attractive_points    : existing.attractive_points,
         recruitment_difficulty !== undefined ? recruitment_difficulty : existing.recruitment_difficulty,
         interview_process    !== undefined ? interview_process    : existing.interview_process,
+        submission_criteria      !== undefined ? submission_criteria      : existing.submission_criteria,
+        interview_stages         !== undefined ? interview_stages         : (existing.interview_stages || 0),
+        interview_stage_detail   !== undefined ? interview_stage_detail   : existing.interview_stage_detail,
+        priority                 !== undefined ? priority                 : (existing.priority || '一般'),
+        salary_min               !== undefined ? salary_min               : existing.salary_min,
+        salary_max               !== undefined ? salary_max               : existing.salary_max,
+        rejection_criteria       !== undefined ? rejection_criteria       : existing.rejection_criteria,
       ]
     );
 
@@ -2352,6 +2390,11 @@ router.post('/jobs', async (req, res) => {
       job_url:                 b.job_url || '',
       job_status:              b.job_status || b.status || '招募中',
       source:                  b.source || '104',
+      submission_criteria:     b.submission_criteria || '',
+      interview_stages:        b.interview_stages || 0,
+      interview_stage_detail:  b.interview_stage_detail || '',
+      priority:                b.priority || '一般',
+      rejection_criteria:      b.rejection_criteria || '',
     };
 
     // 只保留表中實際存在的欄位
@@ -2366,15 +2409,35 @@ router.post('/jobs', async (req, res) => {
       valsToInsert
     );
 
+    const createdJob = result.rows[0];
     dbClient.release();
 
     // 新職缺 → 清除所有候選人的匹配快取（需重新比對）
     pool.query('DELETE FROM candidate_job_rankings_cache').catch(() => {});
 
+    // 檢查重要欄位是否為空，回傳 missing_fields 提醒龍蝦 AI / 顧問補填
+    const importantFieldChecks = {
+      submission_criteria: { label: '客戶送人條件', value: createdJob.submission_criteria },
+      interview_stages: { label: '面試階段數', value: createdJob.interview_stages },
+      interview_stage_detail: { label: '面試各階段說明', value: createdJob.interview_stage_detail },
+      rejection_criteria: { label: '淘汰條件', value: createdJob.rejection_criteria },
+      salary_min: { label: '薪資下限', value: createdJob.salary_min },
+      salary_max: { label: '薪資上限', value: createdJob.salary_max },
+      key_skills: { label: '主要技能', value: createdJob.key_skills },
+      experience_required: { label: '經驗要求', value: createdJob.experience_required },
+      job_description: { label: '職缺描述', value: createdJob.job_description },
+    };
+    const missing_fields = Object.entries(importantFieldChecks)
+      .filter(([, v]) => !v.value || v.value === '' || v.value === 0)
+      .map(([key, v]) => ({ field: key, label: v.label }));
+
     res.status(201).json({
       success: true,
-      data: result.rows[0],
-      message: 'Job created successfully'
+      data: createdJob,
+      missing_fields: missing_fields.length > 0 ? missing_fields : [],
+      message: missing_fields.length > 0
+        ? `職缺建立成功，但有 ${missing_fields.length} 個重要欄位待補填：${missing_fields.map(f => f.label).join('、')}`
+        : 'Job created successfully'
     });
   } catch (error) {
     console.error('❌ POST /jobs error:', error.message);
