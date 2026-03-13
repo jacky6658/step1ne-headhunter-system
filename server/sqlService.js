@@ -3,21 +3,7 @@
  * 方案 B：SQL Database 作為 Pipeline 的唯一真相來源
  */
 
-const { Pool } = require('pg');
-
-// PostgreSQL 連線配置
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur'
-});
-
-// 測試連線
-pool.on('connect', () => {
-  console.log('✅ PostgreSQL connected');
-});
-
-pool.on('error', (err) => {
-  console.error('❌ PostgreSQL connection error:', err);
-});
+const { pool } = require('./db'); // 共享連線池
 
 // ==================== CRUD 操作 ====================
 

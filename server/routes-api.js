@@ -4,24 +4,12 @@
  */
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
 const https = require('https');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 const { enrichCandidate, saveEnrichment } = require('./perplexityService');
-
-const DATABASE_URL = process.env.DATABASE_URL || 
-  'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur';
-
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  max: 30,
-  min: 5,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  allowExitOnIdle: true,
-});
+const { pool, withClient } = require('./db'); // 共享連線池 + 安全 helper
 
 /**
  * 清洗 URL param 中的 id：移除 AI Bot 可能帶來的多餘 JSON 引號
@@ -395,6 +383,22 @@ pool.query(`
   pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient)`).catch(() => {});
 }).catch(err => console.warn('notifications migration:', err.message));
 
+// P0 DBA: 加入 indexes + partial unique constraint 防止重複
+// candidates_pipeline 索引
+pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_status ON candidates_pipeline(status)`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_created ON candidates_pipeline(created_at DESC)`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_name_lower ON candidates_pipeline(LOWER(TRIM(name)))`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_recruiter ON candidates_pipeline(recruiter)`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_target_job ON candidates_pipeline(target_job_id) WHERE target_job_id IS NOT NULL`).catch(() => {});
+// LinkedIn URL 部分唯一約束（排除空值）— 防止 TOCTOU race condition
+pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_candidates_linkedin_unique
+  ON candidates_pipeline(LOWER(TRIM(linkedin_url)))
+  WHERE linkedin_url IS NOT NULL AND linkedin_url != ''`).catch(() => {});
+// jobs_pipeline 索引
+pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs_pipeline(job_status)`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs_pipeline(created_at DESC)`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_priority ON jobs_pipeline(priority)`).catch(() => {});
+
 // Telegram 發送輔助函數
 async function sendTelegram(botToken, chatId, text) {
   if (!botToken || !chatId) return;
@@ -608,6 +612,7 @@ async function syncSQLToSheets(candidateRows) {
 router.get('/candidates', async (req, res) => {
   try {
     const client = await pool.connect();
+    try {
 
     // 支援查詢參數篩選
     const { status, source, limit: rawLimit, offset: rawOffset, page, created_today } = req.query;
@@ -791,8 +796,6 @@ router.get('/candidates', async (req, res) => {
       resumeFiles: row.resume_files || [],
     }));
 
-    client.release();
-
     res.json({
       success: true,
       data: candidates,
@@ -804,6 +807,9 @@ router.get('/candidates', async (req, res) => {
         hasMore: (parsedOffset + candidates.length) < total
       }
     });
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('❌ GET /candidates error:', error.message);
     res.status(500).json({
@@ -824,16 +830,18 @@ router.get('/candidates/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Candidate not found' });
     }
     const client = await pool.connect();
-    
-    const result = await client.query(
-      `SELECT c.*, j.position_name AS target_job_label, j.client_company AS target_job_company
-       FROM candidates_pipeline c
-       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
-       WHERE c.id = $1`,
-      [id]
-    );
-
-    client.release();
+    let result;
+    try {
+      result = await client.query(
+        `SELECT c.*, j.position_name AS target_job_label, j.client_company AS target_job_company
+         FROM candidates_pipeline c
+         LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
+         WHERE c.id = $1`,
+        [id]
+      );
+    } finally {
+      client.release();
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -951,6 +959,8 @@ router.put('/candidates/:id', async (req, res) => {
     const { status, notes, consultant, name, progressTracking, aiMatchResult } = req.body;
 
     const client = await pool.connect();
+    let result;
+    try {
 
     // 支援 aiMatchResult 或 ai_match_result
     const matchResult = aiMatchResult || req.body.ai_match_result || null;
@@ -959,7 +969,7 @@ router.put('/candidates/:id', async (req, res) => {
     const hasStatus = status !== undefined && status !== null;
     const statusValue = hasStatus ? status : undefined;
 
-    const result = await client.query(
+    result = await client.query(
       hasStatus
         ? `UPDATE candidates_pipeline
            SET status = $1, notes = $2, recruiter = $3,
@@ -973,16 +983,17 @@ router.put('/candidates/:id', async (req, res) => {
            RETURNING *`,
       hasStatus
         ? [status, notes || '', consultant || '',
-           JSON.stringify(progressTracking || []), 
+           JSON.stringify(progressTracking || []),
            matchResult ? JSON.stringify(matchResult) : null,
            id]
         : [notes || '', consultant || '',
-           JSON.stringify(progressTracking || []), 
+           JSON.stringify(progressTracking || []),
            matchResult ? JSON.stringify(matchResult) : null,
            id]
     );
-
-    client.release();
+    } finally {
+      client.release();
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -1160,6 +1171,7 @@ router.patch('/candidates/:id', async (req, res) => {
     const isAIBot = /aibot|bot$|openclaw|yuqi|ai$/i.test(actor);
 
     const client = await pool.connect();
+    try {
 
     // 預先抓取現有資料（用於 status 自動附加 + recruiter 轉派通知）
     let existingProgressForStatus = null;
@@ -1408,7 +1420,6 @@ router.patch('/candidates/:id', async (req, res) => {
     }
 
     if (setClauses.length === 0) {
-      client.release();
       return res.status(400).json({ success: false, error: 'No fields to update' });
     }
 
@@ -1419,8 +1430,6 @@ router.patch('/candidates/:id', async (req, res) => {
       `UPDATE candidates_pipeline SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING *`,
       values
     );
-
-    client.release();
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Candidate not found' });
@@ -1455,6 +1464,9 @@ router.patch('/candidates/:id', async (req, res) => {
     pool.query('DELETE FROM candidate_job_rankings_cache WHERE candidate_id = $1', [id]).catch(() => {});
 
     res.json({ success: true, data: result.rows[0], message: 'Candidate patched successfully' });
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('❌ PATCH /candidates/:id error:', error.message);
     res.status(500).json({ success: false, error: error.message });
@@ -1485,6 +1497,8 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
     }
 
     const client = await pool.connect();
+    let result, candidate;
+    try {
 
     // 取得目前候選人資料
     const current = await client.query(
@@ -1493,11 +1507,10 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
     );
 
     if (current.rows.length === 0) {
-      client.release();
       return res.status(404).json({ success: false, error: 'Candidate not found' });
     }
 
-    const candidate = current.rows[0];
+    candidate = current.rows[0];
     const currentProgress = candidate.progress_tracking || [];
 
     // 新增進度事件
@@ -1508,15 +1521,16 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
     };
     const updatedProgress = [...currentProgress, newEvent];
 
-    const result = await client.query(
+    result = await client.query(
       `UPDATE candidates_pipeline
        SET status = $1, progress_tracking = $2, updated_at = NOW()
        WHERE id = $3
        RETURNING *`,
       [status, JSON.stringify(updatedProgress), id]
     );
-
-    client.release();
+    } finally {
+      client.release();
+    }
 
     // 寫入操作日誌
     writeLog({
@@ -1584,7 +1598,6 @@ router.patch('/candidates/batch-status', async (req, res) => {
 
         if (current.rows.length === 0) {
           failed.push({ id, reason: '找不到此候選人' });
-          client.release();
           continue;
         }
 
@@ -1666,6 +1679,7 @@ router.delete('/candidates/batch', async (req, res) => {
     const client = await pool.connect();
     const succeeded = [];
     const failed = [];
+    try {
 
     for (const id of ids) {
       try {
@@ -1690,8 +1704,6 @@ router.delete('/candidates/batch', async (req, res) => {
       }
     }
 
-    client.release();
-
     res.json({
       success: true,
       deleted_count: succeeded.length,
@@ -1700,6 +1712,9 @@ router.delete('/candidates/batch', async (req, res) => {
       failed,
       message: `批量刪除完成：${succeeded.length} 位成功，${failed.length} 位失敗`
     });
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('❌ DELETE /candidates/batch error:', error.message);
     res.status(500).json({ success: false, error: error.message });
@@ -1723,13 +1738,15 @@ router.delete('/candidates/:id', async (req, res) => {
     const { actor } = req.body || {};
 
     const client = await pool.connect();
-
-    const result = await client.query(
-      'DELETE FROM candidates_pipeline WHERE id = $1 RETURNING id, name',
-      [id]
-    );
-
-    client.release();
+    let result;
+    try {
+      result = await client.query(
+        'DELETE FROM candidates_pipeline WHERE id = $1 RETURNING id, name',
+        [id]
+      );
+    } finally {
+      client.release();
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: `找不到候選人 ID ${id}` });
@@ -1772,6 +1789,7 @@ router.post('/candidates', async (req, res) => {
     }
 
     const client = await pool.connect();
+    try {
     const nameKey = c.name.trim().toLowerCase();
 
     // 檢查是否已存在
@@ -1859,7 +1877,9 @@ router.post('/candidates', async (req, res) => {
       );
     }
 
-    client.release();
+    } finally {
+      client.release();
+    }
 
     // 非同步觸發 SQL → Sheets 同步
     syncSQLToSheets([result.rows[0]]).catch(err =>
@@ -1970,7 +1990,7 @@ router.post('/candidates/bulk', async (req, res) => {
 router.get('/jobs', async (req, res) => {
   try {
     const client = await pool.connect();
-    
+    try {
     const result = await client.query(`
       SELECT
         id,
@@ -2063,13 +2083,14 @@ router.get('/jobs', async (req, res) => {
       lastUpdated: row.updated_at
     }));
 
-    client.release();
-
     res.json({
       success: true,
       data: jobs,
       count: jobs.length
     });
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('❌ GET /jobs error:', error.message);
     res.status(500).json({
@@ -2087,13 +2108,15 @@ router.get('/jobs/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const client = await pool.connect();
-    
-    const result = await client.query(
-      `SELECT * FROM jobs_pipeline WHERE id = $1`,
-      [id]
-    );
-
-    client.release();
+    let result;
+    try {
+      result = await client.query(
+        `SELECT * FROM jobs_pipeline WHERE id = $1`,
+        [id]
+      );
+    } finally {
+      client.release();
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -2137,16 +2160,17 @@ router.put('/jobs/:id', async (req, res) => {
     } = req.body;
 
     const client = await pool.connect();
+    let result;
+    try {
 
     // 先取得現有資料，避免覆蓋空值
     const current = await client.query('SELECT * FROM jobs_pipeline WHERE id = $1', [id]);
     if (current.rows.length === 0) {
-      client.release();
       return res.status(404).json({ success: false, error: 'Job not found' });
     }
     const existing = current.rows[0];
 
-    const result = await client.query(
+    result = await client.query(
       `UPDATE jobs_pipeline
        SET position_name = $1, job_status = $2, consultant_notes = $3,
            job_description = $4,
@@ -2210,7 +2234,9 @@ router.put('/jobs/:id', async (req, res) => {
       ]
     );
 
-    client.release();
+    } finally {
+      client.release();
+    }
 
     // 職缺更新 → 清除所有候選人的匹配快取（需重新比對）
     pool.query('DELETE FROM candidate_job_rankings_cache').catch(() => {});
@@ -2248,15 +2274,16 @@ router.patch('/jobs/:id/status', async (req, res) => {
     }
 
     const client = await pool.connect();
+    let result, oldStatus;
+    try {
 
     const current = await client.query('SELECT * FROM jobs_pipeline WHERE id = $1', [id]);
     if (current.rows.length === 0) {
-      client.release();
       return res.status(404).json({ success: false, error: 'Job not found' });
     }
-    const oldStatus = current.rows[0].job_status;
+    oldStatus = current.rows[0].job_status;
 
-    const result = await client.query(
+    result = await client.query(
       `UPDATE jobs_pipeline SET job_status = $1, last_updated = NOW() WHERE id = $2 RETURNING *`,
       [job_status, id]
     );
@@ -2272,8 +2299,9 @@ router.patch('/jobs/:id/status', async (req, res) => {
         JSON.stringify({ field: 'job_status', old: oldStatus, new: job_status })
       ]
     ).catch(() => {}); // log 失敗不影響主流程
-
-    client.release();
+    } finally {
+      client.release();
+    }
 
     res.json({
       success: true,
@@ -2295,14 +2323,15 @@ router.delete('/jobs/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const client = await pool.connect();
+    let result;
+    try {
 
-    const result = await client.query(
+    result = await client.query(
       'DELETE FROM jobs_pipeline WHERE id = $1 RETURNING id, position_name, client_company',
       [id]
     );
 
     if (result.rows.length === 0) {
-      client.release();
       return res.status(404).json({ success: false, error: 'Job not found' });
     }
 
@@ -2317,8 +2346,9 @@ router.delete('/jobs/:id', async (req, res) => {
         JSON.stringify({ type: 'job', company: result.rows[0].client_company })
       ]
     ).catch(() => {}); // log 失敗不影響主流程
-
-    client.release();
+    } finally {
+      client.release();
+    }
 
     res.json({
       success: true,
@@ -2344,6 +2374,8 @@ router.post('/jobs', async (req, res) => {
     }
 
     const dbClient = await pool.connect();
+    let createdJob;
+    try {
 
     // 先查表有哪些欄位（動態適應 ALTER TABLE 擴充）
     const tableInfo = await dbClient.query(`
@@ -2409,8 +2441,10 @@ router.post('/jobs', async (req, res) => {
       valsToInsert
     );
 
-    const createdJob = result.rows[0];
-    dbClient.release();
+    createdJob = result.rows[0];
+    } finally {
+      dbClient.release();
+    }
 
     // 新職缺 → 清除所有候選人的匹配快取（需重新比對）
     pool.query('DELETE FROM candidate_job_rankings_cache').catch(() => {});
@@ -2520,6 +2554,7 @@ router.post('/sync/sheets-to-sql', async (req, res) => {
 
     // 2. 取得 SQL 中所有現有候選人（用 name 做比對）
     const client = await pool.connect();
+    try {
     const existing = await client.query('SELECT id, name FROM candidates_pipeline');
     const existingMap = new Map();
     for (const row of existing.rows) {
@@ -2699,7 +2734,9 @@ router.post('/sync/sheets-to-sql', async (req, res) => {
       }
     }
 
-    client.release();
+    } finally {
+      client.release();
+    }
 
     console.log(`✅ Sheets → SQL 同步完成: 更新 ${results.updated}, 新增 ${results.created}, 跳過 ${results.skipped}`);
 
@@ -2786,8 +2823,11 @@ router.get('/health', async (req, res) => {
       pool.connect(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
     ]);
-    await client.query('SELECT 1');
-    client.release();
+    try {
+      await client.query('SELECT 1');
+    } finally {
+      client.release();
+    }
   } catch (error) {
     dbStatus = 'unavailable';
   }
@@ -3180,7 +3220,6 @@ const BD_STATUSES = ['開發中', '接洽中', '提案中', '合約階段', '合
 router.get('/clients', async (req, res) => {
   try {
     const { bd_status, consultant } = req.query;
-    const client = await pool.connect();
     let query = `
       SELECT c.*,
         COUNT(j.id)::int AS job_count
@@ -3193,8 +3232,7 @@ router.get('/clients', async (req, res) => {
     if (consultant && consultant !== 'all') { params.push(consultant); conditions.push(`c.consultant = $${params.length}`); }
     if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
     query += ' GROUP BY c.id ORDER BY c.created_at DESC';
-    const result = await client.query(query, params);
-    client.release();
+    const result = await withClient(client => client.query(query, params));
     res.json({ success: true, data: result.rows });
   } catch (error) {
     console.error('❌ GET /clients error:', error.message);
@@ -3205,9 +3243,7 @@ router.get('/clients', async (req, res) => {
 /** GET /api/clients/:id - 詳情 */
 router.get('/clients/:id', async (req, res) => {
   try {
-    const client = await pool.connect();
-    const result = await client.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
-    client.release();
+    const result = await withClient(client => client.query('SELECT * FROM clients WHERE id = $1', [req.params.id]));
     if (!result.rows.length) return res.status(404).json({ success: false, error: 'Client not found' });
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -3225,8 +3261,7 @@ router.post('/clients', async (req, res) => {
       consultant, contract_type, fee_percentage, contract_start, contract_end, notes
     } = req.body;
     if (!company_name) return res.status(400).json({ success: false, error: '缺少 company_name' });
-    const client = await pool.connect();
-    const result = await client.query(
+    const result = await withClient(client => client.query(
       `INSERT INTO clients
         (company_name, industry, company_size, website, bd_status, bd_source,
          contact_name, contact_title, contact_email, contact_phone, contact_linkedin,
@@ -3236,8 +3271,7 @@ router.post('/clients', async (req, res) => {
       [company_name, industry, company_size, website, bd_status, bd_source,
        contact_name, contact_title, contact_email, contact_phone, contact_linkedin,
        consultant, contract_type, fee_percentage, contract_start, contract_end, notes]
-    );
-    client.release();
+    ));
     res.json({ success: true, data: result.rows[0], message: '客戶已新增' });
   } catch (error) {
     console.error('❌ POST /clients error:', error.message);
@@ -3253,17 +3287,18 @@ router.patch('/clients/:id', async (req, res) => {
       'contact_name','contact_title','contact_email','contact_phone','contact_linkedin',
       'consultant','contract_type','fee_percentage','contract_start','contract_end','notes',
       'url_104','url_1111','submission_rules'];
-    const db = await pool.connect();
-    const cur = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
-    if (!cur.rows.length) { db.release(); return res.status(404).json({ success: false, error: 'Client not found' }); }
-    const existing = cur.rows[0];
-    const values = fields.map(f => req.body[f] !== undefined ? req.body[f] : existing[f]);
-    const result = await db.query(
-      `UPDATE clients SET ${fields.map((f, i) => `${f} = $${i + 1}`).join(', ')}, updated_at = NOW()
-       WHERE id = $${fields.length + 1} RETURNING *`,
-      [...values, id]
-    );
-    db.release();
+    const result = await withClient(async (db) => {
+      const cur = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
+      if (!cur.rows.length) { res.status(404).json({ success: false, error: 'Client not found' }); return null; }
+      const existing = cur.rows[0];
+      const values = fields.map(f => req.body[f] !== undefined ? req.body[f] : existing[f]);
+      return db.query(
+        `UPDATE clients SET ${fields.map((f, i) => `${f} = $${i + 1}`).join(', ')}, updated_at = NOW()
+         WHERE id = $${fields.length + 1} RETURNING *`,
+        [...values, id]
+      );
+    });
+    if (!result) return; // 404 already sent
     res.json({ success: true, data: result.rows[0], message: '客戶資料已更新' });
   } catch (error) {
     console.error('❌ PATCH /clients/:id error:', error.message);
@@ -3285,24 +3320,26 @@ router.patch('/clients/:id/status', async (req, res) => {
     if (!BD_STATUSES.includes(bd_status)) {
       return res.status(400).json({ success: false, error: `無效狀態，允許值：${BD_STATUSES.join('、')}` });
     }
-    const db = await pool.connect();
-    const cur = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
-    if (!cur.rows.length) { db.release(); return res.status(404).json({ success: false, error: 'Client not found' }); }
-    const oldStatus = cur.rows[0].bd_status;
-    const result = await db.query(
-      'UPDATE clients SET bd_status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-      [bd_status, id]
-    );
-    // 寫入 system_logs
-    await db.query(
-      `INSERT INTO system_logs (action, actor, actor_type, candidate_id, candidate_name, detail)
-       VALUES ('BD_STATUS_CHANGE', $1, 'AIBOT', $2, $3, $4)`,
-      [actor || 'system', id, cur.rows[0].company_name, JSON.stringify({ field: 'bd_status', old: oldStatus, new: bd_status })]
-    ).catch(() => {});
-    db.release();
+    const { result: statusResult, oldStatus, companyName } = await withClient(async (db) => {
+      const cur = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
+      if (!cur.rows.length) { res.status(404).json({ success: false, error: 'Client not found' }); return { result: null }; }
+      const oldSt = cur.rows[0].bd_status;
+      const r = await db.query(
+        'UPDATE clients SET bd_status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+        [bd_status, id]
+      );
+      // 寫入 system_logs
+      await db.query(
+        `INSERT INTO system_logs (action, actor, actor_type, candidate_id, candidate_name, detail)
+         VALUES ('BD_STATUS_CHANGE', $1, 'AIBOT', $2, $3, $4)`,
+        [actor || 'system', id, cur.rows[0].company_name, JSON.stringify({ field: 'bd_status', old: oldSt, new: bd_status })]
+      ).catch(() => {});
+      return { result: r, oldStatus: oldSt, companyName: cur.rows[0].company_name };
+    });
+    if (!statusResult) return; // 404 already sent
     res.json({
       success: true,
-      data: result.rows[0],
+      data: statusResult.rows[0],
       message: `BD 狀態已從「${oldStatus}」更新為「${bd_status}」`,
       changed: { from: oldStatus, to: bd_status },
       prompt_add_job: bd_status === '合作中' && oldStatus !== '合作中'
@@ -3316,12 +3353,10 @@ router.patch('/clients/:id/status', async (req, res) => {
 /** GET /api/clients/:id/jobs - 該客戶的所有職缺 */
 router.get('/clients/:id/jobs', async (req, res) => {
   try {
-    const db = await pool.connect();
-    const result = await db.query(
+    const result = await withClient(db => db.query(
       'SELECT * FROM jobs_pipeline WHERE client_id = $1 ORDER BY created_at DESC',
       [req.params.id]
-    );
-    db.release();
+    ));
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -3331,12 +3366,10 @@ router.get('/clients/:id/jobs', async (req, res) => {
 /** GET /api/clients/:id/contacts - 聯絡記錄 */
 router.get('/clients/:id/contacts', async (req, res) => {
   try {
-    const db = await pool.connect();
-    const result = await db.query(
+    const result = await withClient(db => db.query(
       'SELECT * FROM bd_contacts WHERE client_id = $1 ORDER BY contact_date DESC',
       [req.params.id]
-    );
-    db.release();
+    ));
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -3347,21 +3380,23 @@ router.get('/clients/:id/contacts', async (req, res) => {
 router.delete('/clients/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const db = await pool.connect();
-    const cur = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
-    if (!cur.rows.length) { db.release(); return res.status(404).json({ success: false, error: 'Client not found' }); }
-    const clientName = cur.rows[0].company_name;
-    // 先刪除關聯的聯絡記錄
-    await db.query('DELETE FROM bd_contacts WHERE client_id = $1', [id]);
-    // 刪除客戶
-    await db.query('DELETE FROM clients WHERE id = $1', [id]);
-    // 寫入 system_logs
-    await db.query(
-      `INSERT INTO system_logs (action, actor, actor_type, candidate_id, candidate_name, detail)
-       VALUES ('CLIENT_DELETED', $1, 'USER', $2, $3, $4)`,
-      [req.body.actor || 'system', id, clientName, JSON.stringify({ company_name: clientName })]
-    ).catch(() => {});
-    db.release();
+    const clientName = await withClient(async (db) => {
+      const cur = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
+      if (!cur.rows.length) { res.status(404).json({ success: false, error: 'Client not found' }); return null; }
+      const name = cur.rows[0].company_name;
+      // 先刪除關聯的聯絡記錄
+      await db.query('DELETE FROM bd_contacts WHERE client_id = $1', [id]);
+      // 刪除客戶
+      await db.query('DELETE FROM clients WHERE id = $1', [id]);
+      // 寫入 system_logs
+      await db.query(
+        `INSERT INTO system_logs (action, actor, actor_type, candidate_id, candidate_name, detail)
+         VALUES ('CLIENT_DELETED', $1, 'USER', $2, $3, $4)`,
+        [req.body.actor || 'system', id, name, JSON.stringify({ company_name: name })]
+      ).catch(() => {});
+      return name;
+    });
+    if (!clientName) return; // 404 already sent
     res.json({ success: true, message: `客戶「${clientName}」已刪除` });
   } catch (error) {
     console.error('❌ DELETE /clients/:id error:', error.message);
@@ -3374,13 +3409,11 @@ router.post('/clients/:id/contacts', async (req, res) => {
   try {
     const { contact_date, contact_type, summary, next_action, next_action_date, by_user } = req.body;
     if (!contact_date) return res.status(400).json({ success: false, error: '缺少 contact_date' });
-    const db = await pool.connect();
-    const result = await db.query(
+    const result = await withClient(db => db.query(
       `INSERT INTO bd_contacts (client_id, contact_date, contact_type, summary, next_action, next_action_date, by_user)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [req.params.id, contact_date, contact_type, summary, next_action, next_action_date, by_user]
-    );
-    db.release();
+    ));
     res.json({ success: true, data: result.rows[0], message: '聯絡記錄已新增' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -3392,9 +3425,7 @@ router.post('/clients/:id/contacts', async (req, res) => {
 /** GET /api/clients/:id/submission-rules - 取得客戶送件規範 */
 router.get('/clients/:id/submission-rules', async (req, res) => {
   try {
-    const db = await pool.connect();
-    const result = await db.query('SELECT submission_rules FROM clients WHERE id = $1', [req.params.id]);
-    db.release();
+    const result = await withClient(db => db.query('SELECT submission_rules FROM clients WHERE id = $1', [req.params.id]));
     if (!result.rows.length) return res.status(404).json({ success: false, error: 'Client not found' });
     res.json({ success: true, data: result.rows[0].submission_rules || [] });
   } catch (error) {
@@ -3408,12 +3439,10 @@ router.put('/clients/:id/submission-rules', async (req, res) => {
   try {
     const { rules } = req.body;
     if (!Array.isArray(rules)) return res.status(400).json({ success: false, error: '缺少 rules 陣列' });
-    const db = await pool.connect();
-    const result = await db.query(
+    const result = await withClient(db => db.query(
       'UPDATE clients SET submission_rules = $1, updated_at = NOW() WHERE id = $2 RETURNING submission_rules',
       [JSON.stringify(rules), req.params.id]
-    );
-    db.release();
+    ));
     if (!result.rows.length) return res.status(404).json({ success: false, error: 'Client not found' });
     res.json({ success: true, data: result.rows[0].submission_rules, message: '送件規範已更新' });
   } catch (error) {
@@ -3427,12 +3456,15 @@ router.post('/candidates/:id/check-submission-rules', async (req, res) => {
   try {
     const { client_id } = req.body;
     if (!client_id) return res.status(400).json({ success: false, error: '缺少 client_id' });
-    const db = await pool.connect();
-    const candResult = await db.query('SELECT * FROM candidates_pipeline WHERE id = $1', [req.params.id]);
-    if (!candResult.rows.length) { db.release(); return res.status(404).json({ success: false, error: 'Candidate not found' }); }
-    const clientResult = await db.query('SELECT submission_rules, company_name FROM clients WHERE id = $1', [client_id]);
-    if (!clientResult.rows.length) { db.release(); return res.status(404).json({ success: false, error: 'Client not found' }); }
-    db.release();
+    const dbResult = await withClient(async (db) => {
+      const candResult = await db.query('SELECT * FROM candidates_pipeline WHERE id = $1', [req.params.id]);
+      if (!candResult.rows.length) { res.status(404).json({ success: false, error: 'Candidate not found' }); return null; }
+      const clientResult = await db.query('SELECT submission_rules, company_name FROM clients WHERE id = $1', [client_id]);
+      if (!clientResult.rows.length) { res.status(404).json({ success: false, error: 'Client not found' }); return null; }
+      return { candResult, clientResult };
+    });
+    if (!dbResult) return; // 404 already sent
+    const { candResult, clientResult } = dbResult;
 
     const candidate = candResult.rows[0];
     const rules = clientResult.rows[0].submission_rules || [];
@@ -3494,7 +3526,7 @@ router.post('/candidates/:id/check-submission-rules', async (req, res) => {
 // POST /api/migrate/fix-ai-match-result — 修正所有格式錯誤的 ai_match_result（字串 or 欄位名稱錯誤的物件）
 router.post('/migrate/fix-ai-match-result', async (req, res) => {
   const client = await pool.connect();
-  try {
+  try { // eslint-disable-line -- wrapped in try/finally
     // 取出所有有 ai_match_result 的候選人（字串 or 物件都要檢查）
     const rows = await client.query(`
       SELECT id, ai_match_result, stability_score, talent_level
@@ -3564,11 +3596,11 @@ router.post('/migrate/fix-ai-match-result', async (req, res) => {
       fixed++;
     }
 
-    client.release();
     res.json({ success: true, fixed, total: rows.rows.length });
   } catch (err) {
-    client.release();
     res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -4951,7 +4983,6 @@ router.post('/prompts/:id/pin', async (req, res) => {
 
     const current = await client.query('SELECT * FROM prompt_library WHERE id = $1', [id]);
     if (!current.rows.length) {
-      client.release();
       return res.status(404).json({ success: false, error: '找不到提示詞' });
     }
 

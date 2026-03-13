@@ -16,7 +16,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { Pool } = require('pg');
 const { execSync } = require('child_process');
 
 // ── Python 依賴自動安裝（Zeabur 容器啟動時）────────────────────
@@ -50,17 +49,7 @@ if (!process.env.DATABASE_URL && process.env.POSTGRES_URI) {
 }
 
 const apiRouter = require('./routes-api');
-
-// PostgreSQL 連線池（調高連線數 + 超時設定，避免 503）
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL ||
-    'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur',
-  max: 30,                        // 最大連線數（預設 10 太少）
-  min: 5,                         // 最小閒置連線
-  idleTimeoutMillis: 30000,       // 閒置 30 秒後釋放
-  connectionTimeoutMillis: 10000, // 等超過 10 秒就報錯（而非無限等待）
-  allowExitOnIdle: true,
-});
+const { pool } = require('./db'); // 共享連線池
 
 const app = express();
 const PORT = process.env.PORT || 3001;

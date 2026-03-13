@@ -13,14 +13,9 @@ const { exec } = require('child_process');
 const util = require('util');
 const fs = require('fs');
 const path = require('path');
-const { Pool } = require('pg');
+const { pool } = require('./db'); // 共享連線池
 
 const execPromise = util.promisify(exec);
-
-const DATABASE_URL = process.env.DATABASE_URL ||
-  'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur';
-
-const pool = new Pool({ connectionString: DATABASE_URL });
 
 const TALENT_SOURCING_DIR = path.join(__dirname, 'talent-sourcing');
 const SCRAPER_SCRIPT = path.join(TALENT_SOURCING_DIR, 'search-plan-executor.py');

@@ -11,12 +11,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
-
-const DATABASE_URL = process.env.DATABASE_URL ||
-  'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur';
-
-const pool = new Pool({ connectionString: DATABASE_URL });
+const { pool } = require('./db'); // 共享連線池
 
 // ══════════════════════════════════════════════
 // 認證 Middleware
