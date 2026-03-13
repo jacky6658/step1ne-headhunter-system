@@ -23,8 +23,12 @@ export default defineConfig({
   define: {
     // 移除會抹除 process.env 的定義，讓系統能正確抓到注入的 API_KEY
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
-    // 將環境變數暴露給客戶端（僅以 VITE_ 開頭的變數會被暴露）
-    'process.env': JSON.stringify(process.env)
+    // 僅暴露 VITE_ 開頭的環境變數給客戶端（防止洩漏 DB 密碼、API Key 等敏感資訊）
+    'process.env': JSON.stringify(
+      Object.fromEntries(
+        Object.entries(process.env).filter(([k]) => k.startsWith('VITE_'))
+      )
+    )
   },
   resolve: {
     alias: {

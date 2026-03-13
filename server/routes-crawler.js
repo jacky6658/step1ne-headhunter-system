@@ -8,6 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('./db'); // 共享連線池
+const { safeError } = require('./safeError');
 
 // 爬蟲 API 位址（環境變數或預設本地）
 const CRAWLER_URL = process.env.CRAWLER_API_URL || 'http://localhost:5000';
@@ -90,7 +91,7 @@ function proxyGet(crawlerPath) {
       if (data.crawler_offline) return res.status(503).json(data);
       res.json(data);
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      safeError(res, e, `GET /proxy${crawlerPath}`);
     }
   };
 }
@@ -102,7 +103,7 @@ function proxyPost(crawlerPath) {
       if (data.crawler_offline) return res.status(503).json(data);
       res.json(data);
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      safeError(res, e, `POST /proxy${crawlerPath}`);
     }
   };
 }
@@ -114,7 +115,7 @@ function proxyDelete(crawlerPath) {
       if (data.crawler_offline) return res.status(503).json(data);
       res.json(data);
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      safeError(res, e, `DELETE /proxy${crawlerPath}`);
     }
   };
 }
@@ -151,7 +152,7 @@ router.get('/stats', async (req, res) => {
       const stats = await sheetFallback.getStatsResponse();
       res.json(stats);
     } catch (fallbackErr) {
-      res.status(500).json({ success: false, error: fallbackErr.message });
+      safeError(res, fallbackErr, 'GET /stats (Sheet fallback)');
     }
   }
 });
@@ -173,7 +174,7 @@ router.get('/candidates', async (req, res) => {
       const sheetData = await sheetFallback.getCandidatesResponse(req.query);
       res.json(sheetData);
     } catch (fallbackErr) {
-      res.status(500).json({ success: false, error: fallbackErr.message });
+      safeError(res, fallbackErr, 'GET /candidates (Sheet fallback)');
     }
   }
 });
@@ -189,7 +190,7 @@ router.get('/candidates/:id', async (req, res) => {
     }
     res.json(data);
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    safeError(res, e, 'GET /candidates/:id');
   }
 });
 
@@ -218,7 +219,7 @@ router.patch('/tasks/:id', async (req, res) => {
     if (data.crawler_offline) return res.status(503).json(data);
     res.json(data);
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    safeError(res, e, 'PATCH /tasks/:id');
   }
 });
 router.delete('/tasks/:id', (req, res) => {
@@ -305,7 +306,7 @@ router.post('/config', async (req, res) => {
     );
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    safeError(res, e, 'POST /config');
   }
 });
 
@@ -458,8 +459,7 @@ router.post('/metrics/snapshot', async (req, res) => {
       }
     });
   } catch (e) {
-    console.error('Metrics snapshot error:', e);
-    res.status(500).json({ success: false, error: e.message });
+    safeError(res, e, 'POST /metrics/snapshot');
   }
 });
 
@@ -486,7 +486,7 @@ router.get('/metrics/history', async (req, res) => {
     const result = await pool.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    safeError(res, e, 'GET /metrics/history');
   }
 });
 
@@ -587,8 +587,7 @@ router.get('/metrics/efficiency', async (req, res) => {
       } : null,
     });
   } catch (e) {
-    console.error('Efficiency metrics error:', e);
-    res.status(500).json({ success: false, error: e.message });
+    safeError(res, e, 'GET /metrics/efficiency');
   }
 });
 
@@ -692,8 +691,7 @@ router.post('/import', async (req, res) => {
       failed: aggregated.failed
     });
   } catch (error) {
-    console.error('❌ POST /crawler/import error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /crawler/import');
   }
 });
 
@@ -738,8 +736,7 @@ router.post('/import-async', async (req, res) => {
       status_url: `/api/imports/${import_id}`
     });
   } catch (error) {
-    console.error('❌ POST /crawler/import-async error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /crawler/import-async');
   }
 });
 
@@ -775,8 +772,7 @@ router.get('/import-status', async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('❌ GET /crawler/import-status error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /crawler/import-status');
   }
 });
 
@@ -800,8 +796,7 @@ router.post('/fix-source', async (req, res) => {
       candidates: result.rows
     });
   } catch (error) {
-    console.error('❌ POST /crawler/fix-source error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /crawler/fix-source');
   }
 });
 

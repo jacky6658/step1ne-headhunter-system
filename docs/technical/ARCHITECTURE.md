@@ -246,7 +246,7 @@ server/
 node server/server.js
 
 # PostgreSQL 連線
-psql postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur
+psql postgresql://root:<YOUR_PASSWORD_FROM_ZEABUR>@tpe1.clusters.zeabur.com:27883/zeabur
 
 # 查詢候選人
 SELECT * FROM candidates_pipeline WHERE consultant='Jacky' LIMIT 10;
@@ -264,7 +264,7 @@ curl http://localhost:3001/api/health
 ### 環境變數（記住這些）
 
 ```bash
-DATABASE_URL=postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur
+DATABASE_URL=postgresql://root:<YOUR_PASSWORD_FROM_ZEABUR>@tpe1.clusters.zeabur.com:27883/zeabur
 SHEET_ID=1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SEtxRk6Q
 PORT=3001
 ```

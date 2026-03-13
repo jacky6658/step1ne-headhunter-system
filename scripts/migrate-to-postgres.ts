@@ -6,14 +6,9 @@
  * 2. 或使用 Node.js 執行：npx tsx scripts/migrate-to-postgres.ts
  */
 
-// PostgreSQL 連接配置（從環境變數或直接設置）
-const DB_CONFIG = {
-  host: process.env.DB_HOST || 'tpe1.clusters.zeabur.com',
-  port: parseInt(process.env.DB_PORT || '22704'),
-  database: process.env.DB_NAME || 'zeabur',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '4if5Z3c87KolJ0Wnp1VIEbjmLC6X92FM',
-};
+// PostgreSQL 連接配置（從環境變數讀取）
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) { throw new Error('DATABASE_URL not set'); }
 
 // 從 localStorage 讀取資料
 const getLocalStorageData = () => {
