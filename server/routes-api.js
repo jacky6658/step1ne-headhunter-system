@@ -1809,6 +1809,8 @@ router.post('/candidates', async (req, res) => {
     }
 
     const client = await pool.connect();
+    let result;
+    let action;
     try {
     const nameKey = c.name.trim().toLowerCase();
 
@@ -1817,9 +1819,6 @@ router.post('/candidates', async (req, res) => {
       'SELECT id FROM candidates_pipeline WHERE LOWER(TRIM(name)) = $1 LIMIT 1',
       [nameKey]
     );
-
-    let result;
-    let action;
 
     if (existing.rows.length > 0) {
       // 既有人選 → 只補充空欄位
