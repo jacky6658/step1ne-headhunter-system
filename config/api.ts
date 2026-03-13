@@ -19,10 +19,24 @@ export function getApiUrl(endpoint: string): string {
   return `${API_BASE_URL}${path}`;
 }
 
-// 預設 fetch 配置
-export const defaultFetchConfig: RequestInit = {
-  headers: {
+// API 認證 Key（從環境變數注入，build 時寫入 bundle）
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+
+// 取得含認證的 headers
+export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+  };
+  if (API_KEY) {
+    headers['Authorization'] = `Bearer ${API_KEY}`;
+  }
+  return headers;
+}
+
+// 預設 fetch 配置（含認證）
+export const defaultFetchConfig: RequestInit = {
+  get headers() {
+    return getAuthHeaders();
   },
 };
 

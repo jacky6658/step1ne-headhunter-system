@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserProfile } from '../types';
 import { API_BASE_URL } from '../constants';
+import { getAuthHeaders } from '../config/api';
 import { ScrollText, RefreshCw, Bot, User, Filter } from 'lucide-react';
 import { fmtShortDateTime } from '../utils/dateFormat';
 
@@ -61,7 +62,7 @@ export function SystemLogPage({ userProfile }: SystemLogPageProps) {
       if (actionFilter !== 'all') params.set('action', actionFilter);
       if (actorSearch.trim()) params.set('actor', actorSearch.trim());
 
-      const res = await fetch(`${API_BASE_URL}/api/system-logs?${params}`);
+      const res = await fetch(`${API_BASE_URL}/api/system-logs?${params}`, { headers: getAuthHeaders() });
       const json = await res.json();
       if (json.success) setLogs(json.data);
     } catch (err) {
