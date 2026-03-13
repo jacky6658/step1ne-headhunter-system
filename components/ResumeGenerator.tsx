@@ -523,6 +523,108 @@ export const DEFAULT_VISIBLE_FIELDS: ResumeVisibleFields = {
   field_showChineseName: false, field_showCompanyName: false,
 };
 
+/** 輕量 Markdown → HTML 轉譯（支援顧問備註中的常見格式） */
+function markdownToHTML(md: string): string {
+  const lines = md.split('\n');
+  const out: string[] = [];
+  let inUl = false;
+  let inOl = false;
+  let inTable = false;
+  let tableHeader = false;
+
+  const closeList = () => {
+    if (inUl) { out.push('</ul>'); inUl = false; }
+    if (inOl) { out.push('</ol>'); inOl = false; }
+  };
+  const closeTable = () => {
+    if (inTable) { out.push('</tbody></table>'); inTable = false; tableHeader = false; }
+  };
+
+  // inline 格式
+  const inlineFmt = (s: string) => s
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code style="background:#fef3c7;padding:1px 4px;border-radius:3px;font-size:9pt;">$1</code>');
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+
+    // --- 水平線 ---
+    if (/^-{3,}$/.test(line.trim()) || /^\*{3,}$/.test(line.trim())) {
+      closeList(); closeTable();
+      out.push('<hr style="border:none;border-top:1px solid #e5e7eb;margin:8px 0;">');
+      continue;
+    }
+
+    // --- 表格行 ---
+    if (/^\|(.+)\|$/.test(line.trim())) {
+      closeList();
+      const cells = line.trim().slice(1, -1).split('|').map(c => c.trim());
+      // 分隔線行 (|---|---| )
+      if (cells.every(c => /^[-:]+$/.test(c))) {
+        tableHeader = false; // 下一行開始是 tbody
+        continue;
+      }
+      if (!inTable) {
+        out.push('<table class="md-table"><thead>');
+        out.push('<tr>' + cells.map(c => `<th>${inlineFmt(c)}</th>`).join('') + '</tr>');
+        out.push('</thead><tbody>');
+        inTable = true;
+        tableHeader = true;
+        continue;
+      }
+      out.push('<tr>' + cells.map(c => `<td>${inlineFmt(c)}</td>`).join('') + '</tr>');
+      continue;
+    } else {
+      closeTable();
+    }
+
+    // --- 標題 ---
+    const hMatch = line.match(/^(#{1,4})\s+(.+)/);
+    if (hMatch) {
+      closeList();
+      const level = hMatch[1].length;
+      const sizes: Record<number, string> = { 1: '13pt', 2: '11.5pt', 3: '10.5pt', 4: '10pt' };
+      out.push(`<div style="font-weight:700;font-size:${sizes[level] || '10pt'};color:#92400e;margin:10px 0 4px;${level <= 2 ? 'border-bottom:1px solid #fde68a;padding-bottom:3px;' : ''}">${inlineFmt(hMatch[2])}</div>`);
+      continue;
+    }
+
+    // --- 無序列表 ---
+    const ulMatch = line.match(/^[-•*]\s+(.+)/);
+    if (ulMatch) {
+      closeTable();
+      if (inOl) { out.push('</ol>'); inOl = false; }
+      if (!inUl) { out.push('<ul class="md-list">'); inUl = true; }
+      out.push(`<li>${inlineFmt(ulMatch[1])}</li>`);
+      continue;
+    }
+
+    // --- 有序列表 ---
+    const olMatch = line.match(/^\d+[.)]\s+(.+)/);
+    if (olMatch) {
+      closeTable();
+      if (inUl) { out.push('</ul>'); inUl = false; }
+      if (!inOl) { out.push('<ol class="md-list">'); inOl = true; }
+      out.push(`<li>${inlineFmt(olMatch[1])}</li>`);
+      continue;
+    }
+
+    // --- 空行 ---
+    if (!line.trim()) {
+      closeList();
+      out.push('<div style="height:6px;"></div>');
+      continue;
+    }
+
+    // --- 普通段落 ---
+    closeList();
+    out.push(`<div>${inlineFmt(line)}</div>`);
+  }
+  closeList();
+  closeTable();
+  return out.join('\n');
+}
+
 function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSummary?: string, visibleFields?: ResumeVisibleFields, lang: ResumeLanguage = 'zh'): string {
   const vf = visibleFields || DEFAULT_VISIBLE_FIELDS;
   const t = RESUME_I18N[lang];
@@ -1192,7 +1294,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     font-weight: 600;
   }
 
-  /* ─── Consultant Note ─── */
+  /* ─── Consultant Note (supports Markdown) ─── */
   .consultant-note-card {
     background: #fefce8;
     border-left: 4px solid #eab308;
@@ -1200,9 +1302,36 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     padding: 14px 18px;
     font-size: 10pt;
     color: #713f12;
-    line-height: 1.8;
-    white-space: pre-wrap;
+    line-height: 1.7;
     word-break: break-word;
+  }
+  .consultant-note-card strong { color: #92400e; }
+  .consultant-note-card .md-list {
+    margin: 4px 0;
+    padding-left: 20px;
+  }
+  .consultant-note-card .md-list li {
+    margin-bottom: 2px;
+  }
+  .consultant-note-card .md-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 6px 0;
+    font-size: 9.5pt;
+  }
+  .consultant-note-card .md-table th,
+  .consultant-note-card .md-table td {
+    border: 1px solid #fde68a;
+    padding: 4px 8px;
+    text-align: left;
+  }
+  .consultant-note-card .md-table th {
+    background: #fef9c3;
+    font-weight: 600;
+    color: #92400e;
+  }
+  .consultant-note-card .md-table td {
+    background: #fffef5;
   }
 
   /* ─── Language pills ─── */
@@ -1401,7 +1530,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
       <span class="section-icon">📝</span>
       ${t.consultantNote}
     </div>
-    <div class="consultant-note-card">${candidate.consultantNote}</div>
+    <div class="consultant-note-card">${markdownToHTML(candidate.consultantNote)}</div>
   </div>
   ` : ''}
 
