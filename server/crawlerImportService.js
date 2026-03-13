@@ -89,6 +89,9 @@ function chunkArray(arr, size = 100) {
 async function processBulkImport(pool, candidates, actor) {
   const client = await pool.connect();
   try {
+    // ── Transaction 保護：全批成功或全批失敗 ──
+    await client.query('BEGIN');
+
     // 取得所有現有候選人（用 name + linkedin_url + email 多重比對）
     const existing = await client.query('SELECT id, name, linkedin_url, email FROM candidates_pipeline');
     const existingByName = new Map();
@@ -264,7 +267,11 @@ async function processBulkImport(pool, candidates, actor) {
       }
     }
 
+    await client.query('COMMIT');
     return results;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
   } finally {
     client.release();
   }

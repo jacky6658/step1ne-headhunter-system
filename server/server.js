@@ -162,6 +162,16 @@ async function startServer() {
     console.warn('⚠️ Starting in DEGRADED MODE (DB-dependent endpoints will return 503)');
   }
 
+  // 1.5 啟動匯入佇列 Worker（DBA P2）
+  if (dbConnected) {
+    try {
+      const { startWorker } = require('./importQueue');
+      startWorker(5000); // 每 5 秒輪詢
+    } catch (err) {
+      console.warn('⚠️ ImportQueue Worker failed to start:', err.message);
+    }
+  }
+
   // 2. 啟動 Express 服務器（不論 DB 是否正常）
   const server = app.listen(PORT, () => {
     console.log(`
@@ -177,6 +187,7 @@ async function startServer() {
   // 3. 優雅關閉
   process.on('SIGTERM', async () => {
     console.log('🛑 SIGTERM received, shutting down...');
+    try { require('./importQueue').stopWorker(); } catch (_) {}
     server.close(() => {
       console.log('✅ Server closed');
       process.exit(0);

@@ -597,6 +597,7 @@ router.get('/metrics/efficiency', async (req, res) => {
 // ══════════════════════════════════════════════
 
 const { mapCrawlerCandidate, chunkArray, processBulkImport } = require('./crawlerImportService');
+const importQueue = require('./importQueue');
 
 /**
  * POST /api/crawler/import
@@ -692,6 +693,52 @@ router.post('/import', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ POST /crawler/import error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/crawler/import-async
+ * 佇列化爬蟲匯入：立即回 202 + import_id，背景 Worker 非同步處理
+ */
+router.post('/import-async', async (req, res) => {
+  try {
+    const { candidates, actor, filters } = req.body;
+
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return res.status(400).json({ success: false, error: 'candidates array is required' });
+    }
+
+    // 可選篩選：最低等級
+    let filtered = candidates;
+    if (filters?.min_grade) {
+      const gradeOrder = { A: 1, B: 2, C: 3, D: 4 };
+      const minRank = gradeOrder[filters.min_grade] || 4;
+      filtered = candidates.filter(c => {
+        const rank = gradeOrder[(c.grade || '').toUpperCase()] || 5;
+        return rank <= minRank;
+      });
+    }
+
+    if (filtered.length === 0) {
+      return res.json({ success: true, message: '篩選後無符合條件的候選人', import_id: null });
+    }
+
+    // 映射欄位：爬蟲格式 → Step1ne 格式
+    const mapped = filtered.map(c => mapCrawlerCandidate(c));
+
+    const { import_id } = await importQueue.enqueue(mapped, actor || 'Crawler', 'crawler');
+
+    res.status(202).json({
+      success: true,
+      import_id,
+      status: 'pending',
+      total: mapped.length,
+      message: `已排入佇列（ID: ${import_id}），可透過 GET /api/imports/${import_id} 查詢進度`,
+      status_url: `/api/imports/${import_id}`
+    });
+  } catch (error) {
+    console.error('❌ POST /crawler/import-async error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

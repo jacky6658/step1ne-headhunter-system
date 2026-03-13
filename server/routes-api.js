@@ -1588,50 +1588,63 @@ router.patch('/candidates/batch-status', async (req, res) => {
     const succeeded = [];
     const failed = [];
 
-    for (const id of ids) {
-      const client = await pool.connect();
-      try {
-        const current = await client.query(
-          'SELECT id, name, status, progress_tracking FROM candidates_pipeline WHERE id = $1',
-          [id]
-        );
+    // ── P1 修復：單一 client + Transaction（原本每個 ID 開一個 client） ──
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-        if (current.rows.length === 0) {
+      // 一次查出所有需要更新的候選人
+      const current = await client.query(
+        'SELECT id, name, status, progress_tracking FROM candidates_pipeline WHERE id = ANY($1::int[])',
+        [ids]
+      );
+      const candidateMap = new Map();
+      for (const row of current.rows) candidateMap.set(row.id, row);
+
+      for (const id of ids) {
+        const candidate = candidateMap.get(parseInt(id)) || candidateMap.get(id);
+        if (!candidate) {
           failed.push({ id, reason: '找不到此候選人' });
           continue;
         }
 
-        const candidate = current.rows[0];
-        const currentProgress = candidate.progress_tracking || [];
-        const newEvent = {
-          date: today,
-          event: status,
-          by: operator,
-          ...(note ? { note } : {})
-        };
-        const updatedProgress = [...currentProgress, newEvent];
+        try {
+          const currentProgress = candidate.progress_tracking || [];
+          const newEvent = {
+            date: today,
+            event: status,
+            by: operator,
+            ...(note ? { note } : {})
+          };
+          const updatedProgress = [...currentProgress, newEvent];
 
-        await client.query(
-          `UPDATE candidates_pipeline
-           SET status = $1, progress_tracking = $2, updated_at = NOW()
-           WHERE id = $3`,
-          [status, JSON.stringify(updatedProgress), id]
-        );
+          await client.query(
+            `UPDATE candidates_pipeline
+             SET status = $1, progress_tracking = $2, updated_at = NOW()
+             WHERE id = $3`,
+            [status, JSON.stringify(updatedProgress), candidate.id]
+          );
 
-        writeLog({
-          action: 'PIPELINE_CHANGE',
-          actor: operator,
-          candidateId: parseInt(id),
-          candidateName: candidate.name,
-          detail: { from: candidate.status, to: status, batch: true }
-        });
+          writeLog({
+            action: 'PIPELINE_CHANGE',
+            actor: operator,
+            candidateId: parseInt(candidate.id),
+            candidateName: candidate.name,
+            detail: { from: candidate.status, to: status, batch: true }
+          });
 
-        succeeded.push({ id: candidate.id, name: candidate.name });
-      } catch (err) {
-        failed.push({ id, reason: err.message });
-      } finally {
-        client.release();
+          succeeded.push({ id: candidate.id, name: candidate.name });
+        } catch (err) {
+          failed.push({ id, reason: err.message });
+        }
       }
+
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      client.release();
     }
 
     res.json({
@@ -1676,42 +1689,49 @@ router.delete('/candidates/batch', async (req, res) => {
       return res.status(400).json({ success: false, error: 'actor 必填' });
     }
 
+    // ── P1 修復：單一 DELETE + Transaction（原本逐筆 DELETE） ──
     const client = await pool.connect();
-    const succeeded = [];
-    const failed = [];
     try {
+      await client.query('BEGIN');
 
-    for (const id of ids) {
-      try {
-        const result = await client.query(
-          'DELETE FROM candidates_pipeline WHERE id = $1 RETURNING id, name',
-          [id]
-        );
-        if (result.rows.length > 0) {
-          succeeded.push({ id, name: result.rows[0].name });
-          writeLog({
-            action: 'DELETE',
-            actor,
-            candidateId: parseInt(id),
-            candidateName: result.rows[0].name,
-            detail: { batch: true }
-          });
-        } else {
-          failed.push({ id, reason: '找不到此候選人' });
-        }
-      } catch (err) {
-        failed.push({ id, reason: err.message });
+      // 一次刪除所有 ID，RETURNING 取回被刪的資料
+      const result = await client.query(
+        'DELETE FROM candidates_pipeline WHERE id = ANY($1::int[]) RETURNING id, name',
+        [ids]
+      );
+
+      await client.query('COMMIT');
+
+      const deletedMap = new Map();
+      const succeeded = [];
+      for (const row of result.rows) {
+        deletedMap.set(row.id, row.name);
+        succeeded.push({ id: row.id, name: row.name });
+        writeLog({
+          action: 'DELETE',
+          actor,
+          candidateId: parseInt(row.id),
+          candidateName: row.name,
+          detail: { batch: true }
+        });
       }
-    }
 
-    res.json({
-      success: true,
-      deleted_count: succeeded.length,
-      failed_count: failed.length,
-      deleted: succeeded,
-      failed,
-      message: `批量刪除完成：${succeeded.length} 位成功，${failed.length} 位失敗`
-    });
+      // 找出不存在的 ID
+      const failed = ids
+        .filter(id => !deletedMap.has(parseInt(id)) && !deletedMap.has(id))
+        .map(id => ({ id, reason: '找不到此候選人' }));
+
+      res.json({
+        success: true,
+        deleted_count: succeeded.length,
+        failed_count: failed.length,
+        deleted: succeeded,
+        failed,
+        message: `批量刪除完成：${succeeded.length} 位成功，${failed.length} 位失敗`
+      });
+    } catch (txErr) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw txErr;
     } finally {
       client.release();
     }
@@ -1921,6 +1941,7 @@ router.post('/candidates', async (req, res) => {
  */
 // 引入共用匯入函數
 const { processBulkImport } = require('./crawlerImportService');
+const importQueue = require('./importQueue');
 
 router.post('/candidates/bulk', async (req, res) => {
   try {
@@ -1978,6 +1999,69 @@ router.post('/candidates/bulk', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+/**
+ * POST /api/candidates/bulk-async
+ * 佇列化匯入：立即回 202 + import_id，背景 Worker 非同步處理
+ * 適用大批量匯入（>50 筆），避免 HTTP timeout
+ */
+router.post('/candidates/bulk-async', async (req, res) => {
+  try {
+    const { candidates, actor } = req.body;
+
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return res.status(400).json({ success: false, error: 'candidates array is required' });
+    }
+    if (candidates.length > 500) {
+      return res.status(400).json({ success: false, error: 'Maximum 500 candidates per request' });
+    }
+
+    const { import_id } = await importQueue.enqueue(candidates, actor || 'system', 'api');
+
+    writeLog({
+      action: 'BULK_IMPORT_QUEUED',
+      actor: actor || 'system',
+      candidateId: null,
+      candidateName: null,
+      detail: { import_id, total: candidates.length }
+    });
+
+    res.status(202).json({
+      success: true,
+      import_id,
+      status: 'pending',
+      total: candidates.length,
+      message: `已排入佇列（ID: ${import_id}），可透過 GET /api/imports/${import_id} 查詢進度`,
+      status_url: `/api/imports/${import_id}`
+    });
+  } catch (error) {
+    console.error('❌ POST /candidates/bulk-async error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/imports/:id
+ * 查詢匯入佇列狀態
+ */
+router.get('/imports/:id', async (req, res) => {
+  try {
+    const importId = parseInt(req.params.id);
+    if (isNaN(importId)) {
+      return res.status(400).json({ success: false, error: 'Invalid import ID' });
+    }
+
+    const status = await importQueue.getStatus(importId);
+    if (!status) {
+      return res.status(404).json({ success: false, error: 'Import not found' });
+    }
+
+    res.json({ success: true, data: status });
+  } catch (error) {
+    console.error('❌ GET /imports/:id error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -3922,14 +4006,19 @@ function rankAgainstJobV2(cand, job) {
 router.get('/candidates/:id/job-rankings', async (req, res) => {
   try {
     const { id } = req.params;
+    const candidateId = parseInt(id);
     const forceRecalc = req.query.force === '1' || req.query.force === 'true';
+
+    // ── P3 修復：Advisory lock 防雷擊群效應 ──
+    // 多人同時查同一人選排名時，只有搶到鎖的 request 會計算，
+    // 其他 request 等短暫時間後讀快取結果。
 
     // 1. 檢查快取（除非強制重算）
     if (!forceRecalc) {
       try {
         const cacheRes = await pool.query(
           'SELECT rankings, computed_at FROM candidate_job_rankings_cache WHERE candidate_id = $1',
-          [id]
+          [candidateId]
         );
         if (cacheRes.rows.length > 0) {
           const cached = cacheRes.rows[0];
@@ -3946,56 +4035,92 @@ router.get('/candidates/:id/job-rankings', async (req, res) => {
       }
     }
 
-    // 2. 抓候選人完整資料
-    const candRes = await pool.query(
-      `SELECT id, name, skills, notes AS bio, source,
-              work_history, education, education_details,
-              years_experience, location, current_position,
-              linkedin_url, github_url
-       FROM candidates_pipeline WHERE id = $1`,
-      [id]
-    );
-    if (candRes.rows.length === 0) return res.status(404).json({ error: '候選人不存在' });
-    const candidate = candRes.rows[0];
-    candidate.skills = normalizeSkills(candidate.skills);
-
-    // 3. 抓所有非關閉職缺
-    const jobsRes = await pool.query(
-      `SELECT id, position_name, client_company, department,
-              key_skills, experience_required, special_conditions,
-              salary_range, job_status,
-              industry_background, education_required, language_required, location
-       FROM jobs_pipeline
-       WHERE job_status IS NULL OR job_status != '已關閉'
-       ORDER BY created_at DESC LIMIT 200`
-    );
-
-    // 4. 對每個職缺做 5 維度評分，排序取 Top 5
-    const allRankings = jobsRes.rows
-      .map(job => rankAgainstJobV2(candidate, job))
-      .sort((a, b) => b.match_score - a.match_score);
-
-    const top5 = allRankings.slice(0, 5);
-
-    // 5. 存入快取
+    // 2. Advisory lock：嘗試搶鎖（key = candidateId），避免多 request 同時計算
+    //    使用 session-level lock，在 client.release() 時自動釋放
+    const client = await pool.connect();
     try {
-      await pool.query(
-        `INSERT INTO candidate_job_rankings_cache (candidate_id, rankings, computed_at)
-         VALUES ($1, $2, NOW())
-         ON CONFLICT (candidate_id) DO UPDATE SET rankings = $2, computed_at = NOW()`,
-        [id, JSON.stringify(top5)]
-      );
-    } catch (cacheErr) {
-      console.warn('Cache write failed:', cacheErr.message);
-    }
+      const lockRes = await client.query('SELECT pg_try_advisory_lock($1) AS locked', [candidateId]);
+      const gotLock = lockRes.rows[0].locked;
 
-    res.json({
-      candidate_id: id,
-      candidate_name: candidate.name,
-      total_jobs: top5.length,
-      rankings: top5,
-      cached: false,
-    });
+      if (!gotLock) {
+        // 沒搶到鎖 = 別人正在計算 → 等一下再查快取
+        client.release();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const cacheRetry = await pool.query(
+          'SELECT rankings, computed_at FROM candidate_job_rankings_cache WHERE candidate_id = $1',
+          [candidateId]
+        );
+        if (cacheRetry.rows.length > 0) {
+          const cached = cacheRetry.rows[0];
+          return res.json({
+            candidate_id: id,
+            total_jobs: cached.rankings.length,
+            rankings: cached.rankings,
+            cached: true,
+            computed_at: cached.computed_at,
+          });
+        }
+        // 快取還沒寫入，仍然自己算（fallback）
+      }
+
+      // 3. 搶到鎖（或 fallback），開始計算
+      const candRes = await pool.query(
+        `SELECT id, name, skills, notes AS bio, source,
+                work_history, education, education_details,
+                years_experience, location, current_position,
+                linkedin_url, github_url
+         FROM candidates_pipeline WHERE id = $1`,
+        [candidateId]
+      );
+      if (candRes.rows.length === 0) return res.status(404).json({ error: '候選人不存在' });
+      const candidate = candRes.rows[0];
+      candidate.skills = normalizeSkills(candidate.skills);
+
+      // 4. 抓所有非關閉職缺
+      const jobsRes = await pool.query(
+        `SELECT id, position_name, client_company, department,
+                key_skills, experience_required, special_conditions,
+                salary_range, job_status,
+                industry_background, education_required, language_required, location
+         FROM jobs_pipeline
+         WHERE job_status IS NULL OR job_status != '已關閉'
+         ORDER BY created_at DESC LIMIT 200`
+      );
+
+      // 5. 對每個職缺做 5 維度評分，排序取 Top 5
+      const allRankings = jobsRes.rows
+        .map(job => rankAgainstJobV2(candidate, job))
+        .sort((a, b) => b.match_score - a.match_score);
+
+      const top5 = allRankings.slice(0, 5);
+
+      // 6. 存入快取
+      try {
+        await pool.query(
+          `INSERT INTO candidate_job_rankings_cache (candidate_id, rankings, computed_at)
+           VALUES ($1, $2, NOW())
+           ON CONFLICT (candidate_id) DO UPDATE SET rankings = $2, computed_at = NOW()`,
+          [candidateId, JSON.stringify(top5)]
+        );
+      } catch (cacheErr) {
+        console.warn('Cache write failed:', cacheErr.message);
+      }
+
+      // 7. 釋放 advisory lock
+      if (gotLock) {
+        await client.query('SELECT pg_advisory_unlock($1)', [candidateId]).catch(() => {});
+      }
+
+      res.json({
+        candidate_id: id,
+        candidate_name: candidate.name,
+        total_jobs: top5.length,
+        rankings: top5,
+        cached: false,
+      });
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('❌ GET /candidates/:id/job-rankings error:', error.message);
     res.status(500).json({ error: error.message });
@@ -4759,55 +4884,80 @@ function estimateAgeFromEducation(ed) {
 
 /** POST /api/candidates/backfill-computed — 批次回填年資+推估年齡 */
 router.post('/candidates/backfill-computed', async (req, res) => {
+  // ── P1 修復：Transaction 包裝（原本逐筆 UPDATE 無 Transaction） ──
+  const client = await pool.connect();
   try {
-    const { rows } = await pool.query(
+    const { rows } = await client.query(
       `SELECT id, work_history, education_details, years_experience, age
        FROM candidates_pipeline`
     );
 
+    const forceAge = (req.body && req.body.force === true) || req.query.force === 'true';
     let updatedYears = 0;
     let updatedAge = 0;
     let skipped = 0;
 
+    // 收集所有需要更新的資料
+    const yearsUpdates = []; // [{ id, years }]
+    const ageUpdates = [];   // [{ id, age }]
+
     for (const row of rows) {
-      const sets = [];
-      const vals = [];
-      let idx = 1;
+      let hasUpdate = false;
 
       // 年資：只在 years_experience 為 0 或空時回填
       const currentYears = parseInt(row.years_experience) || 0;
       if (currentYears === 0) {
         const computed = computeYearsFromWorkHistory(row.work_history);
         if (computed && computed > 0) {
-          sets.push(`years_experience = $${idx++}`);
-          vals.push(String(computed));
+          yearsUpdates.push({ id: row.id, years: String(computed) });
           updatedYears++;
+          hasUpdate = true;
         }
       }
 
       // 年齡：null 時回填；force=true 時全部重新推估
-      const forceAge = (req.body && req.body.force === true) || req.query.force === 'true';
       if (row.age == null || forceAge) {
         const estimated = estimateAgeFromEducation(row.education_details);
         if (estimated && estimated >= 18 && estimated <= 70) {
           if (row.age !== estimated) {
-            sets.push(`age = $${idx++}`);
-            vals.push(estimated);
+            ageUpdates.push({ id: row.id, age: estimated });
             updatedAge++;
+            hasUpdate = true;
           }
         }
       }
 
-      if (sets.length > 0) {
-        vals.push(row.id);
-        await pool.query(
-          `UPDATE candidates_pipeline SET ${sets.join(', ')} WHERE id = $${idx}`,
-          vals
-        );
-      } else {
-        skipped++;
-      }
+      if (!hasUpdate) skipped++;
     }
+
+    // 在 Transaction 內執行所有 UPDATE
+    await client.query('BEGIN');
+
+    // 批量更新年資（使用 UNNEST 一次更新多筆）
+    if (yearsUpdates.length > 0) {
+      const yIds = yearsUpdates.map(u => u.id);
+      const yVals = yearsUpdates.map(u => u.years);
+      await client.query(
+        `UPDATE candidates_pipeline AS cp SET years_experience = v.years
+         FROM (SELECT UNNEST($1::int[]) AS id, UNNEST($2::text[]) AS years) AS v
+         WHERE cp.id = v.id`,
+        [yIds, yVals]
+      );
+    }
+
+    // 批量更新年齡
+    if (ageUpdates.length > 0) {
+      const aIds = ageUpdates.map(u => u.id);
+      const aVals = ageUpdates.map(u => u.age);
+      await client.query(
+        `UPDATE candidates_pipeline AS cp SET age = v.age
+         FROM (SELECT UNNEST($1::int[]) AS id, UNNEST($2::int[]) AS age) AS v
+         WHERE cp.id = v.id`,
+        [aIds, aVals]
+      );
+    }
+
+    await client.query('COMMIT');
 
     res.json({
       success: true,
@@ -4817,8 +4967,11 @@ router.post('/candidates/backfill-computed', async (req, res) => {
       skipped,
     });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('backfill-computed error:', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
