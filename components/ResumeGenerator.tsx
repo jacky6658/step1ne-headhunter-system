@@ -27,6 +27,7 @@ const RESUME_I18N = {
     workHistory: '工作經驗',
     education: '教育背景',
     radarChart: '顧問評估',
+    consultantNote: '顧問備註',
     dealTerms: '轉職條件',
     // Basic info labels
     field_position: '現職',
@@ -119,6 +120,7 @@ const RESUME_I18N = {
     workHistory: 'Work Experience',
     education: 'Education',
     radarChart: 'Consultant Assessment',
+    consultantNote: 'Consultant Notes',
     dealTerms: 'Career Change Requirements',
     field_position: 'Current Role',
     field_years: 'Experience',
@@ -484,6 +486,7 @@ export interface ResumeVisibleFields {
   education: boolean;      // 教育背景
   achievements: boolean;   // 專業成就
   radarChart: boolean;     // 顧問評估
+  consultantNote: boolean; // 顧問備註
   // 基本資料子欄位
   field_position: boolean;
   field_years: boolean;
@@ -509,7 +512,7 @@ export interface ResumeVisibleFields {
 export const DEFAULT_VISIBLE_FIELDS: ResumeVisibleFields = {
   summary: true, basicInfo: true, skills: true, languages: true,
   certifications: true, dealTerms: true, workHistory: true,
-  education: true, achievements: true, radarChart: true,
+  education: true, achievements: true, radarChart: true, consultantNote: true,
   field_position: true, field_years: true, field_industry: true,
   field_location: true, field_gender: true, field_age: true,
   field_education: true, field_languages: true, field_certifications: true,
@@ -1150,6 +1153,19 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     font-weight: 600;
   }
 
+  /* ─── Consultant Note ─── */
+  .consultant-note-card {
+    background: #fefce8;
+    border-left: 4px solid #eab308;
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    font-size: 10pt;
+    color: #713f12;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
   /* ─── Language pills ─── */
   .info-pill-dark {
     display: inline-block;
@@ -1179,7 +1195,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     }
 
     /* 防止區塊被頁面切斷 */
-    .header, .summary-card, .work-item, .edu-item, .deal-item, .section {
+    .header, .summary-card, .consultant-note-card, .work-item, .edu-item, .deal-item, .section {
       page-break-inside: avoid;
       break-inside: avoid;
     }
@@ -1339,6 +1355,17 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   </div>
   ` : ''}
 
+  <!-- Consultant Note (optional) -->
+  ${vf.consultantNote && candidate.consultantNote ? `
+  <div class="section">
+    <div class="section-title">
+      <span class="section-icon">📝</span>
+      ${t.consultantNote}
+    </div>
+    <div class="consultant-note-card">${candidate.consultantNote}</div>
+  </div>
+  ` : ''}
+
   <!-- Deal Terms (optional) -->
   ${vf.dealTerms && dealTerms.length > 0 ? `
   <div class="section">
@@ -1398,6 +1425,7 @@ const SECTION_TOGGLES: Array<{ key: keyof ResumeVisibleFields; label: string; gr
   { key: 'education', label: '教育背景', group: 'section' },
   { key: 'achievements', label: '代表性成就', group: 'section' },
   { key: 'radarChart', label: '顧問評估', group: 'section' },
+  { key: 'consultantNote', label: '顧問備註', group: 'section' },
   { key: 'dealTerms', label: '轉職條件', group: 'section' },
 ];
 
