@@ -20,8 +20,10 @@
 ## 第一步：取得待分析候選人
 
 ```
-GET https://backendstep1ne.zeabur.app/api/candidates
+GET https://backendstep1ne.zeabur.app/api/candidates?limit=2000&offset=0
 ```
+
+> 💡 **分頁機制**：每頁最多 2000 筆。回應的 `pagination.hasMore` 為 `true` 時，需用 `offset` 繼續取下一頁（offset=2000, 4000...），直到 `hasMore=false`。
 
 篩選條件：
 - `github_url` 不為空

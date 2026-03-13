@@ -33,11 +33,7 @@ function mapCrawlerCandidate(raw) {
     talent_level: raw.grade || '',
     source: CRAWLER_SOURCE,
     notes: notesParts.join('\n'),
-    status: (() => {
-      const aiGrade = (raw.ai_grade || raw.grade || '').toUpperCase();
-      // B 級以上 → AI推薦，讓顧問優先處理高品質人選
-      return (aiGrade === 'A' || aiGrade === 'A+' || aiGrade === 'S' || aiGrade === 'B') ? 'AI推薦' : '未開始';
-    })(),
+    status: raw.status || '爬蟲初篩',
   };
 
   // 爬蟲任務的 step1ne_job_id → 系統的 target_job_id
@@ -98,13 +94,28 @@ function chunkArray(arr, size = 100) {
 async function processBulkImport(pool, candidates, actor) {
   const client = await pool.connect();
   try {
-    // 取得所有現有候選人（用 name 比對）
-    const existing = await client.query('SELECT id, name FROM candidates_pipeline');
-    const existingMap = new Map();
+    // ── Transaction 保護：全批成功或全批失敗 ──
+    await client.query('BEGIN');
+
+    // 取得所有現有候選人（用 name + linkedin_url + email 多重比對）
+    const existing = await client.query('SELECT id, name, linkedin_url, email FROM candidates_pipeline');
+    const existingByName = new Map();
+    const existingByLinkedIn = new Map();
+    const existingByEmail = new Map();
     for (const row of existing.rows) {
-      const key = (row.name || '').trim().toLowerCase();
-      if (key) existingMap.set(key, row.id);
+      const nameKey = (row.name || '').trim().toLowerCase();
+      if (nameKey) existingByName.set(nameKey, row.id);
+      // LinkedIn URL 正規化（去除 www、尾部斜線、統一小寫）
+      const liUrl = (row.linkedin_url || '').trim().toLowerCase()
+        .replace('://www.', '://').replace(/\/+$/, '');
+      if (liUrl && liUrl.includes('linkedin.com')) existingByLinkedIn.set(liUrl, row.id);
+      // Email 去重
+      const email = (row.email || '').trim().toLowerCase();
+      if (email && email.includes('@')) existingByEmail.set(email, row.id);
     }
+
+    // 同一批匯入內的 LinkedIn URL 去重（防止同批重複）
+    const batchLinkedInSeen = new Map(); // normalized url → first candidate name
 
     const results = { created: [], updated: [], failed: [] };
 
@@ -117,9 +128,41 @@ async function processBulkImport(pool, candidates, actor) {
 
         const nameKey = c.name.trim().toLowerCase();
 
-        if (existingMap.has(nameKey)) {
+        // 多重去重：優先用 LinkedIn URL → 其次用 Email → 最後用 Name
+        const cLiUrl = (c.linkedin_url || '').trim().toLowerCase()
+          .replace('://www.', '://').replace(/\/+$/, '');
+        const cEmail = (c.email || '').trim().toLowerCase();
+
+        // 同批匯入去重：同一 LinkedIn URL 只匯入第一個
+        if (cLiUrl && cLiUrl.includes('linkedin.com')) {
+          if (batchLinkedInSeen.has(cLiUrl)) {
+            const firstName = batchLinkedInSeen.get(cLiUrl);
+            console.log(`[dedup] 跳過批次內重複: "${c.name}" 與 "${firstName}" 是同一人 (同 LinkedIn URL)`);
+            results.failed.push({ name: c.name, error: `批次內重複 — 與 "${firstName}" 共用同一 LinkedIn URL` });
+            continue;
+          }
+          batchLinkedInSeen.set(cLiUrl, c.name);
+        }
+
+        // 查找已存在的 ID（多重欄位比對）
+        let existingId = null;
+        let matchMethod = '';
+        if (cLiUrl && existingByLinkedIn.has(cLiUrl)) {
+          existingId = existingByLinkedIn.get(cLiUrl);
+          matchMethod = 'linkedin_url';
+        } else if (cEmail && existingByEmail.has(cEmail)) {
+          existingId = existingByEmail.get(cEmail);
+          matchMethod = 'email';
+        } else if (existingByName.has(nameKey)) {
+          existingId = existingByName.get(nameKey);
+          matchMethod = 'name';
+        }
+
+        if (existingId) {
           // 既有人選 → 補充空欄位 + 覆寫 enrichment/AI 資料
-          const existingId = existingMap.get(nameKey);
+          if (matchMethod !== 'name') {
+            console.log(`[dedup] 更新既有人選: "${c.name}" (matched by ${matchMethod}, id=${existingId})`);
+          }
           const result = await client.query(
             `UPDATE candidates_pipeline SET
               phone = COALESCE(NULLIF(phone, ''), $1),
@@ -201,8 +244,8 @@ async function processBulkImport(pool, candidates, actor) {
               c.skills || '',
               c.education || '',
               c.source || CRAWLER_SOURCE,
-              c.status || '未開始',
-              c.recruiter || actor || 'Crawler',
+              c.status || '爬蟲初篩',
+              '待指派',
               c.notes || '',
               String(c.stability_score || '0'),
               c.personality_type || '',
@@ -217,7 +260,11 @@ async function processBulkImport(pool, candidates, actor) {
               c.ai_match_result ? (typeof c.ai_match_result === 'string' ? c.ai_match_result : JSON.stringify(c.ai_match_result)) : null
             ]
           );
-          existingMap.set(nameKey, result.rows[0].id);
+          // 登記新人選到所有去重索引（防止同批後續重複）
+          const newId = result.rows[0].id;
+          existingByName.set(nameKey, newId);
+          if (cLiUrl && cLiUrl.includes('linkedin.com')) existingByLinkedIn.set(cLiUrl, newId);
+          if (cEmail && cEmail.includes('@')) existingByEmail.set(cEmail, newId);
           results.created.push(result.rows[0]);
         }
       } catch (err) {
@@ -226,7 +273,11 @@ async function processBulkImport(pool, candidates, actor) {
       }
     }
 
+    await client.query('COMMIT');
     return results;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
   } finally {
     client.release();
   }

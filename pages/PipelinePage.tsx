@@ -4,6 +4,7 @@ import { getCandidates, clearCache } from '../services/candidateService';
 import { CandidateModal } from '../components/CandidateModal';
 import { apiPut, getApiUrl } from '../config/api';
 import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2, Linkedin, Github, Star } from 'lucide-react';
+import { toast } from '../components/Toast';
 
 interface PipelinePageProps {
   userProfile: UserProfile;
@@ -74,6 +75,7 @@ function mapEventToStage(event?: string): PipelineStageKey {
   const e = (event || '').trim();
   if (!e) return 'not_started';
 
+  if (e.includes('爬蟲初篩')) return 'not_started';  // 初篩不顯示在追蹤表，fallback 到未開始
   if (e.includes('AI推薦')) return 'ai_recommended';
   if (e.includes('未開始')) return 'not_started';
   if (e.includes('聯繫階段') || e.includes('已聯繫')) return 'contacted';
@@ -514,7 +516,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       setToastMessage(`✅ ${candidate.name} 已移動到「${PIPELINE_STAGES.find(s => s.key === stage)?.title || stage}」`);
     } catch (error) {
       console.error('❌ 更新 Pipeline 失敗:', error);
-      alert('❌ 更新失敗，請稍後再試');
+      toast.error('更新失敗，請稍後再試');
     }
   };
 
@@ -579,7 +581,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
       setToastMessage(`✅ 已刪除候選人「${candidateName}」`);
     } catch (error) {
       console.error('❌ 刪除候選人失敗:', error);
-      alert('❌ 刪除失敗，請稍後再試');
+      toast.error('刪除失敗，請稍後再試');
     }
   };
 

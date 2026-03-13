@@ -11,6 +11,7 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 import { apiPatch, apiPost, getApiUrl } from '../config/api';
+import { toast } from '../components/Toast';
 
 // ── 型別 ──────────────────────────────────────────────────────
 
@@ -88,7 +89,7 @@ export default function ResumeImportPage() {
       });
       setRowStates(initStates);
     } catch (e: any) {
-      alert('❌ 批量解析失敗：' + e.message);
+      toast.error('批量解析失敗：' + e.message);
     } finally {
       setParsing(false);
     }
@@ -114,7 +115,7 @@ export default function ResumeImportPage() {
       .filter(({ r, state }) => r.status === 'ok' && state?.selected);
 
     if (toProcess.length === 0) {
-      alert('請至少勾選一筆記錄');
+      toast.warning('請至少勾選一筆記錄');
       return;
     }
 

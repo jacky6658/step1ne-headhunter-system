@@ -1,10 +1,10 @@
 /**
  * server.js - Step1ne 後端主服務器
  * 方案 A + B 完整實現
- * 
+ *
  * 啟動方式：
  * node server.js
- * 
+ *
  * 環境變數：
  * DATABASE_URL=postgresql://user:pass@host:port/db
  * SHEET_ID=xxx
@@ -16,33 +16,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { Pool } = require('pg');
-const { execSync } = require('child_process');
-
-// ── Python 依賴自動安裝（Zeabur 容器啟動時）────────────────────
-(function ensurePythonDeps() {
-  try {
-    execSync('python3 -c "import requests; import bs4"', { stdio: 'ignore' });
-    console.log('✅ Python 依賴已就緒');
-  } catch {
-    console.log('⏳ 安裝 Python 依賴（requests, beautifulsoup4, lxml）...');
-    const cmds = [
-      'python3 -m pip install requests beautifulsoup4 lxml --break-system-packages -q',
-      'python3 -m pip install requests beautifulsoup4 lxml --user -q',
-      'python3 -m pip install requests beautifulsoup4 lxml -q',
-      'pip3 install requests beautifulsoup4 lxml --break-system-packages -q',
-      'pip install requests beautifulsoup4 lxml -q',
-    ];
-    for (const cmd of cmds) {
-      try {
-        execSync(cmd, { stdio: 'inherit', timeout: 120000 });
-        console.log('✅ Python 依賴安裝成功');
-        return;
-      } catch { /* 嘗試下一個 */ }
-    }
-    console.warn('⚠️ Python 依賴安裝失敗，LinkedIn 搜尋功能可能無法使用');
-  }
-})();
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 // 環境變數相容：支援 DATABASE_URL 或 POSTGRES_URI（Zeabur 自動生成）
 if (!process.env.DATABASE_URL && process.env.POSTGRES_URI) {
@@ -50,33 +25,52 @@ if (!process.env.DATABASE_URL && process.env.POSTGRES_URI) {
 }
 
 const apiRouter = require('./routes-api');
-
-// PostgreSQL 連線池
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 
-    'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur'
-});
+const { pool } = require('./db'); // 共享連線池
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const isProduction = process.env.NODE_ENV === 'production';
 
-// ==================== 中間件 ====================
+// ==================== 安全中間件 ====================
 
-// CORS 設定：允許特定的 origins
+// Security headers（CSP 由前端 SPA 自行處理）
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Rate limiting：每分鐘 200 次（內部工具 5 人使用，含 batch 操作）
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: '請求過於頻繁，請稍後再試' },
+});
+app.use('/api', limiter);
+
+// ==================== CORS ====================
+
 const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002',
-  'http://localhost:5173',
   'https://step1ne.zeabur.app',
-  'https://step1ne.com'
+  'https://step1ne.com',
 ];
+
+if (!isProduction) {
+  allowedOrigins.push(
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://localhost:5173',
+  );
+}
 
 app.use(cors({
   origin: function(origin, callback) {
-    // 允許沒有 origin 的請求（如 curl, mobile apps）
-    // 允許所有 localhost 開發 port
-    if (!origin || allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
+    // 允許沒有 origin 的請求（如 curl, server-to-server, OpenClaw）
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else if (!isProduction && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
       callback(null, true);
     } else {
       console.warn(`CORS 拒絕: ${origin}`);
@@ -85,10 +79,16 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-OpenClaw-Key']
 }));
 
-app.use(bodyParser.json({ limit: '10mb' }));
+// ==================== Body Parser ====================
+
+// 保留 rawBody 供 GitHub Webhook HMAC 簽名驗證使用
+app.use(bodyParser.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => { req.rawBody = buf; }
+}));
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
 // Multer：PDF 上傳（memory storage，Zeabur 雲端友善）
@@ -110,6 +110,49 @@ app.use((req, res, next) => {
   next();
 });
 
+// ==================== API 認證中間件 ====================
+
+const API_SECRET_KEY = process.env.API_SECRET_KEY;
+if (!API_SECRET_KEY) {
+  console.warn('⚠️ API_SECRET_KEY 未設定，API 端點將不受認證保護');
+}
+
+function apiAuth(req, res, next) {
+  // 未設定 key 時跳過認證（開發模式相容）
+  if (!API_SECRET_KEY) return next();
+
+  // 白名單：不需要認證的端點
+  // 注意：因為 app.use('/api', apiAuth) 會 strip 掉 /api 前綴
+  // 所以 req.path 是 /health 而非 /api/health
+  const publicPaths = [
+    '/health',
+    '/webhooks/github',     // GitHub webhook 有自己的 HMAC 驗證
+  ];
+  if (publicPaths.some(p => req.path === p || req.path.startsWith(p + '/'))) {
+    return next();
+  }
+
+  // OpenClaw 路由有自己的 X-OpenClaw-Key 認證，這裡允許通過
+  if (req.path.startsWith('/openclaw')) {
+    return next();
+  }
+
+  // 檢查 Bearer token
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token || token !== API_SECRET_KEY) {
+    return res.status(401).json({
+      success: false,
+      error: '未授權：缺少或無效的 API Key'
+    });
+  }
+
+  next();
+}
+
+app.use('/api', apiAuth);
+
 // ==================== 路由 ====================
 
 // 完整的 API 路由（候選人 + 職缺）
@@ -118,6 +161,10 @@ app.use('/api', apiRouter);
 // 爬蟲整合 API 路由（proxy + 效益指標）
 const crawlerRouter = require('./routes-crawler');
 app.use('/api/crawler', crawlerRouter);
+
+// OpenClaw 批量 API 路由（本地 AI 工具讀寫候選人）
+const openclawRouter = require('./routes-openclaw');
+app.use('/api/openclaw', openclawRouter);
 
 // 根路由
 app.get('/', (req, res) => {
@@ -136,10 +183,10 @@ app.get('/', (req, res) => {
 
 app.use((err, req, res, next) => {
   console.error('❌ Unhandled error:', err.message);
+  if (err.stack) console.error(err.stack);
   res.status(500).json({
     success: false,
-    error: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    error: isProduction ? '伺服器內部錯誤' : err.message
   });
 });
 
@@ -164,6 +211,16 @@ async function startServer() {
     console.warn('⚠️ Starting in DEGRADED MODE (DB-dependent endpoints will return 503)');
   }
 
+  // 1.5 啟動匯入佇列 Worker（DBA P2）
+  if (dbConnected) {
+    try {
+      const { startWorker } = require('./importQueue');
+      startWorker(5000); // 每 5 秒輪詢
+    } catch (err) {
+      console.warn('⚠️ ImportQueue Worker failed to start:', err.message);
+    }
+  }
+
   // 2. 啟動 Express 服務器（不論 DB 是否正常）
   const server = app.listen(PORT, () => {
     console.log(`
@@ -172,6 +229,7 @@ async function startServer() {
 ║  📍 http://localhost:${PORT}              ║
 ║  🗄️  PostgreSQL: ${dbConnected ? 'Connected  ' : 'UNAVAILABLE'}        ║
 ║  📊 Mode: ${dbConnected ? 'SQL + Google Sheets' : 'DEGRADED (no DB)  '}   ║
+║  🔒 Security: helmet + rate-limit      ║
 ╚═══════════════════════════════════════╝
     `);
   });
@@ -179,6 +237,7 @@ async function startServer() {
   // 3. 優雅關閉
   process.on('SIGTERM', async () => {
     console.log('🛑 SIGTERM received, shutting down...');
+    try { require('./importQueue').stopWorker(); } catch (_) {}
     server.close(() => {
       console.log('✅ Server closed');
       process.exit(0);
@@ -189,4 +248,3 @@ async function startServer() {
 startServer();
 
 module.exports = app;
-// Force rebuild Wed Feb 25 23:05:00 CST 2026

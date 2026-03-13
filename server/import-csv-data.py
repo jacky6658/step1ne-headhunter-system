@@ -14,26 +14,20 @@ from io import StringIO
 import sys
 
 # PostgreSQL 連線設定
-DB_CONFIG = {
-    'host': 'tpe1.clusters.zeabur.com',
-    'port': 27883,
-    'user': 'root',
-    'password': 'etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q',
-    'database': 'zeabur'
-}
+DATABASE_URL = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URI')
+if not DATABASE_URL:
+    print('❌ DATABASE_URL 未設定')
+    sys.exit(1)
 
-# 覆蓋為環境變數（如果有）
-if os.getenv('DATABASE_URL'):
-    # PostgreSQL URI 格式: postgresql://user:password@host:port/database
-    from urllib.parse import urlparse
-    db_url = urlparse(os.getenv('DATABASE_URL'))
-    DB_CONFIG = {
-        'host': db_url.hostname,
-        'port': db_url.port,
-        'user': db_url.username,
-        'password': db_url.password,
-        'database': db_url.path.lstrip('/')
-    }
+from urllib.parse import urlparse
+db_url = urlparse(DATABASE_URL)
+DB_CONFIG = {
+    'host': db_url.hostname,
+    'port': db_url.port,
+    'user': db_url.username,
+    'password': db_url.password,
+    'database': db_url.path.lstrip('/')
+}
 
 # Google Sheets CSV export URLs
 SHEETS = {

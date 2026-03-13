@@ -107,4 +107,48 @@ https://backendstep1ne.zeabur.app/api/guide
 
 ---
 
-*Last updated: 2026-03-02*
+---
+
+## 📋 待做事項 (Roadmap)
+
+### 🎯 人才看板系統 (Talent Board)
+
+> 詳細設計藍圖：[`docs/talent_board_system_blueprint.md`](./docs/talent_board_system_blueprint.md)
+
+新增「人才看板」頁面，以可視化方式管理候選人：
+
+- [ ] **三層分類系統**
+  - A/B/C/D 候選人等級（人才品質）
+  - T1/T2/T3 來源分層（公司層級）
+  - Hot/Warm/Cold 熱度（成交機會）
+
+- [ ] **Talent Board 看板頁面**
+  - 搜尋區（職位/技能/公司/姓名/產業/地區）
+  - 多篩選器（Grade / Tier / Heat / 薪資 / 年資 / 最後聯絡）
+  - 四種看板模式：Grade Board / Source Board / Heat Board / Pipeline Board
+
+- [ ] **Candidate 卡片 UI**
+  - 候選人基本資料 + 3 核心技能
+  - A/B/C/D + T1/T2/T3 + Hot/Warm/Cold 標籤
+  - 薪資區間 + 最後聯絡時間
+
+- [ ] **Talent Map 人才地圖**
+  - 按職位搜尋顯示市場分布
+  - 公司來源排行 / 技能分布 / 薪資分布 / 年資分布
+
+- [ ] **Job Matching 匹配機制**（進階）
+  - 輸入 JD 自動計算匹配度
+  - 權重：技能 35% / 薪資 15% / 年資 15% / 產業 10% / Demand 10% / Heat 10% / Grade 5%
+
+- [ ] **Interaction 跟進紀錄**
+  - 記錄每次聯絡（call/message/email/meeting/interview/follow_up）
+  - 下一步行動與預定日期
+
+- [ ] **AI 擴充功能**（未來）
+  - 履歷自動解析（公司/職稱/技能/年資）
+  - JD 自動解析（必備技能/年資要求/產業）
+  - AI Candidate Summary 自動生成
+
+---
+
+*Last updated: 2026-03-13*

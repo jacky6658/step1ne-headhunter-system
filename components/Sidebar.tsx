@@ -22,6 +22,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
   const isAdmin = profile.role === Role.ADMIN;
 
   const menuItems = [
+    // 總攬看板
+    { id: 'overview-dashboard', label: '📊 總攬看板', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    // 運營總覽
+    { id: 'ops-dashboard', label: '📈 運營儀表板', icon: BarChart3, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 核心功能
     { id: 'candidates', label: '候選人總表', shortLabel: '總表', icon: Users, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'candidate-kanban', label: '候選人看板', shortLabel: '看板', icon: LayoutGrid, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
@@ -37,11 +41,19 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     // Bot 排程
     { id: 'bot-scheduler', label: 'Bot 排程設定', shortLabel: 'Bot', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'resume-import', label: '履歷批量匯入', shortLabel: '匯入', icon: Upload, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+
+    // 爬蟲 & AI
     { id: 'crawler-dashboard', label: '爬蟲整合儀表板', shortLabel: '爬蟲', icon: Activity, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    { id: 'ai-progress', label: 'AI 工作進度', shortLabel: 'AI進度', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+
     // 對外頁面
     { id: 'site-config', label: '我的對外頁面', shortLabel: '頁面', icon: Globe, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+
     // 工具
+    { id: 'prompt-library', label: '提示詞資料庫', shortLabel: '提示詞', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'system-log', label: '操作日誌', shortLabel: '日誌', icon: ScrollText, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    { id: 'sop-guide', label: '顧問 SOP 手冊', shortLabel: 'SOP', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    { id: 'ai-guide', label: 'AI Bot 使用教學', shortLabel: 'AI教學', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'help', label: '使用說明', shortLabel: '說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'migration', label: '資料維護', shortLabel: '維護', icon: Database, roles: [Role.ADMIN], disabled: false },
   ];
@@ -77,7 +89,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
           <div className={`flex items-center ${collapsed ? 'justify-center w-full' : 'gap-3'}`}>
             <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-white text-xs shrink-0">S1</div>
             {!collapsed && (
-              <span className="text-xl font-bold text-white tracking-tight whitespace-nowrap">Step1ne</span>
+              <span className="text-xl font-bold text-white tracking-tight whitespace-nowrap">Step1ne 獵頭系統</span>
             )}
           </div>
           {/* 手機版關閉按鈕 */}
@@ -111,6 +123,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
                 <item.icon size={18} className="shrink-0" />
                 {!collapsed && <span>{item.label}</span>}
               </div>
+              {!collapsed && item.badge && (
+                <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded">
+                  {item.badge}
+                </span>
+              )}
               {/* 收合模式下的 tooltip */}
               {collapsed && (
                 <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-slate-800 text-white text-xs rounded-lg

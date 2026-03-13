@@ -23,9 +23,11 @@
 GET https://backendstep1ne.zeabur.app/api/candidates?created_today=true
 ```
 
-從回傳清單中，**只處理 `status === "未開始"` 的候選人**（已評分的跳過）。
+從回傳清單中，**只處理 `status === "未開始"` 或 `status === "爬蟲初篩"` 的候選人**（已評分的跳過）。
 
-若清單為空，或全部都不是「未開始」→ 回報「今日無待評分候選人，任務結束」，停止執行。
+若清單為空，或全部都不是「未開始」或「爬蟲初篩」→ 回報「今日無待評分候選人，任務結束」，停止執行。
+
+> 💡 **分頁機制**：若需查詢所有候選人（非今日新增），請帶 `?limit=2000&offset=0`。回應的 `pagination.hasMore` 為 `true` 時，需繼續用 offset 翻頁（offset=2000, 4000...）直到取完。
 
 **每筆候選人資料結構：**
 ```json
@@ -36,9 +38,16 @@ GET https://backendstep1ne.zeabur.app/api/candidates?created_today=true
   "linkedin_url": "https://linkedin.com/in/...",
   "github_url": null,
   "notes": "Bot 自動匯入 | 目標職缺：Java Developer (後端工程師) | 負責顧問：AIBot-pipeline | 2026-02-26",
-  "status": "未開始"
+  "status": "未開始",
+  "biography": "我是一位熱愛後端技術的工程師...",
+  "portfolioUrl": "https://portfolio.example.com",
+  "voiceAssessments": [
+    {"date": "2026-03-01", "interviewer": "Jacky", "score": 4, "notes": "表達清晰，技術理解深入"}
+  ]
 }
 ```
+
+> 💡 **新欄位說明**：`biography`（自傳）、`portfolioUrl`（作品集連結）、`voiceAssessments`（語音/面談評估）是候選人的深度資訊，務必在評分時納入考量。
 
 從 `notes` 欄位中擷取「目標職缺：」後面的職位名稱，用於下一步查詢職缺。
 
@@ -86,11 +95,24 @@ GET https://backendstep1ne.zeabur.app/api/jobs
 
 | 維度 | 權重 | 評分說明 |
 |------|------|----------|
-| 人才畫像符合度 | 40% | 候選人 skills 與 `talent_profile` 描述的理想人才特質吻合程度。硬性條件（年齡、證件、語言）若不符直接給 0–20 分。 |
-| JD 職責匹配度 | 30% | 候選人技能是否覆蓋 `job_description` 中的核心工作職責，越核心越高分。 |
-| 公司適配性 | 15% | 根據 `company_profile` 的文化、產業、規模，判斷此技能背景是否適合這個環境。 |
-| 可觸達性 | 10% | `linkedin_url` 有 = 60 分；`linkedin_url` + `github_url` 都有 = 100 分。 |
+| 人才畫像符合度 | 35% | 候選人 skills 與 `talent_profile` 描述的理想人才特質吻合程度。硬性條件（年齡、證件、語言）若不符直接給 0–20 分。**若有自傳（`biography`），應從中提取職涯動機、軟實力、自我定位等深度資訊來輔助判斷。** |
+| JD 職責匹配度 | 25% | 候選人技能是否覆蓋 `job_description` 中的核心工作職責，越核心越高分。**若有作品集（`portfolioUrl`），可作為技術實力的佐證。** |
+| 公司適配性 | 15% | 根據 `company_profile` 的文化、產業、規模，判斷此技能背景是否適合這個環境。**若自傳中有表達對特定公司文化的偏好，納入考量。** |
+| 候選人深度資訊 | 15% | 綜合評估自傳、作品集、語音面談三項深度資訊（見下方細則）。無資料不懲罰，有資料可大幅加分拉開差距。 |
+| 可觸達性 | 5% | `linkedin_url` 有 = 60 分；`linkedin_url` + `github_url` 都有 = 80 分；再有 `portfolioUrl` = 100 分。 |
 | 活躍信號 | 5% | `github_url` 有 = 100 分；無 = 50 分（無資料不懲罰）。 |
+
+### 候選人深度資訊評分細則（15% 權重）
+
+此維度用於拉開 skills 相同的候選人之間的分數差距。
+
+| 子項目 | 佔比 | 評分說明 |
+|--------|------|----------|
+| 自傳（`biography`） | 6% | 有自傳 = 基礎 60 分。內容品質：表達清晰有邏輯 +10、有明確職涯目標 +10、展現與目標職缺相關的軟實力 +10、有具體成就描述 +10。空白 = 50 分（不懲罰）。 |
+| 作品集（`portfolioUrl`） | 5% | 有連結 = 基礎 70 分。連結為知名平台（GitHub Pages, Behance, Dribbble 等）+15、作品與目標職缺相關 +15。空白 = 50 分（不懲罰）。 |
+| 語音/面談評估（`voiceAssessments`） | 4% | 有評估紀錄 = 基礎 60 分。顧問評分 ≥ 4 分 +20、評語正面（溝通佳/積極/專業）+20。空白 = 50 分（不懲罰）。 |
+
+> 💡 **關鍵**：同一批 Bot 匯入的候選人 skills 通常相同。有自傳/作品集/語音評估的候選人，代表顧問已經有初步接觸，應給予更高的信任分數。
 
 **綜合分數 = 各維度分數 × 權重加總（0–100，取整數）**
 
@@ -119,18 +141,25 @@ GET https://backendstep1ne.zeabur.app/api/jobs
 - {根據人才畫像，說明候選人哪些技能/特質高度符合}
 - {根據JD，說明哪些職責能力有直接對應}
 - {根據公司畫像，說明為何適合這個公司環境}
-- {可觸達性：LinkedIn / GitHub 存在，方便主動接觸}
+- {可觸達性：LinkedIn / GitHub / 作品集 存在，方便主動接觸}
+- {若有自傳：從自傳中提取的職涯動機、軟實力亮點}
+- {若有作品集：作品集展現的實際能力}
+- {若有語音評估：顧問面談後的正面觀察}
 
 ⚠️ 待確認：
 - {人才畫像或顧問備註中的硬性條件是否符合}
 - {JD 中有哪些要求在現有資料中無法確認}
 - {目前是否在職、是否 Open to Work}
+- {自傳中提到的期望是否與職缺條件吻合}
 
 💡 顧問建議：
 {一句話：值不值得優先聯繫 + 具體切入點}
+{若有自傳/語音評估：基於候選人自述的職涯動機，建議如何切入}
 
 ---
 ```
+
+> 📝 **注意**：配對結語中標記「若有」的項目，僅在候選人有對應資料時才寫入。沒有自傳/作品集/語音評估的候選人，跳過這些項目即可。
 
 ---
 
@@ -150,6 +179,9 @@ GET https://backendstep1ne.zeabur.app/api/jobs
 | `strengths` | 字串陣列 | 優勢亮點，每條一個字串 |
 | `probing_questions` | 字串陣列 | 顧問聯繫時建議詢問的問題 |
 | `conclusion` | 字串 | 顧問建議一句話，說明切入點 |
+| `biography_insight` | 字串（可選） | 從自傳中提取的關鍵洞察（職涯動機、自我定位），若無自傳則省略 |
+| `portfolio_assessment` | 字串（可選） | 對作品集的簡要評估，若無作品集則省略 |
+| `voice_summary` | 字串（可選） | 語音/面談評估摘要，若無評估則省略 |
 | `evaluated_at` | 字串 | ISO 8601 時間戳，例如 `"2026-02-26T23:00:00.000Z"` |
 | `evaluated_by` | 字串 | 操作者身份，例如 `"Jacky-scoring-bot"` |
 
@@ -189,6 +221,9 @@ Content-Type: application/json
       "期望薪資範圍與最快到職時間？"
     ],
     "conclusion": "建議優先透過 LinkedIn InMail 接觸，切入點可提「Fintech 後端機會，技術棧完全對口」。",
+    "biography_insight": "自傳顯示候選人對微服務架構有深度熱情，主動參與開源社群，職涯目標明確指向 FinTech 領域",
+    "portfolio_assessment": "作品集展示了 3 個完整的後端專案，其中包含支付系統整合經驗",
+    "voice_summary": "顧問面談評分 4/5，溝通表達清晰，技術理解深入，態度積極",
     "evaluated_at": "2026-02-26T23:00:00.000Z",
     "evaluated_by": "Jacky-scoring-bot"
   }

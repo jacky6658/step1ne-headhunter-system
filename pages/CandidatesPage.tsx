@@ -8,13 +8,13 @@ import { CandidateModal } from '../components/CandidateModal';
 import { ColumnTooltip } from '../components/ColumnTooltip';
 import { COLUMN_DESCRIPTIONS } from '../config/columnDescriptions';
 import { apiPost, apiPatch, getApiUrl } from '../config/api';
+import { toast } from '../components/Toast';
 
 interface CandidatesPageProps {
   userProfile: UserProfile;
-  onNavigateToMatching?: (candidateId: string) => void;
 }
 
-export function CandidatesPage({ userProfile, onNavigateToMatching }: CandidatesPageProps) {
+export function CandidatesPage({ userProfile }: CandidatesPageProps) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +114,8 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
           ? c.skills.join(' ') 
           : (c.skills || '');
         
-        return c.name.toLowerCase().includes(lowerQuery) ||
+        return c.id.toString() === searchQuery.trim() ||
+               c.name.toLowerCase().includes(lowerQuery) ||
                c.email.toLowerCase().includes(lowerQuery) ||
                c.phone.includes(searchQuery) ||
                c.position.toLowerCase().includes(lowerQuery) ||
@@ -220,7 +221,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
         fileInput.click();
       } else {
         // 沒有 LinkedIn URL，直接開啟檔案選擇器
-        alert('候選人沒有 LinkedIn 連結，請直接上傳履歷 PDF');
+        toast.info('候選人沒有 LinkedIn 連結，請直接上傳履歷 PDF');
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '.pdf';
@@ -234,7 +235,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
       }
     } catch (error) {
       console.error('下載履歷失敗:', error);
-      alert('下載履歷失敗，請稍後再試');
+      toast.error('下載履歷失敗，請稍後再試');
     }
   };
   
@@ -242,7 +243,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
   const uploadResume = async (file: File, candidate: Candidate) => {
     try {
       // 顯示上傳中
-      alert('正在上傳履歷到 Google Drive...');
+      toast.info('正在上傳履歷到 Google Drive...');
       
       const formData = new FormData();
       formData.append('resume', file);
@@ -263,22 +264,13 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
       const result = await response.json();
       
       // 顯示成功訊息
-      alert(`✅ 履歷上傳成功！
-      
-📊 已解析資料：
-• Email: ${result.parsedData?.email || '未提取'}
-• Phone: ${result.parsedData?.phone || '未提取'}
-• 技能數量: ${result.parsedData?.skills?.length || 0}
-
-🔄 已觸發重新評分...
-
-[查看 Google Drive](${result.driveUrl})`);
+      toast.success(`履歷上傳成功！已解析 Email: ${result.parsedData?.email || '未提取'}, 技能數量: ${result.parsedData?.skills?.length || 0}`);
       
       // 重新載入候選人資料
       await loadCandidates();
     } catch (error) {
       console.error('上傳履歷失敗:', error);
-      alert('上傳履歷失敗，請稍後再試\n\n錯誤：' + (error as Error).message);
+      toast.error('上傳履歷失敗：' + (error as Error).message);
     }
   };
   
@@ -295,7 +287,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
         prev.map(c => c.id === candidate.id ? { ...c, consultant: userProfile.displayName } : c)
       );
     } catch (error) {
-      alert('❌ 指派失敗，請稍後再試');
+      toast.error('指派失敗，請稍後再試');
     }
   };
 
@@ -367,12 +359,12 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
       });
 
       if (result.success) {
-        alert(`✅ 匯入完成！\n新增 ${result.created} 筆，更新 ${result.updated} 筆，失敗 ${result.failed} 筆`);
+        toast.success(`匯入完成！新增 ${result.created} 筆，更新 ${result.updated} 筆，失敗 ${result.failed} 筆`);
         clearCache();
         setCandidates(await getCandidates(userProfile));
       }
     } catch (err) {
-      alert('❌ 匯入失敗：' + (err as Error).message);
+      toast.error('匯入失敗：' + (err as Error).message);
     } finally {
       setImportLoading(false);
     }
@@ -380,7 +372,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
 
   // 新增候選人
   const handleAddCandidate = async () => {
-    if (!addForm.name.trim()) { alert('請填寫姓名'); return; }
+    if (!addForm.name.trim()) { toast.warning('請填寫姓名'); return; }
     setAddLoading(true);
     try {
       const result = await apiPost<any>('/api/candidates', {
@@ -397,7 +389,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
         setCandidates(await getCandidates(userProfile));
       }
     } catch (err) {
-      alert('❌ 新增失敗：' + (err as Error).message);
+      toast.error('新增失敗：' + (err as Error).message);
     } finally {
       setAddLoading(false);
     }
@@ -486,7 +478,7 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜尋姓名、Email、技能..."
+                placeholder="搜尋姓名、Email、技能、ID..."
                 className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
               />
             </div>
@@ -699,18 +691,6 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                     >
                       <Shield className="w-3.5 h-3.5" />
                       指派給我
-                    </button>
-                  )}
-                  {onNavigateToMatching && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onNavigateToMatching(candidate.id.toString());
-                      }}
-                      className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
-                    >
-                      <Sparkles size={14} />
-                      AI 配對
                     </button>
                   )}
                   {/* 快速聯繫按鈕 */}
@@ -1041,18 +1021,6 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
                           指派給我
                         </button>
                       )}
-                      {onNavigateToMatching && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onNavigateToMatching(candidate.id.toString());
-                          }}
-                          className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
-                        >
-                          <Sparkles size={14} />
-                          AI 配對
-                        </button>
-                      )}
                       {/* 快速聯繫：LinkedIn */}
                       {(candidate as any).linkedin_url && (
                         <a
@@ -1126,6 +1094,12 @@ export function CandidatesPage({ userProfile, onNavigateToMatching }: Candidates
             setCandidates(prev =>
               prev.map(c => c.id === candidateId ? { ...c, consultant: recruiter } : c)
             );
+          }}
+          onCandidateUpdate={(candidateId, updates) => {
+            setCandidates(prev =>
+              prev.map(c => c.id === candidateId ? { ...c, ...updates } : c)
+            );
+            setSelectedCandidate(prev => prev && prev.id === candidateId ? { ...prev, ...updates } : prev);
           }}
         />
       )}

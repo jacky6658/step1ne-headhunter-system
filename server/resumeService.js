@@ -1,5 +1,7 @@
 // resumeService.js - 履歷上傳與解析服務
-const { execSync } = require('child_process');
+const { execSync, exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
 const fs = require('fs');
 const path = require('path');
 
@@ -67,7 +69,7 @@ async function uploadResumeToGoogleDrive(filePath, candidateId, candidateName, s
       --account aijessie88@step1ne.com`;
     
     try {
-      const uploadResult = execSync(uploadCommand, { encoding: 'utf-8' });
+      const { stdout: uploadResult } = await execAsync(uploadCommand, { encoding: 'utf-8', timeout: 30000 });
       console.log('✅ Google Drive 上傳成功');
       
       // 提取 File ID
@@ -94,7 +96,7 @@ async function uploadResumeToGoogleDrive(filePath, candidateId, candidateName, s
       const targetDir = path.join(localDrivePath, statusFolder);
       
       // 建立目錄
-      execSync(`mkdir -p "${targetDir}"`, { encoding: 'utf-8' });
+      await fs.promises.mkdir(targetDir, { recursive: true });
       
       // 複製檔案
       const targetPath = path.join(targetDir, fileName);
@@ -155,7 +157,7 @@ async function parseResumePDF(filePath) {
       --output "${outputPath}"`;
     
     try {
-      execSync(parseCommand, { encoding: 'utf-8', stdio: 'inherit' });
+      await execAsync(parseCommand, { encoding: 'utf-8', timeout: 60000 });
       
       // 讀取解析結果
       const parsedData = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
@@ -243,7 +245,7 @@ async function updateCandidateDataInSheet(candidateId, parsedData, driveUrl) {
       const updateCommand = `gog sheets update "${SHEET_ID}" "${TAB_NAME}!${cell}" --values "${value}"`;
       
       try {
-        execSync(updateCommand, { encoding: 'utf-8' });
+        await execAsync(updateCommand, { encoding: 'utf-8', timeout: 15000 });
         console.log(`  ✅ 更新 ${cell}`);
       } catch (updateError) {
         console.error(`  ❌ 更新 ${cell} 失敗:`, updateError.message);
@@ -272,8 +274,8 @@ async function regradeCandidate(candidateId) {
     const SHEET_ID = process.env.SHEET_ID || '1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SEtxRk6Q';
     const TAB_NAME = '履歷池v2';
     
-    const candidateData = execSync(`gog sheets read "${SHEET_ID}" "${TAB_NAME}!A${candidateId}:T${candidateId}" --format json`, 
-      { encoding: 'utf-8' }
+    const { stdout: candidateData } = await execAsync(`gog sheets read "${SHEET_ID}" "${TAB_NAME}!A${candidateId}:T${candidateId}" --format json`,
+      { encoding: 'utf-8', timeout: 15000 }
     );
     
     // 2. 執行評分
@@ -286,7 +288,7 @@ async function regradeCandidate(candidateId) {
       --resume "${tempInputPath}" \
       --output "${tempOutputPath}"`;
     
-    execSync(gradeCommand, { encoding: 'utf-8', stdio: 'inherit' });
+    await execAsync(gradeCommand, { encoding: 'utf-8', timeout: 60000 });
     
     // 3. 讀取評分結果
     const gradeData = JSON.parse(fs.readFileSync(tempOutputPath, 'utf-8'));
@@ -297,8 +299,8 @@ async function regradeCandidate(candidateId) {
     
     // 4. 更新評級到 Google Sheets (Column U)
     const updateCommand = `gog sheets update "${SHEET_ID}" "${TAB_NAME}!U${candidateId}" --values "${gradeData.grade}"`;
-    execSync(updateCommand, { encoding: 'utf-8' });
-    
+    await execAsync(updateCommand, { encoding: 'utf-8', timeout: 15000 });
+
     console.log('✅ 評級已更新到 Google Sheets');
     
     // 清理臨時檔案

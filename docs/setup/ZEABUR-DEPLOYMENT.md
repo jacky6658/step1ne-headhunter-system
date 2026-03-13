@@ -52,6 +52,7 @@ PORT=3001
 
 ```bash
 # 檢查後端
+# health 不需認證
 curl https://backendstep1ne.zeabur.app/api/health
 
 # 檢查前端
@@ -185,6 +186,7 @@ open http://localhost:3000
 
 1. **檢查後端日誌**：
    ```bash
+   # health 不需認證
    curl https://backendstep1ne.zeabur.app/api/health
    ```
 

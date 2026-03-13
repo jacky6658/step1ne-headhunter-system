@@ -3,6 +3,7 @@ import { UserProfile } from '../types';
 import { updateUserProfile } from '../services/userService';
 import { apiPut, apiGet } from '../config/api';
 import { X, Upload, User, MessageSquare, Save, Loader2, Phone, Mail, Hash, Eye, EyeOff, Github, Search } from 'lucide-react';
+import { toast } from './Toast';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -28,6 +29,12 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const [showGithubToken, setShowGithubToken] = useState(false);
   const [braveApiKey, setBraveApiKey] = useState(userProfile.braveApiKey || '');
   const [showBraveKey, setShowBraveKey] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [showTgToken, setShowTgToken] = useState(false);
+  const [tgGroupBotToken, setTgGroupBotToken] = useState('');
+  const [tgGroupChatId, setTgGroupChatId] = useState('');
+  const [showTgGroupToken, setShowTgGroupToken] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,22 +61,33 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
             if (res.data.telegramHandle) setTelegramHandle(res.data.telegramHandle);
             if (res.data.githubToken) setGithubToken(res.data.githubToken);
             if (res.data.braveApiKey) setBraveApiKey(res.data.braveApiKey);
+            if (res.data.telegramBotToken) setTelegramBotToken(res.data.telegramBotToken);
+            if (res.data.telegramChatId) setTelegramChatId(res.data.telegramChatId);
           }
         })
         .catch(() => {/* 後端不可用時靜默降級 */});
+      // 載入群組 TG 設定（僅管理員）
+      if (userProfile.role === 'ADMIN') {
+        apiGet<any>('/api/system-config/telegram_group_bot_token')
+          .then(res => { if (res.value) setTgGroupBotToken(res.value); })
+          .catch(() => {});
+        apiGet<any>('/api/system-config/telegram_group_chat_id')
+          .then(res => { if (res.value) setTgGroupChatId(res.value); })
+          .catch(() => {});
+      }
     }
   }, [isOpen, userProfile]);
 
   const processImageFile = (file: File) => {
     // 檢查檔案類型
     if (!file.type.startsWith('image/')) {
-      alert('請選擇圖片檔案');
+      toast.warning('請選擇圖片檔案');
       return;
     }
 
     // 檢查檔案大小（限制 2MB）
     if (file.size > 2 * 1024 * 1024) {
-      alert('圖片大小不能超過 2MB');
+      toast.warning('圖片大小不能超過 2MB');
       return;
     }
 
@@ -112,7 +130,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 
   const handleSave = async () => {
     if (!displayName.trim()) {
-      alert('請輸入暱稱');
+      toast.warning('請輸入暱稱');
       return;
     }
 
@@ -135,7 +153,15 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         telegramHandle: telegramHandle.trim(),
         githubToken: githubToken.trim(),
         braveApiKey: braveApiKey.trim(),
+        telegramBotToken: telegramBotToken.trim(),
+        telegramChatId: telegramChatId.trim(),
       }).catch(() => {/* 後端不可用時靜默降級 */});
+
+      // 儲存群組 TG 設定（僅管理員）
+      if (userProfile.role === 'ADMIN') {
+        apiPut('/api/system-config/telegram_group_bot_token', { value: tgGroupBotToken.trim() }).catch(() => {});
+        apiPut('/api/system-config/telegram_group_chat_id', { value: tgGroupChatId.trim() }).catch(() => {});
+      }
 
       const updated = await updateUserProfile(userProfile.uid, {
         displayName: displayName.trim(),
@@ -151,7 +177,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       }
     } catch (err) {
       console.error('更新失敗', err);
-      alert('更新失敗，請稍後再試');
+      toast.error('更新失敗，請稍後再試');
     } finally {
       setSaving(false);
     }
@@ -406,6 +432,108 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               </a>
             </p>
           </div>
+
+          {/* Telegram 通知設定 */}
+          <div className="space-y-3">
+            <label className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest block flex items-center gap-2">
+              <span className="text-sm">📨</span>
+              Telegram 通知（個人）
+            </label>
+            <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
+              telegramBotToken && telegramChatId
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-slate-100 text-slate-500'
+            }`}>
+              {telegramBotToken && telegramChatId ? '✅ TG 通知已啟用' : '未設定（僅站內通知）'}
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 w-16 shrink-0">Bot Token</span>
+                <div className="flex-1 relative">
+                  <input
+                    type={showTgToken ? 'text' : 'password'}
+                    value={telegramBotToken}
+                    onChange={(e) => setTelegramBotToken(e.target.value)}
+                    className="w-full px-3 py-2 pr-10 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-xl text-sm text-slate-800 transition-all font-mono"
+                    placeholder="123456:ABC-DEF..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTgToken(v => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  >
+                    {showTgToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 w-16 shrink-0">Chat ID</span>
+                <input
+                  type="text"
+                  value={telegramChatId}
+                  onChange={(e) => setTelegramChatId(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-xl text-sm text-slate-800 transition-all font-mono"
+                  placeholder="你的 Chat ID（數字）"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] sm:text-xs text-slate-400">
+              設定後，人選指派等重要通知會同步推送到你的 TG。
+              可透過 @BotFather 建立 Bot，再用 @userinfobot 取得 Chat ID。
+            </p>
+          </div>
+
+          {/* 管理員：群組 TG 設定 */}
+          {userProfile.role === 'ADMIN' && (
+            <div className="space-y-3 border-t pt-4">
+              <label className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest block flex items-center gap-2">
+                <span className="text-sm">👥</span>
+                Telegram 群組通知（管理員設定）
+              </label>
+              <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
+                tgGroupBotToken && tgGroupChatId
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-slate-100 text-slate-500'
+              }`}>
+                {tgGroupBotToken && tgGroupChatId ? '✅ 群組通知已啟用' : '未設定（系統更新不推群組）'}
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 w-16 shrink-0">Bot Token</span>
+                  <div className="flex-1 relative">
+                    <input
+                      type={showTgGroupToken ? 'text' : 'password'}
+                      value={tgGroupBotToken}
+                      onChange={(e) => setTgGroupBotToken(e.target.value)}
+                      className="w-full px-3 py-2 pr-10 bg-slate-50 border-2 border-transparent focus:border-green-500 focus:bg-white rounded-xl text-sm text-slate-800 transition-all font-mono"
+                      placeholder="群組 Bot Token"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTgGroupToken(v => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                    >
+                      {showTgGroupToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 w-16 shrink-0">Group ID</span>
+                  <input
+                    type="text"
+                    value={tgGroupChatId}
+                    onChange={(e) => setTgGroupChatId(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-slate-50 border-2 border-transparent focus:border-green-500 focus:bg-white rounded-xl text-sm text-slate-800 transition-all font-mono"
+                    placeholder="群組 Chat ID（通常為負數，如 -100...）"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] sm:text-xs text-slate-400">
+                系統更新、GitHub push 等全體通知會推送到此群組。
+                將 Bot 加入群組後，用 @raw_data_bot 取得群組 Chat ID。
+              </p>
+            </div>
+          )}
 
         </div>
 

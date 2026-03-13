@@ -1,30 +1,42 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { onAuthStateChanged, signOut, type User, auth } from './mockBackend';
 import { getUserProfile } from './services/userService';
 import { UserProfile, Role } from './types';
 import Sidebar from './components/Sidebar';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
-import MembersPage from './pages/MembersPage';
-import ImportPage from './pages/ImportPage';
-import MigrationPage from './pages/MigrationPage';
-import AnalyticsPage from './pages/AnalyticsPage';
-import HelpPage from './pages/HelpPage';
+import NotificationBell from './components/NotificationBell';
 import LoginPage from './pages/LoginPage';
-// 新增: 候選人管理頁面
-import { CandidatesPage } from './pages/CandidatesPage';
-import { CandidateKanbanPage } from './pages/CandidateKanbanPage';
-import { AIMatchingPage } from './pages/AIMatchingPage';
-import { JobsPage } from './pages/JobsPage';
-import { PipelinePage } from './pages/PipelinePage';
-import { SystemLogPage } from './pages/SystemLogPage';
-import { BDClientsPage } from './pages/BDClientsPage';
-import { BotSchedulerPage } from './pages/BotSchedulerPage';
-import ResumeImportPage from './pages/ResumeImportPage';
-import { CrawlerDashboardPage } from './pages/CrawlerDashboardPage';
-import SiteConfigPage from './pages/SiteConfigPage';
+import { ToastContainer } from './components/Toast';
 import { Menu, X as XIcon } from 'lucide-react';
 import { API_BASE_URL } from './constants';
+
+// ── Code Splitting: React.lazy 延遲載入所有頁面 ──
+// 只有使用者實際切換到該分頁時才會下載對應的 JS chunk
+const CandidatesPage = React.lazy(() => import('./pages/CandidatesPage').then(m => ({ default: m.CandidatesPage })));
+const JobsPage = React.lazy(() => import('./pages/JobsPage').then(m => ({ default: m.JobsPage })));
+const PipelinePage = React.lazy(() => import('./pages/PipelinePage').then(m => ({ default: m.PipelinePage })));
+const SystemLogPage = React.lazy(() => import('./pages/SystemLogPage').then(m => ({ default: m.SystemLogPage })));
+const BDClientsPage = React.lazy(() => import('./pages/BDClientsPage').then(m => ({ default: m.BDClientsPage })));
+const CrawlerDashboardPage = React.lazy(() => import('./pages/CrawlerDashboardPage'));
+const AIProgressPage = React.lazy(() => import('./pages/AIProgressPage').then(m => ({ default: m.AIProgressPage })));
+const OperationsDashboardPage = React.lazy(() => import('./pages/OperationsDashboardPage'));
+const PromptLibraryPage = React.lazy(() => import('./pages/PromptLibraryPage').then(m => ({ default: m.PromptLibraryPage })));
+const OverviewDashboardPage = React.lazy(() => import('./pages/OverviewDashboardPage').then(m => ({ default: m.OverviewDashboardPage })));
+const MembersPage = React.lazy(() => import('./pages/MembersPage'));
+const MigrationPage = React.lazy(() => import('./pages/MigrationPage'));
+const HelpPage = React.lazy(() => import('./pages/HelpPage'));
+const SOPGuidePage = React.lazy(() => import('./pages/SOPGuidePage'));
+const AIGuidePageNew = React.lazy(() => import('./pages/AIGuidePageNew'));
+const SiteConfigPage = React.lazy(() => import('./pages/SiteConfigPage'));
+const ResumeImportPage = React.lazy(() => import('./pages/ResumeImportPage'));
+
+// ── 頁面切換時的 Loading Spinner ──
+const PageFallback = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
+  </div>
+);
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -52,9 +64,10 @@ const App: React.FC = () => {
           setProfile(p);
           // 登入時自動登記顧問名稱（僅生產環境，本機 mock 無此路由）
           if (import.meta.env.PROD) {
+            const { getAuthHeaders } = await import('./config/api');
             fetch(`${API_BASE_URL}/api/users/register`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getAuthHeaders(),
               body: JSON.stringify({ displayName: p.displayName }),
             }).catch(() => {/* 靜默失敗，不影響登入流程 */});
           }
@@ -86,7 +99,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!profile) return;
     
-    const adminOnlyTabs = ['members', 'import', 'migration'];
+    const adminOnlyTabs = ['members', 'migration'];
     if (adminOnlyTabs.includes(activeTab) && profile.role !== Role.ADMIN) {
       // 非管理員嘗試訪問管理員專用頁面，重定向到候選人總表
       setActiveTab('candidates');
@@ -110,24 +123,10 @@ const App: React.FC = () => {
       // 候選人管理頁面
       case 'candidates': return <CandidatesPage
         userProfile={profile}
-        onNavigateToMatching={(candidateId) => {
-          setSelectedJobId(candidateId);
-          setActiveTab('ai-matching');
-        }}
       />;
-      case 'candidate-kanban': return <CandidateKanbanPage userProfile={profile} />;
       // 職缺管理
-      case 'jobs': return <JobsPage 
-        userProfile={profile} 
-        onNavigateToMatching={(jobId) => {
-          setSelectedJobId(jobId);
-          setActiveTab('ai-matching');
-        }}
-      />;
-      // AI 配對推薦
-      case 'ai-matching': return <AIMatchingPage 
-        userProfile={profile} 
-        preSelectedJobId={selectedJobId}
+      case 'jobs': return <JobsPage
+        userProfile={profile}
       />;
       // BD 客戶開發
       case 'bd-clients': return <BDClientsPage
@@ -136,11 +135,13 @@ const App: React.FC = () => {
       />;
       // 顧問人選追蹤表
       case 'pipeline': return <PipelinePage userProfile={profile} />;
-      // Bot 排程設定（key=uid 確保換用戶時強制重新掛載，避免 state 跨用戶污染）
-      case 'bot-scheduler': return <BotSchedulerPage key={profile.uid} userProfile={profile} />;
-      case 'resume-import': return <ResumeImportPage />;
+      // 爬蟲 & AI
       case 'crawler-dashboard': return <CrawlerDashboardPage userProfile={profile} />;
-      // 操作日誌
+      case 'ai-progress': return <AIProgressPage userProfile={profile} />;
+      case 'overview-dashboard': return <OverviewDashboardPage userProfile={profile} />;
+      case 'ops-dashboard': return <OperationsDashboardPage userProfile={profile} />;
+      // 工具
+      case 'prompt-library': return <PromptLibraryPage userProfile={profile} />;
       case 'system-log': return <SystemLogPage userProfile={profile} />;
       case 'members': 
         // 只有管理員可以訪問成員管理
@@ -155,7 +156,7 @@ const App: React.FC = () => {
           );
         }
         return <MembersPage userProfile={profile} />;
-      case 'import': 
+      case 'import':
         // 只有管理員可以訪問匯入案件
         if (profile.role !== Role.ADMIN) {
           return (
@@ -167,14 +168,15 @@ const App: React.FC = () => {
             </div>
           );
         }
-        return <ImportPage userProfile={profile} />;
-      case 'analytics': 
-        // 所有用戶都可以查看財務分析
-        return <AnalyticsPage leads={[]} userProfile={profile} />;
+        return <ResumeImportPage />;
       case 'site-config': return <SiteConfigPage userProfile={profile} />;
       case 'help':
         // 所有用戶都可以查看使用說明
         return <HelpPage userProfile={profile} />;
+      case 'sop-guide':
+        return <SOPGuidePage userProfile={profile} />;
+      case 'ai-guide':
+        return <AIGuidePageNew userProfile={profile} />;
       case 'migration': 
         // 只有管理員可以訪問資料遷移
         if (profile.role !== Role.ADMIN) {
@@ -223,25 +225,31 @@ const App: React.FC = () => {
               <div className="flex flex-col min-w-0 flex-1">
                 <h1 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight truncate">
               {activeTab === 'candidates' ? 'Step1ne 候選人總表' : 
-               activeTab === 'candidate-kanban' ? 'Step1ne 候選人看板' :
                activeTab === 'help' ? '使用說明' :
                activeTab === 'jobs' ? '職缺管理' :
                activeTab === 'bd-clients' ? 'BD 客戶開發' :
                activeTab === 'pipeline' ? '顧問人選追蹤表' :
-               activeTab === 'ai-matching' ? 'AI 配對推薦' :
                activeTab === 'system-log' ? '操作日誌' :
                activeTab === 'bot-scheduler' ? 'Bot 排程設定' :
                activeTab === 'crawler-dashboard' ? '爬蟲整合儀表板' :
-               activeTab === 'site-config' ? '我的對外頁面' : 'Step1ne 獵頭系統'}
+               activeTab === 'site-config' ? '我的對外頁面' :
+               activeTab === 'ops-dashboard' ? '運營儀表板' :
+               activeTab === 'sop-guide' ? '顧問 SOP 手冊' :
+               activeTab === 'ai-guide' ? 'AI Bot 使用教學' : 'Step1ne 獵頭系統'}
             </h1>
                 <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mt-0.5 hidden sm:block">Collaborative Workspace</p>
           </div>
             </div>
 
-            {/* 右側：當前用戶 */}
+            {/* 右側：通知 + 當前用戶 */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {/* 通知鈴鐺 */}
+              <NotificationBell
+                uid={profile.uid}
+                onNavigate={(tab) => setActiveTab(tab)}
+              />
               {/* 當前用戶 */}
-              <div 
+              <div
                 onClick={() => setShowProfileModal(true)}
                 className="flex items-center gap-2 sm:gap-3 md:gap-4 p-1.5 sm:p-2 bg-slate-50 rounded-xl sm:rounded-2xl border border-slate-100 shadow-inner cursor-pointer hover:bg-slate-100 transition-all active:scale-95"
               >
@@ -269,7 +277,9 @@ const App: React.FC = () => {
           </div>
         </header>
         <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 bg-slate-50/50">
-          {renderContent()}
+          <Suspense fallback={<PageFallback />}>
+            {renderContent()}
+          </Suspense>
         </div>
       </main>
 
@@ -287,6 +297,8 @@ const App: React.FC = () => {
         />
       )}
 
+      {/* 全域 Toast 通知 */}
+      <ToastContainer />
     </div>
   );
 };

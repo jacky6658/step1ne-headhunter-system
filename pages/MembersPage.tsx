@@ -3,6 +3,7 @@ import { UserProfile, Role } from '../types';
 import { getAllUsers, setUserRole, createUserProfile, updateUserProfile, deleteUser } from '../services/userService';
 import { Users, Shield, User, ChevronRight, Plus, Edit2, Trash2, X, Lock, Save, Download } from 'lucide-react';
 import Badge from '../components/Badge';
+import { toast } from '../components/Toast';
 
 interface MembersPageProps {
   userProfile: UserProfile;
@@ -47,7 +48,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.displayName || !formData.password) {
-      alert('請填寫完整資訊');
+      toast.warning('請填寫完整資訊');
       return;
     }
 
@@ -61,7 +62,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
       resetForm();
     } catch (err) {
       console.error('創建用戶失敗', err);
-      alert('創建用戶失敗');
+      toast.error('創建用戶失敗');
     }
   };
 
@@ -86,13 +87,13 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
       resetForm();
     } catch (err) {
       console.error('更新用戶失敗', err);
-      alert('更新用戶失敗');
+      toast.error('更新用戶失敗');
     }
   };
 
   const handleDeleteUser = async (uid: string) => {
     if (uid === userProfile.uid) {
-      alert('無法刪除自己的帳號');
+      toast.warning('無法刪除自己的帳號');
       return;
     }
 
@@ -105,7 +106,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
       await loadUsers();
     } catch (err) {
       console.error('刪除用戶失敗', err);
-      alert('刪除用戶失敗');
+      toast.error('刪除用戶失敗');
     }
   };
 
@@ -132,11 +133,9 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
   const handleBackupData = () => {
     try {
       // 讀取所有 localStorage 資料
-      const leads = JSON.parse(localStorage.getItem('caseflow_leads_db') || '[]');
       const users = JSON.parse(localStorage.getItem('caseflow_users_db') || '{}');
-      const auditLogs = JSON.parse(localStorage.getItem('caseflow_audit_db') || '[]');
       const onlineUsers = JSON.parse(localStorage.getItem('caseflow_online_users') || '[]');
-      
+
       // 組織備份資料
       const backupData = {
         version: '1.0',
@@ -144,14 +143,10 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
         exportedBy: userProfile.displayName,
         data: {
           users: users,
-          leads: leads,
-          auditLogs: auditLogs,
           onlineUsers: onlineUsers
         },
         statistics: {
           userCount: Object.keys(users).length,
-          leadCount: leads.length,
-          auditLogCount: auditLogs.length,
           onlineUserCount: onlineUsers.length
         }
       };
@@ -171,10 +166,10 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
       URL.revokeObjectURL(url);
 
       // 顯示成功訊息
-      alert(`備份成功！\n\n統計資訊：\n- 使用者：${backupData.statistics.userCount} 個\n- 案件：${backupData.statistics.leadCount} 筆\n- 審計日誌：${backupData.statistics.auditLogCount} 筆\n\n檔案已下載到您的下載資料夾。`);
+      toast.success(`備份成功！使用者：${backupData.statistics.userCount} 個，檔案已下載到您的下載資料夾。`);
     } catch (error) {
       console.error('備份失敗', error);
-      alert('備份失敗，請稍後再試');
+      toast.error('備份失敗，請稍後再試');
     }
   };
 

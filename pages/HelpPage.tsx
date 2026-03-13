@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Users, Briefcase, Target, FileText, LayoutGrid, Link as LinkIcon, Download, CheckCircle, XCircle, AlertCircle, Sparkles, Database, Award, Bot, Copy, CheckCheck, Zap } from 'lucide-react';
+import { BookOpen, Users, Briefcase, Target, FileText, Link as LinkIcon, Download, CheckCircle, XCircle, AlertCircle, Sparkles, Database, Award, Bot, Copy, CheckCheck, Zap } from 'lucide-react';
 
 interface HelpPageProps {
   userProfile?: any;
@@ -118,11 +118,6 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <h3 className="font-black text-slate-900 mb-1">職缺管理</h3>
             <p className="text-sm text-slate-600">新增和管理招聘職缺</p>
           </a>
-          <a href="#AI配對" className="p-4 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition-colors">
-            <Sparkles className="text-emerald-600 mb-2" size={24} />
-            <h3 className="font-black text-slate-900 mb-1">AI 智能配對</h3>
-            <p className="text-sm text-slate-600">自動推薦最佳候選人</p>
-          </a>
           <a href="#AIbot" className="p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
             <Bot className="text-indigo-600 mb-2" size={24} />
             <h3 className="font-black text-slate-900 mb-1">AIbot 啟動指南</h3>
@@ -162,11 +157,11 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <h3 className="font-black text-slate-900 mb-2">📋 功能說明</h3>
             <p className="mb-3">候選人總表是系統的核心功能，您可以在此查看、搜尋和管理所有候選人資料。</p>
             <ul className="list-disc list-inside space-y-1 ml-4">
-              <li>查看所有候選人的詳細資訊（218 位候選人）</li>
+              <li>查看所有候選人的詳細資訊</li>
               <li>使用搜尋功能快速找到特定候選人</li>
               <li>點擊表格中的任意行可開啟候選人詳情</li>
               <li>支援按各欄位排序和篩選</li>
-              <li>顯示人才等級（S/A/B/C/D）</li>
+              <li>顯示人才等級（S/A+/A/B/C）</li>
             </ul>
           </div>
           
@@ -188,7 +183,7 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <p className="mb-2">在候選人總表中，每個候選人都有快速操作按鈕：</p>
             <ul className="list-disc list-inside space-y-1 ml-4">
               <li><strong>下載履歷</strong>：生成並下載匿名履歷（保護候選人隱私）</li>
-              <li><strong>更新狀態</strong>：快速變更候選人狀態（待審核/面試中/已錄取等）</li>
+              <li><strong>更新狀態</strong>：快速變更候選人狀態（未開始/聯繫階段/面試階段/Offer/on board 等）</li>
               <li><strong>查看詳情</strong>：開啟完整的候選人資料視窗</li>
             </ul>
           </div>
@@ -196,24 +191,28 @@ const HelpPage: React.FC<HelpPageProps> = () => {
           <div>
             <h3 className="font-black text-slate-900 mb-2">
               <Award className="inline mr-2 text-indigo-600" size={18} />
-              人才等級評分
+              人才等級（穩定性評分）
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
               <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                <span className="font-black text-purple-700">S 級</span>
-                <p className="text-xs text-slate-600 mt-1">卓越人才，立即推薦</p>
+                <span className="font-black text-purple-700">S 級（85-100）</span>
+                <p className="text-xs text-slate-600 mt-1">卓越人才，極穩定</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <span className="font-black text-blue-700">A 級</span>
-                <p className="text-xs text-slate-600 mt-1">優秀人才，優先推薦</p>
+                <span className="font-black text-blue-700">A+ 級（75-84）</span>
+                <p className="text-xs text-slate-600 mt-1">優秀人才，穩定性佳</p>
+              </div>
+              <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                <span className="font-black text-indigo-700">A 級（65-74）</span>
+                <p className="text-xs text-slate-600 mt-1">良好人才，穩定性中上</p>
               </div>
               <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                <span className="font-black text-green-700">B 級</span>
-                <p className="text-xs text-slate-600 mt-1">合格人才，符合基本要求</p>
+                <span className="font-black text-green-700">B 級（55-64）</span>
+                <p className="text-xs text-slate-600 mt-1">合格，需關注穩定性</p>
               </div>
               <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <span className="font-black text-amber-700">C 級</span>
-                <p className="text-xs text-slate-600 mt-1">待觀察，需進一步評估</p>
+                <span className="font-black text-amber-700">C 級（&lt;55）</span>
+                <p className="text-xs text-slate-600 mt-1">待觀察，穩定性偏低</p>
               </div>
             </div>
           </div>
@@ -284,241 +283,6 @@ const HelpPage: React.FC<HelpPageProps> = () => {
         </div>
       </div>
 
-      {/* AI 智能配對 - 智慧人才搜尋系統 */}
-      <div id="AI配對" className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl shadow-sm border border-emerald-200 p-6">
-        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-          <Sparkles className="text-emerald-600" size={24} />
-          🚀 智慧人才搜尋系統 - AI 自動配對
-        </h2>
-        
-        <div className="space-y-6 text-slate-700">
-          {/* 概述 */}
-          <div className="bg-white rounded-xl p-4 border border-emerald-200">
-            <h3 className="font-black text-emerald-700 mb-2">🎯 系統概述</h3>
-            <p className="text-sm mb-3">全自動化人才搜尋系統，一個命令自動：搜尋候選人（GitHub + LinkedIn）→ AI 評分 → 自動分類 → 上傳系統。</p>
-            <div className="bg-emerald-100 text-emerald-700 text-xs rounded-lg p-2 font-mono">
-              python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id 51 --execute
-            </div>
-          </div>
-
-          {/* 5 階段流程 */}
-          <div>
-            <h3 className="font-black text-slate-900 mb-3">📊 完整 5 階段流程</h3>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
-                <div className="font-black text-blue-700 text-lg mb-1">1️⃣</div>
-                <p className="text-xs font-semibold text-slate-700">JD 分析</p>
-                <p className="text-xs text-slate-500 mt-1">分解職缺</p>
-              </div>
-              <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200 text-center">
-                <div className="font-black text-indigo-700 text-lg mb-1">2️⃣</div>
-                <p className="text-xs font-semibold text-slate-700">雙管道搜尋</p>
-                <p className="text-xs text-slate-500 mt-1">GitHub + LinkedIn</p>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200 text-center">
-                <div className="font-black text-purple-700 text-lg mb-1">3️⃣</div>
-                <p className="text-xs font-semibold text-slate-700">智慧去重</p>
-                <p className="text-xs text-slate-500 mt-1">自動回退</p>
-              </div>
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-center">
-                <div className="font-black text-amber-700 text-lg mb-1">4️⃣</div>
-                <p className="text-xs font-semibold text-slate-700">AI 評分</p>
-                <p className="text-xs text-slate-500 mt-1">6 維度</p>
-              </div>
-              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-center">
-                <div className="font-black text-emerald-700 text-lg mb-1">5️⃣</div>
-                <p className="text-xs font-semibold text-slate-700">批量上傳</p>
-                <p className="text-xs text-slate-500 mt-1">自動分類</p>
-              </div>
-            </div>
-          </div>
-
-          {/* AI 評分等級 */}
-          <div>
-            <h3 className="font-black text-slate-900 mb-3">⭐ AI 評分等級與狀態</h3>
-            <div className="space-y-2">
-              <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-red-700">🎯 S 級（95+）</span>
-                  <span className="text-xs bg-red-200 text-red-800 rounded px-2 py-1 font-bold">AI推薦</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">完美契合，立即聯繫</p>
-              </div>
-              <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-orange-700">⭐⭐ A+ 級（90-94）</span>
-                  <span className="text-xs bg-orange-200 text-orange-800 rounded px-2 py-1 font-bold">AI推薦</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">高度契合</p>
-              </div>
-              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-yellow-700">⭐ A 級（80-89）</span>
-                  <span className="text-xs bg-yellow-200 text-yellow-800 rounded px-2 py-1 font-bold">AI推薦</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">符合要求</p>
-              </div>
-              <div className="p-3 bg-lime-50 rounded-lg border border-lime-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-lime-700">🔶 B 級（70-79）</span>
-                  <span className="text-xs bg-lime-200 text-lime-800 rounded px-2 py-1 font-bold">AI推薦</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">可接受</p>
-              </div>
-              <div className="p-3 bg-cyan-50 rounded-lg border border-cyan-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-cyan-700">⚪ C 級（60-69）</span>
-                  <span className="text-xs bg-cyan-200 text-cyan-800 rounded px-2 py-1 font-bold">備選人才</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">有潛力</p>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-slate-700">❌ D 級（&lt;60）</span>
-                  <span className="text-xs bg-slate-200 text-slate-800 rounded px-2 py-1 font-bold">備選人才</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">低優先</p>
-              </div>
-            </div>
-          </div>
-
-          {/* 6 維度評分 */}
-          <div>
-            <h3 className="font-black text-slate-900 mb-3">🔬 AI 評分 6 維度</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <span className="font-black text-blue-700">技能匹配（35%）</span>
-                <p className="text-xs text-slate-600 mt-1">核心技能符合 + 進階技能加分</p>
-              </div>
-              <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                <span className="font-black text-indigo-700">工作經驗（25%）</span>
-                <p className="text-xs text-slate-600 mt-1">相關產業年資 + 層級匹配</p>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                <span className="font-black text-purple-700">產業適配（20%）</span>
-                <p className="text-xs text-slate-600 mt-1">文化相似度 + 發展階段</p>
-              </div>
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <span className="font-black text-amber-700">成長信號（10%）</span>
-                <p className="text-xs text-slate-600 mt-1">GitHub 提交頻率 + 學習主動性</p>
-              </div>
-              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-                <span className="font-black text-emerald-700">文化契合（5%）</span>
-                <p className="text-xs text-slate-600 mt-1">工作地點 + 遠端意願</p>
-              </div>
-              <div className="p-3 bg-cyan-50 rounded-lg border border-cyan-200">
-                <span className="font-black text-cyan-700">可觸達性（5%）</span>
-                <p className="text-xs text-slate-600 mt-1">LinkedIn 活躍度 + 聯繫方式</p>
-              </div>
-            </div>
-          </div>
-
-          {/* 給新 AI 的提示詞 */}
-          <div className="bg-slate-900 rounded-xl p-4 border border-slate-700">
-            <h3 className="font-black text-white mb-3 flex items-center gap-2">
-              <Bot size={18} className="text-emerald-400" />
-              給新 AI 助理的提示詞（複製使用）
-            </h3>
-            <div className="bg-slate-800 rounded-lg p-3 mb-3">
-              <p className="text-xs text-slate-300 mb-2 font-mono">📋 場景：你是 Step1ne 系統的智慧人才搜尋引擎</p>
-              <pre className="text-xs text-emerald-300 font-mono whitespace-pre-wrap break-words leading-relaxed">
-{`你是 Step1ne 系統的 AI 智能配對引擎。
-
-📚 必讀文檔：
-• 系統完整說明：/Users/user/clawd/hr-tools/TALENT_SOURCING_SYSTEM.md
-• API 操作指南：https://backendstep1ne.zeabur.app/api/guide
-
-🎯 你的目標：
-1. 分析職缺需求（公司 + 職位 + 人才畫像）
-2. 自動搜尋候選人（GitHub + LinkedIn Google）
-3. 去重 + 智慧回退（如果 0 人則放寬條件）
-4. AI 評分（6 維度，0-100 分）
-5. 自動分類（B+ → AI推薦，C/D → 備選人才）
-6. 批量上傳系統
-
-⚡ 快速命令：
-# 先分析（不搜尋）
-python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID} --dry-run
-
-# 完整執行
-python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID} --execute
-
-✅ 成功標準：
-- 找到 15+ 位候選人
-- A-B 級佔 60%+
-- 0 個上傳失敗`}
-              </pre>
-            </div>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(`你是 Step1ne 系統的 AI 智能配對引擎。
-
-📚 必讀文檔：
-• 系統完整說明：/Users/user/clawd/hr-tools/TALENT_SOURCING_SYSTEM.md
-• API 操作指南：https://backendstep1ne.zeabur.app/api/guide
-
-🎯 你的目標：
-1. 分析職缺需求（公司 + 職位 + 人才畫像）
-2. 自動搜尋候選人（GitHub + LinkedIn Google）
-3. 去重 + 智慧回退（如果 0 人則放寬條件）
-4. AI 評分（6 維度，0-100 分）
-5. 自動分類（B+ → AI推薦，C/D → 備選人才）
-6. 批量上傳系統
-
-⚡ 快速命令：
-# 先分析（不搜尋）
-python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID} --dry-run
-
-# 完整執行
-python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID} --execute
-
-✅ 成功標準：
-- 找到 15+ 位候選人
-- A-B 級佔 60%+
-- 0 個上傳失敗`);
-                alert('✅ 已複製到剪貼板！');
-              }}
-              className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors"
-            >
-              📋 複製提示詞
-            </button>
-          </div>
-
-          {/* 系統文檔 */}
-          <div>
-            <h3 className="font-black text-slate-900 mb-3">📚 完整文檔位置</h3>
-            <div className="p-4 bg-white rounded-lg border border-slate-200">
-              <p className="text-xs font-mono text-indigo-600 mb-2">
-                /Users/user/clawd/hr-tools/TALENT_SOURCING_SYSTEM.md
-              </p>
-              <p className="text-sm text-slate-700">包含：系統流程、參數配置、反爬蟲防禦、API 上傳格式、效能指標、常見問題</p>
-            </div>
-          </div>
-
-          {/* 運行模式 */}
-          <div>
-            <h3 className="font-black text-slate-900 mb-3">🎮 3 種運行模式</h3>
-            <div className="space-y-2">
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="font-black text-blue-700 text-sm">DRY-RUN（分析模式）</p>
-                <p className="text-xs font-mono text-slate-600 mt-1">--dry-run</p>
-                <p className="text-xs text-slate-600 mt-1">只分析 JD，不執行搜尋（查看策略）</p>
-              </div>
-              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-                <p className="font-black text-emerald-700 text-sm">EXECUTE（完整執行）</p>
-                <p className="text-xs font-mono text-slate-600 mt-1">--execute</p>
-                <p className="text-xs text-slate-600 mt-1">搜尋 + 評分 + 上傳（真實爬蟲）</p>
-              </div>
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <p className="font-black text-amber-700 text-sm">TEST（測試回退）</p>
-                <p className="text-xs font-mono text-slate-600 mt-1">--execute --test-zero-dedup</p>
-                <p className="text-xs text-slate-600 mt-1">驗證智慧回退邏輯</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* 匿名履歷 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
@@ -564,58 +328,6 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
         </div>
       </div>
 
-      {/* 候選人看板 */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-          <LayoutGrid className="text-purple-600" size={24} />
-          候選人流程看板
-        </h2>
-        <div className="space-y-4 text-slate-700">
-          <div>
-            <h3 className="font-black text-slate-900 mb-2">📊 功能說明</h3>
-            <p className="mb-3">流程看板以視覺化的方式展示候選人在招聘流程中的進度，讓您一目了然地掌握所有候選人的狀態。</p>
-          </div>
-
-          <div>
-            <h3 className="font-black text-slate-900 mb-2">🔄 招聘流程狀態</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <span className="font-black text-amber-700">待審核</span>
-                <p className="text-xs text-slate-600 mt-1">新候選人，等待初步評估</p>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <span className="font-black text-blue-700">聯繫階段</span>
-                <p className="text-xs text-slate-600 mt-1">已與候選人建立聯繫</p>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                <span className="font-black text-purple-700">面試中</span>
-                <p className="text-xs text-slate-600 mt-1">正在進行面試流程</p>
-              </div>
-              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-                <span className="font-black text-emerald-700">已錄取</span>
-                <p className="text-xs text-slate-600 mt-1">候選人已收到 offer</p>
-              </div>
-              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                <span className="font-black text-green-700">已到職</span>
-                <p className="text-xs text-slate-600 mt-1">候選人已正式入職</p>
-              </div>
-              <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                <span className="font-black text-red-700">已拒絕</span>
-                <p className="text-xs text-slate-600 mt-1">候選人婉拒 offer</p>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="font-black text-slate-900 mb-2">🖱️ 操作方式</h3>
-            <ul className="list-disc list-inside space-y-1 ml-4">
-              <li><strong>拖放移動</strong>：直接拖動候選人卡片到不同狀態欄位</li>
-              <li><strong>點擊查看</strong>：點擊候選人卡片可開啟詳細資訊</li>
-              <li><strong>快速評級</strong>：在卡片上直接查看人才等級</li>
-            </ul>
-          </div>
-        </div>
-      </div>
 
       {/* API 功能 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -659,7 +371,7 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
 
           <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
             <p className="text-sm text-slate-700">
-              📚 <strong>詳細 API 文檔</strong>：請參閱 <code className="bg-gray-100 px-1">docs/API.md</code>
+              📚 <strong>詳細 API 文檔</strong>：請參閱 <code className="bg-gray-100 px-1">docs/api/API.md</code>
             </p>
           </div>
         </div>
@@ -693,13 +405,13 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
           <div>
             <h3 className="font-black text-slate-900 mb-2">Q: 如何修改候選人資訊？</h3>
             <p className="text-slate-700">
-              <strong>A:</strong> 在候選人總表中點擊候選人行，或在流程看板中點擊候選人卡片，即可開啟編輯視窗。
+              <strong>A:</strong> 在候選人總表中點擊候選人行，即可開啟編輯視窗。
             </p>
           </div>
           <div>
-            <h3 className="font-black text-slate-900 mb-2">Q: 人才等級是如何計算的？</h3>
+            <h3 className="font-black text-slate-900 mb-2">Q: AI 評分是如何計算的？</h3>
             <p className="text-slate-700">
-              <strong>A:</strong> 人才等級由 6 個維度綜合評估：技能匹配（25%）、年資經歷（25%）、成長潛力（20%）、穩定度（15%）、學歷背景（10%）、特殊加分（5%）。
+              <strong>A:</strong> AI 評分由 5 個維度綜合評估：人才畫像符合度（40%）、JD 職責匹配度（30%）、公司適配性（15%）、可觸達性（10%）、活躍信號（5%）。
             </p>
           </div>
         </div>
@@ -863,12 +575,12 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
           <div>
             <h3 className="font-black text-slate-900 mb-2">🔄 評分 Bot 執行流程</h3>
             <ol className="list-decimal list-inside space-y-2 ml-4 text-sm">
-              <li>讀取系統操作指南 + 評分執行指南（學習 API 結構與評分流程）</li>
-              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/candidates?status=未開始</code> 確認今日新增人數</li>
-              <li>若有候選人 → 在本機執行 <code className="bg-gray-100 px-1">python3 one-bot-pipeline.py --mode score</code></li>
-              <li>Playwright 開啟每位候選人的 GitHub / LinkedIn 真實頁面讀取資料</li>
-              <li>6 維確定性評分 → ≥ 80 分進 AI推薦欄，&lt; 80 分進備選人才欄</li>
-              <li>結果記錄到系統日誌，任務完成</li>
+              <li>讀取評分執行指南（學習 API 結構與評分流程）</li>
+              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/candidates?created_today=true</code> 取得今日新增候選人</li>
+              <li>篩選 status 為「未開始」或「爬蟲初篩」的候選人</li>
+              <li>查詢對應職缺，取得人才畫像 / JD / 公司畫像</li>
+              <li>五維度 AI 評分 → ≥ 70 分標為「AI推薦」，&lt; 70 分標為「備選人才」</li>
+              <li>每評完一位立刻 PATCH 寫回系統，回報評分摘要</li>
             </ol>
           </div>
 
@@ -897,12 +609,10 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
           </div>
 
           <div>
-            <h3 className="font-black text-slate-900 mb-2">⚙️ 定時任務設定建議</h3>
-            <div className="bg-slate-800 rounded-xl p-4 text-sm font-mono">
-              <p className="text-slate-400 text-xs mb-2"># 每天凌晨 2 點自動執行評分（候選人通常在白天匯入）</p>
-              <p className="text-green-400">0 2 * * * openclaw run --prompt scoring-bot.txt</p>
-              <p className="text-slate-500 text-xs mt-3"># 或依你的 openclaw 排程語法調整</p>
-            </div>
+            <h3 className="font-black text-slate-900 mb-2">⚙️ 使用方式</h3>
+            <p className="text-sm text-slate-700">
+              將啟動指令複製貼給你的 AI 助理即可。建議每天下班前執行一次，評分新匯入的候選人。
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -922,8 +632,7 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
 
           <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
             <p className="text-sm text-slate-700">
-              ⏱️ <strong>執行時間預估</strong>：10 位候選人約需 <strong>5–8 分鐘</strong>（每位候選人間隔 10–20 秒反爬蟲停頓）。
-              若不需 Playwright 讀頁面可加 <code className="bg-white px-1 rounded">--no-profile-read</code> 縮短至約 1 分鐘。
+              ⏱️ <strong>執行方式</strong>：將啟動指令複製貼給 AI 助理（Claude / ChatGPT），Bot 會自動完成所有評分流程，無需人工介入。
             </p>
           </div>
 
@@ -1166,7 +875,7 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id {JOB_ID}
           <div>
             <h3 className="font-black text-slate-900 mb-2">🔄 分析 Bot 執行流程</h3>
             <ol className="list-decimal list-inside space-y-2 ml-4 text-sm">
-              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/candidates</code> 取得有 GitHub URL 的候選人</li>
+              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/candidates?limit=2000</code> 取得有 GitHub URL 的候選人</li>
               <li>呼叫 <code className="bg-gray-100 px-1">GET /api/github/analyze/{'{username}'}?jobId={'{id}'}</code> 取得結構化分析資料</li>
               <li>AI 深度判斷四維度分數 → 撰寫分析報告</li>
               <li>每分析完一位立刻 <code className="bg-gray-100 px-1">PATCH /api/candidates/{'{id}'}</code> 寫回系統</li>

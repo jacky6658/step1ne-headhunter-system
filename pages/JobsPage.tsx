@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { UserProfile } from '../types';
-import { Briefcase, Search, Building2, Users, Target, TrendingUp, Sparkles, FileText, Edit3, Save, X as XIcon, Bot, Plus, Trash2 } from 'lucide-react';
-import { apiGet, apiPut, apiDelete } from '../config/api';
+import { Briefcase, Search, Building2, Users, Target, TrendingUp, FileText, Edit3, Save, X as XIcon, Bot, Plus, Trash2, AlertTriangle, ClipboardCheck, ShieldAlert, Hash, Sparkles } from 'lucide-react';
+import { apiGet, apiPut, apiPost, apiDelete } from '../config/api';
 import { fmtDate } from '../utils/dateFormat';
+import { toast } from '../components/Toast';
 
 interface JobsPageProps {
   userProfile: UserProfile;
-  onNavigateToMatching: (jobId: string) => void;
 }
 
 interface Job {
@@ -46,16 +46,50 @@ interface Job {
   remote_work: string;       // 遠端工作
   business_trip: string;     // 出差外派
   job_url: string;           // 104/1111 原始連結
+  // 新增欄位
+  submission_criteria: string;
+  interview_stages: number;
+  interview_stage_detail: string;
+  priority: string;
+  salary_min: number;
+  salary_max: number;
+  rejection_criteria: string;
+  created_at: string;
   lastUpdated: string;
 }
 
-export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMatching }) => {
+type ModalTab = 'basic' | 'description' | 'matching';
+
+// 新增職缺空白模板
+const emptyJob: Partial<Job> = {
+  position_name: '', client_company: '', department: '', open_positions: '',
+  salary_range: '', salary_min: 0, salary_max: 0, key_skills: '',
+  experience_required: '', education_required: '', location: '', job_status: '招募中',
+  language_required: '', special_conditions: '', industry_background: '', team_size: '',
+  key_challenges: '', attractive_points: '', recruitment_difficulty: '', interview_process: '',
+  consultant_notes: '', job_description: '', company_profile: '', talent_profile: '',
+  search_primary: '', search_secondary: '', submission_criteria: '', interview_stages: 0,
+  interview_stage_detail: '', priority: '一般', rejection_criteria: '',
+};
+
+export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [clientFilter, setClientFilter] = useState('');
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+
+  // ── Tab 狀態 ──
+  const [activeTab, setActiveTab] = useState<ModalTab>('basic');
+
+  // ── 編輯狀態（三個 Tab 共用） ──
+  const [editingBasic, setEditingBasic] = useState(false);
+  const [basicDraft, setBasicDraft] = useState<Partial<Job>>({});
+  const [savingBasic, setSavingBasic] = useState(false);
+
+  // ── JD 編輯 ──
   const [editingJD, setEditingJD] = useState(false);
   const [jdDraft, setJdDraft] = useState('');
   const [savingJD, setSavingJD] = useState(false);
@@ -63,10 +97,9 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
   const [mdDraft, setMdDraft] = useState('');
   const [savingMD, setSavingMD] = useState(false);
 
-  // ── 編輯基本資料狀態 ──
-  const [editingBasic, setEditingBasic] = useState(false);
-  const [basicDraft, setBasicDraft] = useState<Partial<Job>>({});
-  const [savingBasic, setSavingBasic] = useState(false);
+  // ── 新增職缺 ──
+  const [isCreating, setIsCreating] = useState(false);
+  const [savingCreate, setSavingCreate] = useState(false);
 
   // ── 刪除狀態 ──
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
@@ -94,12 +127,21 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     fetchJobs();
   }, []);
 
+  // 從職缺清單萃取不重複客戶公司名（供篩選用）
+  const uniqueClients = useMemo(() => {
+    const set = new Set<string>();
+    jobs.forEach(j => { if (j.client_company) set.add(j.client_company); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'zh-TW'));
+  }, [jobs]);
+
   useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setFilteredJobs(jobs);
-    } else {
+    let result = jobs;
+    if (clientFilter) {
+      result = result.filter(job => job.client_company === clientFilter);
+    }
+    if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const filtered = jobs.filter(job => {
+      result = result.filter(job => {
         try {
           return (
             (job.position_name && job.position_name.toLowerCase().includes(query)) ||
@@ -111,9 +153,9 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
           return false;
         }
       });
-      setFilteredJobs(filtered);
     }
-  }, [searchQuery, jobs]);
+    setFilteredJobs(result);
+  }, [searchQuery, clientFilter, jobs]);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -137,41 +179,50 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
       if (data.success && data.data) {
         setJobs(data.data);
         setFilteredJobs(data.data);
-        
-        const notification = document.createElement('div');
-        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2';
-        notification.innerHTML = `
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-          </svg>
-          <span>已同步 ${data.data.length} 個職缺</span>
-        `;
-        document.body.appendChild(notification);
-        setTimeout(() => notification.remove(), 3000);
+        showNotification('success', `已同步 ${data.data.length} 個職缺`);
       }
     } catch (error) {
       console.error('同步職缺失敗:', error);
-      
-      const notification = document.createElement('div');
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2';
-      notification.innerHTML = `
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-        </svg>
-        <span>同步失敗</span>
-      `;
-      document.body.appendChild(notification);
-      setTimeout(() => notification.remove(), 3000);
+      showNotification('error', '同步失敗');
     } finally {
       setSyncing(false);
     }
   };
 
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    if (type === 'success') toast.success(message);
+    else toast.error(message);
+  };
+
   const parseTags = (str: string | undefined) =>
     str ? str.split(',').map(s => s.trim()).filter(Boolean) : [];
 
+  const parseSkills = (skillsStr: string | undefined) => {
+    if (!skillsStr) return [];
+    return skillsStr.split('、').map(s => s.trim()).filter(s => s.length > 0);
+  };
+
+  // ── 計算缺少的重要欄位 ──
+  const getMissingFields = (job: Job | Partial<Job>) => {
+    const checks: { field: string; label: string; tab: ModalTab }[] = [
+      { field: 'submission_criteria', label: '客戶送人條件', tab: 'matching' },
+      { field: 'interview_stages', label: '面試階段數', tab: 'description' },
+      { field: 'interview_stage_detail', label: '面試各階段說明', tab: 'description' },
+      { field: 'rejection_criteria', label: '淘汰條件', tab: 'matching' },
+      { field: 'salary_min', label: '薪資下限', tab: 'basic' },
+      { field: 'salary_max', label: '薪資上限', tab: 'basic' },
+    ];
+    return checks.filter(c => {
+      const v = (job as any)[c.field];
+      return !v || v === '' || v === 0;
+    });
+  };
+
+  // ── 開啟既有職缺 ──
   const handleJobClick = (job: Job) => {
     setSelectedJob(job);
+    setIsCreating(false);
+    setActiveTab('basic');
     setEditingJD(false);
     setJdDraft(job.job_description || '');
     setEditingBasic(false);
@@ -190,6 +241,25 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     setTargetCompaniesInput('');
     setTitleVariantsInput('');
     setExclusionKeywordsInput('');
+  };
+
+  // ── 開啟新增職缺 ──
+  const handleCreateNew = () => {
+    setSelectedJob({ ...emptyJob, id: '' } as Job);
+    setIsCreating(true);
+    setActiveTab('basic');
+    setEditingBasic(true);
+    setBasicDraft({ ...emptyJob });
+    setJdDraft('');
+    setEditingJD(false);
+    setShowDeleteConfirm(false);
+    setEditingSearch(false);
+    setCompanyProfileDraft('');
+    setTalentProfileDraft('');
+    setPrimaryTags([]);
+    setSecondaryTags([]);
+    setPrimaryTagInput('');
+    setSecondaryTagInput('');
   };
 
   const addTag = (
@@ -233,7 +303,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
       } : null);
       setEditingSearch(false);
     } catch {
-      alert('❌ 儲存失敗，請稍後再試');
+      toast.error('儲存失敗，請稍後再試');
     } finally {
       setSavingSearch(false);
     }
@@ -245,9 +315,10 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     try {
       await apiPut(`/api/jobs/${selectedJob.id}`, { job_description: jdDraft });
       setSelectedJob(prev => prev ? { ...prev, job_description: jdDraft } : null);
+      setJobs(prev => prev.map(j => j.id === selectedJob.id ? { ...j, job_description: jdDraft } : j));
       setEditingJD(false);
-    } catch (err) {
-      alert('❌ 儲存失敗，請稍後再試');
+    } catch {
+      toast.error('儲存失敗，請稍後再試');
     } finally {
       setSavingJD(false);
     }
@@ -267,6 +338,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     }
   };
 
+  // ── 編輯基本資料（所有 Tab 共用） ──
   const handleStartEditBasic = () => {
     if (!selectedJob) return;
     setBasicDraft({
@@ -275,27 +347,74 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
       department: selectedJob.department,
       open_positions: selectedJob.open_positions,
       salary_range: selectedJob.salary_range,
+      salary_min: selectedJob.salary_min || 0,
+      salary_max: selectedJob.salary_max || 0,
       location: selectedJob.location,
       key_skills: selectedJob.key_skills,
       experience_required: selectedJob.experience_required,
       education_required: selectedJob.education_required,
       language_required: selectedJob.language_required,
       job_status: selectedJob.job_status,
+      priority: selectedJob.priority || '一般',
+      // Tab 1 新增可編輯欄位
+      industry_background: selectedJob.industry_background,
+      team_size: selectedJob.team_size,
+      // Tab 2 欄位
+      interview_process: selectedJob.interview_process,
+      interview_stages: selectedJob.interview_stages || 0,
+      interview_stage_detail: selectedJob.interview_stage_detail,
+      key_challenges: selectedJob.key_challenges,
+      attractive_points: selectedJob.attractive_points,
+      recruitment_difficulty: selectedJob.recruitment_difficulty,
+      special_conditions: selectedJob.special_conditions,
+      job_description: selectedJob.job_description,
+      // Tab 3 欄位
+      submission_criteria: selectedJob.submission_criteria,
+      rejection_criteria: selectedJob.rejection_criteria,
+      consultant_notes: selectedJob.consultant_notes,
     });
     setEditingBasic(true);
   };
 
   const handleSaveBasic = async () => {
     if (!selectedJob) return;
+
+    // 新增模式
+    if (isCreating) {
+      if (!basicDraft.position_name?.trim()) {
+        toast.warning('職位名稱為必填欄位');
+        return;
+      }
+      setSavingCreate(true);
+      try {
+        const payload = { ...basicDraft };
+        const res = await apiPost<{ success: boolean; data: Job; missing_fields?: any[] }>('/api/jobs', payload);
+        if (res.success && res.data) {
+          setJobs(prev => [res.data, ...prev]);
+          setSelectedJob(res.data);
+          setIsCreating(false);
+          setEditingBasic(false);
+          setBasicDraft({});
+          showNotification('success', '職缺建立成功');
+        }
+      } catch {
+        toast.error('建立職缺失敗，請稍後再試');
+      } finally {
+        setSavingCreate(false);
+      }
+      return;
+    }
+
+    // 編輯模式
     setSavingBasic(true);
     try {
       await apiPut(`/api/jobs/${selectedJob.id}`, basicDraft);
       const updatedJob = { ...selectedJob, ...basicDraft };
-      setSelectedJob(updatedJob);
-      setJobs(prev => prev.map(j => j.id === selectedJob.id ? { ...j, ...basicDraft } : j));
+      setSelectedJob(updatedJob as Job);
+      setJobs(prev => prev.map(j => j.id === selectedJob.id ? { ...j, ...basicDraft } as Job : j));
       setEditingBasic(false);
     } catch {
-      alert('❌ 儲存失敗，請稍後再試');
+      toast.error('儲存失敗，請稍後再試');
     } finally {
       setSavingBasic(false);
     }
@@ -310,26 +429,20 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
         setSelectedJob(null);
       }
       setShowDeleteConfirm(false);
-      // 顯示成功通知
-      const notification = document.createElement('div');
-      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[60] flex items-center gap-2';
-      notification.innerHTML = `
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-        </svg>
-        <span>職缺已成功刪除</span>
-      `;
-      document.body.appendChild(notification);
-      setTimeout(() => notification.remove(), 3000);
-    } catch (err) {
-      alert('❌ 刪除失敗，請稍後再試');
+      showNotification('success', '職缺已成功刪除');
+    } catch {
+      toast.error('刪除失敗，請稍後再試');
     } finally {
       setDeletingJobId(null);
     }
   };
 
-  const handleStartMatching = (jobId: string) => {
-    onNavigateToMatching(jobId);
+  const closeModal = () => {
+    setSelectedJob(null);
+    setEditingJD(false);
+    setEditingSearch(false);
+    setEditingBasic(false);
+    setIsCreating(false);
   };
 
   const getStatusColor = (status: string | undefined) => {
@@ -347,116 +460,209 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
     return 'bg-blue-100 text-blue-800 border-blue-300';
   };
 
-  const parseSkills = (skillsStr: string | undefined) => {
-    if (!skillsStr) return [];
-    return skillsStr.split('、').map(s => s.trim()).filter(s => s.length > 0);
+  const getPriorityColor = (priority: string | undefined) => {
+    if (!priority || priority === '一般') return 'bg-blue-100 text-blue-700 border-blue-300';
+    if (priority === '急件') return 'bg-red-100 text-red-700 border-red-300';
+    if (priority === '備用') return 'bg-gray-100 text-gray-600 border-gray-300';
+    return 'bg-blue-100 text-blue-700 border-blue-300';
   };
 
+  // ── 通用可編輯欄位組件 ──
+  const EditableField = ({ label, field, type = 'text', placeholder = '', rows = 3, className = '' }: {
+    label: string; field: keyof Job; type?: 'text' | 'textarea' | 'number' | 'select'; placeholder?: string; rows?: number; className?: string;
+  }) => {
+    const value = editingBasic ? (basicDraft as any)[field] : (selectedJob as any)?.[field];
+    if (editingBasic) {
+      if (type === 'textarea') {
+        return (
+          <div className={className}>
+            <label className="text-xs font-semibold text-slate-600 uppercase">{label}</label>
+            <textarea
+              value={value || ''}
+              onChange={e => setBasicDraft(prev => ({ ...prev, [field]: e.target.value }))}
+              rows={rows}
+              placeholder={placeholder}
+              className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
+            />
+          </div>
+        );
+      }
+      if (type === 'number') {
+        return (
+          <div className={className}>
+            <label className="text-xs font-semibold text-slate-600 uppercase">{label}</label>
+            <input
+              type="number"
+              value={value || ''}
+              onChange={e => setBasicDraft(prev => ({ ...prev, [field]: parseInt(e.target.value) || 0 }))}
+              placeholder={placeholder}
+              className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+          </div>
+        );
+      }
+      return (
+        <div className={className}>
+          <label className="text-xs font-semibold text-slate-600 uppercase">{label}</label>
+          <input
+            type="text"
+            value={value || ''}
+            onChange={e => setBasicDraft(prev => ({ ...prev, [field]: e.target.value }))}
+            placeholder={placeholder}
+            className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+        </div>
+      );
+    }
+    // 唯讀模式
+    if (!value && value !== 0) return null;
+    return (
+      <div className={className}>
+        <label className="text-xs font-semibold text-slate-600 uppercase">{label}</label>
+        <p className="text-sm text-slate-900 mt-1 whitespace-pre-line">{value}</p>
+      </div>
+    );
+  };
+
+  // ── Tab 定義 ──
+  const tabs: { key: ModalTab; icon: React.ReactNode; label: string }[] = [
+    { key: 'basic', icon: <ClipboardCheck size={14} />, label: '基本資訊' },
+    { key: 'description', icon: <FileText size={14} />, label: '職缺描述' },
+    { key: 'matching', icon: <Target size={14} />, label: '配對與送人' },
+  ];
+
+  // ── 取得列表欄位中是否有缺欄位 ──
+  const jobHasMissingFields = (job: Job) => getMissingFields(job).length > 0;
+
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto px-3 py-4 sm:p-6">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-4 sm:mb-8">
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
-              <Briefcase className="text-indigo-600" size={32} />
+            <h1 className="text-lg sm:text-3xl font-bold text-slate-900 flex items-center gap-2 sm:gap-3">
+              <Briefcase className="text-indigo-600 shrink-0" size={24} />
               職缺管理
             </h1>
-            <p className="text-slate-600 mt-2">
+            <p className="text-slate-600 mt-1 sm:mt-2 text-xs sm:text-base">
               管理所有客戶職缺，追蹤招募狀態
             </p>
           </div>
-          
-          <button
-            onClick={syncJobs}
-            disabled={syncing}
-            className={`px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all ${
-              syncing
-                ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-                : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg'
-            }`}
-          >
-            <svg 
-              className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`}
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCreateNew}
+              className="px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl font-semibold flex items-center gap-1.5 sm:gap-2 transition-all bg-emerald-600 text-white hover:bg-emerald-700 shadow-md hover:shadow-lg text-sm sm:text-base"
             >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
-              />
-            </svg>
-            {syncing ? '同步中...' : '同步職缺'}
-          </button>
+              <Plus size={16} />
+              <span className="hidden xs:inline">新增</span>職缺
+            </button>
+            <button
+              onClick={syncJobs}
+              disabled={syncing}
+              className={`px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl font-semibold flex items-center gap-1.5 sm:gap-2 transition-all text-sm sm:text-base ${
+                syncing
+                  ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg'
+              }`}
+            >
+              <svg
+                className={`w-4 h-4 sm:w-5 sm:h-5 ${syncing ? 'animate-spin' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              {syncing ? '同步中...' : '同步'}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* 統計卡片 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-600 mb-1">總職缺數</div>
-              <div className="text-3xl font-bold text-slate-900">{jobs.length}</div>
+              <div className="text-xs sm:text-sm text-slate-600 mb-0.5 sm:mb-1">總職缺數</div>
+              <div className="text-2xl sm:text-3xl font-bold text-slate-900">{jobs.length}</div>
             </div>
-            <Briefcase className="text-indigo-600" size={32} />
+            <Briefcase className="text-indigo-600 hidden sm:block" size={32} />
           </div>
         </div>
-        
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-600 mb-1">開放中</div>
-              <div className="text-3xl font-bold text-green-600">
+              <div className="text-xs sm:text-sm text-slate-600 mb-0.5 sm:mb-1">開放中</div>
+              <div className="text-2xl sm:text-3xl font-bold text-green-600">
                 {jobs.filter(j => j.job_status && (j.job_status.includes('開放') || j.job_status.includes('招募'))).length}
               </div>
             </div>
-            <TrendingUp className="text-green-600" size={32} />
+            <TrendingUp className="text-green-600 hidden sm:block" size={32} />
           </div>
         </div>
-        
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-600 mb-1">獨立公司</div>
-              <div className="text-3xl font-bold text-indigo-600">
+              <div className="text-xs sm:text-sm text-slate-600 mb-0.5 sm:mb-1">獨立公司</div>
+              <div className="text-2xl sm:text-3xl font-bold text-indigo-600">
                 {new Set(jobs.map(j => j.client_company)).size}
               </div>
             </div>
-            <Building2 className="text-indigo-600" size={32} />
+            <Building2 className="text-indigo-600 hidden sm:block" size={32} />
           </div>
         </div>
-        
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-600 mb-1">招募職位</div>
-              <div className="text-3xl font-bold text-purple-600">
-                {jobs.reduce((sum, job) => {
-                  const num = parseInt(job.open_positions) || 0;
-                  return sum + num;
-                }, 0)}
+              <div className="text-xs sm:text-sm text-slate-600 mb-0.5 sm:mb-1">急件</div>
+              <div className="text-2xl sm:text-3xl font-bold text-red-600">
+                {jobs.filter(j => j.priority === '急件').length}
               </div>
             </div>
-            <Users className="text-purple-600" size={32} />
+            <AlertTriangle className="text-red-500 hidden sm:block" size={32} />
           </div>
         </div>
       </div>
 
-      {/* 搜尋列 */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+      {/* 搜尋列 + 客戶篩選 */}
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-2 sm:gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
           <input
             type="text"
             placeholder="搜尋職位、公司、技能..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
           />
+        </div>
+        <div className="relative sm:min-w-[200px]">
+          <select
+            value={clientFilter}
+            onChange={e => setClientFilter(e.target.value)}
+            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm appearance-none bg-white"
+          >
+            <option value="">全部客戶 ({jobs.length})</option>
+            {uniqueClients.map(c => (
+              <option key={c} value={c}>{c} ({jobs.filter(j => j.client_company === c).length})</option>
+            ))}
+          </select>
+          {clientFilter && (
+            <button
+              onClick={() => setClientFilter('')}
+              className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+            >&times;</button>
+          )}
         </div>
       </div>
 
@@ -475,51 +681,32 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
         </div>
       ) : (
         <>
-        {/* 手機版卡片列表 */}
-        <div className="block md:hidden space-y-3">
+        {/* 手機版卡片列表 — 不顯示刪除按鈕，進 Modal 後再操作 */}
+        <div className="block md:hidden space-y-2">
           {filteredJobs.map((job) => (
             <div
               key={job.id}
-              className="bg-white rounded-xl border border-slate-200 p-4 cursor-pointer active:bg-slate-50"
+              className="bg-white rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer active:bg-slate-50 transition-colors"
               onClick={() => handleJobClick(job)}
             >
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <div className="font-semibold text-slate-900">{job.position_name}</div>
-                  <div className="text-sm text-slate-600">{job.client_company}</div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm text-slate-900 truncate flex items-center gap-1">
+                    {job.position_name}
+                    {jobHasMissingFields(job) && <AlertTriangle size={12} className="text-amber-500 shrink-0" />}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5 truncate">{job.client_company}{job.location ? ` · ${job.location}` : ''}</div>
                 </div>
-                <span className={`px-2 py-1 text-xs font-semibold rounded border ${getStatusColor(job.job_status)}`}>
-                  {job.job_status}
-                </span>
-              </div>
-              <div className="text-xs text-slate-500 mb-3">
-                {job.location && <span>{job.location} · </span>}
-                建立：{fmtDate(job.lastUpdated)}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleStartMatching(job.id.toString());
-                  }}
-                  className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
-                >
-                  <Sparkles size={14} />
-                  AI 配對
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm(`確定要刪除「${job.position_name}」？此操作無法復原。`)) {
-                      handleDeleteJob(job.id);
-                    }
-                  }}
-                  disabled={deletingJobId === job.id}
-                  className="px-3 py-1.5 bg-red-50 text-red-600 text-xs rounded-lg hover:bg-red-100 transition-all flex items-center gap-1 border border-red-200"
-                >
-                  <Trash2 size={14} />
-                  {deletingJobId === job.id ? '刪除中...' : '刪除'}
-                </button>
+                <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                  {job.priority === '急件' && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-bold rounded border bg-red-100 text-red-700 border-red-300">
+                      急
+                    </span>
+                  )}
+                  <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border ${getStatusColor(job.job_status)}`}>
+                    {job.job_status}
+                  </span>
+                </div>
               </div>
             </div>
           ))}
@@ -533,8 +720,8 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">職位名稱</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">客戶公司</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[80px]">優先級</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[100px]">部門</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">人數</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">薪資</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">技能</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">狀態</th>
@@ -549,13 +736,22 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                     onClick={() => handleJobClick(job)}
                   >
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-900">{job.position_name}</div>
+                      <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                        {job.position_name}
+                        {jobHasMissingFields(job) && <AlertTriangle size={13} className="text-amber-500 shrink-0" title="有欄位待補填" />}
+                      </div>
                       <div className="text-xs text-slate-500">{job.location}</div>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-900">{job.client_company}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 text-xs font-semibold rounded border ${getPriorityColor(job.priority)}`}>
+                        {job.priority || '一般'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-600 min-w-[100px] whitespace-nowrap">{job.department || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-900 font-medium">{job.open_positions || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{job.salary_range || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">
+                      {job.salary_min && job.salary_max ? `${job.salary_min}K ~ ${job.salary_max}K` : (job.salary_range || '-')}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {parseSkills(job.key_skills).slice(0, 2).map((skill, idx) => (
@@ -580,16 +776,6 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleStartMatching(job.id.toString());
-                          }}
-                          className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
-                        >
-                          <Sparkles size={14} />
-                          AI 配對
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
                             if (confirm(`確定要刪除「${job.position_name}」？此操作無法復原。`)) {
                               handleDeleteJob(job.id);
                             }
@@ -608,21 +794,25 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
             </table>
           </div>
         </div>
-        {/* 桌機版列表結束 */}
         </>
       )}
 
-      {/* 職缺詳情 Modal */}
+      {/* ======== 職缺詳情 Modal ======== */}
       {selectedJob && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => { setSelectedJob(null); setEditingJD(false); setEditingSearch(false); setEditingBasic(false); }}
+        <div
+          className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4"
+          onClick={closeModal}
         >
           <div
-            className="bg-white rounded-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-t-2xl sm:rounded-2xl max-w-3xl w-full max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-3 sm:p-6 border-b border-slate-200 sticky top-0 bg-white z-10">
+            {/* ── Header ── */}
+            <div className="p-3 sm:p-5 border-b border-slate-200 shrink-0">
+              {/* 手機版頂部拖曳條 */}
+              <div className="flex justify-center mb-2 sm:hidden">
+                <div className="w-10 h-1 bg-slate-300 rounded-full" />
+              </div>
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   {editingBasic ? (
@@ -630,751 +820,242 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                       type="text"
                       value={basicDraft.position_name || ''}
                       onChange={e => setBasicDraft(prev => ({ ...prev, position_name: e.target.value }))}
-                      className="text-2xl font-bold text-slate-900 w-full border-b-2 border-indigo-400 focus:outline-none bg-transparent pb-1"
-                      placeholder="職位名稱"
+                      className="text-base sm:text-xl font-bold text-slate-900 w-full border-b-2 border-indigo-400 focus:outline-none bg-transparent pb-1"
+                      placeholder="職位名稱（必填）"
                     />
                   ) : (
-                    <h2 className="text-2xl font-bold text-slate-900">{selectedJob.position_name}</h2>
+                    <h2 className="text-base sm:text-xl font-bold text-slate-900 leading-tight">{selectedJob.position_name}</h2>
                   )}
                   {editingBasic ? (
                     <input
                       type="text"
                       value={basicDraft.client_company || ''}
                       onChange={e => setBasicDraft(prev => ({ ...prev, client_company: e.target.value }))}
-                      className="text-slate-600 mt-1 w-full border-b border-indigo-300 focus:outline-none bg-transparent pb-0.5"
+                      className="text-slate-600 mt-1 w-full border-b border-indigo-300 focus:outline-none bg-transparent pb-0.5 text-xs sm:text-sm"
                       placeholder="客戶公司"
                     />
                   ) : (
-                    <p className="text-slate-600 mt-1">{selectedJob.client_company}</p>
+                    <p className="text-xs sm:text-sm text-slate-600 mt-0.5">{selectedJob.client_company}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                <div className="flex items-center gap-1 sm:gap-2 ml-2 sm:ml-3 flex-shrink-0">
                   {!editingBasic ? (
                     <>
                       <button
                         onClick={handleStartEditBasic}
-                        className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
-                        title="編輯基本資料"
+                        className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 px-1.5 sm:px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                        title="編輯"
                       >
                         <Edit3 size={14} />
-                        編輯
+                        <span className="hidden sm:inline">編輯</span>
                       </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                        title="刪除職缺"
-                      >
-                        <Trash2 size={14} />
-                        刪除
-                      </button>
+                      {/* 刪除按鈕：小 icon、低對比度、不易誤觸 */}
+                      {!isCreating && (
+                        <button
+                          onClick={() => setShowDeleteConfirm(true)}
+                          className="text-slate-300 hover:text-red-500 p-1 rounded transition-colors"
+                          title="刪除職缺"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </>
                   ) : (
                     <>
                       <button
                         onClick={handleSaveBasic}
-                        disabled={savingBasic}
-                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                        disabled={savingBasic || savingCreate}
+                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                       >
                         <Save size={12} />
-                        {savingBasic ? '儲存中...' : '儲存'}
+                        {savingBasic || savingCreate ? '...' : (isCreating ? '建立' : '儲存')}
                       </button>
                       <button
-                        onClick={() => { setEditingBasic(false); setBasicDraft({}); }}
-                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5"
+                        onClick={() => {
+                          if (isCreating) { closeModal(); return; }
+                          setEditingBasic(false);
+                          setBasicDraft({});
+                        }}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-1.5 sm:px-2 py-1.5"
                       >
                         <XIcon size={14} />
-                        取消
+                        <span className="hidden sm:inline">取消</span>
                       </button>
                     </>
                   )}
-                  <button
-                    onClick={() => { setSelectedJob(null); setEditingJD(false); setEditingSearch(false); setEditingBasic(false); }}
-                    className="text-slate-400 hover:text-slate-600 ml-1"
-                  >
-                    ✕
+                  <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 ml-0.5 sm:ml-1">
+                    <XIcon size={16} />
                   </button>
                 </div>
               </div>
 
-              {/* 刪除確認 */}
+              {/* 刪除確認 — 2 步驟，不會誤觸 */}
               {showDeleteConfirm && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl">
-                  <p className="text-sm text-red-800 mb-2">
-                    確定要刪除「{selectedJob.position_name}」？此操作無法復原。
+                <div className="mt-2 p-2.5 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-xs text-red-800 mb-2">
+                    確定刪除「{selectedJob.position_name}」？無法復原。
                   </p>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleDeleteJob(selectedJob.id)}
                       disabled={deletingJobId === selectedJob.id}
-                      className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all"
+                      className="px-2.5 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all"
                     >
                       {deletingJobId === selectedJob.id ? '刪除中...' : '確認刪除'}
                     </button>
                     <button
                       onClick={() => setShowDeleteConfirm(false)}
-                      className="px-3 py-1.5 bg-white text-slate-600 text-xs rounded-lg border border-slate-300 hover:bg-slate-50 transition-all"
+                      className="px-2.5 py-1 bg-white text-slate-600 text-xs rounded-lg border border-slate-300 hover:bg-slate-50 transition-all"
                     >
                       取消
                     </button>
                   </div>
                 </div>
               )}
+
+              {/* ── 缺欄位提醒 ── */}
+              {!isCreating && getMissingFields(selectedJob).length > 0 && (
+                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-1.5">
+                  <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                  <div className="text-[11px] sm:text-xs text-amber-800 flex-1 leading-relaxed">
+                    <span className="font-semibold">{getMissingFields(selectedJob).length} 項待補：</span>
+                    {getMissingFields(selectedJob).map((f, i) => (
+                      <button
+                        key={i}
+                        className="inline-flex items-center mx-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] sm:text-[11px] hover:bg-amber-200 transition-colors"
+                        onClick={() => { setActiveTab(f.tab); if (!editingBasic) handleStartEditBasic(); }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Tab 切換 ── */}
+              <div className="flex gap-0.5 sm:gap-1 mt-2 sm:mt-3 -mb-[1px] relative z-[1]">
+                {tabs.map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold rounded-t-lg border transition-colors ${
+                      activeTab === tab.key
+                        ? 'bg-white text-indigo-700 border-slate-200 border-b-white'
+                        : 'bg-slate-50 text-slate-500 border-transparent hover:text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="p-3 sm:p-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">部門</label>
-                  {editingBasic ? (
-                    <input
-                      type="text"
-                      value={basicDraft.department || ''}
-                      onChange={e => setBasicDraft(prev => ({ ...prev, department: e.target.value }))}
-                      className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    />
-                  ) : (
-                    <p className="text-sm text-slate-900">{selectedJob.department || '-'}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">需求人數</label>
-                  {editingBasic ? (
-                    <input
-                      type="text"
-                      value={basicDraft.open_positions || ''}
-                      onChange={e => setBasicDraft(prev => ({ ...prev, open_positions: e.target.value }))}
-                      className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    />
-                  ) : (
-                    <p className="text-sm text-slate-900">{selectedJob.open_positions || '-'}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">薪資範圍</label>
-                  {editingBasic ? (
-                    <input
-                      type="text"
-                      value={basicDraft.salary_range || ''}
-                      onChange={e => setBasicDraft(prev => ({ ...prev, salary_range: e.target.value }))}
-                      className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    />
-                  ) : (
-                    <p className="text-sm text-slate-900">{selectedJob.salary_range || '-'}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">地點</label>
-                  {editingBasic ? (
-                    <input
-                      type="text"
-                      value={basicDraft.location || ''}
-                      onChange={e => setBasicDraft(prev => ({ ...prev, location: e.target.value }))}
-                      className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    />
-                  ) : (
-                    <p className="text-sm text-slate-900">{selectedJob.location || '-'}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">狀態</label>
-                  {editingBasic ? (
-                    <select
-                      value={basicDraft.job_status || ''}
-                      onChange={e => setBasicDraft(prev => ({ ...prev, job_status: e.target.value }))}
-                      className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    >
-                      <option value="招募中">招募中</option>
-                      <option value="暫停">暫停</option>
-                      <option value="已滿額">已滿額</option>
-                      <option value="關閉">關閉</option>
-                    </select>
-                  ) : null}
-                </div>
-              </div>
+            {/* ── Tab 內容 ── */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-5">
 
-              <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">主要技能</label>
-                {editingBasic ? (
-                  <input
-                    type="text"
-                    value={basicDraft.key_skills || ''}
-                    onChange={e => setBasicDraft(prev => ({ ...prev, key_skills: e.target.value }))}
-                    className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    placeholder="用「、」分隔，例：React、TypeScript、Node.js"
-                  />
-                ) : (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {parseSkills(selectedJob.key_skills).map((skill, idx) => (
-                      <span key={idx} className="px-3 py-1 bg-indigo-50 text-indigo-700 text-sm rounded-lg">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">經驗要求</label>
-                {editingBasic ? (
-                  <input
-                    type="text"
-                    value={basicDraft.experience_required || ''}
-                    onChange={e => setBasicDraft(prev => ({ ...prev, experience_required: e.target.value }))}
-                    className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  />
-                ) : (
-                  <p className="text-sm text-slate-900 mt-1">{selectedJob.experience_required || '-'}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">學歷要求</label>
-                {editingBasic ? (
-                  <input
-                    type="text"
-                    value={basicDraft.education_required || ''}
-                    onChange={e => setBasicDraft(prev => ({ ...prev, education_required: e.target.value }))}
-                    className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  />
-                ) : (
-                  <p className="text-sm text-slate-900 mt-1">{selectedJob.education_required || '-'}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">語言要求</label>
-                {editingBasic ? (
-                  <input
-                    type="text"
-                    value={basicDraft.language_required || ''}
-                    onChange={e => setBasicDraft(prev => ({ ...prev, language_required: e.target.value }))}
-                    className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  />
-                ) : (
-                  <p className="text-sm text-slate-900 mt-1">{selectedJob.language_required || '-'}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">吸引亮點</label>
-                <p className="text-sm text-slate-900 mt-1">{selectedJob.attractive_points || '-'}</p>
-              </div>
-
-              {/* ── 104 富文本欄位 ── */}
-              {(selectedJob.work_hours || selectedJob.vacation_policy || selectedJob.remote_work || selectedJob.business_trip) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  {selectedJob.work_hours && (
+              {/* ======== Tab 1: 基本資訊 ======== */}
+              {activeTab === 'basic' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <EditableField label="部門" field="department" />
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 uppercase">上班時段</label>
-                      <p className="text-sm text-slate-900 mt-1">{selectedJob.work_hours}</p>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">需求人數</label>
+                      {editingBasic ? (
+                        <input
+                          type="text"
+                          value={basicDraft.open_positions || ''}
+                          onChange={e => setBasicDraft(prev => ({ ...prev, open_positions: e.target.value }))}
+                          className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        />
+                      ) : (
+                        <p className="text-sm text-slate-900 mt-1">{selectedJob.open_positions || '-'}</p>
+                      )}
                     </div>
-                  )}
-                  {selectedJob.vacation_policy && (
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 uppercase">休假制度</label>
-                      <p className="text-sm text-slate-900 mt-1">{selectedJob.vacation_policy}</p>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">狀態</label>
+                      {editingBasic ? (
+                        <select
+                          value={basicDraft.job_status || '招募中'}
+                          onChange={e => setBasicDraft(prev => ({ ...prev, job_status: e.target.value }))}
+                          className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        >
+                          <option value="招募中">招募中</option>
+                          <option value="暫停">暫停</option>
+                          <option value="已滿額">已滿額</option>
+                          <option value="關閉">關閉</option>
+                        </select>
+                      ) : (
+                        <p className="mt-1">
+                          <span className={`px-2 py-0.5 text-xs font-semibold rounded border ${getStatusColor(selectedJob.job_status)}`}>
+                            {selectedJob.job_status}
+                          </span>
+                        </p>
+                      )}
                     </div>
-                  )}
-                  {selectedJob.remote_work && (
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 uppercase">遠端工作</label>
-                      <p className="text-sm text-slate-900 mt-1">{selectedJob.remote_work}</p>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">優先級</label>
+                      {editingBasic ? (
+                        <select
+                          value={basicDraft.priority || '一般'}
+                          onChange={e => setBasicDraft(prev => ({ ...prev, priority: e.target.value }))}
+                          className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        >
+                          <option value="急件">急件</option>
+                          <option value="一般">一般</option>
+                          <option value="備用">備用</option>
+                        </select>
+                      ) : (
+                        <p className="mt-1">
+                          <span className={`px-2 py-0.5 text-xs font-semibold rounded border ${getPriorityColor(selectedJob.priority)}`}>
+                            {selectedJob.priority || '一般'}
+                          </span>
+                        </p>
+                      )}
                     </div>
-                  )}
-                  {selectedJob.business_trip && (
+                    <EditableField label="地點" field="location" />
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 uppercase">出差外派</label>
-                      <p className="text-sm text-slate-900 mt-1">{selectedJob.business_trip}</p>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">薪資範圍（文字）</label>
+                      {editingBasic ? (
+                        <input
+                          type="text"
+                          value={basicDraft.salary_range || ''}
+                          onChange={e => setBasicDraft(prev => ({ ...prev, salary_range: e.target.value }))}
+                          className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          placeholder="如：年薪 150-200 萬"
+                        />
+                      ) : (
+                        <p className="text-sm text-slate-900 mt-1">{selectedJob.salary_range || '-'}</p>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
-
-              {selectedJob.welfare_tags && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">員工福利</label>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {selectedJob.welfare_tags.split(',').map((t, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full border border-emerald-200">
-                        {t.trim()}
-                      </span>
-                    ))}
+                    <EditableField label="薪資下限（K/月）" field="salary_min" type="number" placeholder="如：80" />
+                    <EditableField label="薪資上限（K/月）" field="salary_max" type="number" placeholder="如：120" />
+                    <EditableField label="產業背景" field="industry_background" />
+                    <EditableField label="團隊規模" field="team_size" />
                   </div>
-                </div>
-              )}
 
-              {selectedJob.welfare_detail && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">福利詳情</label>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto mt-1">
-                    {selectedJob.welfare_detail}
-                  </div>
-                </div>
-              )}
+                  <EditableField label="經驗要求" field="experience_required" />
+                  <EditableField label="學歷要求" field="education_required" />
+                  <EditableField label="語言要求" field="language_required" />
 
-              {selectedJob.job_url && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">原始職缺連結</label>
-                  <a
-                    href={selectedJob.job_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-indigo-600 hover:text-indigo-800 underline mt-1 block truncate"
-                  >
-                    {selectedJob.job_url}
-                  </a>
-                </div>
-              )}
-
-              {selectedJob.industry_background && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">產業背景</label>
-                  <p className="text-sm text-slate-900 mt-1">{selectedJob.industry_background}</p>
-                </div>
-              )}
-
-              {selectedJob.team_size && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">團隊規模</label>
-                  <p className="text-sm text-slate-900 mt-1">{selectedJob.team_size}</p>
-                </div>
-              )}
-
-              {selectedJob.key_challenges && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">主要挑戰</label>
-                  <p className="text-sm text-slate-900 mt-1">{selectedJob.key_challenges}</p>
-                </div>
-              )}
-
-              {selectedJob.special_conditions && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">特殊條件</label>
-                  <p className="text-sm text-slate-900 mt-1">{selectedJob.special_conditions}</p>
-                </div>
-              )}
-
-              {selectedJob.recruitment_difficulty && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">招募難度</label>
-                  <p className="text-sm text-slate-900 mt-1">{selectedJob.recruitment_difficulty}</p>
-                </div>
-              )}
-
-              {selectedJob.interview_process && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">面試流程</label>
-                  <p className="text-sm text-slate-900 mt-1 whitespace-pre-line">{selectedJob.interview_process}</p>
-                </div>
-              )}
-
-              {selectedJob.consultant_notes && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase">顧問備注</label>
-                  <p className="text-sm text-slate-900 mt-1 whitespace-pre-line">{selectedJob.consultant_notes}</p>
-                </div>
-              )}
-
-              {/* ── 企業畫像 ── */}
-              {selectedJob.company_profile && (
-                <div className="pt-2 border-t border-slate-200">
-                  <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5 mb-2">
-                    <Building2 size={13} />
-                    企業畫像
-                  </label>
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed">
-                    {selectedJob.company_profile}
-                  </div>
-                </div>
-              )}
-
-              {/* ── 人才畫像 ── */}
-              {selectedJob.talent_profile && (
-                <div className="pt-2 border-t border-slate-200">
-                  <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5 mb-2">
-                    <Users size={13} />
-                    人才畫像
-                  </label>
-                  <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed">
-                    {selectedJob.talent_profile}
-                  </div>
-                </div>
-              )}
-
-              {/* JD 工作內容區塊 */}
-              <div className="pt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
-                    <FileText size={13} />
-                    工作內容 JD
-                  </label>
-                  {!editingJD ? (
-                    <button
-                      onClick={() => { setEditingJD(true); setJdDraft(selectedJob.job_description || ''); }}
-                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
-                    >
-                      <Edit3 size={12} />
-                      {selectedJob.job_description ? '編輯' : '新增 JD'}
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleSaveJD}
-                        disabled={savingJD}
-                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                      >
-                        <Save size={11} />
-                        {savingJD ? '儲存中...' : '儲存'}
-                      </button>
-                      <button
-                        onClick={() => setEditingJD(false)}
-                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
-                      >
-                        <XIcon size={12} />
-                        取消
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {editingJD ? (
-                  <textarea
-                    value={jdDraft}
-                    onChange={e => setJdDraft(e.target.value)}
-                    rows={12}
-                    placeholder={`貼上職缺完整 JD，例如：\n\n自我介紹\n我們是一家...\n\n工作內容\n- 負責...\n- 維護...\n\n職位需求\n- 3年以上經驗\n- 熟悉 React`}
-                    className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y font-mono leading-relaxed"
-                  />
-                ) : selectedJob.job_description ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed max-h-72 overflow-y-auto">
-                    {selectedJob.job_description}
-                  </div>
-                ) : (
-                  <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center text-slate-400 text-sm">
-                    尚未填入工作內容 JD，點擊「新增 JD」貼上職缺說明
-                  </div>
-                )}
-              </div>
-
-              {/* ── 行銷描述（對外網站顯示） ── */}
-              <div className="pt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
-                    <Sparkles size={13} />
-                    行銷描述 Marketing
-                  </label>
-                  {!editingMD ? (
-                    <button
-                      onClick={() => { setEditingMD(true); setMdDraft(selectedJob.marketing_description || ''); }}
-                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
-                    >
-                      <Edit3 size={12} />
-                      {selectedJob.marketing_description ? '編輯' : '新增'}
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleSaveMD}
-                        disabled={savingMD}
-                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                      >
-                        <Save size={11} />
-                        {savingMD ? '儲存中...' : '儲存'}
-                      </button>
-                      <button
-                        onClick={() => setEditingMD(false)}
-                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
-                      >
-                        <XIcon size={12} />
-                        取消
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {editingMD ? (
-                  <textarea
-                    value={mdDraft}
-                    onChange={e => setMdDraft(e.target.value)}
-                    rows={12}
-                    placeholder={`撰寫面向候選人的行銷文案，例如：\n\n【公司亮點】\n- 知名國際企業，年營收超過...\n\n【職位特色】\n- 有機會參與百萬用戶級產品開發\n\n【團隊文化】\n- 扁平化管理，鼓勵創新`}
-                    className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-y font-mono leading-relaxed"
-                  />
-                ) : selectedJob.marketing_description ? (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed max-h-72 overflow-y-auto">
-                    {selectedJob.marketing_description}
-                  </div>
-                ) : (
-                  <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center text-slate-400 text-sm">
-                    尚未填入行銷描述，點擊「新增」撰寫面向候選人的行銷文案
-                  </div>
-                )}
-              </div>
-
-              {/* ── 爬蟲搜尋設定 ── */}
-              <div className="pt-2 border-t border-slate-200">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
-                    <Bot size={13} />
-                    爬蟲搜尋設定
-                  </label>
-                  {!editingSearch ? (
-                    <button
-                      onClick={() => setEditingSearch(true)}
-                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
-                    >
-                      <Edit3 size={12} />
-                      {(selectedJob.search_primary || selectedJob.search_secondary || selectedJob.company_profile || selectedJob.talent_profile || selectedJob.target_companies || selectedJob.title_variants || selectedJob.exclusion_keywords) ? '編輯' : '設定'}
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleSaveSearch}
-                        disabled={savingSearch}
-                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                      >
-                        <Save size={11} />
-                        {savingSearch ? '儲存中...' : '儲存'}
-                      </button>
-                      <button
-                        onClick={() => setEditingSearch(false)}
-                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
-                      >
-                        <XIcon size={12} />
-                        取消
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {editingSearch ? (
-                  <div className="space-y-3">
-                    {/* 公司畫像 */}
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">公司畫像（讓 AI 了解客戶）</label>
-                      <textarea
-                        value={companyProfileDraft}
-                        onChange={e => setCompanyProfileDraft(e.target.value)}
-                        rows={3}
-                        placeholder={"【公司類型】產業 / 發展階段 / 員工人數\n【文化風格】工作節奏、決策方式、扁平或階層式\n【技術環境】目前使用的工具和技術棧\n【團隊結構】直屬團隊大小和組成\n\n例：台灣 SaaS 獨角獸，B2B 電商，Series B，工程團隊 80 人，偏扁平管理..."}
-                        className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 uppercase">主要技能</label>
+                    {editingBasic ? (
+                      <input
+                        type="text"
+                        value={basicDraft.key_skills || ''}
+                        onChange={e => setBasicDraft(prev => ({ ...prev, key_skills: e.target.value }))}
+                        className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        placeholder="用「、」分隔，例：React、TypeScript、Node.js"
                       />
-                    </div>
-
-                    {/* 人才畫像 */}
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">理想人才畫像（描述期望人選特質）</label>
-                      <textarea
-                        value={talentProfileDraft}
-                        onChange={e => setTalentProfileDraft(e.target.value)}
-                        rows={3}
-                        placeholder={"【背景要求】X年以上 [領域] 經驗，目前職級 [資深/主管]\n【硬性條件】國籍/工作許可、語言能力、必備證照\n【加分條件】管理經驗、特定技術深度\n【來自公司】希望從哪類公司找人\n\n例：5年+ 後端經驗，有新創或高成長環境背景，主導過系統重構..."}
-                        className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
-                      />
-                    </div>
-
-                    {/* 主關鍵字 AND */}
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">
-                        主關鍵字 AND <span className="text-slate-400">（候選人必須同時符合，建議 1-2 個）</span>
-                      </label>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {primaryTags.map((tag, idx) => (
-                          <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">
-                            {tag}
-                            <button onClick={() => setPrimaryTags(primaryTags.filter((_, i) => i !== idx))} className="text-indigo-400 hover:text-indigo-700 leading-none">×</button>
+                    ) : (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {parseSkills(selectedJob.key_skills).map((skill, idx) => (
+                          <span key={idx} className="px-3 py-1 bg-indigo-50 text-indigo-700 text-sm rounded-lg">
+                            {skill}
                           </span>
                         ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          ref={primaryInputRef}
-                          type="text"
-                          value={primaryTagInput}
-                          onChange={e => setPrimaryTagInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' || e.key === ',') {
-                              e.preventDefault();
-                              addTag(primaryTagInput, primaryTags, setPrimaryTags, setPrimaryTagInput);
-                            }
-                          }}
-                          placeholder="輸入後按 Enter 新增，例：Python"
-                          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                        />
-                        <button
-                          onClick={() => addTag(primaryTagInput, primaryTags, setPrimaryTags, setPrimaryTagInput)}
-                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 次關鍵字 OR */}
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">
-                        次關鍵字 OR <span className="text-slate-400">（符合任一即可，建議 3-6 個）</span>
-                      </label>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {secondaryTags.map((tag, idx) => (
-                          <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 text-xs rounded-full">
-                            {tag}
-                            <button onClick={() => setSecondaryTags(secondaryTags.filter((_, i) => i !== idx))} className="text-emerald-400 hover:text-emerald-700 leading-none">×</button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          ref={secondaryInputRef}
-                          type="text"
-                          value={secondaryTagInput}
-                          onChange={e => setSecondaryTagInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' || e.key === ',') {
-                              e.preventDefault();
-                              addTag(secondaryTagInput, secondaryTags, setSecondaryTags, setSecondaryTagInput);
-                            }
-                          }}
-                          placeholder="輸入後按 Enter 新增，例：Go"
-                          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                        />
-                        <button
-                          onClick={() => addTag(secondaryTagInput, secondaryTags, setSecondaryTags, setSecondaryTagInput)}
-                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 職稱變體 */}
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">
-                        職稱變體 <span className="text-slate-400">（候選人可能使用的其他職稱，AI 會自動生成，也可手動新增）</span>
-                      </label>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {titleVariantsTags.map((tag, idx) => (
-                          <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-violet-100 text-violet-800 text-xs rounded-full">
-                            {tag}
-                            <button onClick={() => setTitleVariantsTags(titleVariantsTags.filter((_, i) => i !== idx))} className="text-violet-400 hover:text-violet-700 leading-none">×</button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={titleVariantsInput}
-                          onChange={e => setTitleVariantsInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' || e.key === ',') {
-                              e.preventDefault();
-                              addTag(titleVariantsInput, titleVariantsTags, setTitleVariantsTags, setTitleVariantsInput);
-                            }
-                          }}
-                          placeholder="例：BIM Coordinator, VDC Engineer, Revit Specialist"
-                          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-                        />
-                        <button
-                          onClick={() => addTag(titleVariantsInput, titleVariantsTags, setTitleVariantsTags, setTitleVariantsInput)}
-                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 目標公司 */}
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">
-                        目標公司 <span className="text-slate-400">（從這些公司定向搜尋人才，AI 會自動推薦，也可手動新增）</span>
-                      </label>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {targetCompaniesTags.map((tag, idx) => (
-                          <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 text-xs rounded-full">
-                            {tag}
-                            <button onClick={() => setTargetCompaniesTags(targetCompaniesTags.filter((_, i) => i !== idx))} className="text-amber-400 hover:text-amber-700 leading-none">×</button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={targetCompaniesInput}
-                          onChange={e => setTargetCompaniesInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' || e.key === ',') {
-                              e.preventDefault();
-                              addTag(targetCompaniesInput, targetCompaniesTags, setTargetCompaniesTags, setTargetCompaniesInput);
-                            }
-                          }}
-                          placeholder="例：AECOM, Arup, 衛武資訊, 麗明營造"
-                          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                        />
-                        <button
-                          onClick={() => addTag(targetCompaniesInput, targetCompaniesTags, setTargetCompaniesTags, setTargetCompaniesInput)}
-                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 排除關鍵字 */}
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">
-                        排除關鍵字 <span className="text-slate-400">（搜尋時排除含這些詞的結果，預設排除 student/intern/professor）</span>
-                      </label>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {exclusionKeywordsTags.map((tag, idx) => (
-                          <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full">
-                            {tag}
-                            <button onClick={() => setExclusionKeywordsTags(exclusionKeywordsTags.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-700 leading-none">×</button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={exclusionKeywordsInput}
-                          onChange={e => setExclusionKeywordsInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' || e.key === ',') {
-                              e.preventDefault();
-                              addTag(exclusionKeywordsInput, exclusionKeywordsTags, setExclusionKeywordsTags, setExclusionKeywordsInput);
-                            }
-                          }}
-                          placeholder="例：sales, marketing, HR, recruiter"
-                          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-                        />
-                        <button
-                          onClick={() => addTag(exclusionKeywordsInput, exclusionKeywordsTags, setExclusionKeywordsTags, setExclusionKeywordsInput)}
-                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (selectedJob.search_primary || selectedJob.search_secondary || selectedJob.target_companies || selectedJob.title_variants || selectedJob.exclusion_keywords) ? (
-                  <div className="space-y-2 text-sm">
-                    {selectedJob.search_primary && (
-                      <div>
-                        <span className="text-xs text-slate-400">主關鍵字 AND</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {parseTags(selectedJob.search_primary).map((t, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">{t}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {selectedJob.search_secondary && (
-                      <div>
-                        <span className="text-xs text-slate-400">次關鍵字 OR</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {parseTags(selectedJob.search_secondary).map((t, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-xs rounded-full">{t}</span>
-                          ))}
-                        </div>
+                        {!selectedJob.key_skills && <span className="text-sm text-slate-400">-</span>}
                       </div>
                     )}
                     {selectedJob.title_variants && (
@@ -1408,25 +1089,532 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4 text-center text-slate-400 text-xs">
-                    尚未設定爬蟲關鍵字，點擊「設定」填入後爬蟲將直接使用
-                  </div>
-                )}
-              </div>
 
-              <div className="pt-4 border-t border-slate-200">
-                <button
-                  onClick={() => {
-                    handleStartMatching(selectedJob.id.toString());
-                    setSelectedJob(null);
-                  }}
-                  className="w-full px-4 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-                >
-                  <Sparkles size={18} />
-                  開始 AI 配對
-                </button>
-              </div>
+                  {/* 時間戳 */}
+                  {!isCreating && (
+                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-500 uppercase">建立時間</label>
+                        <p className="text-xs text-slate-600 mt-1">{fmtDate(selectedJob.created_at)}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-500 uppercase">更新時間</label>
+                        <p className="text-xs text-slate-600 mt-1">{fmtDate(selectedJob.lastUpdated)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ======== Tab 2: 職缺描述 ======== */}
+              {activeTab === 'description' && (
+                <div className="space-y-4">
+                  {/* JD 工作內容 */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
+                        <FileText size={13} />
+                        工作內容 JD
+                      </label>
+                      {!editingBasic && !isCreating && (
+                        !editingJD ? (
+                          <button
+                            onClick={() => { setEditingJD(true); setJdDraft(selectedJob.job_description || ''); }}
+                            className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
+                          >
+                            <Edit3 size={12} />
+                            {selectedJob.job_description ? '編輯' : '新增 JD'}
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleSaveJD}
+                              disabled={savingJD}
+                              className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                              <Save size={11} />
+                              {savingJD ? '儲存中...' : '儲存'}
+                            </button>
+                            <button
+                              onClick={() => setEditingJD(false)}
+                              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+                            >
+                              <XIcon size={12} />
+                              取消
+                            </button>
+                          </div>
+                        )
+                      )}
+                    </div>
+
+                    {editingBasic ? (
+                      <textarea
+                        value={basicDraft.job_description || ''}
+                        onChange={e => setBasicDraft(prev => ({ ...prev, job_description: e.target.value }))}
+                        rows={10}
+                        placeholder="貼上完整 JD..."
+                        className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y font-mono leading-relaxed"
+                      />
+                    ) : editingJD ? (
+                      <textarea
+                        value={jdDraft}
+                        onChange={e => setJdDraft(e.target.value)}
+                        rows={12}
+                        placeholder="貼上職缺完整 JD..."
+                        className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y font-mono leading-relaxed"
+                      />
+                    ) : selectedJob.job_description ? (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed max-h-72 overflow-y-auto">
+                        {selectedJob.job_description}
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center text-slate-400 text-sm">
+                        尚未填入工作內容 JD
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 行銷描述（對外網站顯示） ── */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
+                        <Sparkles size={13} />
+                        行銷描述 Marketing
+                      </label>
+                      {!editingBasic && !isCreating && (
+                        !editingMD ? (
+                          <button
+                            onClick={() => { setEditingMD(true); setMdDraft(selectedJob.marketing_description || ''); }}
+                            className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 transition-colors"
+                          >
+                            <Edit3 size={12} />
+                            {selectedJob.marketing_description ? '編輯' : '新增'}
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleSaveMD}
+                              disabled={savingMD}
+                              className="flex items-center gap-1 text-xs bg-emerald-600 text-white px-2 py-1 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              <Save size={11} />
+                              {savingMD ? '儲存中...' : '儲存'}
+                            </button>
+                            <button
+                              onClick={() => setEditingMD(false)}
+                              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+                            >
+                              <XIcon size={12} />
+                              取消
+                            </button>
+                          </div>
+                        )
+                      )}
+                    </div>
+
+                    {editingMD ? (
+                      <textarea
+                        value={mdDraft}
+                        onChange={e => setMdDraft(e.target.value)}
+                        rows={12}
+                        placeholder={`撰寫面向候選人的行銷文案，例如：\n\n【公司亮點】\n- 知名國際企業，年營收超過...\n\n【職位特色】\n- 有機會參與百萬用戶級產品開發\n\n【團隊文化】\n- 扁平化管理，鼓勵創新`}
+                        className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-y font-mono leading-relaxed"
+                      />
+                    ) : selectedJob.marketing_description ? (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed max-h-72 overflow-y-auto">
+                        {selectedJob.marketing_description}
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center text-slate-400 text-sm">
+                        尚未填入行銷描述，點擊「新增」撰寫面向候選人的行銷文案
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 面試流程 */}
+                  <EditableField label="面試流程" field="interview_process" type="textarea" rows={3} placeholder="如：電話篩選 → 技術面試 → 主管面談" />
+
+                  {/* 面試階段數 + 各階段說明 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <EditableField label="面試階段數" field="interview_stages" type="number" placeholder="如：3" className="sm:col-span-1" />
+                    <EditableField label="各階段詳細說明" field="interview_stage_detail" type="textarea" rows={3} placeholder="第一關：HR 電話篩選（30min）&#10;第二關：技術面試（1hr）&#10;第三關：主管面談（30min）" className="sm:col-span-3" />
+                  </div>
+
+                  {/* 主要挑戰 */}
+                  <EditableField label="主要挑戰" field="key_challenges" type="textarea" rows={2} placeholder="如：高併發系統設計" />
+
+                  {/* 吸引亮點 */}
+                  <EditableField label="吸引亮點" field="attractive_points" type="textarea" rows={2} placeholder="如：彈性工時、股票選擇權" />
+
+                  {/* 招募難度 */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 uppercase">招募難度</label>
+                    {editingBasic ? (
+                      <select
+                        value={basicDraft.recruitment_difficulty || ''}
+                        onChange={e => setBasicDraft(prev => ({ ...prev, recruitment_difficulty: e.target.value }))}
+                        className="w-full text-sm text-slate-900 border border-slate-300 rounded-lg px-2 py-1.5 mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      >
+                        <option value="">--</option>
+                        <option value="高">高</option>
+                        <option value="中">中</option>
+                        <option value="低">低</option>
+                      </select>
+                    ) : selectedJob.recruitment_difficulty ? (
+                      <p className="text-sm text-slate-900 mt-1">{selectedJob.recruitment_difficulty}</p>
+                    ) : null}
+                  </div>
+
+                  {/* 特殊條件 */}
+                  <EditableField label="特殊條件" field="special_conditions" type="textarea" rows={2} placeholder="如：需有資安背景加分" />
+
+                  {/* ── 104/1111 資訊（維持唯讀） ── */}
+                  {(selectedJob.work_hours || selectedJob.vacation_policy || selectedJob.remote_work || selectedJob.business_trip) && (
+                    <div className="pt-3 border-t border-slate-200">
+                      <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">104/1111 資訊</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {selectedJob.work_hours && (
+                          <div>
+                            <label className="text-[10px] text-slate-400 uppercase">上班時段</label>
+                            <p className="text-sm text-slate-900">{selectedJob.work_hours}</p>
+                          </div>
+                        )}
+                        {selectedJob.vacation_policy && (
+                          <div>
+                            <label className="text-[10px] text-slate-400 uppercase">休假制度</label>
+                            <p className="text-sm text-slate-900">{selectedJob.vacation_policy}</p>
+                          </div>
+                        )}
+                        {selectedJob.remote_work && (
+                          <div>
+                            <label className="text-[10px] text-slate-400 uppercase">遠端工作</label>
+                            <p className="text-sm text-slate-900">{selectedJob.remote_work}</p>
+                          </div>
+                        )}
+                        {selectedJob.business_trip && (
+                          <div>
+                            <label className="text-[10px] text-slate-400 uppercase">出差外派</label>
+                            <p className="text-sm text-slate-900">{selectedJob.business_trip}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedJob.welfare_tags && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">員工福利</label>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {selectedJob.welfare_tags.split(',').map((t, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full border border-emerald-200">
+                            {t.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedJob.welfare_detail && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">福利詳情</label>
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto mt-1">
+                        {selectedJob.welfare_detail}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedJob.job_url && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase">原始職缺連結</label>
+                      <a
+                        href={selectedJob.job_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-indigo-600 hover:text-indigo-800 underline mt-1 block truncate"
+                      >
+                        {selectedJob.job_url}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ======== Tab 3: 配對與送人 ======== */}
+              {activeTab === 'matching' && (
+                <div className="space-y-4">
+                  {/* 客戶送人條件 — amber 色框顯眼 */}
+                  <div>
+                    <label className="text-xs font-semibold text-amber-700 uppercase flex items-center gap-1.5 mb-1">
+                      <ClipboardCheck size={13} className="text-amber-600" />
+                      客戶送人條件
+                    </label>
+                    {editingBasic ? (
+                      <textarea
+                        value={basicDraft.submission_criteria || ''}
+                        onChange={e => setBasicDraft(prev => ({ ...prev, submission_criteria: e.target.value }))}
+                        rows={4}
+                        placeholder="1. 必須有 K8s 生產環境經驗&#10;2. 英文可作為工作語言&#10;3. 薪資期望不超過 130K"
+                        className="w-full text-sm text-slate-900 border-2 border-amber-300 bg-amber-50 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-y"
+                      />
+                    ) : selectedJob.submission_criteria ? (
+                      <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed">
+                        {selectedJob.submission_criteria}
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50/50 border-2 border-dashed border-amber-300 rounded-xl p-4 text-center text-amber-500 text-sm">
+                        尚未填入客戶送人條件 — 此欄位影響 AI 配對精準度
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 淘汰條件 — red 色框 */}
+                  <div>
+                    <label className="text-xs font-semibold text-red-700 uppercase flex items-center gap-1.5 mb-1">
+                      <ShieldAlert size={13} className="text-red-600" />
+                      淘汰條件
+                    </label>
+                    {editingBasic ? (
+                      <textarea
+                        value={basicDraft.rejection_criteria || ''}
+                        onChange={e => setBasicDraft(prev => ({ ...prev, rejection_criteria: e.target.value }))}
+                        rows={3}
+                        placeholder="1. 無雲端經驗&#10;2. 跳槽次數 > 5&#10;3. 無法英文溝通"
+                        className="w-full text-sm text-slate-900 border-2 border-red-300 bg-red-50 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-400 resize-y"
+                      />
+                    ) : selectedJob.rejection_criteria ? (
+                      <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed">
+                        {selectedJob.rejection_criteria}
+                      </div>
+                    ) : (
+                      <div className="bg-red-50/50 border-2 border-dashed border-red-300 rounded-xl p-4 text-center text-red-400 text-sm">
+                        尚未填入淘汰條件
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 顧問備註 — 可編輯 textarea + Markdown */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5 mb-1">
+                      <Edit3 size={13} />
+                      顧問備註
+                    </label>
+                    {editingBasic ? (
+                      <textarea
+                        value={basicDraft.consultant_notes || ''}
+                        onChange={e => setBasicDraft(prev => ({ ...prev, consultant_notes: e.target.value }))}
+                        rows={4}
+                        placeholder="顧問內部備註，支援 Markdown 格式..."
+                        className="w-full text-sm text-slate-900 border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y font-mono"
+                      />
+                    ) : selectedJob.consultant_notes ? (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed">
+                        {selectedJob.consultant_notes}
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4 text-center text-slate-400 text-sm">
+                        尚未填入顧問備註
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 企業畫像 */}
+                  {(selectedJob.company_profile || editingBasic) && (
+                    <div className="pt-2 border-t border-slate-200">
+                      <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5 mb-2">
+                        <Building2 size={13} />
+                        企業畫像
+                      </label>
+                      {!editingSearch && !editingBasic && selectedJob.company_profile ? (
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed">
+                          {selectedJob.company_profile}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* 人才畫像 */}
+                  {(selectedJob.talent_profile || editingBasic) && (
+                    <div className="pt-2 border-t border-slate-200">
+                      <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5 mb-2">
+                        <Users size={13} />
+                        人才畫像
+                      </label>
+                      {!editingSearch && !editingBasic && selectedJob.talent_profile ? (
+                        <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed">
+                          {selectedJob.talent_profile}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* ── 爬蟲搜尋設定 ── */}
+                  <div className="pt-2 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
+                        <Bot size={13} />
+                        爬蟲搜尋設定
+                      </label>
+                      {!editingSearch && !editingBasic ? (
+                        <button
+                          onClick={() => setEditingSearch(true)}
+                          className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
+                        >
+                          <Edit3 size={12} />
+                          {(selectedJob.search_primary || selectedJob.search_secondary || selectedJob.company_profile || selectedJob.talent_profile) ? '編輯' : '設定'}
+                        </button>
+                      ) : editingSearch ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleSaveSearch}
+                            disabled={savingSearch}
+                            className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                          >
+                            <Save size={11} />
+                            {savingSearch ? '儲存中...' : '儲存'}
+                          </button>
+                          <button
+                            onClick={() => setEditingSearch(false)}
+                            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+                          >
+                            <XIcon size={12} />
+                            取消
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {editingSearch ? (
+                      <div className="space-y-3">
+                        {/* 公司畫像 */}
+                        <div>
+                          <label className="text-xs text-slate-500 mb-1 block">公司畫像（讓 AI 了解客戶）</label>
+                          <textarea
+                            value={companyProfileDraft}
+                            onChange={e => setCompanyProfileDraft(e.target.value)}
+                            rows={3}
+                            placeholder="例：台灣獨角獸 SaaS 公司，專攻 B2B 電商解決方案..."
+                            className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
+                          />
+                        </div>
+
+                        {/* 人才畫像 */}
+                        <div>
+                          <label className="text-xs text-slate-500 mb-1 block">理想人才畫像</label>
+                          <textarea
+                            value={talentProfileDraft}
+                            onChange={e => setTalentProfileDraft(e.target.value)}
+                            rows={3}
+                            placeholder="例：有新創或高成長環境背景，主導過大型系統重構..."
+                            className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
+                          />
+                        </div>
+
+                        {/* 主關鍵字 AND */}
+                        <div>
+                          <label className="text-xs text-slate-500 mb-1 block">
+                            主關鍵字 AND <span className="text-slate-400">（候選人必須同時符合，建議 1-2 個）</span>
+                          </label>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {primaryTags.map((tag, idx) => (
+                              <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">
+                                {tag}
+                                <button onClick={() => setPrimaryTags(primaryTags.filter((_, i) => i !== idx))} className="text-indigo-400 hover:text-indigo-700 leading-none">&times;</button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              ref={primaryInputRef}
+                              type="text"
+                              value={primaryTagInput}
+                              onChange={e => setPrimaryTagInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ',') {
+                                  e.preventDefault();
+                                  addTag(primaryTagInput, primaryTags, setPrimaryTags, setPrimaryTagInput);
+                                }
+                              }}
+                              placeholder="輸入後按 Enter 新增，例：Python"
+                              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            />
+                            <button
+                              onClick={() => addTag(primaryTagInput, primaryTags, setPrimaryTags, setPrimaryTagInput)}
+                              className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 次關鍵字 OR */}
+                        <div>
+                          <label className="text-xs text-slate-500 mb-1 block">
+                            次關鍵字 OR <span className="text-slate-400">（符合任一即可，建議 3-6 個）</span>
+                          </label>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {secondaryTags.map((tag, idx) => (
+                              <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 text-xs rounded-full">
+                                {tag}
+                                <button onClick={() => setSecondaryTags(secondaryTags.filter((_, i) => i !== idx))} className="text-emerald-400 hover:text-emerald-700 leading-none">&times;</button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              ref={secondaryInputRef}
+                              type="text"
+                              value={secondaryTagInput}
+                              onChange={e => setSecondaryTagInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ',') {
+                                  e.preventDefault();
+                                  addTag(secondaryTagInput, secondaryTags, setSecondaryTags, setSecondaryTagInput);
+                                }
+                              }}
+                              placeholder="輸入後按 Enter 新增，例：Go"
+                              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            />
+                            <button
+                              onClick={() => addTag(secondaryTagInput, secondaryTags, setSecondaryTags, setSecondaryTagInput)}
+                              className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (selectedJob.search_primary || selectedJob.search_secondary) ? (
+                      <div className="space-y-2 text-sm">
+                        {selectedJob.search_primary && (
+                          <div>
+                            <span className="text-xs text-slate-400">主關鍵字 AND</span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {parseTags(selectedJob.search_primary).map((t, i) => (
+                                <span key={i} className="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">{t}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {selectedJob.search_secondary && (
+                          <div>
+                            <span className="text-xs text-slate-400">次關鍵字 OR</span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {parseTags(selectedJob.search_secondary).map((t, i) => (
+                                <span key={i} className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-xs rounded-full">{t}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4 text-center text-slate-400 text-xs">
+                        尚未設定爬蟲關鍵字，點擊「設定」填入後爬蟲將直接使用
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>

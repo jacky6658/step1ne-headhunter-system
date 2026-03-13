@@ -52,7 +52,7 @@ async function callPerplexity(systemPrompt, userPrompt) {
  * @returns {Object} 充實後的欄位
  */
 async function enrichCandidate(candidate) {
-  const { name, current_position, linkedin_url, github_url, location, skills, email } = candidate;
+  const { name, current_position, linkedin_url, github_url, location, skills, email, biography, portfolio_url, voice_assessments } = candidate;
 
   // 組合搜尋線索
   const clues = [];
@@ -63,12 +63,18 @@ async function enrichCandidate(candidate) {
   if (location) clues.push(`地點: ${location}`);
   if (skills) clues.push(`技能: ${skills}`);
   if (email) clues.push(`Email: ${email}`);
+  if (portfolio_url) clues.push(`作品集: ${portfolio_url}`);
+  if (biography) clues.push(`自傳摘要: ${biography.substring(0, 500)}`);
+  if (voice_assessments && Array.isArray(voice_assessments) && voice_assessments.length > 0) {
+    const latestVoice = voice_assessments[voice_assessments.length - 1];
+    clues.push(`顧問面談評估: 評分 ${latestVoice.score}/5，評語「${latestVoice.notes || '無'}」`);
+  }
 
   if (clues.length < 2) {
     return { error: '資料不足，至少需要姓名和一個其他資訊' };
   }
 
-  const systemPrompt = `你是一位專業的獵頭顧問助理。你的任務是根據候選人的公開資訊，分析並整理出結構化的候選人檔案。
+  const systemPrompt = `你是一位專業的獵頭顧問助理。你的任務是根據候選人的公開資訊（以及系統提供的自傳、作品集、語音面談評估等深度資訊），分析並整理出結構化的候選人檔案。
 
 請用繁體中文回答，並以嚴格的 JSON 格式輸出，不要加任何 markdown 標記或額外文字。
 
@@ -87,19 +93,28 @@ JSON 結構如下：
   "leaving_reason": "可能的離職原因或動機",
   "personality_type": "推測的職場人格特質（如：技術導向、管理型、創業型）",
   "summary": "一段 2-3 句的候選人摘要，包含核心優勢和適合的職位類型",
-  "skills_enriched": "補充發現的技能（用頓號分隔）"
+  "skills_enriched": "補充發現的技能（用頓號分隔）",
+  "biography_insight": "從自傳中提取的關鍵洞察：職涯動機、自我定位、軟實力信號（若無自傳則設為 null）",
+  "portfolio_assessment": "對作品集的簡要評估：作品類型、技術深度、與技能的一致性（若無作品集則設為 null）",
+  "voice_assessment_summary": "顧問語音面談評估摘要：溝通能力、態度、專業度（若無面談評估則設為 null）",
+  "soft_skills": "從自傳和面談中推斷的軟實力（如：領導力、溝通力、團隊合作、主動性）（用頓號分隔，若無資料則設為 null）"
 }
 
 規則：
-- 只使用公開可查到的資訊，不確定的標記為 null
+- 只使用公開可查到的資訊 + 系統提供的深度資訊，不確定的標記為 null
 - stability_score: 平均在職 > 3年 = 80+, 2-3年 = 60-79, 1-2年 = 40-59, < 1年 = 20-39
-- 如果找不到資訊，對應欄位設為 null，不要編造`;
+- 如果找不到資訊，對應欄位設為 null，不要編造
+- 若有自傳（biography），務必認真分析其內容，從中提取職涯動機、個人特質和軟實力
+- 若有作品集（portfolio_url），盡量瀏覽分析作品內容
+- 若有顧問面談評估，將其評分和評語納入人格特質和摘要的判斷中`;
 
   const userPrompt = `請搜尋並分析以下候選人的公開資料：
 
 ${clues.join('\n')}
 
-請盡量找到此人的工作經歷、學歷、專業技能等公開資訊，並以 JSON 格式回傳分析結果。`;
+請盡量找到此人的工作經歷、學歷、專業技能等公開資訊。
+若有提供自傳摘要、作品集連結或顧問面談評估，請一併分析並納入整體評估中。
+以 JSON 格式回傳分析結果。`;
 
   try {
     const rawResponse = await callPerplexity(systemPrompt, userPrompt);

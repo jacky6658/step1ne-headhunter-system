@@ -50,7 +50,7 @@ curl https://backendstep1ne.zeabur.app/api/health
 • 更新 LinkedIn、GitHub、Email 聯絡連結
 
 🔄 顧問人選追蹤表 — 狀態更新
-• 更新候選人進度（已聯繫 / 已面試 / Offer / 已上職 / 婉拒）
+• 更新候選人進度（聯繫階段 / 面試階段 / Offer / on board / 婉拒）
 • 自動記錄操作時間與操作者（actor 必須填入 {顧問名稱}-aibot）
 
 📝 備註紀錄
@@ -109,6 +109,9 @@ curl https://backendstep1ne.zeabur.app/api/health
 | `stability_score` | 穩定度分數（AI 計算後填入） | 數字 | `82` |
 | `talent_level` | 綜合評級（AI 計算後填入） | 字串 | `"A+"` |
 | `notes` | 分析摘要與特殊備註 | 字串 | `"具備 10 年以上 AI 開發經驗，穩定性高"` |
+| `biography` | 候選人自傳（如有提供） | 字串 | `"我是一位熱衷於後端開發的工程師..."` |
+| `portfolio_url` | 作品集連結（個人網站/Behance/Dribbble 等） | URL 字串 | `"https://portfolio.example.com"` |
+| `voice_assessments` | 語音/面談評估紀錄（JSON 陣列） | JSON | 見下方格式 |
 | `recruiter` | 指派顧問姓名 | 字串 | `"Phoebe"` |
 | `actor` | AIbot 身份（必填） | 字串 | `"Phoebe-aibot"` |
 
@@ -162,6 +165,46 @@ curl https://backendstep1ne.zeabur.app/api/health
   }
 ]
 ```
+
+### voice_assessments JSON 格式
+
+> 語音/面談評估由顧問在系統中填寫，AIbot 在評分時應讀取並納入考量。
+
+```json
+[
+  {
+    "date": "2026-03-10",
+    "interviewer": "Jacky",
+    "score": 4,
+    "notes": "溝通表達清晰，技術理解深入，態度積極主動"
+  },
+  {
+    "date": "2026-03-12",
+    "interviewer": "Phoebe",
+    "score": 3,
+    "notes": "基本溝通能力可，但對職涯目標描述較模糊"
+  }
+]
+```
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `date` | 字串 | 面談日期（YYYY-MM-DD） |
+| `interviewer` | 字串 | 面談顧問名稱 |
+| `score` | 數字 | 1-5 分（5=優秀，4=良好，3=一般，2=待加強，1=不佳） |
+| `notes` | 字串 | 顧問評語 |
+
+### 深度資訊對 AI 評分的影響
+
+> AIbot 在進行穩定度評分和綜合評級時，應參考以下新欄位：
+
+| 欄位 | 用途 | 影響 |
+|------|------|------|
+| `biography` | 自傳 | 可驗證職涯動機、自我表達能力、軟實力。有助於評估人才畫像符合度和文化適配性。 |
+| `portfolio_url` | 作品集 | 可驗證技術實力。有作品且相關 → 技能匹配度加分、可觸達性加分。 |
+| `voice_assessments` | 語音面談評估 | 顧問的第一手觀察。高分+正面評語 → 信任度高、優先推薦。低分 → 結語中提醒注意。 |
+
+**原則：有資料就用，沒有不扣分。同一批 Bot 匯入的候選人 skills 相同時，深度資訊是拉開分數差距的關鍵。**
 
 ### 年資計算方式
 
@@ -264,25 +307,47 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
 
 ## 一、候選人查詢
 
-### 取得所有候選人
+### 取得所有候選人（支援分頁）
 
 ```
-GET /api/candidates
+GET /api/candidates?limit=500&offset=0
 ```
+
+> 💡 **分頁機制**：後端預設每頁 500 筆，最大 2000 筆。若人選超過一頁，需用 `offset` 翻頁取得全部。
+> 回應中的 `pagination.hasMore` 為 `true` 表示還有下一頁。
 
 **支援查詢參數（Query Parameters）：**
 
 | 參數 | 類型 | 說明 | 範例 |
 |------|------|------|------|
-| `limit` | 整數 | 最多回傳筆數（預設 1000，最大 2000） | `?limit=500` |
+| `limit` | 整數 | 每頁回傳筆數（預設 500，最大 2000） | `?limit=2000` |
+| `offset` | 整數 | 偏移量，用於分頁（預設 0） | `?offset=2000` |
+| `page` | 整數 | 頁碼（從 1 開始），與 offset 二擇一 | `?page=2` |
 | `created_today` | `true` | 只回傳今日（台北時間）建立的候選人 | `?created_today=true` |
+
+**分頁範例（取得全部候選人）：**
+```
+# 第一頁
+GET /api/candidates?limit=2000&offset=0
+# → pagination.hasMore = true → 繼續
+
+# 第二頁
+GET /api/candidates?limit=2000&offset=2000
+# → pagination.hasMore = true → 繼續
+
+# 第三頁
+GET /api/candidates?limit=2000&offset=4000
+# → pagination.hasMore = false → 結束，已取得全部
+```
 
 **回應範例：**
 
 ```json
 {
   "success": true,
-  "count": 42,
+  "count": 500,
+  "total": 3200,
+  "pagination": { "limit": 500, "offset": 0, "hasMore": true },
   "data": [
     {
       "id": "123",
@@ -326,8 +391,16 @@ GET /api/candidates?created_today=true
 import requests
 from datetime import datetime
 
-resp = requests.get('https://backendstep1ne.zeabur.app/api/candidates?limit=1000')
-all_cands = resp.json()['data']
+# 自動分頁取得全部候選人
+all_cands = []
+offset = 0
+while True:
+    resp = requests.get(f'https://backendstep1ne.zeabur.app/api/candidates?limit=2000&offset={offset}')
+    result = resp.json()
+    all_cands.extend(result['data'])
+    if not result.get('pagination', {}).get('hasMore', False):
+        break
+    offset += 2000
 
 today = datetime.now().strftime('%Y-%m-%d')  # 台北時間今天日期
 
@@ -432,7 +505,7 @@ PUT /api/candidates/:id/pipeline-status
 
 ```json
 {
-  "status": "已面試",
+  "status": "面試階段",
   "by": "Phoebe-aibot"
 }
 ```
@@ -447,11 +520,14 @@ PUT /api/candidates/:id/pipeline-status
 | 值 | 說明 |
 |----|------|
 | `未開始` | 剛匯入，尚未聯繫 |
-| `已聯繫` | 已初步聯繫候選人 |
-| `已面試` | 已完成面試 |
+| `AI推薦` | AI 評分後推薦的候選人 |
+| `聯繫階段` | 已初步聯繫候選人 |
+| `面試階段` | 已完成面試 |
 | `Offer` | 已發出 Offer |
-| `已上職` | 候選人已到職 |
+| `on board` | 候選人已到職 |
 | `婉拒` | 候選人或客戶婉拒 |
+| `備選人才` | 備選庫（需搭配 PATCH，見下方說明） |
+| `爬蟲初篩` | 爬蟲自動匯入的初篩候選人 |
 | `其他` | 其他情況 |
 
 ### 成功回應
@@ -463,16 +539,16 @@ PUT /api/candidates/:id/pipeline-status
   "data": {
     "id": 123,
     "name": "陳宥樺",
-    "status": "已面試",
+    "status": "面試階段",
     "progress_tracking": [
       {
         "date": "2026-02-20",
-        "event": "已聯繫",
+        "event": "聯繫階段",
         "by": "Phoebe"
       },
       {
         "date": "2026-02-25",
-        "event": "已面試",
+        "event": "面試階段",
         "by": "Phoebe-aibot"
       }
     ]
@@ -485,7 +561,7 @@ PUT /api/candidates/:id/pipeline-status
 ```json
 {
   "success": false,
-  "error": "Invalid status. Must be one of: 未開始, 已聯繫, 已面試, Offer, 已上職, 婉拒, 其他"
+  "error": "Invalid status. Must be one of: 未開始, AI推薦, 聯繫階段, 面試階段, Offer, on board, 婉拒, 備選人才, 爬蟲初篩, 其他"
 }
 ```
 
@@ -527,8 +603,8 @@ curl -X PATCH "https://backendstep1ne.zeabur.app/api/candidates/148" \
     "status": "備選人才",
     "talent_level": "C",
     "progressTracking": [
-      {"by": "Jacky", "date": "2026-03-02", "event": "已聯繫"},
-      {"by": "Jacky", "date": "2026-03-02", "event": "已面試"},
+      {"by": "Jacky", "date": "2026-03-02", "event": "聯繫階段"},
+      {"by": "Jacky", "date": "2026-03-02", "event": "面試階段"},
       {"by": "jacky-scoring-bot", "date": "2026-03-02", "event": "備選人才"}
     ],
     "actor": "jacky-scoring-bot"
@@ -575,7 +651,7 @@ PATCH /api/candidates/batch-status
 ```json
 {
   "ids": [123, 124, 125],
-  "status": "已面試",
+  "status": "面試階段",
   "actor": "Jacky-aibot",
   "note": "批量完成初篩面試（可選）"
 }
@@ -593,7 +669,7 @@ PATCH /api/candidates/batch-status
 ```json
 {
   "success": true,
-  "status": "已面試",
+  "status": "面試階段",
   "succeeded_count": 3,
   "failed_count": 0,
   "total": 3,
@@ -617,7 +693,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/batch-status \
   -H "Content-Type: application/json" \
   -d '{
     "ids": [123, 124, 125],
-    "status": "已面試",
+    "status": "面試階段",
     "actor": "Jacky-aibot",
     "note": "初篩通過，安排正式面試"
   }'
@@ -727,7 +803,7 @@ PATCH /api/candidates/:id
 
 ```json
 {
-  "status": "已聯繫",
+  "status": "聯繫階段",
   "recruiter": "Phoebe",
   "notes": "候選人對 CTO 職位有高度興趣",
   "talent_level": "A+",
@@ -739,7 +815,7 @@ PATCH /api/candidates/:id
   "progressTracking": [
     {
       "date": "2026-02-25",
-      "event": "已聯繫",
+      "event": "聯繫階段",
       "by": "Phoebe-aibot"
     }
   ],
@@ -923,7 +999,7 @@ GET /api/system-logs
       "actor_type": "AIBOT",
       "candidate_id": 123,
       "candidate_name": "陳宥樺",
-      "detail": { "from": "已聯繫", "to": "已面試" },
+      "detail": { "from": "聯繫階段", "to": "面試階段" },
       "created_at": "2026-02-25T10:30:00.000Z"
     },
     {
@@ -933,7 +1009,7 @@ GET /api/system-logs
       "actor_type": "HUMAN",
       "candidate_id": 120,
       "candidate_name": "林志明",
-      "detail": { "from": "未開始", "to": "已聯繫" },
+      "detail": { "from": "未開始", "to": "聯繫階段" },
       "created_at": "2026-02-25T09:30:00.000Z"
     },
     {
@@ -1084,18 +1160,27 @@ PATCH /api/candidates/:id
 
 ### 綜合評級（talent_level）評分方法
 
-> AIbot 分析履歷後，依 6 大維度評分加總，得出最終等級。
+> AIbot 分析履歷後，依 7 大維度評分加總，得出最終等級。
 
 #### 評分維度（滿分 100）
 
 | 維度 | 佔比 | 評分說明 |
 |------|------|---------|
-| 技能匹配度 | 25% | 核心技能深度（主力技術年資）+ 廣度（技術棧多元性） |
-| 職涯發展軌跡 | 25% | 職位是否持續晉升（工程師→高級→Lead→Manager）、是否在知名公司任職 |
-| 工作穩定性 | 20% | 直接使用 `stability_score`，正規化到 0–20 分 |
-| 工作年資 | 15% | 0–3年=6分，3–5年=9分，5–8年=12分，8+年=15分 |
+| 技能匹配度 | 22% | 核心技能深度（主力技術年資）+ 廣度（技術棧多元性）。**若有作品集（`portfolioUrl`），可作為技能實力佐證加分。** |
+| 職涯發展軌跡 | 22% | 職位是否持續晉升（工程師→高級→Lead→Manager）、是否在知名公司任職。**若有自傳（`biography`），可從中驗證職涯發展脈絡。** |
+| 工作穩定性 | 18% | 直接使用 `stability_score`，正規化到 0–18 分 |
+| 工作年資 | 13% | 0–3年=5分，3–5年=8分，5–8年=11分，8+年=13分 |
 | 學歷背景 | 10% | 博士=10，碩士=8，學士=6，專科=4，其他=2 |
+| 深度資訊加分 | 10% | 自傳品質（4%）+ 作品集相關性（3%）+ 語音面談評估（3%）。無資料 = 5/10（不懲罰）。見下方細則。 |
 | 特殊加分 | 5% | 開源貢獻、技術著作、專利、知名獎項、知名公司 |
+
+#### 深度資訊加分細則（10%）
+
+| 子項目 | 佔比 | 評分說明 |
+|--------|------|----------|
+| 自傳（`biography`） | 4% | 有自傳=基礎 2 分。表達清晰 +0.5、職涯目標明確 +0.5、展現相關軟實力 +0.5、有具體成就 +0.5。無自傳=2/4（不懲罰）。 |
+| 作品集（`portfolioUrl`） | 3% | 有連結=基礎 2 分。作品與職缺相關 +0.5、知名平台 +0.5。無作品集=1.5/3（不懲罰）。 |
+| 語音評估（`voiceAssessments`） | 3% | 有評估=基礎 2 分。顧問評分 ≥4 +0.5、評語正面 +0.5。無評估=1.5/3（不懲罰）。 |
 
 #### 等級判定
 
@@ -1111,13 +1196,22 @@ PATCH /api/candidates/:id
 
 ```
 候選人：陳宥樺，Senior Frontend Engineer，7年資歷
-- 技能匹配度：React 5年、TypeScript 4年、Node.js 3年 → 22/25
-- 職涯軌跡：Engineer → Senior → Tech Lead，曾任職台灣知名獨角獸 → 22/25
-- 工作穩定性：stability_score=82 → 82/100 * 20 = 16.4/20
-- 工作年資：7年 → 12/15
+- 技能匹配度：React 5年、TypeScript 4年、Node.js 3年 → 20/22
+- 職涯軌跡：Engineer → Senior → Tech Lead，曾任職台灣知名獨角獸 → 20/22
+- 工作穩定性：stability_score=82 → 82/100 * 18 = 14.8/18
+- 工作年資：7年 → 11/13
 - 學歷：台大資工碩士 → 8/10
+- 深度資訊加分：
+  • 自傳（有，表達清晰+目標明確+相關軟實力）→ 3.5/4
+  • 作品集（GitHub Pages，前端專案3個，高度相關）→ 3/3
+  • 語音評估（顧問評分4分，「溝通佳、邏輯清晰」）→ 3/3
+  小計 → 9.5/10
 - 特殊加分：GitHub 500 stars 開源項目 → 4/5
-總分 ≈ 84 → 等級：A+
+總分 ≈ 87 → 等級：A+
+
+⭐ 對比：若該候選人沒有自傳/作品集/語音評估：
+- 深度資訊加分 → 5/10（預設值）
+- 總分 ≈ 83 → 等級仍是 A+，但分數較低
 ```
 
 ---
@@ -1429,11 +1523,14 @@ AIbot 回覆：
 | Pipeline 階段 | `status` 欄位值 | SLA 天數上限 |
 |--------------|----------------|-------------|
 | 未開始 | `未開始` | 2 天 |
-| 已聯繫 | `已聯繫` | 3 天 |
-| 已面試 | `已面試` | 7 天 |
+| AI推薦 | `AI推薦` | 3 天 |
+| 聯繫階段 | `聯繫階段` | 3 天 |
+| 面試階段 | `面試階段` | 7 天 |
 | Offer | `Offer` | 5 天 |
-| 已上職 | `已上職` | 不計算 |
+| on board | `on board` | 不計算 |
 | 婉拒 | `婉拒` | 不計算 |
+| 備選人才 | `備選人才` | 不計算 |
+| 爬蟲初篩 | `爬蟲初篩` | 不計算 |
 | 其他 | `其他` | 不計算 |
 
 ---
@@ -1446,7 +1543,7 @@ AIbot 回覆：
 curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status \
   -H "Content-Type: application/json" \
   -d '{
-    "status": "已面試",
+    "status": "面試階段",
     "by": "Phoebe-aibot"
   }'
 ```
@@ -1493,8 +1590,9 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
 ### 情境四：查詢某顧問的所有候選人並找出 SLA 逾期
 
 ```bash
-# 1. 取得所有候選人
-curl https://backendstep1ne.zeabur.app/api/candidates
+# 1. 取得候選人（支援分頁，每頁最多 2000 筆）
+curl "https://backendstep1ne.zeabur.app/api/candidates?limit=2000&offset=0"
+# 若 pagination.hasMore=true，繼續 offset=2000, 4000... 直到 hasMore=false
 
 # 2. AIbot 在本地過濾：
 #    - consultant === "Phoebe"
@@ -1704,10 +1802,10 @@ PATCH /api/candidates/:id
 
 | 應寫入 progressTracking 的事件 | 觸發時機 |
 |-------------------------------|---------|
-| `已聯繫` | 第一次聯繫候選人後 |
-| `已面試` | 候選人完成面試後 |
+| `聯繫階段` | 第一次聯繫候選人後 |
+| `面試階段` | 候選人完成面試後 |
 | `Offer` | 發出 Offer 後 |
-| `已上職` | 候選人正式到職後 |
+| `on board` | 候選人正式到職後 |
 | `婉拒` | 候選人或客戶婉拒後 |
 | `AI推薦` | AI 評分完成，評為推薦時 |
 | `備選人才` | 納入備選庫時 |
@@ -1715,7 +1813,7 @@ PATCH /api/candidates/:id
 **API 操作（推薦：自動追加進度）：**
 ```json
 PUT /api/candidates/:id/pipeline-status
-{ "status": "已面試", "by": "Jacky-aibot" }
+{ "status": "面試階段", "by": "Jacky-aibot" }
 ```
 → 系統自動追加 `{ date, event, by }` 到 progressTracking 陣列，不會覆蓋既有紀錄。
 

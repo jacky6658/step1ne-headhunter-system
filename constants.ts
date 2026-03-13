@@ -1,43 +1,4 @@
-import { Platform, ContactStatus, LeadStatus, Decision, RejectReason, CandidateStatus, CandidateSource } from './types';
-
-export const PLATFORM_OPTIONS = Object.values(Platform);
-
-export const CONTACT_STATUS_OPTIONS = Object.values(ContactStatus);
-
-export const STATUS_OPTIONS = Object.values(LeadStatus);
-
-export const REJECT_REASON_OPTIONS = Object.values(RejectReason);
-
-export const STATUS_COLORS: Record<LeadStatus, string> = {
-  [LeadStatus.TO_IMPORT]: 'text-slate-500 bg-slate-50',
-  [LeadStatus.TO_FILTER]: 'text-amber-600 bg-amber-50',
-  [LeadStatus.CONTACTED]: 'text-blue-600 bg-blue-50',
-  [LeadStatus.QUOTING]: 'text-purple-600 bg-purple-50',
-  [LeadStatus.IN_PROGRESS]: 'text-indigo-600 bg-indigo-50',
-  [LeadStatus.WON]: 'text-emerald-600 bg-emerald-50',
-  [LeadStatus.CLOSED]: 'text-gray-600 bg-gray-50',
-  [LeadStatus.CANCELLED]: 'text-red-600 bg-red-50',
-  [LeadStatus.DECLINED]: 'text-orange-600 bg-orange-50'
-};
-
-export const DECISION_COLORS: Record<Decision, string> = {
-  [Decision.ACCEPT]: 'text-emerald-600 bg-emerald-50',
-  [Decision.REJECT]: 'text-red-600 bg-red-50',
-  [Decision.PENDING]: 'text-amber-600 bg-amber-50'
-};
-
-// 預設成本名目
-export const DEFAULT_COST_ITEMS = [
-  'gemini AI 使用費用',
-  'cursor 開發軟體費用',
-  'zeabur 雲端部署費用',
-  '預估人力費用',
-  'Pro360 索取個資成本'
-];
-
-// Pro360 成本名目
-export const PRO360_COST_ITEM = 'Pro360 接案費用';
-export const PRO360_CONTACT_COST_ITEM = 'Pro360 索取個資成本';
+import { CandidateStatus, CandidateSource, SubmissionRule } from './types';
 
 // ===== Step1ne Headhunter Extensions =====
 
@@ -130,20 +91,16 @@ export const CANDIDATE_STATUS_CONFIG = {
     bgColor: 'bg-purple-100',
     textColor: 'text-purple-700',
     borderColor: 'border-purple-300'
+  },
+  [CandidateStatus.CRAWLER_SCREENED]: {
+    label: '爬蟲初篩',
+    color: 'cyan',
+    bgColor: 'bg-cyan-100',
+    textColor: 'text-cyan-700',
+    borderColor: 'border-cyan-300'
   }
 };
 
-// Kanban 看板欄位順序
-export const KANBAN_COLUMNS = [
-  CandidateStatus.NOT_STARTED,
-  CandidateStatus.AI_RECOMMENDED,
-  CandidateStatus.CONTACTED,
-  CandidateStatus.INTERVIEWED,
-  CandidateStatus.OFFER,
-  CandidateStatus.ONBOARDED,
-  CandidateStatus.REJECTED,
-  CandidateStatus.OTHER,
-];
 
 // 候選人來源配置
 export const SOURCE_CONFIG = {
@@ -188,3 +145,17 @@ export const SOURCE_CONFIG = {
     color: 'gray'
   }
 };
+
+// 客戶送件規範預設模板
+export const SUBMISSION_RULE_PRESETS: Omit<SubmissionRule, 'id' | 'sort_order'>[] = [
+  { rule_type: 'content_format', label: '必須使用中文姓名', field_key: 'name', check_config: { format: 'chinese_name' }, is_auto_checkable: true, enabled: true },
+  { rule_type: 'field_required', label: '需填寫英文名', field_key: 'english_name', is_auto_checkable: true, enabled: true },
+  { rule_type: 'field_required', label: '要求包含期望薪資', field_key: 'expected_salary', is_auto_checkable: true, enabled: true },
+  { rule_type: 'field_required', label: '需填寫目前薪資', field_key: 'current_salary', is_auto_checkable: true, enabled: true },
+  { rule_type: 'link_required', label: '需附 Portfolio / 作品集連結', field_key: 'resume_link', check_config: { link_type: 'resumeLink' }, is_auto_checkable: true, enabled: true },
+  { rule_type: 'link_required', label: '需附 GitHub 連結', field_key: 'github_url', check_config: { link_type: 'githubUrl' }, is_auto_checkable: true, enabled: true },
+  { rule_type: 'link_required', label: '需附 LinkedIn 連結', field_key: 'linkedin_url', check_config: { link_type: 'linkedinUrl' }, is_auto_checkable: true, enabled: true },
+  { rule_type: 'resume_version', label: '匿名履歷需附英文版', check_config: { resume_lang: 'en' }, is_auto_checkable: false, enabled: true },
+  { rule_type: 'field_required', label: '需填寫語言能力', field_key: 'languages', is_auto_checkable: true, enabled: true },
+  { rule_type: 'field_required', label: '需填寫證照', field_key: 'certifications', is_auto_checkable: true, enabled: true },
+];

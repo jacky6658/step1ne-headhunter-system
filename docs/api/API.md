@@ -1,32 +1,72 @@
-# Step1ne Headhunter System - API 文檔
+# Step1ne Headhunter System - API 完整文檔
 
-**版本**: 1.0.0  
-**Base URL**: `http://localhost:3001/api` (開發環境)  
+**版本**: 3.1.0（2026-03-13 新增 API 認證 + 安全強化）
+**Base URL**: `http://localhost:3001/api`（開發環境）
 **Production URL**: `https://backendstep1ne.zeabur.app/api`
 
 ---
 
-## 📚 目錄
+## 目錄
 
 1. [認證](#認證)
-2. [候選人管理 API](#候選人管理-api)
-3. [職缺管理 API](#職缺管理-api)
-4. [AI 配對 API](#ai-配對-api)
-5. [🆕 人才搜尋系統 API（AIbot 獵才流程）](#人才搜尋系統-api)
-6. [顧問設定 API](#顧問設定-api)
-7. [錯誤處理](#錯誤處理)
-8. [Bot 整合範例](#bot-整合範例)
+2. [候選人管理 API](#候選人管理-api)（16 端點）
+3. [職缺管理 API](#職缺管理-api)（6 端點）
+4. [BD 客戶管理 API](#bd-客戶管理-api)（9 端點）
+5. [GitHub 分析 API](#github-分析-api)（2 端點）
+6. [履歷解析 API](#履歷解析-api)（2 端點）
+7. [人才搜尋系統 API](#人才搜尋系統-api)（5 端點）
+8. [OpenClaw AI 評分 API](#openclaw-ai-評分-api)（2 端點）
+9. [爬蟲整合 API](#爬蟲整合-api)（20 端點）
+10. [使用者與顧問 API](#使用者與顧問-api)（4 端點）
+11. [系統管理 API](#系統管理-api)（5 端點）
+12. [Guide 文件 API](#guide-文件-api)（6 端點）
+13. [錯誤處理](#錯誤處理)
 
 ---
 
 ## 認證
 
-**目前版本：無需認證**（僅限內部使用）
+**所有 API 端點都需要 Bearer Token 認證**（2026-03-13 起）
 
-未來版本將支援：
-- API Key 認證
-- OAuth 2.0
-- JWT Token
+### 一般 API 認證
+
+每個請求都必須在 Header 帶上 `Authorization`：
+
+```bash
+curl -H "Authorization: Bearer <API_SECRET_KEY>" \
+  https://backendstep1ne.zeabur.app/api/candidates
+```
+
+| Header | 值 | 說明 |
+|--------|-----|------|
+| `Authorization` | `Bearer <API_SECRET_KEY>` | 後端環境變數 `API_SECRET_KEY` 的值 |
+| `Content-Type` | `application/json` | POST/PUT/PATCH 請求必須 |
+
+### 白名單端點（不需認證）
+
+| 端點 | 說明 |
+|------|------|
+| `GET /api/health` | 健康檢查 |
+| `POST /api/webhooks/github` | GitHub Webhook（有自己的 HMAC 簽名驗證） |
+
+### OpenClaw API 認證
+
+OpenClaw 端點使用獨立的認證方式：
+
+```bash
+curl -H "X-OpenClaw-Key: <OPENCLAW_API_KEY>" \
+  https://backendstep1ne.zeabur.app/api/openclaw/pending
+```
+
+### 認證失敗回應
+
+```json
+{ "success": false, "error": "未授權：缺少或無效的 API Key" }
+```
+
+### Rate Limiting
+
+所有 `/api` 端點限制 **200 次/分鐘**（per IP）。超過時回傳 HTTP 429。
 
 ---
 
@@ -35,44 +75,82 @@
 ### 1. 列出所有候選人
 
 ```http
-GET /api/candidates
+GET /api/candidates?limit=2000
 ```
+
+> ⚠️ **重要：請務必帶 `?limit=2000`**，否則預設只回傳前 1000 筆，會漏掉較新的候選人。
+
+**查詢參數**（可選）：
+
+| 參數 | 類型 | 說明 | 範例 |
+|------|------|------|------|
+| `limit` | 整數 | 最多回傳筆數（預設 1000，**建議帶 2000**） | `?limit=2000` |
+| `status` | 字串 | 篩選狀態 | `?status=AI推薦` |
+| `source` | 字串 | 篩選來源 | `?source=LinkedIn` |
+| `created_today` | `true` | 只回傳今日（台北時間）建立的候選人 | `?created_today=true` |
+
+**合法 status 值**：`未開始`、`AI推薦`、`聯繫階段`、`面試階段`、`Offer`、`on board`、`婉拒`、`備選人才`、`爬蟲初篩`
+
+**合法 source 值**：`LinkedIn`、`GitHub`、`Gmail 進件`、`推薦`、`主動開發`、`人力銀行`、`爬蟲匯入`、`其他`
 
 **回應範例**：
 ```json
 {
   "success": true,
+  "count": 1361,
   "data": [
     {
-      "id": "1",
-      "name": "張大明",
-      "currentJobTitle": "資深 BIM 工程師",
+      "id": "4",
+      "name": "陳宥樺",
+      "position": "SRE（系統維運工程師）",
       "email": "example@email.com",
       "phone": "0912-345-678",
-      "workExperience": "5年",
-      "skills": ["Revit", "AutoCAD", "BIM"],
-      "currentCompany": "某建築公司",
-      "desiredSalary": "60k-80k",
-      "status": "待聯繫",
-      "grade": "A",
-      "consultant": "Jacky",
+      "linkedinUrl": "https://linkedin.com/in/...",
+      "githubUrl": "https://github.com/...",
+      "location": "台北",
+      "years": 5,
+      "skills": "Java, Spring Boot, Docker",
+      "education": "國立台灣大學 資工系",
+      "status": "AI推薦",
       "source": "LinkedIn",
-      "notes": "技術能力強，溝通良好"
+      "recruiter": "Phoebe",
+      "consultant": "Phoebe",
+      "talent_level": "A",
+      "stabilityScore": 72,
+      "age": 28,
+      "industry": "科技業",
+      "languages": "中文, 英文",
+      "currentSalary": "80K",
+      "expectedSalary": "100K",
+      "noticePeriod": "1個月",
+      "motivation": "尋求技術成長",
+      "aiMatchResult": { ... },
+      "targetJobId": 5,
+      "targetJobLabel": "SRE 工程師",
+      "createdAt": "2026-02-20T08:00:00.000Z",
+      "updatedAt": "2026-03-10T15:30:00.000Z"
     }
-  ],
-  "count": 234
+  ]
 }
 ```
 
-**查詢參數**（可選）：
-- `status` - 篩選狀態（待聯繫/已聯繫/面試中/已錄取/已拒絕）
-- `consultant` - 篩選負責顧問
-- `grade` - 篩選評級（S/A+/A/B/C）
+**候選人完整欄位清單**（62 個）：
 
-範例：
-```http
-GET /api/candidates?status=待聯繫&grade=A
-```
+| 分類 | 欄位 |
+|------|------|
+| 基本資料 | `id`, `name`, `email`, `phone`, `contact_link`, `location`, `age`, `ageEstimated` |
+| 職業資料 | `position`(`current_position`), `years`(`years_experience`), `industry`, `skills`, `education`, `education_details`, `educationJson` |
+| 工作經歷 | `workHistory`(`work_history`), `jobChanges`(`job_changes`), `avgTenure`(`avg_tenure_months`), `lastGap`(`recent_gap_months`), `leaving_reason`, `stabilityScore`(`stability_score`) |
+| 社群連結 | `linkedinUrl`(`linkedin_url`), `githubUrl`(`github_url`), `resumeLink` |
+| 獵頭管理 | `status`, `source`, `recruiter`, `consultant`, `talent_level`, `notes`, `progressTracking` |
+| 薪資待遇 | `currentSalary`, `expectedSalary`, `noticePeriod` |
+| Phase 3 動機 | `motivation`, `reasonForChange`, `jobSearchStatus`, `dealBreakers`, `competingOffers`, `relationshipLevel` |
+| 管理經驗 | `managementExperience`, `teamSize` |
+| 個性 | `personality_type`, `discProfile` |
+| AI 相關 | `aiMatchResult`(`ai_match_result`), `consultantEvaluation`, `interviewRound`, `targetJobId`, `targetJobLabel` |
+| 時間戳 | `createdAt`, `updatedAt`, `createdBy` |
+
+> 注意：API 同時回傳 camelCase 和 snake_case 版本，前端用 camelCase。
 
 ---
 
@@ -82,145 +160,190 @@ GET /api/candidates?status=待聯繫&grade=A
 GET /api/candidates/:id
 ```
 
-**路徑參數**：
-- `id` - 候選人 ID
+回傳該候選人的完整資料（同上方欄位）。
 
-**回應範例**：
+**回應**：`{ "success": true, "data": { ... } }`
+**404**：`{ "success": false, "error": "找不到候選人" }`
+
+---
+
+### 3. 新增候選人
+
+```http
+POST /api/candidates
+```
+
+**必填欄位**：`name`
+
+**選填欄位**：所有上方列出的候選人欄位
+
+**自動計算**：
+- `stability_score`：從 `job_changes`、`avg_tenure_months`、`recent_gap_months` 計算
+- `talent_level`：綜合評級 S/A+/A/B/C
+- `age`：若未提供，從學歷推估
+
+**回應**：
 ```json
 {
   "success": true,
-  "data": {
-    "id": "1",
-    "name": "張大明",
-    "currentJobTitle": "資深 BIM 工程師",
-    "email": "example@email.com",
-    "phone": "0912-345-678",
-    "linkedin": "https://linkedin.com/in/...",
-    "github": "https://github.com/...",
-    "workExperience": "5年",
-    "skills": ["Revit", "AutoCAD", "BIM", "Python", "Dynamo"],
-    "currentCompany": "某建築公司",
-    "currentSalary": "55k",
-    "desiredSalary": "60k-80k",
-    "education": "國立台灣科技大學 營建工程系",
-    "status": "待聯繫",
-    "grade": "A",
-    "consultant": "Jacky",
-    "source": "LinkedIn",
-    "notes": "技術能力強，溝通良好",
-    "resumeUrl": "https://drive.google.com/...",
-    "appliedJobs": [],
-    "interviewHistory": [],
-    "createdAt": "2026-02-20",
-    "updatedAt": "2026-02-23"
-  }
-}
-```
-
-**錯誤回應** (404):
-```json
-{
-  "success": false,
-  "error": "找不到候選人"
+  "data": { "id": "1362", "name": "新候選人", ... },
+  "message": "候選人已新增"
 }
 ```
 
 ---
 
-### 3. 搜尋候選人
-
-使用 GET /api/candidates 配合查詢參數即可搜尋
-
-範例：
-```http
-GET /api/candidates?skills=Python&workExperience=3年以上
-```
-
----
-
-### 4. 更新候選人狀態
+### 4. 更新候選人（PUT）
 
 ```http
 PUT /api/candidates/:id
 ```
 
-**請求 Body**：
+**Request Body**：`status`、`notes`、`consultant`、`name`、`progressTracking`、`aiMatchResult`
+
+**回應**：`{ "success": true, "data": { ... }, "message": "候選人已更新" }`
+
+---
+
+### 5. 部分更新候選人（PATCH）
+
+```http
+PATCH /api/candidates/:id
+```
+
+**Request Body**：任何候選人欄位（支援 camelCase 和 snake_case）
+
+**回應**：`{ "success": true, "data": { ... }, "message": "候選人資料已更新" }`
+
+---
+
+### 6. 刪除候選人
+
+```http
+DELETE /api/candidates/:id
+```
+
+**Request Body**（選填）：`{ "actor": "Jacky" }`
+
+**回應**：`{ "success": true, "message": "候選人已刪除" }`
+
+---
+
+### 7. 更新 Pipeline 狀態（AIbot 專用）
+
+```http
+PUT /api/candidates/:id/pipeline-status
+```
+
+**Request Body**：
 ```json
 {
-  "status": "面試中"
+  "status": "AI推薦",
+  "by": "Phoebe-aibot"
 }
 ```
 
-**回應範例**：
+會自動寫入 `progressTracking` 和系統日誌。
+
+---
+
+### 8. 批次更新狀態
+
+```http
+PATCH /api/candidates/batch-status
+```
+
+**Request Body**：
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "1",
-    "name": "張大明",
-    "status": "面試中",
-    "updatedAt": "2026-02-23T22:30:00Z"
-  },
-  "message": "候選人狀態已更新"
+  "ids": [1, 2, 3],
+  "status": "聯繫階段",
+  "actor": "Phoebe",
+  "note": "批次推進"
+}
+```
+
+限制：最多 200 筆。
+
+---
+
+### 9. 批次刪除
+
+```http
+DELETE /api/candidates/batch
+```
+
+**Request Body**：`{ "ids": [1, 2, 3], "actor": "Admin" }`
+
+限制：最多 200 筆。`actor` 必填。
+
+---
+
+### 10. 批次匯入（Upsert）
+
+```http
+POST /api/candidates/bulk
+```
+
+**Request Body**：
+```json
+{
+  "candidates": [ { "name": "...", ... }, ... ],
+  "actor": "Crawler-WebUI"
 }
 ```
 
 ---
 
-### 5. 候選人評級
+### 11. AI 深度分析候選人（Perplexity）
 
 ```http
-POST /api/candidates/:id/grade
+POST /api/candidates/:id/enrich
 ```
 
-**功能**：使用 AI 自動評級候選人（S/A+/A/B/C）
-
-**回應範例**：
-```json
-{
-  "success": true,
-  "data": {
-    "id": "1",
-    "name": "張大明",
-    "grade": "A",
-    "score": 85,
-    "breakdown": {
-      "skills": 90,
-      "experience": 85,
-      "education": 80,
-      "stability": 82
-    }
-  }
-}
-```
+**Request Body**：`{ "actor": "Phoebe" }`
 
 ---
 
-### 6. 批量評級
+### 12. 批次 AI 深度分析
 
 ```http
-POST /api/candidates/batch-grade
+POST /api/candidates/enrich-batch
 ```
 
-**功能**：批量評級所有候選人
+**Request Body**：`{ "ids": [1, 2, 3], "actor": "Phoebe" }`
 
-**回應範例**：
-```json
-{
-  "success": true,
-  "total": 234,
-  "graded": 230,
-  "errors": 4,
-  "results": [...],
-  "errors": [
-    {
-      "candidateId": "5",
-      "name": "王小明",
-      "error": "缺少必要資料"
-    }
-  ]
-}
+---
+
+### 13. 職缺配對排名
+
+```http
+GET /api/candidates/:id/job-rankings
 ```
+
+**查詢參數**：`force=1`（選填，強制重算不用快取）
+
+回傳五維度評分 + 排序後的職缺配對列表。
+
+---
+
+### 14. GitHub 快速統計
+
+```http
+GET /api/candidates/:id/github-stats
+```
+
+**查詢參數**：`jobId`（選填，提供職缺上下文）
+
+---
+
+### 15. 回填年資/年齡
+
+```http
+POST /api/candidates/backfill-computed
+```
+
+批次回填所有缺少年資/年齡的候選人。
 
 ---
 
@@ -238,39 +361,27 @@ GET /api/jobs
   "success": true,
   "data": [
     {
-      "id": "job-1",
-      "title": "AI工程師",
-      "department": "技術部",
-      "headcount": 2,
-      "salaryRange": "80k-120k",
-      "requiredSkills": ["Python", "AI", "Machine Learning"],
-      "yearsRequired": 3,
-      "educationRequired": "大學以上",
-      "workLocation": "台北",
-      "status": "開放中",
-      "createdDate": "2026-02-10",
-      "lastUpdated": "2026-02-23",
-      "company": {
-        "name": "AIJob內部",
-        "industry": "軟體科技",
-        "size": "100-500",
-        "stage": "成長期",
-        "culture": "自主型"
-      }
+      "id": 1,
+      "position_name": "SRE 工程師",
+      "client_company": "一通數位",
+      "salary_range": "80-120K",
+      "key_skills": "Kubernetes, Docker, AWS",
+      "job_description": "...",
+      "talent_profile": "...",
+      "company_profile": "...",
+      "search_primary": "SRE, DevOps, Kubernetes",
+      "search_secondary": "Docker, AWS, GCP",
+      "job_status": "招募中",
+      "industry": "科技業",
+      "interview_process": "技術面→主管面→HR面",
+      "consultant": "Jacky",
+      "consultant_notes": "...",
+      "created_at": "2026-02-10",
+      "updated_at": "2026-03-01"
     }
   ],
-  "count": 27
+  "count": 53
 }
-```
-
-**查詢參數**（可選）：
-- `status` - 篩選狀態（開放中/招募中/已關閉）
-- `company` - 篩選公司
-- `skills` - 篩選技能
-
-範例：
-```http
-GET /api/jobs?status=開放中&skills=Python
 ```
 
 ---
@@ -281,215 +392,197 @@ GET /api/jobs?status=開放中&skills=Python
 GET /api/jobs/:id
 ```
 
-**回應範例**：
-```json
-{
-  "success": true,
-  "data": {
-    "id": "job-1",
-    "title": "AI工程師",
-    "department": "技術部",
-    "headcount": 2,
-    "salaryRange": "80k-120k",
-    "requiredSkills": ["Python", "AI", "Machine Learning"],
-    "preferredSkills": ["TensorFlow", "PyTorch"],
-    "yearsRequired": 3,
-    "educationRequired": "大學以上",
-    "workLocation": "台北",
-    "status": "開放中",
-    "languageRequirement": "英文中等",
-    "specialConditions": "",
-    "industryBackground": "軟體科技",
-    "teamSize": "10-20人",
-    "keyChallenge": "快速成長的團隊",
-    "highlights": "彈性工時、遠端辦公",
-    "recruitmentDifficulty": "競爭激烈",
-    "interviewProcess": "1.技術測驗 2.技術面試 3.主管面試",
-    "consultantNotes": "客戶希望找有創業經驗的",
-    "company": {
-      "name": "AIJob內部",
-      "industry": "軟體科技",
-      "size": "100-500",
-      "stage": "成長期",
-      "culture": "自主型",
-      "techStack": ["Python", "AI", "Machine Learning"],
-      "workLocation": "台北",
-      "remotePolicy": "混合辦公"
-    },
-    "createdDate": "2026-02-10",
-    "lastUpdated": "2026-02-23"
-  }
-}
-```
-
 ---
 
-## AI 配對 API
-
-### 1. 批量配對（推薦使用）
+### 3. 新增職缺
 
 ```http
-POST /api/personas/batch-match
+POST /api/jobs
 ```
 
-**功能**：一個職缺 vs 多個候選人，返回排序後的配對結果
+**必填**：`position_name`
 
-**請求 Body**：
-```json
-{
-  "job": {
-    "title": "AI工程師",
-    "department": "技術部",
-    "requiredSkills": ["Python", "AI", "Machine Learning"],
-    "yearsRequired": 3
-  },
-  "company": {
-    "name": "AIJob內部",
-    "industry": "軟體科技",
-    "stage": "成長期",
-    "culture": "自主型"
-  },
-  "candidateIds": ["1", "2", "3", "5", "8"]
-}
-```
-
-**回應範例**：
-```json
-{
-  "success": true,
-  "company": {
-    "name": "AIJob內部",
-    "jobTitle": "AI工程師"
-  },
-  "result": {
-    "summary": {
-      "total": 5,
-      "avgScore": 76.3,
-      "grades": {
-        "S": 0,
-        "A": 1,
-        "B": 4,
-        "C": 0,
-        "D": 0
-      }
-    },
-    "matches": [
-      {
-        "candidate": {
-          "id": "1",
-          "name": "張大明"
-        },
-        "score": 82.5,
-        "grade": "A",
-        "breakdown": {
-          "skills": 85,
-          "growth": 80,
-          "culture": 88,
-          "motivation": 75
-        },
-        "highlights": [
-          "技術能力與職缺高度匹配",
-          "文化適配度優秀（技術宅 vs 自主型）",
-          "職涯路徑清晰"
-        ],
-        "risks": [
-          "薪資期待略高於上限"
-        ],
-        "recommendation": "強烈推薦，優先聯繫"
-      },
-      {
-        "candidate": {
-          "id": "2",
-          "name": "李小華"
-        },
-        "score": 75.2,
-        "grade": "B",
-        "breakdown": {
-          "skills": 78,
-          "growth": 72,
-          "culture": 80,
-          "motivation": 68
-        },
-        "highlights": [
-          "基礎技能符合",
-          "學習意願強"
-        ],
-        "risks": [
-          "經驗略淺（2年 vs 要求3年）"
-        ],
-        "recommendation": "可考慮，需加強技術評估"
-      }
-    ]
-  }
-}
-```
+**選填**：`client_company`, `salary_range`, `key_skills`, `job_description`, `talent_profile`, `company_profile`, `search_primary`, `search_secondary`, `job_status`, `industry`, `interview_process`, `consultant`, `consultant_notes`, `headcount`, `education_requirement`, `experience_requirement`, `language_requirement`, `location`, `remote_policy`, `url_104`, `url_1111`
 
 ---
 
-### 2. 完整配對流程（單一候選人）
+### 4. 更新職缺
 
 ```http
-POST /api/personas/full-match
+PUT /api/jobs/:id
 ```
 
-**功能**：自動生成候選人畫像 + 公司畫像 + 執行配對
+只更新有提供的欄位。
 
-**請求 Body**：
+---
+
+### 5. 更新職缺狀態
+
+```http
+PATCH /api/jobs/:id/status
+```
+
+**Request Body**：
 ```json
 {
-  "candidateId": "1",
-  "job": {
-    "title": "AI工程師",
-    "requiredSkills": ["Python", "AI"]
-  },
-  "company": {
-    "name": "AIJob內部",
-    "industry": "軟體科技",
-    "culture": "自主型"
-  }
+  "job_status": "招募中",
+  "actor": "Jacky"
 }
 ```
 
-**回應範例**：
-```json
-{
-  "success": true,
-  "candidatePersona": { ... },
-  "companyPersona": { ... },
-  "matchResult": {
-    "score": 82.5,
-    "grade": "A",
-    "breakdown": { ... },
-    "recommendation": "強烈推薦"
-  }
-}
+合法狀態：`招募中`、`暫停`、`已滿額`、`關閉`
+
+---
+
+### 6. 刪除職缺
+
+```http
+DELETE /api/jobs/:id
 ```
 
 ---
+
+## BD 客戶管理 API
+
+### 1. 列出所有客戶
+
+```http
+GET /api/clients
+```
+
+**查詢參數**：`bd_status`、`consultant`
+
+---
+
+### 2. 取得單一客戶
+
+```http
+GET /api/clients/:id
+```
+
+---
+
+### 3. 新增客戶
+
+```http
+POST /api/clients
+```
+
+**欄位**：`company_name`, `industry`, `company_size`, `website`, `bd_status`, `bd_source`, `contact_name`, `contact_title`, `contact_email`, `contact_phone`, `contact_linkedin`, `consultant`, `contract_type`, `fee_percentage`, `contract_start`, `contract_end`, `notes`, `url_104`, `url_1111`
+
+---
+
+### 4. 更新客戶
+
+```http
+PATCH /api/clients/:id
+```
+
+---
+
+### 5. 更新 BD 狀態
+
+```http
+PATCH /api/clients/:id/status
+```
+
+**Request Body**：`{ "bd_status": "合作中", "actor": "Jacky" }`
+
+合法狀態：`開發中`、`接洽中`、`提案中`、`合約階段`、`合作中`、`暫停`、`流失`
+
+---
+
+### 6. 刪除客戶
+
+```http
+DELETE /api/clients/:id
+```
+
+---
+
+### 7. 取得客戶的職缺
+
+```http
+GET /api/clients/:id/jobs
+```
+
+---
+
+### 8. 取得客戶聯繫紀錄
+
+```http
+GET /api/clients/:id/contacts
+```
+
+---
+
+### 9. 新增聯繫紀錄
+
+```http
+POST /api/clients/:id/contacts
+```
+
+**Request Body**：`contact_date`, `contact_type`, `summary`, `next_action`, `next_action_date`, `by_user`
+
+---
+
+## GitHub 分析 API
+
+### 1. 完整 GitHub 分析
+
+```http
+GET /api/github/analyze/:username
+```
+
+**查詢參數**：`jobId`（選填，提供職缺上下文以分析技能匹配度）
+
+回傳：GitHub Profile、Repo 統計、語言分佈、活躍度分析。
+
+---
+
+### 2. AI GitHub 分析
+
+```http
+POST /api/github/ai-analyze
+```
+
+**Request Body**：`{ "candidateId": 123, "jobId": 5 }`
+
+---
+
+## 履歷解析 API
+
+### 1. 解析單份履歷
+
+```http
+POST /api/resume/parse
+```
+
+**Content-Type**：`multipart/form-data`
+
+| 欄位 | 說明 |
+|------|------|
+| `file` | PDF 檔案 |
+| `useAI` | `true`/`false`（是否使用 AI 增強解析） |
+
+---
+
+### 2. 批次解析履歷
+
+```http
+POST /api/resume/batch-parse
+```
+
+**Content-Type**：`multipart/form-data`
+
+| 欄位 | 說明 |
+|------|------|
+| `files` | 多個 PDF 檔案 |
+| `useAI` | `true`/`false` |
 
 ---
 
 ## 人才搜尋系統 API
-
-> **重要：這是 AIbot 獵才流程的核心端點。**
-> 當顧問說「幫我找 XXX 公司的 YYY 職位候選人」時，AIbot 應呼叫此端點，系統將自動完成整個 6 步驟流程並回傳優先推薦名單。
-
----
-
-### 觸發情境識別
-
-AIbot 應在以下對話模式中觸發人才搜尋：
-
-| 顧問說... | 代表要搜尋... |
-|-----------|--------------|
-| 「幫我找一通數位的 Java Developer 候選人」 | company=一通數位, jobTitle=Java Developer |
-| 「幫我搜尋遊戲橘子的後端工程師」 | company=遊戲橘子, jobTitle=後端工程師 |
-| 「去找看看有沒有符合 AWS 職缺的人選」 | 需先確認是哪個客戶公司 |
-| 「找一下 104 的 React 工程師」 | company=104, jobTitle=React 工程師 |
-
-> **注意**：如果顧問沒有指定公司，AIbot 應先回問「請問是哪家客戶公司的職缺？」，確認後再呼叫 API。
-
----
 
 ### 1. 完整獵才流程（核心端點）
 
@@ -497,291 +590,282 @@ AIbot 應在以下對話模式中觸發人才搜尋：
 POST /api/talent-sourcing/find-candidates
 ```
 
-**功能**：觸發 6 步驟自動獵才流程：
-1. 分析公司畫像 + 人才畫像（從 DB 讀取客戶/職缺資料）
-2. GitHub API 搜尋（2-3頁）+ Google→LinkedIn 搜尋（2-3頁）
-3. 去重（比對現有 candidates_pipeline）
-4. 自動評分（S/A+/A/B/C）
-5. 寫入 candidates_pipeline（含 AI 評估報告）
-6. 生成優先推薦名單
+自動執行 6 步驟：分析畫像 → GitHub 搜尋 → LinkedIn 搜尋 → 去重 → 評分 → 寫入系統
 
-**請求 Body**：
-```json
-{
-  "company": "一通數位",
-  "jobTitle": "Java Developer",
-  "actor": "Jackeybot",
-  "github_token": "ghp_xxxxxxxxxxxx",
-  "pages": 2
-}
-```
+**Request Body**：
 
 | 欄位 | 必填 | 說明 |
 |------|------|------|
-| `company` | ✅ | 客戶公司名稱（模糊匹配） |
-| `jobTitle` | ✅ | 職位名稱（模糊匹配） |
-| `actor` | 建議填 | 呼叫者名稱（如 Jackeybot、Phoebebot） |
-| `github_token` | 選填 | 顧問的 GitHub PAT（從 GET /api/users/:name/contact 取得）；不填則無認證模式（60次/小時） |
-| `pages` | 選填 | 搜尋頁數，預設 2，最多 3 |
+| `company` | ✅ | 客戶公司名稱 |
+| `jobTitle` | ✅ | 職位名稱 |
+| `actor` | 建議 | 呼叫者名稱（如 `Phoebe-aibot`） |
+| `github_token` | 選填 | GitHub PAT（提升到 5000 次/小時） |
+| `pages` | 選填 | 搜尋頁數（預設 2，最多 3） |
 
-**如何取得 github_token**：
+---
+
+### 2. 搜尋候選人
+
 ```http
-GET /api/users/{顧問displayName}/contact
+POST /api/talent-sourcing/search
 ```
-回應的 `data.githubToken` 即為顧問設定的 GitHub Token。
+
+**Request Body**：`jobTitle`（必填）, `industry`（必填）, `requiredSkills`, `layer`
 
 ---
 
-**成功回應範例**：
-```json
-{
-  "success": true,
-  "company": "一通數位",
-  "job_title": "Java Developer",
-  "company_profile": {
-    "company": "一通數位",
-    "industry": "遊戲/科技",
-    "size": "100-500人",
-    "key_skills": ["Java", "Spring Boot", "Kubernetes"],
-    "job_count": 2,
-    "description": "一通數位為遊戲/科技產業，目前有 2 個職缺開放中。"
-  },
-  "talent_profile": {
-    "target_role": "Java Developer",
-    "required_skills": ["Java", "Spring Boot", "Kubernetes"],
-    "experience_required": "3年以上",
-    "ideal_profile": "理想人選應具備 Java、Spring Boot、Kubernetes 等核心技能..."
-  },
-  "imported_count": 8,
-  "skipped_count": 2,
-  "skipped": [
-    { "name": "john-doe", "reason": "已存在（ID: 42）" }
-  ],
-  "github_count": 7,
-  "linkedin_count": 3,
-  "priority_summary": "🎯 建議優先聯繫（依評級 + 符合度排序）：\n\n🥇 第1位：...",
-  "full_summary": "✅ 已匯入 8 位候選人到系統\n（略過 2 位重複人選）\n\n🎯 建議優先聯繫...",
-  "rate_limit_warning": null,
-  "execution_time": "28.3s",
-  "candidates": [...]
-}
+### 3. 評分候選人
+
+```http
+POST /api/talent-sourcing/score
 ```
+
+**Request Body**：`candidates`（必填）, `jobRequirement`
 
 ---
 
-**AIbot 處理回應的方式**：
+### 4. 跨產業遷移分析
 
-收到成功回應後，AIbot 直接將 `full_summary` 的文字內容回傳給顧問：
-
+```http
+POST /api/talent-sourcing/migration
 ```
-✅ 已匯入 8 位候選人到系統
-（略過 2 位重複人選）
 
-🎯 建議優先聯繫（依評級 + 符合度排序）：
-
-🥇 第1位：John Chen（⭐A+, 88分）
-   GitHub @john-chen，42 repos
-   技能：Java、Spring Boot、Docker
-   ⚡ 建議今天聯繫
-
-🥈 第2位：Amy Lin（✅A, 78分）
-   LinkedIn amy-lin-tw
-   技能：Java、Kubernetes
-   📅 建議本週內聯繫
-
-⚠️ 其餘 6 位（B級：4、C級：2）已存入系統備查
-
-📋 前往系統查看完整名單 → 候選人總表
-```
+**Request Body**：`candidates`（必填）, `targetIndustry`（必填）
 
 ---
 
-**GitHub Rate Limit 警告處理**：
-
-當 `rate_limit_warning` 不為 null 時，代表 GitHub API 已達速率限制（無認證模式 60次/小時）。
-AIbot 應在回傳搜尋結果後，額外補充以下提示：
-
-```
-⚠️ GitHub API 已達每小時上限（無認證模式）
-
-如需搜尋更多開發者，請前往個人設定 → 填入 GitHub Token，即可提升至 5000次/小時。
-申請頁面：https://github.com/settings/tokens
-```
-
----
-
-**職缺不存在時的回應**（`success: false`）：
-
-```json
-{
-  "success": false,
-  "error": "找不到職缺：一通數位 / Java Developer，請確認職缺已匯入系統。"
-}
-```
-
-AIbot 應回覆：
-「找不到符合的職缺資料，請確認『一通數位』的『Java Developer』職缺已經在系統中建立，或請提供正確的公司名稱/職位名稱。」
-
----
-
-### 2. 健康檢查
+### 5. 健康檢查
 
 ```http
 GET /api/talent-sourcing/health
 ```
 
-**回應範例**：
+---
+
+## OpenClaw AI 評分 API
+
+> 需要 `X-OpenClaw-Key` Header 認證。
+
+### 1. 取得待評分候選人
+
+```http
+GET /api/openclaw/pending
+```
+
+**Header**：`X-OpenClaw-Key: <key>`
+
+**查詢參數**：`limit`（預設 50，最大 200）, `offset`, `job_id`
+
+---
+
+### 2. 批次更新評分結果
+
+```http
+POST /api/openclaw/batch-update
+```
+
+**Header**：`X-OpenClaw-Key: <key>`
+
+**Request Body**：
 ```json
 {
-  "success": true,
-  "health": {
-    "scriptsReady": true,
-    "scriptsAvailable": {
-      "scraper": true,
-      "scorer": true,
-      "migration": true
+  "candidates": [
+    {
+      "id": 123,
+      "ai_match_result": { ... },
+      "ai_score": 85,
+      "ai_grade": "A+",
+      "status": "AI推薦",
+      "talent_level": "A+"
     }
-  },
-  "status": "ready"
+  ]
 }
 ```
 
----
-
-### 評分規則（供 AIbot 解釋時參考）
-
-| 評級 | 分數 | 代表意義 | 建議行動 |
-|------|------|----------|----------|
-| 🏆 S | 90+ | 極佳人選，高度符合 | ⚡ 今天聯繫 |
-| ⭐ A+ | 85-89 | 優秀人選，強烈推薦 | ⚡ 今天聯繫 |
-| ✅ A | 75-84 | 良好人選，推薦 | 📅 本週內聯繫 |
-| 📋 B | 60-74 | 一般人選，備選 | 📌 存入備查 |
-| 📝 C | 0-59 | 基本符合，低優先 | 📌 存入備查 |
-
-評分組成：
-- **技能符合度（60%）**：候選人技能 vs 職缺要求技能的比對比率
-- **個人資料品質（40%）**：GitHub 活躍度（repo數、followers）或 LinkedIn 來源基準分
+限制：每批最多 100 筆。
 
 ---
 
-### notes 欄位格式（AI 評估報告）
+## 爬蟲整合 API
 
-每位匯入的候選人，`candidates_pipeline.notes` 欄位會包含以下結構化報告：
+### 基礎
 
+| 端點 | 說明 |
+|------|------|
+| `GET /api/crawler/health` | 爬蟲健康檢查 |
+| `GET /api/crawler/stats` | 儀表板統計 |
+| `GET /api/crawler/config` | 取得爬蟲 URL 設定 |
+| `POST /api/crawler/config` | 更新爬蟲 URL（`{ "url": "..." }`） |
+
+### 候選人
+
+| 端點 | 說明 |
+|------|------|
+| `GET /api/crawler/candidates` | 爬蟲候選人列表 |
+| `GET /api/crawler/candidates/:id` | 單一爬蟲候選人 |
+| `POST /api/crawler/import` | 匯入爬蟲候選人到系統（`{ "candidates": [...], "actor": "...", "filters": { "min_grade": "B" } }`） |
+| `GET /api/crawler/import-status` | 檢查候選人是否已存在（`?names=name1,name2`） |
+| `POST /api/crawler/fix-source` | 修正來源欄位 |
+
+### 任務管理
+
+| 端點 | 說明 |
+|------|------|
+| `GET /api/crawler/tasks` | 列出爬蟲任務 |
+| `POST /api/crawler/tasks` | 建立爬蟲任務 |
+| `PATCH /api/crawler/tasks/:id` | 更新任務 |
+| `DELETE /api/crawler/tasks/:id` | 刪除任務 |
+| `POST /api/crawler/tasks/:id/run` | 執行任務 |
+| `GET /api/crawler/tasks/:id/status` | 任務執行狀態 |
+
+### 評分與關鍵字
+
+| 端點 | 說明 |
+|------|------|
+| `POST /api/crawler/score/candidates` | 重新評分候選人 |
+| `GET /api/crawler/score/detail/:id` | 評分細節 |
+| `POST /api/crawler/keywords/generate` | 生成搜尋關鍵字 |
+
+### 效率指標
+
+| 端點 | 說明 |
+|------|------|
+| `POST /api/crawler/metrics/snapshot` | 建立效率快照 |
+| `GET /api/crawler/metrics/history` | 歷史指標（`?from=2026-01-01&to=2026-03-11`） |
+| `GET /api/crawler/metrics/efficiency` | 即時 KPI |
+
+### 其他
+
+| 端點 | 說明 |
+|------|------|
+| `GET /api/crawler/clients` | 客戶列表（Google Sheets fallback） |
+| `GET /api/crawler/system/jobs` | 系統職缺 |
+| `POST /api/crawler/sheet-cache/clear` | 清除 Sheets 快取 |
+
+---
+
+## 使用者與顧問 API
+
+### 1. 列出所有顧問
+
+```http
+GET /api/users
 ```
-【AI 人才評估報告】2026-02-26
-
-▌ 綜合評級：⭐ A+（88分）
-⚡ 建議今天聯繫
-
-▌ 為什麼推薦此人選
-Java 工程師，專注後端。技能符合度 85%，整體評分 88/100。GitHub 活躍開發者，42 個公開專案。
-
-▌ 最佳匹配職缺（一通數位）
-① Java Developer（一通數位）- 符合度 85%
-② 後端工程師（一通數位）- 符合度 77%
-
-▌ 優勢
-- Java、Spring Boot、Docker 技能符合職缺要求（85%）
-- GitHub 活躍（42 個公開 repo，230 followers）
-- 現任 Garena
-
-▌ 劣勢 / 風險
-- 缺少技能：Kubernetes
-- 目前位置：Singapore，需確認是否可配合在地工作
-
-▌ 聯繫時需深入瞭解
-1. 目前薪資期望是否符合一通數位職缺範圍？
-2. 對遊戲/科技產業的興趣與轉換動機？
-3. 最快可到職時間？
-4. 目前是否同時在其他公司面試中？
-5. 對 Kubernetes 的熟悉程度？是否有實際專案經驗？
-6. 是否有意願接受獵頭推薦？目前工作狀態如何？
-
-▌ 資料來源
-GitHub @john-chen（公開 repo：42，followers：230）
-主要專案：spring-demo、microservice-demo、docker-utils
-
-▌ AI 自動評分產出 by Step1ne 獵頭系統
-```
 
 ---
 
-## 顧問設定 API
+### 2. 註冊新顧問
 
-### 取得顧問聯絡資訊
+```http
+POST /api/users/register
+```
+
+**Request Body**：`{ "displayName": "NewConsultant" }`
+
+---
+
+### 3. 取得顧問聯絡資訊
 
 ```http
 GET /api/users/:displayName/contact
 ```
 
-**路徑參數**：
-- `displayName` - 顧問的暱稱（URL encoded）
-
-**回應範例**：
-```json
-{
-  "success": true,
-  "data": {
-    "displayName": "Jacky",
-    "contactPhone": "0912-345-678",
-    "contactEmail": "jacky@step1ne.com",
-    "lineId": "jacky_hr",
-    "telegramHandle": "@jacky",
-    "githubToken": "ghp_xxxxxxxxxxxxxxxxxxxx"
-  }
-}
-```
-
-> **AIbot 使用場景**：在呼叫 `/find-candidates` 前，先呼叫此 API 取得顧問的 `githubToken`，以提升 GitHub 搜尋的速率限制。
-
-**找不到時回傳空物件**（顧問未設定聯絡資訊時）：
-```json
-{
-  "success": true,
-  "data": {
-    "displayName": "Jacky",
-    "contactPhone": null,
-    "contactEmail": null,
-    "lineId": null,
-    "telegramHandle": null,
-    "githubToken": null
-  }
-}
-```
+回傳：`contactPhone`, `contactEmail`, `lineId`, `telegramHandle`, `githubToken`, `braveApiKey`, `linkedinToken`
 
 ---
 
-### 儲存顧問聯絡資訊
+### 4. 更新顧問聯絡資訊
 
 ```http
 PUT /api/users/:displayName/contact
 ```
 
-**請求 Body**：
+**Request Body**：
 ```json
 {
-  "contactPhone": "0912-345-678",
-  "contactEmail": "jacky@step1ne.com",
-  "lineId": "jacky_hr",
-  "telegramHandle": "@jacky",
-  "githubToken": "ghp_xxxxxxxxxxxxxxxxxxxx"
-}
-```
-
-**回應**：
-```json
-{
-  "success": true,
-  "message": "聯絡資訊已儲存"
+  "contact_phone": "0912-345-678",
+  "contact_email": "jacky@step1ne.com",
+  "line_id": "jacky_hr",
+  "telegram_handle": "@jacky",
+  "github_token": "ghp_xxx",
+  "brave_api_key": "bsk-xxx",
+  "linkedin_token": "xxx"
 }
 ```
 
 ---
 
+## 系統管理 API
+
+### 1. 健康檢查
+
+```http
+GET /api/health
+```
+
+---
+
+### 2. 系統日誌
+
+```http
+GET /api/system-logs
+```
+
+**查詢參數**：
+
+| 參數 | 說明 | 範例 |
+|------|------|------|
+| `limit` | 回傳筆數（預設 200，最大 1000） | `?limit=50` |
+| `actor` | 操作者（模糊比對） | `?actor=Phoebe` |
+| `action` | 操作類型（精確比對） | `?action=PIPELINE_CHANGE` |
+| `type` | 操作者類型 | `?type=AIBOT` |
+
+---
+
+### 3. Google Sheets 同步到 SQL
+
+```http
+POST /api/sync/sheets-to-sql
+```
+
+---
+
+### 4. 提取社群連結
+
+```http
+POST /api/migrate/extract-links
+```
+
+從 email/notes 欄位提取 LinkedIn/GitHub 連結到專屬欄位。
+
+---
+
+### 5. 修復 AI Match Result
+
+```http
+POST /api/migrate/fix-ai-match-result
+```
+
+修復格式不正確的 ai_match_result 記錄。
+
+---
+
+## Guide 文件 API
+
+| 端點 | 說明 |
+|------|------|
+| `GET /api/guide` | AIbot 操作手冊（AIBOT-API-GUIDE.md） |
+| `GET /api/scoring-guide` | 評分 Bot 指南（SCORING-GUIDE.md） |
+| `GET /api/jobs-import-guide` | 職缺匯入指南（JOB-IMPORT-GUIDE.md） |
+| `GET /api/resume-guide` | 履歷分析指南（RESUME-ANALYSIS-GUIDE.md） |
+| `GET /api/resume-import-guide` | 履歷匯入+評分指南（RESUME-IMPORT-GUIDE.md） |
+| `GET /api/github-analysis-guide` | GitHub 分析指南（GITHUB-ANALYSIS-GUIDE.md） |
+
+---
+
 ## 錯誤處理
 
-所有 API 錯誤都遵循統一格式：
+所有 API 錯誤遵循統一格式：
 
 ```json
 {
@@ -794,50 +878,24 @@ PUT /api/users/:displayName/contact
 - `200` - 成功
 - `201` - 創建成功
 - `400` - 請求參數錯誤
+- `401` - 未授權（OpenClaw API）
 - `404` - 找不到資源
 - `500` - 伺服器錯誤
 
 ---
 
-## Bot 整合範例
-
-請參考：
-- [Python 範例](./bot-examples/python-bot.py)
-- [Node.js 範例](./bot-examples/nodejs-bot.js)
-- [Telegram Bot 範例](./bot-examples/telegram-bot.py)
-
----
-
-## 速率限制
-
-目前：無限制
-
-未來：
-- 免費版：100 requests/hour
-- 付費版：1000 requests/hour
-
----
-
 ## 版本歷史
 
+### v3.0.0 (2026-03-11)
+- 依實際後端程式碼全面重寫，涵蓋全部 88+ 端點
+- 修正候選人欄位清單（62 個欄位）
+- 新增 BD 客戶管理、爬蟲整合、OpenClaw API 文件
+- 修正 limit 預設值說明，建議帶 `?limit=2000`
+- 新增 Guide 文件 API 列表
+
 ### v2.0.0 (2026-02-26)
-- ✅ 人才搜尋系統 API（6步驟獵才流程）
-- ✅ `POST /api/talent-sourcing/find-candidates`（AIbot 觸發）
-- ✅ GitHub API 搜尋（支援 Token 認證 / 無認證模式）
-- ✅ Google → LinkedIn 搜尋（BeautifulSoup，無需 Chrome）
-- ✅ 自動去重、評分（S/A+/A/B/C）、AI 報告寫入
-- ✅ 顧問設定 API（含 GitHub Token 儲存）
+- 新增人才搜尋系統 API
+- 新增顧問設定 API
 
 ### v1.0.0 (2026-02-23)
-- ✅ 候選人管理 API
-- ✅ 職缺管理 API
-- ✅ AI 配對 API
-- ✅ 批量操作支援
-
----
-
-## 聯絡我們
-
-- GitHub: https://github.com/jacky6658/step1ne-headhunter-system
-- Email: support@step1ne.com
-
+- 候選人管理 API、職缺管理 API、AI 配對 API

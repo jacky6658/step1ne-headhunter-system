@@ -2,14 +2,16 @@
  * import-via-gog.js - 使用 gog sheets 命令從 Google Sheets 匯入資料
  */
 
+require('dotenv').config();
 const { Pool } = require('pg');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur'
-});
+const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URI;
+if (!DATABASE_URL) { console.error('❌ DATABASE_URL 未設定'); process.exit(1); }
+
+const pool = new Pool({ connectionString: DATABASE_URL });
 
 const SHEET_ID_CANDIDATES = '1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SEtxRk6Q';
 const SHEET_ID_JOBS = '1QPaeOm-slNVFCeM8Q3gg3DawKjzp2tYwyfquvdHlZFE';

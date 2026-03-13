@@ -1,8 +1,10 @@
 // Step1ne 獵頭系統 - BD 客戶開發頁面
 import React, { useState, useEffect } from 'react';
-import { Client, BDContact, BDStatus, BD_STATUS_CONFIG, UserProfile } from '../types';
-import { apiGet, apiPost, apiPatch } from '../config/api';
-import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3 } from 'lucide-react';
+import { Client, BDContact, BDStatus, BD_STATUS_CONFIG, UserProfile, SubmissionRule } from '../types';
+import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../config/api';
+import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3, Trash2, Pencil, Check, ClipboardCheck } from 'lucide-react';
+import { SubmissionRulesEditor } from '../components/SubmissionRulesEditor';
+import { toast } from '../components/Toast';
 
 interface BDClientsPageProps {
   userProfile: UserProfile;
@@ -25,9 +27,10 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'contacts' | 'jobs'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'contacts' | 'jobs' | 'rules'>('info');
   const [contacts, setContacts] = useState<BDContact[]>([]);
   const [clientJobs, setClientJobs] = useState<any[]>([]);
+  const [submissionRules, setSubmissionRules] = useState<SubmissionRule[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [addForm, setAddForm] = useState(emptyForm);
@@ -42,6 +45,9 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
   const [saveLoading, setSaveLoading] = useState(false);
   const [draggedClientId, setDraggedClientId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<BDStatus | null>(null);
+  const [renamingTitle, setRenamingTitle] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => { loadClients(); }, []);
 
@@ -49,6 +55,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
     if (selectedClient) {
       loadContacts(selectedClient.id);
       loadClientJobs(selectedClient.id);
+      loadSubmissionRules(selectedClient.id);
     }
   }, [selectedClient]);
 
@@ -75,6 +82,13 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
     } catch (e) { setClientJobs([]); }
   };
 
+  const loadSubmissionRules = async (clientId: string) => {
+    try {
+      const data = await apiGet<{ success: boolean; data: SubmissionRule[] }>(`/clients/${clientId}/submission-rules`);
+      if (data.success) setSubmissionRules(data.data);
+    } catch (e) { setSubmissionRules([]); }
+  };
+
   const handleStatusChange = async (client: Client, newStatus: BDStatus) => {
     try {
       const result = await apiPatch<any>(`/clients/${client.id}/status`, {
@@ -88,11 +102,11 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
           if (ok && onNavigateToJobs) onNavigateToJobs();
         }
       }
-    } catch (e) { alert('❌ 更新狀態失敗'); }
+    } catch (e) { toast.error('更新狀態失敗'); }
   };
 
   const handleAddClient = async () => {
-    if (!addForm.company_name.trim()) { alert('請填寫公司名稱'); return; }
+    if (!addForm.company_name.trim()) { toast.warning('請填寫公司名稱'); return; }
     setAddLoading(true);
     try {
       const result = await apiPost<any>('/clients', {
@@ -104,13 +118,14 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
         setAddForm(emptyForm);
         await loadClients();
       }
-    } catch (e) { alert('❌ 新增失敗：' + (e as Error).message); }
+    } catch (e) { toast.error('新增失敗：' + (e as Error).message); }
     finally { setAddLoading(false); }
   };
 
   const handleStartEdit = () => {
     if (!selectedClient) return;
     setEditForm({
+      company_name: selectedClient.company_name || '',
       industry: selectedClient.industry || '',
       company_size: selectedClient.company_size || '',
       website: selectedClient.website || '',
@@ -141,7 +156,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
         setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
         setEditingInfo(false);
       }
-    } catch (e) { alert('❌ 儲存失敗'); }
+    } catch (e) { toast.error('儲存失敗'); }
     finally { setSaveLoading(false); }
   };
 
@@ -155,8 +170,43 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
         setContactForm({ contact_date: new Date().toISOString().slice(0, 10), contact_type: '電話', summary: '', next_action: '', next_action_date: '', by_user: userProfile.displayName });
         await loadContacts(selectedClient.id);
       }
-    } catch (e) { alert('❌ 新增失敗'); }
+    } catch (e) { toast.error('新增失敗'); }
     finally { setContactLoading(false); }
+  };
+
+  const handleDeleteClient = async (client: Client) => {
+    const confirmed = window.confirm(`⚠️ 確定要刪除客戶「${client.company_name}」嗎？\n\n此操作將同時刪除該客戶的所有聯絡記錄，且無法復原。`);
+    if (!confirmed) return;
+    setDeleteLoading(true);
+    try {
+      const result = await apiDelete<any>(`/clients/${client.id}`);
+      if (result.success) {
+        setClients(prev => prev.filter(c => c.id !== client.id));
+        setSelectedClient(null);
+      }
+    } catch (e) { toast.error('刪除失敗：' + (e as Error).message); }
+    finally { setDeleteLoading(false); }
+  };
+
+  const handleStartRename = () => {
+    if (!selectedClient) return;
+    setRenameValue(selectedClient.company_name);
+    setRenamingTitle(true);
+  };
+
+  const handleSaveRename = async () => {
+    if (!selectedClient || !renameValue.trim()) { toast.warning('公司名稱不能為空'); return; }
+    setSaveLoading(true);
+    try {
+      const result = await apiPatch<any>(`/clients/${selectedClient.id}`, { company_name: renameValue.trim() });
+      if (result.success) {
+        const updated = { ...selectedClient, company_name: renameValue.trim() };
+        setSelectedClient(updated);
+        setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
+        setRenamingTitle(false);
+      }
+    } catch (e) { toast.error('重命名失敗'); }
+    finally { setSaveLoading(false); }
   };
 
   const getClientsByStatus = (status: BDStatus) => clients.filter(c => c.bd_status === status);
@@ -287,9 +337,33 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 sm:p-6 flex-shrink-0">
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-lg sm:text-xl font-bold truncate">{selectedClient.company_name}</h2>
+                  {renamingTitle ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={e => setRenameValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveRename(); if (e.key === 'Escape') setRenamingTitle(false); }}
+                        className="text-lg font-bold bg-white/20 border border-white/40 rounded-lg px-3 py-1 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 w-full"
+                        placeholder="公司名稱"
+                      />
+                      <button onClick={handleSaveRename} disabled={saveLoading} className="p-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition flex-shrink-0" title="儲存">
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => setRenamingTitle(false)} className="p-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition flex-shrink-0" title="取消">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 group">
+                      <h2 className="text-lg sm:text-xl font-bold truncate">{selectedClient.company_name}</h2>
+                      <button onClick={handleStartRename} className="p-1 rounded-lg bg-white/0 hover:bg-white/20 transition opacity-0 group-hover:opacity-100" title="重新命名">
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                   {selectedClient.industry && <p className="text-indigo-200 text-sm mt-0.5">{selectedClient.industry}</p>}
-                  <div className="mt-3">
+                  <div className="mt-3 flex items-center gap-2">
                     <select
                       value={selectedClient.bd_status}
                       onChange={e => handleStatusChange(selectedClient, e.target.value as BDStatus)}
@@ -299,9 +373,19 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
                     </select>
                   </div>
                 </div>
-                <button onClick={() => setSelectedClient(null)} className="text-white/80 hover:text-white p-1 ml-2">
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1 ml-2">
+                  <button
+                    onClick={() => handleDeleteClient(selectedClient)}
+                    disabled={deleteLoading}
+                    className="p-1.5 text-white/60 hover:text-red-300 hover:bg-white/10 rounded-lg transition"
+                    title="刪除客戶"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => { setSelectedClient(null); setRenamingTitle(false); }} className="text-white/80 hover:text-white p-1">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -312,6 +396,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
                   { key: 'info', label: '基本資料', icon: <FileText className="w-4 h-4" /> },
                   { key: 'contacts', label: `聯絡記錄 (${contacts.length})`, icon: <Clock className="w-4 h-4" /> },
                   { key: 'jobs', label: `關聯職缺 (${clientJobs.length})`, icon: <Briefcase className="w-4 h-4" /> },
+                  { key: 'rules', label: `送件規範 (${submissionRules.filter(r => r.enabled).length})`, icon: <ClipboardCheck className="w-4 h-4" /> },
                 ] as const).map(tab => (
                   <button
                     key={tab.key}
@@ -603,6 +688,17 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
                     </div>
                   )}
                 </div>
+              )}
+
+              {activeTab === 'rules' && (
+                <SubmissionRulesEditor
+                  clientId={selectedClient.id}
+                  rules={submissionRules}
+                  onSave={async (rules) => {
+                    await apiPut<any>(`/clients/${selectedClient.id}/submission-rules`, { rules });
+                    setSubmissionRules(rules);
+                  }}
+                />
               )}
             </div>
           </div>

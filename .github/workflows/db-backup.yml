@@ -1,0 +1,110 @@
+# Step1ne PostgreSQL Daily Backup
+# 每天台灣時間凌晨 3 點（UTC 19:00）自動備份 DB 到 private repo
+# 備份 repo: jacky6658/step1ne-db-backups
+
+name: DB Daily Backup
+
+on:
+  schedule:
+    # UTC 19:00 = 台灣時間凌晨 3:00
+    - cron: '0 19 * * *'
+  workflow_dispatch: # 支援手動觸發
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Install PostgreSQL 18 client
+        run: |
+          # Zeabur 的 PostgreSQL 版本是 18.x，需要對應版本的 pg_dump
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-18 || sudo apt-get install -y -qq postgresql-client-17 || sudo apt-get install -y -qq postgresql-client
+          pg_dump --version
+
+      - name: Run pg_dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          # 從 DATABASE_URL 解析連線資訊
+          # 格式: postgresql://user:pass@host:port/db
+          export PGPASSWORD=$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')
+          PGHOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:]*\):.*|\1|p')
+          PGPORT=$(echo "$DATABASE_URL" | sed -n 's|.*:\([0-9]*\)/.*|\1|p')
+          PGUSER=$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')
+          PGDB=$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')
+
+          echo "🔍 Connecting to $PGHOST:$PGPORT/$PGDB as $PGUSER..."
+
+          # 完整備份（schema + data）
+          pg_dump \
+            -h "$PGHOST" \
+            -p "$PGPORT" \
+            -U "$PGUSER" \
+            -d "$PGDB" \
+            --no-owner \
+            --no-privileges \
+            --clean \
+            --if-exists \
+            -F plain \
+            | gzip > backup.sql.gz
+
+          SIZE=$(du -h backup.sql.gz | cut -f1)
+          echo "✅ pg_dump completed: backup.sql.gz ($SIZE)"
+
+          # 另存一份只有 schema 的備份（方便比對結構變化）
+          pg_dump \
+            -h "$PGHOST" \
+            -p "$PGPORT" \
+            -U "$PGUSER" \
+            -d "$PGDB" \
+            --schema-only \
+            --no-owner \
+            --no-privileges \
+            > schema.sql
+
+          echo "✅ Schema-only backup: schema.sql"
+
+      - name: Clone backup repo & commit
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          # 產生備份檔名（台灣時間）
+          TIMESTAMP=$(TZ='Asia/Taipei' date '+%Y-%m-%d_%H%M')
+          DATE_DIR=$(TZ='Asia/Taipei' date '+%Y/%m')
+
+          # Clone backup repo
+          git clone "https://x-access-token:${BACKUP_TOKEN}@github.com/jacky6658/step1ne-db-backups.git" backup-repo
+          cd backup-repo
+
+          git config user.name "Step1ne Backup Bot"
+          git config user.email "backup@step1ne.com"
+
+          # 建立目錄結構：backups/2026/03/
+          mkdir -p "backups/${DATE_DIR}"
+
+          # 複製備份檔
+          cp ../backup.sql.gz "backups/${DATE_DIR}/step1ne_${TIMESTAMP}.sql.gz"
+          cp ../schema.sql "backups/${DATE_DIR}/schema_${TIMESTAMP}.sql"
+
+          # 同時保留一份 latest（方便快速還原）
+          cp ../backup.sql.gz "backups/latest.sql.gz"
+          cp ../schema.sql "backups/latest_schema.sql"
+
+          # 清除 30 天前的備份（保留最近 30 天）
+          find backups/ -name "*.sql.gz" -mtime +30 -delete 2>/dev/null || true
+          find backups/ -name "schema_*.sql" -mtime +30 -delete 2>/dev/null || true
+          # 清除空目錄
+          find backups/ -type d -empty -delete 2>/dev/null || true
+
+          # Commit & Push
+          git add -A
+          BACKUP_SIZE=$(du -h "../backup.sql.gz" | cut -f1)
+          git commit -m "backup: ${TIMESTAMP} (${BACKUP_SIZE})" || echo "No changes to commit"
+          git push origin main || git push origin master
+
+          echo "✅ Backup pushed to jacky6658/step1ne-db-backups"
+          echo "📁 Path: backups/${DATE_DIR}/step1ne_${TIMESTAMP}.sql.gz"

@@ -26,7 +26,41 @@ export interface Client {
   url_1111?: string;
   job_count?: number;
   created_at: string;
+  submission_rules?: SubmissionRule[];
   updated_at: string;
+}
+
+// 客戶送件規範
+export type SubmissionRuleType = 'field_required' | 'content_format' | 'resume_version' | 'link_required' | 'custom';
+
+export interface SubmissionRule {
+  id: string;
+  rule_type: SubmissionRuleType;
+  label: string;
+  field_key?: string;
+  check_config?: {
+    format?: string;
+    resume_lang?: string;
+    link_type?: string;
+  };
+  is_auto_checkable: boolean;
+  enabled: boolean;
+  sort_order: number;
+}
+
+export interface SubmissionCheckResult {
+  rule_id: string;
+  label: string;
+  passed: boolean | null;  // null = manual check needed
+  message: string;
+  type: 'auto' | 'manual';
+}
+
+export interface SubmissionCheckResponse {
+  company_name: string;
+  results: SubmissionCheckResult[];
+  failCount: number;
+  totalChecked: number;
 }
 
 export interface BDContact {
@@ -245,7 +279,8 @@ export enum CandidateStatus {
   OFFER = 'Offer',
   ONBOARDED = 'on board',
   REJECTED = '婉拒',
-  OTHER = '備選人才'
+  OTHER = '備選人才',
+  CRAWLER_SCREENED = '爬蟲初篩'
 }
 
 // 候選人來源
@@ -358,6 +393,51 @@ export interface ProgressEvent {
   note?: string;  // 額外備註
 }
 
+// 語音評估記錄
+export interface VoiceAssessment {
+  id: string;
+  audio_url?: string;       // 音檔 URL（外部連結或 base64 data URI）
+  transcript?: string;      // 轉錄文字
+  analysis?: string;        // AI 分析結果文字
+  scores?: {                // 結構化評分（可選）
+    fluency?: number;       // 語言流暢度 1-10
+    terminology?: number;   // 專業術語使用 1-10
+    logic?: number;         // 溝通邏輯性 1-10
+    confidence?: number;    // 自信程度 1-10
+    overall?: number;       // 綜合分數 1-10
+  };
+  created_at: string;       // ISO 時間戳
+  evaluator: string;        // 評估者名稱
+}
+
+// 履歷 PDF 附件（metadata，不含 base64 data）
+export interface ResumeFile {
+  id: string;                   // 唯一 ID（rf_ 前綴 + timestamp）
+  filename: string;             // 原始檔名
+  mimetype: string;             // MIME type（application/pdf）
+  size: number;                 // 檔案大小 bytes
+  uploaded_at: string;          // 上傳時間 ISO 8601
+  uploaded_by: string;          // 上傳者名稱
+}
+
+// 顧問評估（5 維度：3 自動 + 2 手動）
+export interface ConsultantEvaluation {
+  // ── 系統自動預填（可被顧問覆蓋）──
+  technicalDepth?: number;   // 技術深度 1-5（自動：skills vs job match）
+  stability?: number;        // 穩定度 1-5（自動：stabilityScore 轉換）
+  industryMatch?: number;    // 產業匹配 1-5（自動：candidate.industry vs job.industry_background）
+  // ── 顧問面談後手動填寫 ──
+  communication?: number;    // 溝通能力 1-5（手動：面談後填入）
+  personality?: number;      // 個性/態度 1-5（手動：面談後填入）
+  // ── 總評 ──
+  overallRating?: number;    // 顧問總評 1-5（自動平均或顧問覆蓋）
+  evaluatedBy?: string;      // 評估顧問
+  evaluatedAt?: string;      // 評估時間
+  comment?: string;          // 顧問評語
+  // 向後相容（舊欄位）
+  cultureFit?: number;       // deprecated → 改用 industryMatch
+}
+
 export interface Candidate {
   id: string;
   name: string;
@@ -388,6 +468,34 @@ export interface Candidate {
   aiMatchResult?: AiMatchResult | null; // AI 匹配評分結果
   targetJobId?: number | null;          // 目標職缺 FK → jobs_pipeline.id
   targetJobLabel?: string | null;       // 目標職缺顯示名稱（JOIN 計算：職缺名 (公司)）
+  // ── Phase 1 新增欄位 ──
+  age?: number | null;                    // 年齡
+  ageEstimated?: boolean;                  // true = 系統從學歷推估，UI 顯示 ~
+  birthday?: string | null;               // 出生年月日（YYYY-MM-DD）
+  gender?: string;                        // 性別（男/女/其他）
+  englishName?: string;                   // 英文名（匿名履歷用）
+  consultantNote?: string;                // 顧問備註（與人選溝通後的重點記錄）
+  industry?: string;                      // 所屬產業
+  languages?: string;                     // 語言能力（如：中文、英文流利、日文基礎）
+  certifications?: string;                // 證照（如：PMP、AWS SAA）
+  currentSalary?: string;                 // 目前薪資（概略，如 90K）
+  expectedSalary?: string;                // 期望薪資（概略，如 100K+）
+  noticePeriod?: string;                  // 到職時間（如 1個月、即刻到職）
+  managementExperience?: boolean;         // 是否有管理經驗
+  teamSize?: string;                      // 管理人數（如 5-10人）
+  consultantEvaluation?: ConsultantEvaluation | null; // 顧問 5 維度評估
+  // ── Phase 3 動機與交易條件 ──
+  jobSearchStatus?: string;               // 求職狀態：主動求職/被動觀望/暫不考慮
+  reasonForChange?: string;               // 轉職原因
+  motivation?: string;                    // 主要動機：技術成長/轉型/出國/離開產業
+  dealBreakers?: string;                  // 不適配條件（不接受的工作類型/環境）
+  competingOffers?: string;               // 競爭 Offer
+  relationshipLevel?: string;             // 顧問關係程度：初次接觸/已建立關係/深度信任
+  // ── 語音評估 + 自傳 + 作品集 ──
+  voiceAssessments?: VoiceAssessment[];   // 語音評估記錄（JSONB 陣列）
+  biography?: string;                     // 自傳 / 自我介紹
+  portfolioUrl?: string;                  // 作品集連結
+  resumeFiles?: ResumeFile[];             // 履歷 PDF 附件（最多 3 個）
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -456,4 +564,41 @@ export interface Placement {
   createdBy: string;
   candidate?: Candidate;
   job?: Job;
+}
+
+// ==================== 提示詞資料庫 ====================
+
+export type PromptCategory =
+  | '客戶需求理解' | '職缺分析' | '人才市場 Mapping' | '人才搜尋'
+  | '陌生開發（開發信）' | '人選訪談' | '人選評估' | '客戶推薦'
+  | '面試與 Offer 管理';
+
+export interface Prompt {
+  id: number;
+  category: PromptCategory;
+  title: string;
+  content: string;
+  author: string;
+  is_pinned: boolean;
+  upvote_count: number;
+  has_voted?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ==================== 站內通知 ====================
+
+export type NotificationType = 'system_update' | 'candidate_assign' | 'ai_bot' | 'github_push';
+
+export interface Notification {
+  id: number;
+  recipient: string;            // 'all' 或 uid
+  type: NotificationType;
+  title: string;
+  message?: string;
+  link?: string;                // 可選：跳轉目標 tab
+  data?: Record<string, any>;   // 附加資料
+  actor?: string;               // 發送者
+  isRead: boolean;              // 前端依當前 uid 計算
+  createdAt: string;
 }
