@@ -60,4 +60,17 @@ INSERT 和 UPDATE 兩條路徑都加入 `ai_match_result` JSONB 欄位（$24/$26
 
 ## 狀態
 - [x] 代碼已修復並 push 到 GitHub
-- [ ] 需重新跑一次爬蟲任務驗證資料正確寫入 DB
+- [x] 已驗證資料正確寫入 DB（2026-03-07）
+
+## 驗證結果（2026-03-07）
+透過 `/api/candidates/bulk` 推送 2 筆測試候選人，逐項確認：
+
+| 修復項目 | 驗證結果 |
+|----------|----------|
+| `ai_match_result` JSONB 寫入 | OK — grade/score/dimensions 全部寫入 |
+| `work_history` JSONB 覆寫 | OK — 完整職歷陣列正確存入 |
+| `education_details` JSONB 覆寫 | OK — 學歷陣列正確存入 |
+| `talent_level` AI 評等覆蓋 | OK — A 級/C 級正確寫入 |
+| B 級以上自動 `status='AI推薦'` | OK — A 級→AI推薦, C 級→未開始 |
+
+測試資料已清理（id 1617, 1618 已刪除）。

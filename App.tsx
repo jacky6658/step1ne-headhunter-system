@@ -22,6 +22,7 @@ import { BDClientsPage } from './pages/BDClientsPage';
 import { BotSchedulerPage } from './pages/BotSchedulerPage';
 import ResumeImportPage from './pages/ResumeImportPage';
 import { CrawlerDashboardPage } from './pages/CrawlerDashboardPage';
+import SiteConfigPage from './pages/SiteConfigPage';
 import { Menu, X as XIcon } from 'lucide-react';
 import { API_BASE_URL } from './constants';
 
@@ -170,6 +171,7 @@ const App: React.FC = () => {
       case 'analytics': 
         // 所有用戶都可以查看財務分析
         return <AnalyticsPage leads={[]} userProfile={profile} />;
+      case 'site-config': return <SiteConfigPage userProfile={profile} />;
       case 'help':
         // 所有用戶都可以查看使用說明
         return <HelpPage userProfile={profile} />;
@@ -229,7 +231,8 @@ const App: React.FC = () => {
                activeTab === 'ai-matching' ? 'AI 配對推薦' :
                activeTab === 'system-log' ? '操作日誌' :
                activeTab === 'bot-scheduler' ? 'Bot 排程設定' :
-               activeTab === 'crawler-dashboard' ? '爬蟲整合儀表板' : 'Step1ne 獵頭系統'}
+               activeTab === 'crawler-dashboard' ? '爬蟲整合儀表板' :
+               activeTab === 'site-config' ? '我的對外頁面' : 'Step1ne 獵頭系統'}
             </h1>
                 <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mt-0.5 hidden sm:block">Collaborative Workspace</p>
           </div>

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Role, UserProfile } from '../types';
-import { LayoutGrid, ClipboardList, CheckSquare, History, Users, Download, Database, LogOut, X, BarChart3, BookOpen, ScrollText, Target, Bot, Upload, Activity, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { LayoutGrid, ClipboardList, CheckSquare, History, Users, Download, Database, LogOut, X, BarChart3, BookOpen, ScrollText, Target, Bot, Upload, Activity, ChevronsLeft, ChevronsRight, Globe } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -38,6 +38,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     { id: 'bot-scheduler', label: 'Bot 排程設定', shortLabel: 'Bot', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'resume-import', label: '履歷批量匯入', shortLabel: '匯入', icon: Upload, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'crawler-dashboard', label: '爬蟲整合儀表板', shortLabel: '爬蟲', icon: Activity, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
+    // 對外頁面
+    { id: 'site-config', label: '我的對外頁面', shortLabel: '頁面', icon: Globe, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     // 工具
     { id: 'system-log', label: '操作日誌', shortLabel: '日誌', icon: ScrollText, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },
     { id: 'help', label: '使用說明', shortLabel: '說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER], disabled: false },

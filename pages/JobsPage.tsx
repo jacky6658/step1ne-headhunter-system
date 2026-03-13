@@ -31,6 +31,7 @@ interface Job {
   interview_process: string;
   consultant_notes: string;
   job_description: string;
+  marketing_description: string;
   company_profile: string;
   talent_profile: string;
   search_primary: string;
@@ -58,6 +59,9 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
   const [editingJD, setEditingJD] = useState(false);
   const [jdDraft, setJdDraft] = useState('');
   const [savingJD, setSavingJD] = useState(false);
+  const [editingMD, setEditingMD] = useState(false);
+  const [mdDraft, setMdDraft] = useState('');
+  const [savingMD, setSavingMD] = useState(false);
 
   // ── 編輯基本資料狀態 ──
   const [editingBasic, setEditingBasic] = useState(false);
@@ -246,6 +250,20 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
       alert('❌ 儲存失敗，請稍後再試');
     } finally {
       setSavingJD(false);
+    }
+  };
+
+  const handleSaveMD = async () => {
+    if (!selectedJob) return;
+    setSavingMD(true);
+    try {
+      await apiPut(`/api/jobs/${selectedJob.id}`, { marketing_description: mdDraft });
+      setSelectedJob(prev => prev ? { ...prev, marketing_description: mdDraft } : null);
+      setEditingMD(false);
+    } catch (err) {
+      alert('❌ 儲存失敗，請稍後再試');
+    } finally {
+      setSavingMD(false);
     }
   };
 
@@ -1034,6 +1052,61 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile, onNavigateToMat
                 ) : (
                   <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center text-slate-400 text-sm">
                     尚未填入工作內容 JD，點擊「新增 JD」貼上職缺說明
+                  </div>
+                )}
+              </div>
+
+              {/* ── 行銷描述（對外網站顯示） ── */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
+                    <Sparkles size={13} />
+                    行銷描述 Marketing
+                  </label>
+                  {!editingMD ? (
+                    <button
+                      onClick={() => { setEditingMD(true); setMdDraft(selectedJob.marketing_description || ''); }}
+                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
+                    >
+                      <Edit3 size={12} />
+                      {selectedJob.marketing_description ? '編輯' : '新增'}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSaveMD}
+                        disabled={savingMD}
+                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        <Save size={11} />
+                        {savingMD ? '儲存中...' : '儲存'}
+                      </button>
+                      <button
+                        onClick={() => setEditingMD(false)}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+                      >
+                        <XIcon size={12} />
+                        取消
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {editingMD ? (
+                  <textarea
+                    value={mdDraft}
+                    onChange={e => setMdDraft(e.target.value)}
+                    rows={12}
+                    placeholder={`撰寫面向候選人的行銷文案，例如：\n\n【公司亮點】\n- 知名國際企業，年營收超過...\n\n【職位特色】\n- 有機會參與百萬用戶級產品開發\n\n【團隊文化】\n- 扁平化管理，鼓勵創新`}
+                    className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-y font-mono leading-relaxed"
+                  />
+                ) : selectedJob.marketing_description ? (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-slate-800 whitespace-pre-line leading-relaxed max-h-72 overflow-y-auto">
+                    {selectedJob.marketing_description}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center text-slate-400 text-sm">
+                    尚未填入行銷描述，點擊「新增」撰寫面向候選人的行銷文案
                   </div>
                 )}
               </div>

@@ -113,6 +113,12 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS brave_api_key VARCHAR(500)
 `).catch(err => console.warn('brave_api_key migration:', err.message));
 
+// 確保 site_config 欄位存在（顧問對外頁面設定）
+pool.query(`
+  ALTER TABLE user_contacts
+  ADD COLUMN IF NOT EXISTS site_config JSONB DEFAULT '{}'
+`).catch(err => console.warn('site_config migration:', err.message));
+
 // 狀態名稱遷移：已聯繫→聯繫階段、已面試→面試階段、已上職→on board
 pool.query(`
   UPDATE candidates_pipeline SET status = '聯繫階段' WHERE status = '已聯繫';
@@ -145,6 +151,17 @@ pool.query(`
   ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS business_trip TEXT;
   ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS job_url TEXT;
 `).catch(err => console.warn('104 fields migration:', err.message));
+
+// 確保 marketing_description 欄位存在（對外行銷用職缺描述）
+pool.query(`
+  ALTER TABLE jobs_pipeline ADD COLUMN IF NOT EXISTS marketing_description TEXT
+`).catch(err => console.warn('marketing_description migration:', err.message));
+
+// 確保 candidates_pipeline 薪資欄位存在
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS current_salary VARCHAR(100);
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS expected_salary VARCHAR(100);
+`).catch(err => console.warn('candidates salary migration:', err.message));
 
 // 確保 github_analysis_cache 欄位存在（GitHub v2 分析快取）
 pool.query(`
@@ -1351,8 +1368,10 @@ router.post('/candidates', async (req, res) => {
           linkedin_url = COALESCE(NULLIF(linkedin_url, ''), $20),
           github_url = COALESCE(NULLIF(github_url, ''), $21),
           ai_match_result = CASE WHEN $22::jsonb IS NOT NULL THEN $22::jsonb ELSE ai_match_result END,
+          current_salary = COALESCE(NULLIF(current_salary, ''), $23),
+          expected_salary = COALESCE(NULLIF(expected_salary, ''), $24),
           updated_at = NOW()
-        WHERE id = $23
+        WHERE id = $25
         RETURNING id, name, contact_link, current_position, status`,
         [
           c.phone || '', c.contact_link || '', (c.location || '').slice(0, 255),
@@ -1366,6 +1385,8 @@ router.post('/candidates', async (req, res) => {
           c.leaving_reason || '', c.talent_level || '',
           c.email || '', c.linkedin_url || '', c.github_url || '',
           (c.ai_match_result && typeof c.ai_match_result === 'object') ? JSON.stringify(c.ai_match_result) : null,
+          (c.current_salary || '').slice(0, 100),
+          (c.expected_salary || '').slice(0, 100),
           existing.rows[0].id
         ]
       );
@@ -1379,8 +1400,9 @@ router.post('/candidates', async (req, res) => {
           skills, education, source, status, recruiter, notes,
           stability_score, personality_type, job_changes, avg_tenure_months,
           recent_gap_months, work_history, education_details, leaving_reason,
-          talent_level, ai_match_result, target_job_id, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,NOW(),NOW())
+          talent_level, ai_match_result, target_job_id, current_salary, expected_salary,
+          created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,NOW(),NOW())
          RETURNING id, name, contact_link, current_position, status`,
         [
           c.name.trim(), c.phone || '', c.email || '',
@@ -1395,7 +1417,9 @@ router.post('/candidates', async (req, res) => {
           c.education_details ? JSON.stringify(c.education_details) : null,
           c.leaving_reason || '', c.talent_level || '',
           (c.ai_match_result && typeof c.ai_match_result === 'object') ? JSON.stringify(c.ai_match_result) : null,
-          c.target_job_id || null
+          c.target_job_id || null,
+          (c.current_salary || '').slice(0, 100),
+          (c.expected_salary || '').slice(0, 100)
         ]
       );
     }
@@ -1535,6 +1559,7 @@ router.get('/jobs', async (req, res) => {
         interview_process,
         consultant_notes,
         job_description,
+        marketing_description,
         company_profile,
         talent_profile,
         search_primary,
@@ -1575,6 +1600,7 @@ router.get('/jobs', async (req, res) => {
       interview_process: row.interview_process,
       consultant_notes: row.consultant_notes,
       job_description: row.job_description,
+      marketing_description: row.marketing_description,
       company_profile: row.company_profile,
       talent_profile: row.talent_profile,
       search_primary: row.search_primary,
@@ -1654,7 +1680,7 @@ router.put('/jobs/:id', async (req, res) => {
       location, language_required, special_conditions, industry_background,
       team_size, key_challenges, attractive_points, recruitment_difficulty,
       interview_process,
-      job_status, consultant_notes, job_description,
+      job_status, consultant_notes, job_description, marketing_description,
       company_profile, talent_profile, search_primary, search_secondary,
       target_companies, title_variants, exclusion_keywords,
       welfare_tags, welfare_detail, work_hours, vacation_policy,
@@ -1687,6 +1713,7 @@ router.put('/jobs/:id', async (req, res) => {
            key_challenges = $29, attractive_points = $30, recruitment_difficulty = $31,
            interview_process = $32,
            target_companies = $33, title_variants = $34, exclusion_keywords = $35,
+           marketing_description = $36,
            last_updated = NOW()
        WHERE id = $16
        RETURNING *`,
@@ -1726,6 +1753,7 @@ router.put('/jobs/:id', async (req, res) => {
         target_companies     !== undefined ? target_companies     : existing.target_companies,
         title_variants       !== undefined ? title_variants       : existing.title_variants,
         exclusion_keywords   !== undefined ? exclusion_keywords   : existing.exclusion_keywords,
+        marketing_description !== undefined ? marketing_description : existing.marketing_description,
       ]
     );
 
@@ -2401,6 +2429,83 @@ router.put('/users/:displayName/contact', async (req, res) => {
     res.json({ success: true, message: '聯絡資訊已儲存' });
   } catch (error) {
     console.error('❌ PUT /users/:displayName/contact error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/users/:displayName/site-config
+ * 取得顧問對外頁面設定（供 consultant-site 使用）
+ */
+router.get('/users/:displayName/site-config', async (req, res) => {
+  try {
+    const { displayName } = req.params;
+    const result = await pool.query(
+      'SELECT display_name, contact_email, contact_phone, site_config FROM user_contacts WHERE display_name = $1',
+      [displayName]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Consultant not found' });
+    }
+    const row = result.rows[0];
+    const siteConfig = row.site_config || {};
+
+    // 組合成 consultant-site 需要的格式
+    res.json({
+      displayName: row.display_name,
+      siteConfig: {
+        slug: siteConfig.slug || row.display_name.toLowerCase().replace(/\s+/g, '-'),
+        template: siteConfig.template || 'minimal',
+        primaryColor: siteConfig.primaryColor || '#1a1a1a',
+        accentColor: siteConfig.accentColor || '#3b82f6',
+        heroTitle: siteConfig.heroTitle || `找到適合你的職涯下一步`,
+        heroSubtitle: siteConfig.heroSubtitle || '',
+        avatar: siteConfig.avatar || '',
+        bio: siteConfig.bio || '',
+        specialties: siteConfig.specialties || [],
+        yearsExperience: siteConfig.yearsExperience || 0,
+        socialLinks: {
+          email: row.contact_email || siteConfig.socialLinks?.email || '',
+          phone: row.contact_phone || siteConfig.socialLinks?.phone || '',
+          linkedin: siteConfig.socialLinks?.linkedin || '',
+          github: siteConfig.socialLinks?.github || '',
+          line: siteConfig.socialLinks?.line || '',
+        },
+        featuredJobIds: siteConfig.featuredJobIds || [],
+        testimonials: siteConfig.testimonials || [],
+        seoTitle: siteConfig.seoTitle || '',
+        seoDescription: siteConfig.seoDescription || '',
+        isPublished: siteConfig.isPublished || false,
+      }
+    });
+  } catch (error) {
+    console.error('❌ GET /users/:displayName/site-config error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/users/:displayName/site-config
+ * 更新顧問對外頁面設定
+ */
+router.put('/users/:displayName/site-config', async (req, res) => {
+  try {
+    const { displayName } = req.params;
+    const siteConfig = req.body;
+
+    if (!siteConfig || typeof siteConfig !== 'object') {
+      return res.status(400).json({ success: false, error: 'Invalid site config' });
+    }
+
+    await pool.query(`
+      UPDATE user_contacts
+      SET site_config = $2, updated_at = NOW()
+      WHERE display_name = $1
+    `, [displayName, JSON.stringify(siteConfig)]);
+
+    res.json({ success: true, message: '對外頁面設定已儲存' });
+  } catch (error) {
+    console.error('❌ PUT /users/:displayName/site-config error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -3830,6 +3935,101 @@ router.post('/resume/parse', (req, res) => {
       res.status(500).json({ success: false, error: e.message });
     }
   });
+});
+
+/**
+ * POST /api/resume/parse-url
+ * 透過 URL 下載 PDF 並解析履歷
+ * Body: { url: string }
+ * 支援：直接 PDF 連結、Google Drive 分享連結、Dropbox 分享連結
+ */
+router.post('/resume/parse-url', async (req, res) => {
+  try {
+    let { url } = req.body;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ success: false, error: '請提供有效的 URL' });
+    }
+
+    url = url.trim();
+
+    // LinkedIn 不支援直接抓取
+    if (/linkedin\.com\/in\//i.test(url)) {
+      return res.status(400).json({
+        success: false,
+        error: 'LinkedIn 不支援直接解析，請下載 LinkedIn PDF 後上傳',
+        hint: 'linkedin_unsupported'
+      });
+    }
+
+    // Google Drive 連結轉直接下載
+    const gdMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (gdMatch) {
+      url = `https://drive.google.com/uc?export=download&id=${gdMatch[1]}`;
+    }
+
+    // Dropbox 連結轉直接下載
+    if (url.includes('dropbox.com')) {
+      url = url.replace(/dl=0/, 'dl=1');
+      if (!url.includes('dl=1')) {
+        url += (url.includes('?') ? '&' : '?') + 'dl=1';
+      }
+    }
+
+    // 下載檔案
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Step1ne-ResumeParser/1.0)',
+      },
+      redirect: 'follow',
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      return res.status(400).json({
+        success: false,
+        error: `無法下載檔案 (HTTP ${response.status})`,
+      });
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    // 驗證是 PDF（檢查 magic bytes 或 content-type）
+    const isPDF = contentType.includes('pdf') ||
+                  (buffer.length > 4 && buffer.slice(0, 5).toString() === '%PDF-');
+
+    if (!isPDF) {
+      return res.status(400).json({
+        success: false,
+        error: '連結指向的檔案不是 PDF 格式，請提供 PDF 履歷連結',
+      });
+    }
+
+    // 限制大小 10MB
+    if (buffer.length > 10 * 1024 * 1024) {
+      return res.status(400).json({
+        success: false,
+        error: '檔案大小超過 10MB 限制',
+      });
+    }
+
+    const parsed = await parseResumePDF(buffer, false);
+    res.json({
+      success: true,
+      source_url: req.body.url,
+      parsed,
+    });
+  } catch (e) {
+    console.error('[/api/resume/parse-url]', e.message);
+    if (e.name === 'AbortError') {
+      return res.status(408).json({ success: false, error: '下載超時（30秒），請確認連結有效' });
+    }
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 /**
