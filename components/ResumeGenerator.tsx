@@ -727,9 +727,20 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   if (industry) infoPills.push(industry);
   const infoPillsHTML = infoPills.map(p => `<span class="info-pill">${p}</span>`).join('');
 
-  // 證照 & 語言 HTML (optional)
-  const certsList = certifications ? certifications.split(/[,、;]/).map(s => s.trim()).filter(Boolean) : [];
-  const certsHTML = certsList.map(c => `<span class="skill-tag">${c}</span>`).join('');
+  // 證照解析：清除 markdown、智慧拆分（支援 dash 分隔的複合格式）
+  let certsList: string[] = [];
+  if (certifications) {
+    const cleaned = certifications.replace(/\*\*/g, ''); // strip markdown bold
+    // 複合格式：「CertA — desc - CertB — desc」用 " - " 拆（但不拆 "—" 內部描述）
+    if (/\s-\s/.test(cleaned) && cleaned.length > 60) {
+      certsList = cleaned.split(/\s+-\s+/).map(s => s.trim()).filter(Boolean);
+    } else {
+      certsList = cleaned.split(/[,、;，]/).map(s => s.trim()).filter(Boolean);
+    }
+  }
+  const certsHTML = certsList.map(c =>
+    `<div class="cert-item"><span class="cert-check">✓</span><span class="cert-text">${c}</span></div>`
+  ).join('');
   const langList = languages ? languages.split(/[,、;]/).map(s => s.trim()).filter(Boolean) : [];
   const langHTML = langList.map(l => `<span class="info-pill-dark">${l}</span>`).join('');
 
@@ -758,8 +769,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   if (vf.field_age && age) basicInfoItems.push({ label: t.field_age, value: lang === 'en' ? `${age}` : `${age} 歲${zodiac ? `（屬${zodiac}）` : ''}` });
   if (vf.field_education && candidate.education) basicInfoItems.push({ label: t.field_education, value: candidate.education.length > 40 ? candidate.education.substring(0, 40) + '…' : candidate.education });
   if (vf.field_languages && languages) basicInfoItems.push({ label: t.field_languages, value: languages });
-  // 證照不放在基本資料格子（太長），改由下方「專業證照」獨立區塊呈現
-  if (vf.field_certifications && certsList.length > 0) basicInfoItems.push({ label: t.field_certifications, value: `${certsList.length} 項` });
+  // 證照由下方「專業證照」獨立區塊呈現，不在基本資料格重複
   if (vf.field_currentSalary && currentSalary) basicInfoItems.push({ label: t.field_currentSalary, value: currentSalary });
   if (vf.field_expectedSalary && expectedSalary) basicInfoItems.push({ label: t.field_expectedSalary, value: expectedSalary });
   if (vf.field_noticePeriod && noticePeriod) basicInfoItems.push({ label: t.field_noticePeriod, value: noticePeriod });
@@ -1032,6 +1042,34 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     font-size: 10pt;
   }
 
+  /* ─── Certifications List ─── */
+  .cert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .cert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 12px;
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    border-radius: 0 6px 6px 0;
+    font-size: 9.5pt;
+    color: #78350f;
+    line-height: 1.5;
+  }
+  .cert-check {
+    color: #f59e0b;
+    font-weight: bold;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .cert-text {
+    flex: 1;
+  }
+
   /* ─── Basic Info Grid ─── */
   .basic-info-grid {
     display: grid;
@@ -1196,7 +1234,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
     }
 
     /* 防止區塊被頁面切斷 */
-    .header, .summary-card, .consultant-note-card, .work-item, .edu-item, .deal-item, .section {
+    .header, .summary-card, .consultant-note-card, .cert-item, .work-item, .edu-item, .deal-item, .section {
       page-break-inside: avoid;
       break-inside: avoid;
     }
@@ -1291,7 +1329,7 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
       <span class="section-icon">📜</span>
       ${t.certifications}
     </div>
-    <div class="skills-container">${certsHTML}</div>
+    <div class="cert-list">${certsHTML}</div>
   </div>
   ` : ''}
 
@@ -1439,7 +1477,6 @@ const FIELD_TOGGLES: Array<{ key: keyof ResumeVisibleFields; label: string }> = 
   { key: 'field_age', label: '年齡/生肖' },
   { key: 'field_education', label: '學歷' },
   { key: 'field_languages', label: '語言' },
-  { key: 'field_certifications', label: '證照' },
   { key: 'field_currentSalary', label: '目前薪資' },
   { key: 'field_expectedSalary', label: '期望薪資' },
   { key: 'field_noticePeriod', label: '到職時間' },
