@@ -91,6 +91,7 @@ node server.js
 
 ```bash
 # 健康檢查
+# health 不需認證
 curl http://localhost:3001/api/health
 
 # 應該返回：
@@ -150,6 +151,7 @@ git push
 ### 步驟 3：驗證部署
 
 ```bash
+# health 不需認證
 curl https://backendstep1ne.zeabur.app/api/health
 
 # 應該返回：
@@ -197,6 +199,7 @@ LIMIT 10;
 ### 手動觸發同步
 
 ```bash
+# 本地開發如未設定 API_SECRET_KEY 則不需認證
 curl -X POST http://localhost:3001/api/sync/pending
 ```
 

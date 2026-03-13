@@ -72,16 +72,19 @@ npm run dev
 
 ### 健康檢查
 ```bash
+# health 不需認證
 curl http://localhost:3001/api/health
 ```
 
 ### 取得候選人列表
 ```bash
+# 本地開發如未設定 API_SECRET_KEY 則不需認證
 curl http://localhost:3001/api/candidates
 ```
 
 ### 新增候選人
 ```bash
+# 本地開發如未設定 API_SECRET_KEY 則不需認證
 curl -X POST http://localhost:3001/api/candidates \
   -H "Content-Type: application/json" \
   -d '{

@@ -1,6 +1,6 @@
 # Step1ne Headhunter System - API 完整文檔
 
-**版本**: 3.0.0（2026-03-11 依實際後端程式碼更新）
+**版本**: 3.1.0（2026-03-13 新增 API 認證 + 安全強化）
 **Base URL**: `http://localhost:3001/api`（開發環境）
 **Production URL**: `https://backendstep1ne.zeabur.app/api`
 
@@ -26,9 +26,47 @@
 
 ## 認證
 
-**目前版本：無需認證**（僅限內部使用）
+**所有 API 端點都需要 Bearer Token 認證**（2026-03-13 起）
 
-例外：OpenClaw API 需要 `X-OpenClaw-Key` Header。
+### 一般 API 認證
+
+每個請求都必須在 Header 帶上 `Authorization`：
+
+```bash
+curl -H "Authorization: Bearer <API_SECRET_KEY>" \
+  https://backendstep1ne.zeabur.app/api/candidates
+```
+
+| Header | 值 | 說明 |
+|--------|-----|------|
+| `Authorization` | `Bearer <API_SECRET_KEY>` | 後端環境變數 `API_SECRET_KEY` 的值 |
+| `Content-Type` | `application/json` | POST/PUT/PATCH 請求必須 |
+
+### 白名單端點（不需認證）
+
+| 端點 | 說明 |
+|------|------|
+| `GET /api/health` | 健康檢查 |
+| `POST /api/webhooks/github` | GitHub Webhook（有自己的 HMAC 簽名驗證） |
+
+### OpenClaw API 認證
+
+OpenClaw 端點使用獨立的認證方式：
+
+```bash
+curl -H "X-OpenClaw-Key: <OPENCLAW_API_KEY>" \
+  https://backendstep1ne.zeabur.app/api/openclaw/pending
+```
+
+### 認證失敗回應
+
+```json
+{ "success": false, "error": "未授權：缺少或無效的 API Key" }
+```
+
+### Rate Limiting
+
+所有 `/api` 端點限制 **200 次/分鐘**（per IP）。超過時回傳 HTTP 429。
 
 ---
 

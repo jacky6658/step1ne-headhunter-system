@@ -172,6 +172,7 @@ API 回應給 AIbot
 
 3. **測試 /api/talent-sourcing/health 端點**
    ```bash
+   # health 不需認證
    curl "http://localhost:3001/api/talent-sourcing/health"
    # 應回傳 status: "ready"
    ```
@@ -227,11 +228,13 @@ API 回應給 AIbot
 
 1. 驗證爬蟲系統就緒
    ```bash
+   # health 不需認證
    curl "http://localhost:3001/api/talent-sourcing/health"
    ```
 
 2. 執行小範圍搜尋
    ```bash
+   # 本地開發如未設定 API_SECRET_KEY 則不需認證
    curl -X POST "http://localhost:3001/api/talent-sourcing/search" \
      -H "Content-Type: application/json" \
      -d '{
