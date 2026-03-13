@@ -821,13 +821,15 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       const json = await resp.json();
       if (!json.success) throw new Error(json.error || '解析失敗');
       setImportParsed(json.parsed);
-      // 預設全選有值的欄位
+      // 預設全選有值的欄位（名字若與現有不同則不預選，避免 PDF 解析錯誤覆蓋）
       const defaultSelected = new Set(
         IMPORT_FIELDS.filter(f => {
           const v = json.parsed[f];
           if (v === null || v === undefined) return false;
           if (Array.isArray(v)) return v.length > 0;
           if (typeof v === 'string') return v.trim().length > 0;
+          // 名字若跟現有不同，預設不勾選
+          if (f === 'name' && candidate.name && v && candidate.name !== v) return false;
           return true;
         })
       );
@@ -1576,8 +1578,10 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                                     : val.join('、'))
                               : String(val);
                             if (!displayVal || displayVal === '0') return null;
+                            // 名字警告：解析出的名字跟人選卡片現有名字不同
+                            const isNameMismatch = field === 'name' && candidate.name && val && candidate.name !== val;
                             return (
-                              <label key={field} className="grid grid-cols-[1.5rem_5rem_1fr] gap-2 px-3 py-2 items-start cursor-pointer hover:bg-blue-50/40">
+                              <label key={field} className={`grid grid-cols-[1.5rem_5rem_1fr] gap-2 px-3 py-2 items-start cursor-pointer hover:bg-blue-50/40 ${isNameMismatch ? 'bg-red-50' : ''}`}>
                                 <input
                                   type="checkbox"
                                   checked={importSelected.has(field)}
@@ -1589,7 +1593,12 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                                   className="mt-0.5"
                                 />
                                 <span className="text-gray-500 font-medium">{IMPORT_FIELD_LABELS[field]}</span>
-                                <span className="text-gray-800 break-all">{displayVal}</span>
+                                <div className="min-w-0">
+                                  <span className={`break-all ${isNameMismatch ? 'text-red-600 font-medium' : 'text-gray-800'}`}>{displayVal}</span>
+                                  {isNameMismatch && (
+                                    <div className="text-[10px] text-red-500 mt-0.5">⚠️ 與現有姓名「{candidate.name}」不同，PDF 解析可能有誤，請確認</div>
+                                  )}
+                                </div>
                               </label>
                             );
                           })}
@@ -2587,7 +2596,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">工作描述（選填）</label>
-                      <textarea value={workForm.description} onChange={e => setWorkForm(p => ({...p, description: e.target.value}))} rows={2} placeholder="主要負責..." className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none" />
+                      <textarea value={workForm.description} onChange={e => setWorkForm(p => ({...p, description: e.target.value}))} rows={4} placeholder="主要負責的專案、技術棧、成就..." className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y min-h-[80px]" />
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -2629,7 +2638,8 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                                 <input value={workForm.end} onChange={e => setWorkForm(p => ({...p, end: e.target.value}))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                               </div>
                             </div>
-                            <textarea value={workForm.description} onChange={e => setWorkForm(p => ({...p, description: e.target.value}))} rows={2} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none" />
+                            <label className="block text-xs text-gray-500 mb-1">工作描述</label>
+                            <textarea value={workForm.description} onChange={e => setWorkForm(p => ({...p, description: e.target.value}))} rows={4} placeholder="主要負責的專案、技術棧、成就..." className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y min-h-[80px]" />
                             <div className="flex gap-2">
                               <button
                                 disabled={savingWork}
