@@ -16,10 +16,14 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Install PostgreSQL client
+      - name: Install PostgreSQL 18 client
         run: |
+          # Zeabur 的 PostgreSQL 版本是 18.x，需要對應版本的 pg_dump
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-16 || sudo apt-get install -y -qq postgresql-client
+          sudo apt-get install -y -qq postgresql-client-18 || sudo apt-get install -y -qq postgresql-client-17 || sudo apt-get install -y -qq postgresql-client
+          pg_dump --version
 
       - name: Run pg_dump
         env:
