@@ -500,16 +500,16 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
   const jobHasMissingFields = (job: Job) => getMissingFields(job).length > 0;
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto px-3 py-4 sm:p-6">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-4 sm:mb-8">
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
-              <Briefcase className="text-indigo-600" size={32} />
+            <h1 className="text-lg sm:text-3xl font-bold text-slate-900 flex items-center gap-2 sm:gap-3">
+              <Briefcase className="text-indigo-600 shrink-0" size={24} />
               職缺管理
             </h1>
-            <p className="text-slate-600 mt-2">
+            <p className="text-slate-600 mt-1 sm:mt-2 text-xs sm:text-base">
               管理所有客戶職缺，追蹤招募狀態
             </p>
           </div>
@@ -517,22 +517,22 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
           <div className="flex items-center gap-2">
             <button
               onClick={handleCreateNew}
-              className="px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all bg-emerald-600 text-white hover:bg-emerald-700 shadow-md hover:shadow-lg"
+              className="px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl font-semibold flex items-center gap-1.5 sm:gap-2 transition-all bg-emerald-600 text-white hover:bg-emerald-700 shadow-md hover:shadow-lg text-sm sm:text-base"
             >
-              <Plus size={18} />
-              新增職缺
+              <Plus size={16} />
+              <span className="hidden xs:inline">新增</span>職缺
             </button>
             <button
               onClick={syncJobs}
               disabled={syncing}
-              className={`px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all ${
+              className={`px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl font-semibold flex items-center gap-1.5 sm:gap-2 transition-all text-sm sm:text-base ${
                 syncing
                   ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
                   : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg'
               }`}
             >
               <svg
-                className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`}
+                className={`w-4 h-4 sm:w-5 sm:h-5 ${syncing ? 'animate-spin' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -544,78 +544,78 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
-              {syncing ? '同步中...' : '同步職缺'}
+              {syncing ? '同步中...' : '同步'}
             </button>
           </div>
         </div>
       </div>
 
       {/* 統計卡片 */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-600 mb-1">總職缺數</div>
-              <div className="text-3xl font-bold text-slate-900">{jobs.length}</div>
+              <div className="text-xs sm:text-sm text-slate-600 mb-0.5 sm:mb-1">總職缺數</div>
+              <div className="text-2xl sm:text-3xl font-bold text-slate-900">{jobs.length}</div>
             </div>
-            <Briefcase className="text-indigo-600" size={32} />
+            <Briefcase className="text-indigo-600 hidden sm:block" size={32} />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-600 mb-1">開放中</div>
-              <div className="text-3xl font-bold text-green-600">
+              <div className="text-xs sm:text-sm text-slate-600 mb-0.5 sm:mb-1">開放中</div>
+              <div className="text-2xl sm:text-3xl font-bold text-green-600">
                 {jobs.filter(j => j.job_status && (j.job_status.includes('開放') || j.job_status.includes('招募'))).length}
               </div>
             </div>
-            <TrendingUp className="text-green-600" size={32} />
+            <TrendingUp className="text-green-600 hidden sm:block" size={32} />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-600 mb-1">獨立公司</div>
-              <div className="text-3xl font-bold text-indigo-600">
+              <div className="text-xs sm:text-sm text-slate-600 mb-0.5 sm:mb-1">獨立公司</div>
+              <div className="text-2xl sm:text-3xl font-bold text-indigo-600">
                 {new Set(jobs.map(j => j.client_company)).size}
               </div>
             </div>
-            <Building2 className="text-indigo-600" size={32} />
+            <Building2 className="text-indigo-600 hidden sm:block" size={32} />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-600 mb-1">急件</div>
-              <div className="text-3xl font-bold text-red-600">
+              <div className="text-xs sm:text-sm text-slate-600 mb-0.5 sm:mb-1">急件</div>
+              <div className="text-2xl sm:text-3xl font-bold text-red-600">
                 {jobs.filter(j => j.priority === '急件').length}
               </div>
             </div>
-            <AlertTriangle className="text-red-500" size={32} />
+            <AlertTriangle className="text-red-500 hidden sm:block" size={32} />
           </div>
         </div>
       </div>
 
       {/* 搜尋列 + 客戶篩選 */}
-      <div className="mb-6 flex gap-3 items-center">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+          <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
           <input
             type="text"
             placeholder="搜尋職位、公司、技能..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
           />
         </div>
-        <div className="relative min-w-[200px]">
+        <div className="relative sm:min-w-[200px]">
           <select
             value={clientFilter}
             onChange={e => setClientFilter(e.target.value)}
-            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm appearance-none bg-white"
+            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm appearance-none bg-white"
           >
             <option value="">全部客戶 ({jobs.length})</option>
             {uniqueClients.map(c => (
@@ -646,36 +646,32 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
         </div>
       ) : (
         <>
-        {/* 手機版卡片列表 */}
-        <div className="block md:hidden space-y-3">
+        {/* 手機版卡片列表 — 不顯示刪除按鈕，進 Modal 後再操作 */}
+        <div className="block md:hidden space-y-2">
           {filteredJobs.map((job) => (
             <div
               key={job.id}
-              className="bg-white rounded-xl border border-slate-200 p-4 cursor-pointer active:bg-slate-50"
+              className="bg-white rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer active:bg-slate-50 transition-colors"
               onClick={() => handleJobClick(job)}
             >
-              <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                  <div className="font-semibold text-sm text-slate-900 truncate flex items-center gap-1">
                     {job.position_name}
-                    {jobHasMissingFields(job) && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
+                    {jobHasMissingFields(job) && <AlertTriangle size={12} className="text-amber-500 shrink-0" />}
                   </div>
-                  <div className="text-sm text-slate-600">{job.client_company}</div>
+                  <div className="text-xs text-slate-500 mt-0.5 truncate">{job.client_company}{job.location ? ` · ${job.location}` : ''}</div>
                 </div>
-                <div className="flex items-center gap-1.5 ml-2 shrink-0">
-                  {job.priority && job.priority !== '一般' && (
-                    <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded border ${getPriorityColor(job.priority)}`}>
-                      {job.priority}
+                <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                  {job.priority === '急件' && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-bold rounded border bg-red-100 text-red-700 border-red-300">
+                      急
                     </span>
                   )}
-                  <span className={`px-2 py-1 text-xs font-semibold rounded border ${getStatusColor(job.job_status)}`}>
+                  <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border ${getStatusColor(job.job_status)}`}>
                     {job.job_status}
                   </span>
                 </div>
-              </div>
-              <div className="text-xs text-slate-500">
-                {job.location && <span>{job.location} · </span>}
-                建立：{fmtDate(job.lastUpdated || job.created_at)}
               </div>
             </div>
           ))}
@@ -769,15 +765,19 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
       {/* ======== 職缺詳情 Modal ======== */}
       {selectedJob && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4"
           onClick={closeModal}
         >
           <div
-            className="bg-white rounded-2xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-white rounded-t-2xl sm:rounded-2xl max-w-3xl w-full max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* ── Header ── */}
             <div className="p-3 sm:p-5 border-b border-slate-200 shrink-0">
+              {/* 手機版頂部拖曳條 */}
+              <div className="flex justify-center mb-2 sm:hidden">
+                <div className="w-10 h-1 bg-slate-300 rounded-full" />
+              </div>
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   {editingBasic ? (
@@ -785,42 +785,43 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
                       type="text"
                       value={basicDraft.position_name || ''}
                       onChange={e => setBasicDraft(prev => ({ ...prev, position_name: e.target.value }))}
-                      className="text-xl font-bold text-slate-900 w-full border-b-2 border-indigo-400 focus:outline-none bg-transparent pb-1"
+                      className="text-base sm:text-xl font-bold text-slate-900 w-full border-b-2 border-indigo-400 focus:outline-none bg-transparent pb-1"
                       placeholder="職位名稱（必填）"
                     />
                   ) : (
-                    <h2 className="text-xl font-bold text-slate-900">{selectedJob.position_name}</h2>
+                    <h2 className="text-base sm:text-xl font-bold text-slate-900 leading-tight">{selectedJob.position_name}</h2>
                   )}
                   {editingBasic ? (
                     <input
                       type="text"
                       value={basicDraft.client_company || ''}
                       onChange={e => setBasicDraft(prev => ({ ...prev, client_company: e.target.value }))}
-                      className="text-slate-600 mt-1 w-full border-b border-indigo-300 focus:outline-none bg-transparent pb-0.5 text-sm"
+                      className="text-slate-600 mt-1 w-full border-b border-indigo-300 focus:outline-none bg-transparent pb-0.5 text-xs sm:text-sm"
                       placeholder="客戶公司"
                     />
                   ) : (
-                    <p className="text-sm text-slate-600 mt-1">{selectedJob.client_company}</p>
+                    <p className="text-xs sm:text-sm text-slate-600 mt-0.5">{selectedJob.client_company}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                <div className="flex items-center gap-1 sm:gap-2 ml-2 sm:ml-3 flex-shrink-0">
                   {!editingBasic ? (
                     <>
                       <button
                         onClick={handleStartEditBasic}
-                        className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                        className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 px-1.5 sm:px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
                         title="編輯"
                       >
                         <Edit3 size={14} />
-                        編輯
+                        <span className="hidden sm:inline">編輯</span>
                       </button>
+                      {/* 刪除按鈕：小 icon、低對比度、不易誤觸 */}
                       {!isCreating && (
                         <button
                           onClick={() => setShowDeleteConfirm(true)}
-                          className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                          className="text-slate-300 hover:text-red-500 p-1 rounded transition-colors"
                           title="刪除職缺"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={13} />
                         </button>
                       )}
                     </>
@@ -829,10 +830,10 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
                       <button
                         onClick={handleSaveBasic}
                         disabled={savingBasic || savingCreate}
-                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                       >
                         <Save size={12} />
-                        {savingBasic || savingCreate ? '儲存中...' : (isCreating ? '建立' : '儲存')}
+                        {savingBasic || savingCreate ? '...' : (isCreating ? '建立' : '儲存')}
                       </button>
                       <button
                         onClick={() => {
@@ -840,36 +841,36 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
                           setEditingBasic(false);
                           setBasicDraft({});
                         }}
-                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5"
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-1.5 sm:px-2 py-1.5"
                       >
                         <XIcon size={14} />
-                        取消
+                        <span className="hidden sm:inline">取消</span>
                       </button>
                     </>
                   )}
-                  <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 ml-1">
-                    <XIcon size={18} />
+                  <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 ml-0.5 sm:ml-1">
+                    <XIcon size={16} />
                   </button>
                 </div>
               </div>
 
-              {/* 刪除確認 */}
+              {/* 刪除確認 — 2 步驟，不會誤觸 */}
               {showDeleteConfirm && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl">
-                  <p className="text-sm text-red-800 mb-2">
-                    確定要刪除「{selectedJob.position_name}」？此操作無法復原。
+                <div className="mt-2 p-2.5 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-xs text-red-800 mb-2">
+                    確定刪除「{selectedJob.position_name}」？無法復原。
                   </p>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleDeleteJob(selectedJob.id)}
                       disabled={deletingJobId === selectedJob.id}
-                      className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all"
+                      className="px-2.5 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all"
                     >
                       {deletingJobId === selectedJob.id ? '刪除中...' : '確認刪除'}
                     </button>
                     <button
                       onClick={() => setShowDeleteConfirm(false)}
-                      className="px-3 py-1.5 bg-white text-slate-600 text-xs rounded-lg border border-slate-300 hover:bg-slate-50 transition-all"
+                      className="px-2.5 py-1 bg-white text-slate-600 text-xs rounded-lg border border-slate-300 hover:bg-slate-50 transition-all"
                     >
                       取消
                     </button>
@@ -879,14 +880,14 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
 
               {/* ── 缺欄位提醒 ── */}
               {!isCreating && getMissingFields(selectedJob).length > 0 && (
-                <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
-                  <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
-                  <div className="text-xs text-amber-800 flex-1">
-                    <span className="font-semibold">此職缺有 {getMissingFields(selectedJob).length} 個欄位待補填：</span>
+                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-1.5">
+                  <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                  <div className="text-[11px] sm:text-xs text-amber-800 flex-1 leading-relaxed">
+                    <span className="font-semibold">{getMissingFields(selectedJob).length} 項待補：</span>
                     {getMissingFields(selectedJob).map((f, i) => (
                       <button
                         key={i}
-                        className="inline-flex items-center mx-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[11px] hover:bg-amber-200 transition-colors"
+                        className="inline-flex items-center mx-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] sm:text-[11px] hover:bg-amber-200 transition-colors"
                         onClick={() => { setActiveTab(f.tab); if (!editingBasic) handleStartEditBasic(); }}
                       >
                         {f.label}
@@ -897,12 +898,12 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
               )}
 
               {/* ── Tab 切換 ── */}
-              <div className="flex gap-1 mt-3 -mb-[1px] relative z-[1]">
+              <div className="flex gap-0.5 sm:gap-1 mt-2 sm:mt-3 -mb-[1px] relative z-[1]">
                 {tabs.map(tab => (
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-t-lg border transition-colors ${
+                    className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold rounded-t-lg border transition-colors ${
                       activeTab === tab.key
                         ? 'bg-white text-indigo-700 border-slate-200 border-b-white'
                         : 'bg-slate-50 text-slate-500 border-transparent hover:text-slate-700 hover:bg-slate-100'
