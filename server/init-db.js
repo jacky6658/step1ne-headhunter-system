@@ -5,13 +5,15 @@
  * node init-db.js
  */
 
+require('dotenv').config();
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur'
-});
+const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URI;
+if (!DATABASE_URL) { console.error('❌ DATABASE_URL 未設定'); process.exit(1); }
+
+const pool = new Pool({ connectionString: DATABASE_URL });
 
 async function initDatabase() {
   const client = await pool.connect();

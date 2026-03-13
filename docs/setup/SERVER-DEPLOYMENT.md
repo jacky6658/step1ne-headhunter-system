@@ -17,7 +17,7 @@
 
 ```bash
 # 使用 psql 或任何 PostgreSQL 客戶端
-psql postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur
+psql postgresql://root:<YOUR_PASSWORD_FROM_ZEABUR>@tpe1.clusters.zeabur.com:27883/zeabur
 ```
 
 ### 步驟 2：執行初始化腳本
@@ -30,7 +30,7 @@ psql postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com
 或者直接：
 
 ```bash
-psql postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur < server/db/init-postgres.sql
+psql postgresql://root:<YOUR_PASSWORD_FROM_ZEABUR>@tpe1.clusters.zeabur.com:27883/zeabur < server/db/init-postgres.sql
 ```
 
 ### 步驟 3：驗證表已建立
@@ -59,7 +59,7 @@ npm install express cors body-parser pg dotenv
 ```bash
 cat > server/.env << 'EOF'
 # PostgreSQL 連線
-DATABASE_URL=postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur
+DATABASE_URL=postgresql://root:<YOUR_PASSWORD_FROM_ZEABUR>@tpe1.clusters.zeabur.com:27883/zeabur
 
 # Google Sheets
 SHEET_ID=1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SEtxRk6Q
@@ -182,7 +182,7 @@ tail -f server/logs/server.log
 
 ```bash
 # 連線到 PostgreSQL
-psql postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur
+psql postgresql://root:<YOUR_PASSWORD_FROM_ZEABUR>@tpe1.clusters.zeabur.com:27883/zeabur
 
 # 查看所有候選人
 SELECT name, status, consultant, last_updated FROM candidates_pipeline LIMIT 10;

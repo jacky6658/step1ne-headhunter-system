@@ -1,10 +1,10 @@
 /**
  * server.js - Step1ne 後端主服務器
  * 方案 A + B 完整實現
- * 
+ *
  * 啟動方式：
  * node server.js
- * 
+ *
  * 環境變數：
  * DATABASE_URL=postgresql://user:pass@host:port/db
  * SHEET_ID=xxx
@@ -16,32 +16,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { execSync } = require('child_process');
-
-// ── Python 依賴自動安裝（Zeabur 容器啟動時）────────────────────
-(function ensurePythonDeps() {
-  try {
-    execSync('python3 -c "import requests; import bs4"', { stdio: 'ignore' });
-    console.log('✅ Python 依賴已就緒');
-  } catch {
-    console.log('⏳ 安裝 Python 依賴（requests, beautifulsoup4, lxml）...');
-    const cmds = [
-      'python3 -m pip install requests beautifulsoup4 lxml --break-system-packages -q',
-      'python3 -m pip install requests beautifulsoup4 lxml --user -q',
-      'python3 -m pip install requests beautifulsoup4 lxml -q',
-      'pip3 install requests beautifulsoup4 lxml --break-system-packages -q',
-      'pip install requests beautifulsoup4 lxml -q',
-    ];
-    for (const cmd of cmds) {
-      try {
-        execSync(cmd, { stdio: 'inherit', timeout: 120000 });
-        console.log('✅ Python 依賴安裝成功');
-        return;
-      } catch { /* 嘗試下一個 */ }
-    }
-    console.warn('⚠️ Python 依賴安裝失敗，LinkedIn 搜尋功能可能無法使用');
-  }
-})();
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 // 環境變數相容：支援 DATABASE_URL 或 POSTGRES_URI（Zeabur 自動生成）
 if (!process.env.DATABASE_URL && process.env.POSTGRES_URI) {
@@ -53,24 +29,48 @@ const { pool } = require('./db'); // 共享連線池
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const isProduction = process.env.NODE_ENV === 'production';
 
-// ==================== 中間件 ====================
+// ==================== 安全中間件 ====================
 
-// CORS 設定：允許特定的 origins
+// Security headers（CSP 由前端 SPA 自行處理）
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Rate limiting：每分鐘 200 次（內部工具 5 人使用，含 batch 操作）
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: '請求過於頻繁，請稍後再試' },
+});
+app.use('/api', limiter);
+
+// ==================== CORS ====================
+
 const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002',
-  'http://localhost:5173',
   'https://step1ne.zeabur.app',
-  'https://step1ne.com'
+  'https://step1ne.com',
 ];
+
+if (!isProduction) {
+  allowedOrigins.push(
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://localhost:5173',
+  );
+}
 
 app.use(cors({
   origin: function(origin, callback) {
-    // 允許沒有 origin 的請求（如 curl, mobile apps）
-    // 允許所有 localhost 開發 port
-    if (!origin || allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
+    // 允許沒有 origin 的請求（如 curl, server-to-server, OpenClaw）
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else if (!isProduction && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
       callback(null, true);
     } else {
       console.warn(`CORS 拒絕: ${origin}`);
@@ -82,7 +82,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-OpenClaw-Key']
 }));
 
-app.use(bodyParser.json({ limit: '10mb' }));
+// ==================== Body Parser ====================
+
+// 保留 rawBody 供 GitHub Webhook HMAC 簽名驗證使用
+app.use(bodyParser.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => { req.rawBody = buf; }
+}));
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
 // Multer：PDF 上傳（memory storage，Zeabur 雲端友善）
@@ -134,10 +140,10 @@ app.get('/', (req, res) => {
 
 app.use((err, req, res, next) => {
   console.error('❌ Unhandled error:', err.message);
+  if (err.stack) console.error(err.stack);
   res.status(500).json({
     success: false,
-    error: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    error: isProduction ? '伺服器內部錯誤' : err.message
   });
 });
 
@@ -180,6 +186,7 @@ async function startServer() {
 ║  📍 http://localhost:${PORT}              ║
 ║  🗄️  PostgreSQL: ${dbConnected ? 'Connected  ' : 'UNAVAILABLE'}        ║
 ║  📊 Mode: ${dbConnected ? 'SQL + Google Sheets' : 'DEGRADED (no DB)  '}   ║
+║  🔒 Security: helmet + rate-limit      ║
 ╚═══════════════════════════════════════╝
     `);
   });
@@ -198,4 +205,3 @@ async function startServer() {
 startServer();
 
 module.exports = app;
-// Force rebuild Wed Feb 25 23:05:00 CST 2026

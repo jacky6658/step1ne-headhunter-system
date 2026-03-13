@@ -12,12 +12,16 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('./db'); // 共享連線池
+const { safeError } = require('./safeError');
 
 // ══════════════════════════════════════════════
 // 認證 Middleware
 // ══════════════════════════════════════════════
 
-const OPENCLAW_API_KEY = process.env.OPENCLAW_API_KEY || 'openclaw-dev-key';
+const OPENCLAW_API_KEY = process.env.OPENCLAW_API_KEY;
+if (!OPENCLAW_API_KEY) {
+  console.warn('⚠️ OPENCLAW_API_KEY 未設定，OpenClaw API 將拒絕所有請求');
+}
 
 function openclawAuth(req, res, next) {
   const key = req.headers['x-openclaw-key'];
@@ -90,8 +94,7 @@ router.get('/pending', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('❌ OpenClaw GET /pending error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'GET /openclaw/pending');
   }
 });
 
@@ -215,8 +218,7 @@ router.post('/batch-update', async (req, res) => {
       results
     });
   } catch (err) {
-    console.error('❌ OpenClaw POST /batch-update error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'POST /openclaw/batch-update');
   }
 });
 

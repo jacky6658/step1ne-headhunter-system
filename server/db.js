@@ -22,9 +22,11 @@
 
 const { Pool } = require('pg');
 
-const DATABASE_URL = process.env.DATABASE_URL ||
-  process.env.POSTGRES_URI ||
-  'postgresql://root:etUh2zkR4Mr8gfWLs059S7Dm1T6Yby3Q@tpe1.clusters.zeabur.com:27883/zeabur';
+const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URI;
+if (!DATABASE_URL) {
+  console.error('❌ DATABASE_URL 或 POSTGRES_URI 環境變數未設定，無法連接資料庫');
+  process.exit(1);
+}
 
 const pool = new Pool({
   connectionString: DATABASE_URL,

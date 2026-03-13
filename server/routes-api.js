@@ -5,11 +5,14 @@
 const express = require('express');
 const router = express.Router();
 const https = require('https');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
+const execFilePromise = util.promisify(execFile);
 const { enrichCandidate, saveEnrichment } = require('./perplexityService');
+const crypto = require('crypto');
 const { pool, withClient } = require('./db'); // 共享連線池 + 安全 helper
+const { safeError } = require('./safeError');
 
 /**
  * 清洗 URL param 中的 id：移除 AI Bot 可能帶來的多餘 JSON 引號
@@ -391,9 +394,26 @@ pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_name_lower ON candidates_p
 pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_recruiter ON candidates_pipeline(recruiter)`).catch(() => {});
 pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_target_job ON candidates_pipeline(target_job_id) WHERE target_job_id IS NOT NULL`).catch(() => {});
 // LinkedIn URL 部分唯一約束（排除空值）— 防止 TOCTOU race condition
-pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_candidates_linkedin_unique
-  ON candidates_pipeline(LOWER(TRIM(linkedin_url)))
-  WHERE linkedin_url IS NOT NULL AND linkedin_url != ''`).catch(() => {});
+// 先清除重複的 LinkedIn URL（保留最新的那筆），再建 unique index
+(async () => {
+  try {
+    // 將重複 LinkedIn URL 中較舊的紀錄清空 linkedin_url（保留 id 最大的）
+    await pool.query(`
+      UPDATE candidates_pipeline SET linkedin_url = NULL
+      WHERE id NOT IN (
+        SELECT MAX(id) FROM candidates_pipeline
+        WHERE linkedin_url IS NOT NULL AND linkedin_url != ''
+        GROUP BY LOWER(TRIM(linkedin_url))
+      )
+      AND linkedin_url IS NOT NULL AND linkedin_url != ''
+    `);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_candidates_linkedin_unique
+      ON candidates_pipeline(LOWER(TRIM(linkedin_url)))
+      WHERE linkedin_url IS NOT NULL AND linkedin_url != ''`);
+  } catch (e) {
+    console.warn('⚠️ LinkedIn unique index migration:', e.message);
+  }
+})();
 // jobs_pipeline 索引
 pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs_pipeline(job_status)`).catch(() => {});
 pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs_pipeline(created_at DESC)`).catch(() => {});
@@ -508,7 +528,7 @@ async function syncSQLToSheets(candidateRows) {
 
   // 檢查 gog 是否可用
   try {
-    await execPromise('which gog', { timeout: 5000 });
+    await execFilePromise('which', ['gog'], { timeout: 5000 });
   } catch {
     console.warn('⚠️ gog CLI 不可用，跳過 Sheets 同步');
     return;
@@ -526,10 +546,9 @@ async function syncSQLToSheets(candidateRows) {
       // 先搜尋 Sheets 中是否已有此人
       let sheetsRowNum = null;
       try {
-        const { stdout } = await execPromise(
-          `gog sheets get "${GOG_SHEET_ID}" "${GOG_SHEET_NAME}!A2:A1000" --json`,
-          { timeout: 15000, maxBuffer: 5 * 1024 * 1024 }
-        );
+        const { stdout } = await execFilePromise('gog', [
+          'sheets', 'get', GOG_SHEET_ID, `${GOG_SHEET_NAME}!A2:A1000`, '--json'
+        ], { timeout: 15000, maxBuffer: 5 * 1024 * 1024 });
         const names = JSON.parse(stdout);
         const idx = names.findIndex(r => (r[0] || '').trim().toLowerCase() === (c.name || '').trim().toLowerCase());
         if (idx >= 0) sheetsRowNum = idx + 2; // 第 2 行開始
@@ -565,20 +584,17 @@ async function syncSQLToSheets(candidateRows) {
       ].map(v => String(v).replace(/\n/g, ' ').replace(/\r/g, ' ').replace(/"/g, "'")).join('|');
 
       if (sheetsRowNum) {
-        // 更新既有行
-        const cleanData = rowData.replace(/"/g, '\\"');
-        await execPromise(
-          `gog sheets update "${GOG_SHEET_ID}" "${GOG_SHEET_NAME}!A${sheetsRowNum}:W${sheetsRowNum}" "${cleanData}"`,
-          { timeout: 15000 }
-        );
+        // 更新既有行（使用 execFile 避免 shell injection）
+        await execFilePromise('gog', [
+          'sheets', 'update', GOG_SHEET_ID,
+          `${GOG_SHEET_NAME}!A${sheetsRowNum}:W${sheetsRowNum}`, rowData
+        ], { timeout: 15000 });
         console.log(`  ✅ Sheets 更新: ${c.name} (row ${sheetsRowNum})`);
       } else {
-        // 新增行
-        const cleanData = rowData.replace(/"/g, '\\"');
-        await execPromise(
-          `gog sheets append "${GOG_SHEET_ID}" "${GOG_SHEET_NAME}" "${cleanData}"`,
-          { timeout: 15000 }
-        );
+        // 新增行（使用 execFile 避免 shell injection）
+        await execFilePromise('gog', [
+          'sheets', 'append', GOG_SHEET_ID, GOG_SHEET_NAME, rowData
+        ], { timeout: 15000 });
         console.log(`  ✅ Sheets 新增: ${c.name}`);
       }
 
@@ -811,11 +827,7 @@ router.get('/candidates', async (req, res) => {
       client.release();
     }
   } catch (error) {
-    console.error('❌ GET /candidates error:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    safeError(res, error, 'GET /candidates');
   }
 });
 
@@ -938,11 +950,7 @@ router.get('/candidates/:id', async (req, res) => {
       data: candidate
     });
   } catch (error) {
-    console.error('❌ GET /candidates/:id error:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    safeError(res, error, 'GET /candidates/:id');
   }
 });
 
@@ -1021,11 +1029,7 @@ router.put('/candidates/:id', async (req, res) => {
       message: 'Candidate updated successfully'
     });
   } catch (error) {
-    console.error('❌ PUT /candidates/:id error:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    safeError(res, error, 'PUT /candidates/:id');
   }
 });
 
@@ -1468,8 +1472,7 @@ router.patch('/candidates/:id', async (req, res) => {
       client.release();
     }
   } catch (error) {
-    console.error('❌ PATCH /candidates/:id error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'PATCH /candidates/:id');
   }
 });
 
@@ -1547,8 +1550,7 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
       message: `Pipeline 狀態已更新為「${status}」`
     });
   } catch (error) {
-    console.error('❌ PUT /candidates/:id/pipeline-status error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'PUT /candidates/:id/pipeline-status');
   }
 });
 
@@ -1658,8 +1660,7 @@ router.patch('/candidates/batch-status', async (req, res) => {
       message: `批量更新完成：${succeeded.length} 位成功，${failed.length} 位失敗`
     });
   } catch (error) {
-    console.error('❌ PATCH /candidates/batch-status error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'PATCH /candidates/batch-status');
   }
 });
 
@@ -1736,8 +1737,7 @@ router.delete('/candidates/batch', async (req, res) => {
       client.release();
     }
   } catch (error) {
-    console.error('❌ DELETE /candidates/batch error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'DELETE /candidates/batch');
   }
 });
 
@@ -1786,8 +1786,7 @@ router.delete('/candidates/:id', async (req, res) => {
       message: `候選人「${result.rows[0].name}」已刪除`
     });
   } catch (error) {
-    console.error('❌ DELETE /candidates/:id error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'DELETE /candidates/:id');
   }
 });
 
@@ -1923,11 +1922,7 @@ router.post('/candidates', async (req, res) => {
         : `已存在，已補充 ${c.name} 的空白欄位`
     });
   } catch (error) {
-    console.error('❌ POST /candidates error:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    safeError(res, error, 'POST /candidates');
   }
 });
 
@@ -1993,11 +1988,7 @@ router.post('/candidates/bulk', async (req, res) => {
       failed: results.failed
     });
   } catch (error) {
-    console.error('❌ POST /candidates/bulk error:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    safeError(res, error, 'POST /candidates/bulk');
   }
 });
 
@@ -2036,8 +2027,7 @@ router.post('/candidates/bulk-async', async (req, res) => {
       status_url: `/api/imports/${import_id}`
     });
   } catch (error) {
-    console.error('❌ POST /candidates/bulk-async error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /candidates/bulk-async');
   }
 });
 
@@ -2059,8 +2049,7 @@ router.get('/imports/:id', async (req, res) => {
 
     res.json({ success: true, data: status });
   } catch (error) {
-    console.error('❌ GET /imports/:id error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /imports/:id');
   }
 });
 
@@ -2175,11 +2164,7 @@ router.get('/jobs', async (req, res) => {
       client.release();
     }
   } catch (error) {
-    console.error('❌ GET /jobs error:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    safeError(res, error, 'GET /jobs');
   }
 });
 
@@ -2213,11 +2198,7 @@ router.get('/jobs/:id', async (req, res) => {
       data: result.rows[0]
     });
   } catch (error) {
-    console.error('❌ GET /jobs/:id error:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    safeError(res, error, 'GET /jobs/:id');
   }
 });
 
@@ -2330,8 +2311,7 @@ router.put('/jobs/:id', async (req, res) => {
       message: 'Job updated successfully'
     });
   } catch (error) {
-    console.error('❌ PUT /jobs/:id error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'PUT /jobs/:id');
   }
 });
 
@@ -2393,8 +2373,7 @@ router.patch('/jobs/:id/status', async (req, res) => {
       changed: { from: oldStatus, to: job_status }
     });
   } catch (error) {
-    console.error('❌ PATCH /jobs/:id/status error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'PATCH /jobs/:id/status');
   }
 });
 
@@ -2439,8 +2418,7 @@ router.delete('/jobs/:id', async (req, res) => {
       data: result.rows[0]
     });
   } catch (error) {
-    console.error('❌ DELETE /jobs/:id error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'DELETE /jobs/:id');
   }
 });
 
@@ -2557,8 +2535,7 @@ router.post('/jobs', async (req, res) => {
         : 'Job created successfully'
     });
   } catch (error) {
-    console.error('❌ POST /jobs error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /jobs');
   }
 });
 
@@ -2829,11 +2806,7 @@ router.post('/sync/sheets-to-sql', async (req, res) => {
       ...results
     });
   } catch (error) {
-    console.error('❌ POST /sync/sheets-to-sql error:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    safeError(res, error, 'POST /sync/sheets-to-sql');
   }
 });
 
@@ -2888,8 +2861,7 @@ router.get('/system-logs', async (req, res) => {
       data: result.rows
     });
   } catch (error) {
-    console.error('❌ GET /system-logs error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /system-logs');
   }
 });
 
@@ -2945,7 +2917,7 @@ router.get('/users', async (req, res) => {
     ])).filter(Boolean).sort();
     res.json({ success: true, data: names });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /users');
   }
 });
 
@@ -2966,7 +2938,7 @@ router.post('/users/register', async (req, res) => {
     );
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /users/register');
   }
 });
 
@@ -2985,6 +2957,8 @@ router.get('/users/:displayName/contact', async (req, res) => {
       return res.json({ success: true, data: { display_name: displayName } });
     }
     const row = result.rows[0];
+    // 遮罩 token — 只告知前端「有設定」或「未設定」，不回傳實際 token
+    const mask = (val) => val ? '••••••••' : '';
     res.json({
       success: true,
       data: {
@@ -2993,16 +2967,15 @@ router.get('/users/:displayName/contact', async (req, res) => {
         contactEmail: row.contact_email,
         lineId: row.line_id,
         telegramHandle: row.telegram_handle,
-        githubToken: row.github_token,
-        linkedinToken: row.linkedin_token,
-        braveApiKey: row.brave_api_key,
-        telegramBotToken: row.telegram_bot_token || '',
+        githubToken: mask(row.github_token),
+        linkedinToken: mask(row.linkedin_token),
+        braveApiKey: mask(row.brave_api_key),
+        telegramBotToken: mask(row.telegram_bot_token),
         telegramChatId: row.telegram_chat_id || '',
       }
     });
   } catch (error) {
-    console.error('❌ GET /users/:displayName/contact error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /users/:displayName/contact');
   }
 });
 
@@ -3016,6 +2989,16 @@ router.put('/users/:displayName/contact', async (req, res) => {
     const { contactPhone, contactEmail, lineId, telegramHandle, githubToken, linkedinToken, braveApiKey,
             telegramBotToken, telegramChatId } = req.body;
 
+    // 遮罩值代表使用者沒有修改 token，跳過不覆寫
+    const MASK = '••••••••';
+    const tokenOrKeep = (val) => (val && val !== MASK) ? val : undefined;
+
+    // Token 欄位：若為遮罩值則保留原值（用 COALESCE 邏輯）
+    const ghToken = tokenOrKeep(githubToken);
+    const liToken = tokenOrKeep(linkedinToken);
+    const braveKey = tokenOrKeep(braveApiKey);
+    const tgBotToken = tokenOrKeep(telegramBotToken);
+
     await pool.query(`
       INSERT INTO user_contacts (display_name, contact_phone, contact_email, line_id, telegram_handle, github_token, linkedin_token, brave_api_key, telegram_bot_token, telegram_chat_id, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
@@ -3024,20 +3007,19 @@ router.put('/users/:displayName/contact', async (req, res) => {
         contact_email = EXCLUDED.contact_email,
         line_id = EXCLUDED.line_id,
         telegram_handle = EXCLUDED.telegram_handle,
-        github_token = EXCLUDED.github_token,
-        linkedin_token = EXCLUDED.linkedin_token,
-        brave_api_key = EXCLUDED.brave_api_key,
-        telegram_bot_token = EXCLUDED.telegram_bot_token,
+        github_token = CASE WHEN $6 IS NOT NULL THEN $6 ELSE user_contacts.github_token END,
+        linkedin_token = CASE WHEN $7 IS NOT NULL THEN $7 ELSE user_contacts.linkedin_token END,
+        brave_api_key = CASE WHEN $8 IS NOT NULL THEN $8 ELSE user_contacts.brave_api_key END,
+        telegram_bot_token = CASE WHEN $9 IS NOT NULL THEN $9 ELSE user_contacts.telegram_bot_token END,
         telegram_chat_id = EXCLUDED.telegram_chat_id,
         updated_at = NOW()
     `, [displayName, contactPhone || null, contactEmail || null, lineId || null, telegramHandle || null,
-        githubToken || null, linkedinToken || null, braveApiKey || null,
-        telegramBotToken || null, telegramChatId || null]);
+        ghToken || null, liToken || null, braveKey || null,
+        tgBotToken || null, telegramChatId || null]);
 
     res.json({ success: true, message: '聯絡資訊已儲存' });
   } catch (error) {
-    console.error('❌ PUT /users/:displayName/contact error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'PUT /users/:displayName/contact');
   }
 });
 
@@ -3067,7 +3049,7 @@ router.get('/guide', (req, res) => {
       res.send(content);
     }
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /guide');
   }
 });
 
@@ -3165,8 +3147,7 @@ router.post('/migrate/extract-links', async (req, res) => {
       details,
     });
   } catch (error) {
-    console.error('extract-links migration error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /migrate/extract-links');
   }
 });
 
@@ -3186,7 +3167,7 @@ router.get('/consultant-sop', (req, res) => {
       res.send(content);
     }
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /consultant-sop');
   }
 });
 
@@ -3206,7 +3187,7 @@ router.get('/scoring-guide', (req, res) => {
       res.send(content);
     }
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /scoring-guide');
   }
 });
 
@@ -3226,7 +3207,7 @@ router.get('/jobs-import-guide', (req, res) => {
       res.send(content);
     }
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /jobs-import-guide');
   }
 });
 
@@ -3246,7 +3227,7 @@ router.get('/resume-guide', (req, res) => {
       res.send(content);
     }
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /resume-guide');
   }
 });
 
@@ -3266,7 +3247,7 @@ router.get('/resume-import-guide', (req, res) => {
       res.send(content);
     }
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /resume-import-guide');
   }
 });
 
@@ -3286,7 +3267,7 @@ router.get('/github-analysis-guide', (req, res) => {
       res.send(content);
     }
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /github-analysis-guide');
   }
 });
 
@@ -3318,8 +3299,7 @@ router.get('/clients', async (req, res) => {
     const result = await withClient(client => client.query(query, params));
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('❌ GET /clients error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /clients');
   }
 });
 
@@ -3330,7 +3310,7 @@ router.get('/clients/:id', async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ success: false, error: 'Client not found' });
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /clients/:id');
   }
 });
 
@@ -3357,8 +3337,7 @@ router.post('/clients', async (req, res) => {
     ));
     res.json({ success: true, data: result.rows[0], message: '客戶已新增' });
   } catch (error) {
-    console.error('❌ POST /clients error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /clients');
   }
 });
 
@@ -3384,8 +3363,7 @@ router.patch('/clients/:id', async (req, res) => {
     if (!result) return; // 404 already sent
     res.json({ success: true, data: result.rows[0], message: '客戶資料已更新' });
   } catch (error) {
-    console.error('❌ PATCH /clients/:id error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'PATCH /clients/:id');
   }
 });
 
@@ -3428,8 +3406,7 @@ router.patch('/clients/:id/status', async (req, res) => {
       prompt_add_job: bd_status === '合作中' && oldStatus !== '合作中'
     });
   } catch (error) {
-    console.error('❌ PATCH /clients/:id/status error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'PATCH /clients/:id/status');
   }
 });
 
@@ -3442,7 +3419,7 @@ router.get('/clients/:id/jobs', async (req, res) => {
     ));
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /clients/:id/jobs');
   }
 });
 
@@ -3455,7 +3432,7 @@ router.get('/clients/:id/contacts', async (req, res) => {
     ));
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /clients/:id/contacts');
   }
 });
 
@@ -3482,8 +3459,7 @@ router.delete('/clients/:id', async (req, res) => {
     if (!clientName) return; // 404 already sent
     res.json({ success: true, message: `客戶「${clientName}」已刪除` });
   } catch (error) {
-    console.error('❌ DELETE /clients/:id error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'DELETE /clients/:id');
   }
 });
 
@@ -3499,7 +3475,7 @@ router.post('/clients/:id/contacts', async (req, res) => {
     ));
     res.json({ success: true, data: result.rows[0], message: '聯絡記錄已新增' });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /clients/:id/contacts');
   }
 });
 
@@ -3512,8 +3488,7 @@ router.get('/clients/:id/submission-rules', async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ success: false, error: 'Client not found' });
     res.json({ success: true, data: result.rows[0].submission_rules || [] });
   } catch (error) {
-    console.error('❌ GET /clients/:id/submission-rules error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /clients/:id/submission-rules');
   }
 });
 
@@ -3529,8 +3504,7 @@ router.put('/clients/:id/submission-rules', async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ success: false, error: 'Client not found' });
     res.json({ success: true, data: result.rows[0].submission_rules, message: '送件規範已更新' });
   } catch (error) {
-    console.error('❌ PUT /clients/:id/submission-rules error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'PUT /clients/:id/submission-rules');
   }
 });
 
@@ -3587,8 +3561,7 @@ router.post('/candidates/:id/check-submission-rules', async (req, res) => {
     const failCount = results.filter(r => r.passed === false).length;
     res.json({ success: true, data: { company_name, results, failCount, totalChecked: results.length } });
   } catch (error) {
-    console.error('❌ POST /candidates/:id/check-submission-rules error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /candidates/:id/check-submission-rules');
   }
 });
 
@@ -3681,7 +3654,7 @@ router.post('/migrate/fix-ai-match-result', async (req, res) => {
 
     res.json({ success: true, fixed, total: rows.rows.length });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'POST /migrate/fix-ai-match-result');
   } finally {
     client.release();
   }
@@ -3722,7 +3695,7 @@ router.get('/github/analyze/:username', async (req, res) => {
 
     res.json({ success: true, data: result });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /github/analyze/:username');
   }
 });
 
@@ -4121,8 +4094,7 @@ router.get('/candidates/:id/job-rankings', async (req, res) => {
       client.release();
     }
   } catch (error) {
-    console.error('❌ GET /candidates/:id/job-rankings error:', error.message);
-    res.status(500).json({ error: error.message });
+    safeError(res, error, 'GET /candidates/:id/job-rankings');
   }
 });
 
@@ -4187,7 +4159,7 @@ router.get('/candidates/:id/github-stats', async (req, res) => {
 
     res.json({ success: true, data: stats });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'GET /candidates/:id/github-stats');
   }
 });
 
@@ -4252,8 +4224,7 @@ router.post('/github/ai-analyze', async (req, res) => {
       jobId: jobId || null
     });
   } catch (error) {
-    console.error('GitHub AI analyze failed:', error);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /github/ai-analyze');
   }
 });
 
@@ -4450,8 +4421,7 @@ router.post('/resume/parse', (req, res) => {
         parsed,
       });
     } catch (e) {
-      console.error('[/api/resume/parse]', e.message, e.stack);
-      res.status(500).json({ success: false, error: e.message });
+      safeError(res, e, 'POST /resume/parse');
     }
   });
 });
@@ -4584,8 +4554,7 @@ router.post('/candidates/:id/resume', async (req, res) => {
       const { data: _data, ...metadata } = newFile;
       res.json({ success: true, file: metadata, total: updated.length });
     } catch (e) {
-      console.error('[POST /candidates/:id/resume]', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      safeError(res, e, 'POST /candidates/:id/resume');
     }
   });
 });
@@ -4624,8 +4593,7 @@ router.get('/candidates/:id/resume/:fileId', async (req, res) => {
     });
     res.send(buffer);
   } catch (e) {
-    console.error('[GET /candidates/:id/resume/:fileId]', e.message);
-    res.status(500).json({ success: false, error: e.message });
+    safeError(res, e, 'GET /candidates/:id/resume/:fileId');
   }
 });
 
@@ -4658,8 +4626,7 @@ router.delete('/candidates/:id/resume/:fileId', async (req, res) => {
 
     res.json({ success: true, message: '檔案已刪除', remaining: updated.length });
   } catch (e) {
-    console.error('[DELETE /candidates/:id/resume/:fileId]', e.message);
-    res.status(500).json({ success: false, error: e.message });
+    safeError(res, e, 'DELETE /candidates/:id/resume/:fileId');
   }
 });
 
@@ -4718,8 +4685,7 @@ router.post('/candidates/:id/enrich', async (req, res) => {
       updated: updated,
     });
   } catch (error) {
-    console.error(`❌ POST /candidates/${id}/enrich error:`, error.message);
-    res.status(500).json({ success: false, error: error.message });
+    safeError(res, error, 'POST /candidates/:id/enrich');
   }
 });
 
@@ -4967,8 +4933,7 @@ router.post('/candidates/backfill-computed', async (req, res) => {
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('backfill-computed error:', err);
-    res.status(500).json({ error: err.message });
+    safeError(res, err, 'POST /candidates/backfill-computed');
   } finally {
     client.release();
   }
@@ -5008,8 +4973,7 @@ router.get('/prompts', async (req, res) => {
 
     res.json({ success: true, data: result.rows });
   } catch (err) {
-    console.error('GET /prompts error:', err);
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'GET /prompts');
   }
 });
 
@@ -5021,7 +4985,7 @@ router.get('/prompts/:id', async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ success: false, error: '找不到提示詞' });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'GET /prompts/:id');
   }
 });
 
@@ -5042,7 +5006,7 @@ router.post('/prompts', async (req, res) => {
     );
     res.json({ success: true, data: result.rows[0], message: '提示詞已新增' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'POST /prompts');
   }
 });
 
@@ -5065,7 +5029,7 @@ router.patch('/prompts/:id', async (req, res) => {
     );
     res.json({ success: true, data: result.rows[0], message: '提示詞已更新' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'PATCH /prompts/:id');
   }
 });
 
@@ -5077,7 +5041,7 @@ router.delete('/prompts/:id', async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ success: false, error: '找不到提示詞' });
     res.json({ success: true, message: '已刪除' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'DELETE /prompts/:id');
   }
 });
 
@@ -5120,7 +5084,7 @@ router.post('/prompts/:id/upvote', async (req, res) => {
     res.json({ success: true, data: updated.rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'POST /prompts/:id/upvote');
   } finally {
     client.release();
   }
@@ -5159,7 +5123,7 @@ router.post('/prompts/:id/pin', async (req, res) => {
     res.json({ success: true, data: updated.rows[0], message: action === 'pin' ? '已置頂' : '已取消置頂' });
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'POST /prompts/:id/pin');
   } finally {
     client.release();
   }
@@ -5211,8 +5175,7 @@ router.get('/notifications', async (req, res) => {
 
     res.json({ success: true, data: filtered, unreadCount });
   } catch (err) {
-    console.error('❌ GET /notifications error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'GET /notifications');
   }
 });
 
@@ -5238,8 +5201,7 @@ router.post('/notifications', async (req, res) => {
 
     res.json({ success: true, message: '通知已發布' });
   } catch (err) {
-    console.error('❌ POST /notifications error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'POST /notifications');
   }
 });
 
@@ -5261,8 +5223,7 @@ router.patch('/notifications/:id/read', async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error('❌ PATCH /notifications/:id/read error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'PATCH /notifications/:id/read');
   }
 });
 
@@ -5284,8 +5245,7 @@ router.patch('/notifications/read-all', async (req, res) => {
 
     res.json({ success: true, message: '已全部標記已讀' });
   } catch (err) {
-    console.error('❌ PATCH /notifications/read-all error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'PATCH /notifications/read-all');
   }
 });
 
@@ -5297,6 +5257,19 @@ router.patch('/notifications/read-all', async (req, res) => {
  */
 router.post('/webhooks/github', async (req, res) => {
   try {
+    // HMAC-SHA256 簽名驗證（需在 GitHub Webhook 設定 Secret，並設定 GITHUB_WEBHOOK_SECRET 環境變數）
+    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET;
+    if (webhookSecret) {
+      const signature = req.headers['x-hub-signature-256'];
+      if (!signature || !req.rawBody) {
+        return res.status(401).json({ success: false, error: 'Missing signature' });
+      }
+      const expected = 'sha256=' + crypto.createHmac('sha256', webhookSecret).update(req.rawBody).digest('hex');
+      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+        return res.status(401).json({ success: false, error: 'Invalid signature' });
+      }
+    }
+
     const event = req.headers['x-github-event'];
 
     if (event === 'push') {
@@ -5338,8 +5311,7 @@ router.post('/webhooks/github', async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error('❌ POST /webhooks/github error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'POST /webhooks/github');
   }
 });
 
@@ -5355,7 +5327,7 @@ router.get('/system-config/:key', async (req, res) => {
     const result = await pool.query('SELECT value FROM system_config WHERE key = $1', [key]);
     res.json({ success: true, value: result.rows[0]?.value || '' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'GET /system-config/:key');
   }
 });
 
@@ -5363,9 +5335,20 @@ router.get('/system-config/:key', async (req, res) => {
  * PUT /api/system-config/:key
  * 更新系統設定值
  */
+// 允許前端修改的設定 key 白名單
+const ALLOWED_CONFIG_KEYS = new Set([
+  'telegram_group_bot_token',
+  'telegram_group_chat_id',
+  'ai_model_preference',
+  'system_announcement',
+]);
+
 router.put('/system-config/:key', async (req, res) => {
   try {
     const { key } = req.params;
+    if (!ALLOWED_CONFIG_KEYS.has(key)) {
+      return res.status(400).json({ success: false, error: `不允許修改設定：${key}` });
+    }
     const { value } = req.body;
     await pool.query(`
       INSERT INTO system_config (key, value, updated_at) VALUES ($1, $2, NOW())
@@ -5373,7 +5356,7 @@ router.put('/system-config/:key', async (req, res) => {
     `, [key, value || '']);
     res.json({ success: true, message: '設定已更新' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    safeError(res, err, 'PUT /system-config/:key');
   }
 });
 
