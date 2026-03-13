@@ -276,10 +276,10 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 rounded-2xl p-8 text-white shadow-lg">
+      <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 rounded-2xl p-5 sm:p-8 text-white shadow-lg">
         <div className="flex items-center gap-3 mb-2">
-          <BookOpen className="w-8 h-8" />
-          <h1 className="text-2xl font-black">獵頭顧問 SOP 使用手冊</h1>
+          <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" />
+          <h1 className="text-xl sm:text-2xl font-black">獵頭顧問 SOP 使用手冊</h1>
         </div>
         <p className="text-blue-100 mt-2">
           本手冊教你如何使用 Step1ne 系統管理候選人追蹤表，每個 Pipeline 階段的用意、操作方式與最佳實務。
@@ -287,23 +287,23 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
       </div>
 
       {/* Section Tabs */}
-      <div className="flex gap-2 bg-white rounded-xl p-2 shadow-sm border border-gray-100">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white rounded-xl p-2 shadow-sm border border-gray-100">
         {[
-          { id: 'pipeline' as const, label: '📊 Pipeline 階段說明', desc: '每個欄位代表什麼' },
-          { id: 'workflow' as const, label: '📅 日常工作流程', desc: '每天該做什麼' },
-          { id: 'features' as const, label: '🛠️ 系統功能速查', desc: '常用功能在哪裡' },
-          { id: 'playbook' as const, label: '📖 獵頭 Playbook', desc: '操作心法與方法論' },
+          { id: 'pipeline' as const, label: '📊 Pipeline', labelFull: '📊 Pipeline 階段說明', desc: '每個欄位代表什麼' },
+          { id: 'workflow' as const, label: '📅 日常流程', labelFull: '📅 日常工作流程', desc: '每天該做什麼' },
+          { id: 'features' as const, label: '🛠️ 功能速查', labelFull: '🛠️ 系統功能速查', desc: '常用功能在哪裡' },
+          { id: 'playbook' as const, label: '📖 Playbook', labelFull: '📖 獵頭 Playbook', desc: '操作心法與方法論' },
         ].map(s => (
           <button
             key={s.id}
             onClick={() => setActiveSection(s.id)}
-            className={`flex-1 py-3 px-4 rounded-lg transition-all text-left ${
+            className={`py-3 px-3 sm:px-4 rounded-lg transition-all text-left ${
               activeSection === s.id
                 ? 'bg-indigo-600 text-white shadow-md'
                 : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
-            <div className="font-semibold text-sm">{s.label}</div>
+            <div className="font-semibold text-sm"><span className="sm:hidden">{s.label}</span><span className="hidden sm:inline">{s.labelFull}</span></div>
             <div className={`text-xs mt-0.5 ${activeSection === s.id ? 'text-indigo-200' : 'text-gray-400'}`}>{s.desc}</div>
           </button>
         ))}
@@ -657,11 +657,12 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
                       <span className="text-[10px] text-gray-400 ml-2 uppercase">{funnel.sub}</span>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                  <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 mb-3">
                     {funnel.steps.map((step, j) => (
                       <React.Fragment key={j}>
-                        <span className="text-xs bg-white/80 px-2 py-1 rounded-md border border-gray-200 text-gray-700">{step}</span>
-                        {j < funnel.steps.length - 1 && <ArrowRight className="w-3 h-3 text-gray-400 shrink-0" />}
+                        <span className="text-[10px] sm:text-xs bg-white/80 px-1.5 sm:px-2 py-1 rounded-md border border-gray-200 text-gray-700">{step}</span>
+                        {j < funnel.steps.length - 1 && <ArrowRight className="w-3 h-3 text-gray-400 shrink-0 hidden sm:block" />}
+                        {j < funnel.steps.length - 1 && <span className="text-gray-400 text-[10px] sm:hidden">→</span>}
                       </React.Fragment>
                     ))}
                   </div>
@@ -686,7 +687,7 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
                 { label: '公司類型', icon: '🏛️', color: 'bg-violet-50 text-violet-700 border-violet-200' },
                 { label: '工作文化', icon: '🤝', color: 'bg-rose-50 text-rose-700 border-rose-200' },
               ].map((d, i) => (
-                <span key={i} className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium ${d.color}`}>
+                <span key={i} className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium ${d.color}`}>
                   <span>{d.icon}</span> {d.label}
                 </span>
               ))}
@@ -840,7 +841,7 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
                 { years: '7 年 DevOps', range: '140K - 180K', pct: 85 },
               ].map((row, i) => (
                 <div key={i} className="flex items-center gap-3">
-                  <div className="w-28 text-sm font-medium text-gray-700 shrink-0">{row.years}</div>
+                  <div className="w-20 sm:w-28 text-xs sm:text-sm font-medium text-gray-700 shrink-0">{row.years}</div>
                   <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full flex items-center justify-end pr-2 transition-all"
