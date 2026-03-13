@@ -103,7 +103,8 @@ export async function getCandidates(): Promise<Candidate[]> {
     // 使用 fetch 呼叫本地的 gog CLI（需要在 dev server 設定 proxy）
     // 或直接在前端執行（需要 OAuth）
     // 這裡假設有後端 API endpoint
-    const response = await fetch(`/api/candidates`);
+    const { getAuthHeaders } = await import('../config/api');
+    const response = await fetch(`/api/candidates`, { headers: getAuthHeaders() });
     
     if (!response.ok) {
       throw new Error('無法讀取候選人資料');
@@ -136,9 +137,10 @@ export async function getCandidates(): Promise<Candidate[]> {
  */
 export async function addCandidate(candidate: Candidate): Promise<Candidate> {
   try {
+    const { getAuthHeaders } = await import('../config/api');
     const response = await fetch('/api/candidates', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(candidate)
     });
     
@@ -163,9 +165,10 @@ export async function addCandidate(candidate: Candidate): Promise<Candidate> {
  */
 export async function updateCandidate(candidate: Candidate): Promise<Candidate> {
   try {
+    const { getAuthHeaders } = await import('../config/api');
     const response = await fetch(`/api/candidates/${candidate.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(candidate)
     });
     
@@ -190,8 +193,10 @@ export async function updateCandidate(candidate: Candidate): Promise<Candidate> 
  */
 export async function deleteCandidate(id: string): Promise<void> {
   try {
+    const { getAuthHeaders } = await import('../config/api');
     const response = await fetch(`/api/candidates/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     
     if (!response.ok) {
@@ -214,9 +219,10 @@ export async function batchUpdateCandidateStatus(
   newStatus: CandidateStatus
 ): Promise<void> {
   try {
+    const { getAuthHeaders } = await import('../config/api');
     const response = await fetch('/api/candidates/batch-update-status', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ candidateIds, newStatus })
     });
     

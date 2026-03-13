@@ -58,9 +58,10 @@ const App: React.FC = () => {
           setProfile(p);
           // 登入時自動登記顧問名稱（僅生產環境，本機 mock 無此路由）
           if (import.meta.env.PROD) {
+            const { getAuthHeaders } = await import('./config/api');
             fetch(`${API_BASE_URL}/api/users/register`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getAuthHeaders(),
               body: JSON.stringify({ displayName: p.displayName }),
             }).catch(() => {/* 靜默失敗，不影響登入流程 */});
           }

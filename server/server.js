@@ -110,6 +110,49 @@ app.use((req, res, next) => {
   next();
 });
 
+// ==================== API 認證中間件 ====================
+
+const API_SECRET_KEY = process.env.API_SECRET_KEY;
+if (!API_SECRET_KEY) {
+  console.warn('⚠️ API_SECRET_KEY 未設定，API 端點將不受認證保護');
+}
+
+function apiAuth(req, res, next) {
+  // 未設定 key 時跳過認證（開發模式相容）
+  if (!API_SECRET_KEY) return next();
+
+  // 白名單：不需要認證的端點
+  // 注意：因為 app.use('/api', apiAuth) 會 strip 掉 /api 前綴
+  // 所以 req.path 是 /health 而非 /api/health
+  const publicPaths = [
+    '/health',
+    '/webhooks/github',     // GitHub webhook 有自己的 HMAC 驗證
+  ];
+  if (publicPaths.some(p => req.path === p || req.path.startsWith(p + '/'))) {
+    return next();
+  }
+
+  // OpenClaw 路由有自己的 X-OpenClaw-Key 認證，這裡允許通過
+  if (req.path.startsWith('/openclaw')) {
+    return next();
+  }
+
+  // 檢查 Bearer token
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token || token !== API_SECRET_KEY) {
+    return res.status(401).json({
+      success: false,
+      error: '未授權：缺少或無效的 API Key'
+    });
+  }
+
+  next();
+}
+
+app.use('/api', apiAuth);
+
 // ==================== 路由 ====================
 
 // 完整的 API 路由（候選人 + 職缺）
