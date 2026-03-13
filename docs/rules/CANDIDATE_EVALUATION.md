@@ -46,6 +46,7 @@
 
 ```bash
 curl "https://backendstep1ne.zeabur.app/api/candidates?limit=1000" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   | jq '.data[] | {id, name, status, skills}'
 ```
 
@@ -181,6 +182,7 @@ def generate_probing_questions(position, candidate_skills):
 ```bash
 curl -X PUT "https://backendstep1ne.zeabur.app/api/candidates/540" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{"aiMatchResult": {...}}'
 ```
 
@@ -189,6 +191,7 @@ curl -X PUT "https://backendstep1ne.zeabur.app/api/candidates/540" \
 ```bash
 curl -X PUT "https://backendstep1ne.zeabur.app/api/candidates/540" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{"status": "AI推薦", "aiMatchResult": {...}}'
 ```
 
@@ -230,10 +233,13 @@ import json
 def batch_update_candidates(candidate_ids, ai_match_results):
     """批量更新候選人的 AI 評分"""
     
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer YOUR_API_KEY"
+    }
     updated = 0
     failed = 0
-    
+
     for cid, ai_match in zip(candidate_ids, ai_match_results):
         try:
             url = f"https://backendstep1ne.zeabur.app/api/candidates/{cid}"
@@ -269,6 +275,7 @@ def batch_update_candidates(candidate_ids, ai_match_results):
 
 ```bash
 curl -s "https://backendstep1ne.zeabur.app/api/candidates/540" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   | jq '.data.aiMatchResult'
 ```
 
@@ -373,6 +380,7 @@ batch_update_candidates(
 ```bash
 # 查詢評分結果
 curl -s "https://backendstep1ne.zeabur.app/api/candidates?limit=100" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   | jq '.data[] | select(.status == "AI推薦") | {id, name, score: .aiMatchResult.score}'
 ```
 
@@ -391,6 +399,7 @@ curl -s "https://backendstep1ne.zeabur.app/api/candidates?limit=100" \
 
 ```bash
 curl -s "https://backendstep1ne.zeabur.app/api/candidates?limit=50&offset=0" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   | jq '.data | length'
 ```
 
@@ -399,6 +408,7 @@ curl -s "https://backendstep1ne.zeabur.app/api/candidates?limit=50&offset=0" \
 ```bash
 curl -X PUT "https://backendstep1ne.zeabur.app/api/candidates/540" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "status": "AI推薦",
     "aiMatchResult": {

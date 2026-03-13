@@ -136,12 +136,15 @@ GOOGLE_ACCOUNT=aijessie88@step1ne.com
 
 ```bash
 # 測試後端健康檢查
+# health 不需認證
 curl http://localhost:3001/api/health
 
 # 測試用戶列表
+# 本地開發如未設定 API_SECRET_KEY 則不需認證
 curl http://localhost:3001/api/users
 
 # 測試候選人列表
+# 本地開發如未設定 API_SECRET_KEY 則不需認證
 curl http://localhost:3001/api/candidates
 ```
 

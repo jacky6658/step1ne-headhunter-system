@@ -64,37 +64,51 @@ https://step1ne.zeabur.app
 - **Production**: https://backendstep1ne.zeabur.app/api
 - **Local**: http://localhost:3001/api
 
+### 認證（必須）
+所有 API 請求都需要帶 Authorization Header：
+Authorization: Bearer <API_SECRET_KEY>
+
+OpenClaw 端點用不同的 Header：
+X-OpenClaw-Key: <OPENCLAW_API_KEY>
+
 ### 可用 API
 
 #### 1. 取得候選人列表
-GET /api/candidates
+GET /api/candidates?limit=2000
 
 #### 2. 取得單一候選人
 GET /api/candidates/:id
 
-#### 3. 評級候選人
-POST /api/candidates/:id/grade
+#### 3. 新增候選人
+POST /api/candidates
 
-#### 4. 批量評級
-POST /api/candidates/batch-grade
+#### 4. 批量匯入候選人（最多 100 筆）
+POST /api/candidates/bulk
+
+#### 5. 更新 Pipeline 狀態
+PUT /api/candidates/:id/pipeline-status
 
 ### 範例（使用 curl）
 
-# 取得所有候選人
-curl https://backendstep1ne.zeabur.app/api/candidates
+# 取得所有候選人（⚠️ 必須帶 Authorization header）
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  'https://backendstep1ne.zeabur.app/api/candidates?limit=2000'
 
-# 評級候選人
-curl -X POST https://backendstep1ne.zeabur.app/api/candidates/candidate-10/grade
+# 新增候選人
+curl -X POST -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"王小明","position":"Frontend","email":"wang@test.com","actor":"Jacky-aibot"}' \
+  https://backendstep1ne.zeabur.app/api/candidates
 ```
 
 **步驟 2**：AI 可以直接呼叫 API
 
 ```bash
-# 方式 A：使用 exec tool
-openclaw exec "curl https://backendstep1ne.zeabur.app/api/candidates"
+# 方式 A：使用 exec tool（⚠️ 記得帶 -H "Authorization: Bearer KEY"）
+openclaw exec 'curl -H "Authorization: Bearer YOUR_API_KEY" https://backendstep1ne.zeabur.app/api/candidates?limit=2000'
 
 # 方式 B：使用 fetch (如果有 web_fetch tool)
-# web_fetch("https://backendstep1ne.zeabur.app/api/candidates")
+# web_fetch("https://backendstep1ne.zeabur.app/api/candidates?limit=2000", headers={"Authorization": "Bearer YOUR_API_KEY"})
 ```
 
 **步驟 3**：解析 JSON 並使用資料
@@ -248,21 +262,30 @@ const users = [
 
 當用戶詢問候選人相關問題時，使用以下 API：
 
+### 認證
+所有請求必須帶 Header：
+Authorization: Bearer <API_SECRET_KEY>
+
 ### 查詢候選人
-curl https://backendstep1ne.zeabur.app/api/candidates
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  'https://backendstep1ne.zeabur.app/api/candidates?limit=2000'
 
 ### 篩選範例
 # 找 Python 工程師
-curl 'https://backendstep1ne.zeabur.app/api/candidates' | jq '.data[] | select(.skills | contains("Python"))'
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  'https://backendstep1ne.zeabur.app/api/candidates?limit=2000' \
+  | jq '.data[] | select(.skills | contains("Python"))'
 
 # 找 S 級候選人
-curl 'https://backendstep1ne.zeabur.app/api/candidates' | jq '.data[] | select(.talentGrade == "S")'
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  'https://backendstep1ne.zeabur.app/api/candidates?limit=2000' \
+  | jq '.data[] | select(.talentGrade == "S")'
 ```
 
 **步驟 2**：Bot 自動呼叫
 
 當用戶問「有沒有 Python 工程師」時，Bot 會：
-1. 執行 `curl https://backendstep1ne.zeabur.app/api/candidates`
+1. 執行 `curl -H "Authorization: Bearer KEY" 'https://backendstep1ne.zeabur.app/api/candidates?limit=2000'`
 2. 解析 JSON
 3. 篩選 `skills` 欄位包含 "Python"
 4. 返回候選人名單
@@ -304,9 +327,10 @@ curl 'https://backendstep1ne.zeabur.app/api/candidates' | jq '.data[] | select(.
 
 ### Q2: AI 如何自動查詢候選人？
 
-**A**: 在 AI 的工具配置中加入：
+**A**: 在 AI 的工具配置中加入（⚠️ 必須帶認證 Header）：
 ```bash
-curl https://backendstep1ne.zeabur.app/api/candidates
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  'https://backendstep1ne.zeabur.app/api/candidates?limit=2000'
 ```
 
 AI 可以用 `exec` tool 呼叫，解析 JSON 後回答用戶問題。
@@ -340,5 +364,5 @@ AI 可以用 `exec` tool 呼叫，解析 JSON 後回答用戶問題。
 
 ---
 
-**最後更新**: 2026-02-23  
+**最後更新**: 2026-03-13
 **維護者**: YuQi (@YuQi0923_bot)

@@ -104,6 +104,7 @@ Phoebe: [上傳 resume_王小明.pdf]
 ```bash
 curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "name": "王小明",
     "email": "wang@example.com",

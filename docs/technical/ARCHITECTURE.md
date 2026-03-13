@@ -255,9 +255,11 @@ SELECT * FROM candidates_pipeline WHERE consultant='Jacky' LIMIT 10;
 SELECT * FROM google_sheets_sync_log WHERE synced_to_sheets=FALSE;
 
 # 手動同步
+# 本地開發如未設定 API_SECRET_KEY 則不需認證
 curl -X POST http://localhost:3001/api/sync/pending
 
 # 健康檢查
+# health 不需認證
 curl http://localhost:3001/api/health
 ```
 
