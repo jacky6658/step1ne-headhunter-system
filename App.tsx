@@ -1,31 +1,40 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { onAuthStateChanged, signOut, type User, auth } from './mockBackend';
 import { getUserProfile } from './services/userService';
 import { UserProfile, Role } from './types';
 import Sidebar from './components/Sidebar';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
 import NotificationBell from './components/NotificationBell';
-import MembersPage from './pages/MembersPage';
-import MigrationPage from './pages/MigrationPage';
-import HelpPage from './pages/HelpPage';
-import SOPGuidePage from './pages/SOPGuidePage';
-import AIGuidePageNew from './pages/AIGuidePageNew';
 import LoginPage from './pages/LoginPage';
-// 新增: 候選人管理頁面
-import { CandidatesPage } from './pages/CandidatesPage';
-
-import { JobsPage } from './pages/JobsPage';
-import { PipelinePage } from './pages/PipelinePage';
-import { SystemLogPage } from './pages/SystemLogPage';
-import { BDClientsPage } from './pages/BDClientsPage';
-import { CrawlerDashboardPage } from './pages/CrawlerDashboardPage';
-import { AIProgressPage } from './pages/AIProgressPage';
-import { OperationsDashboardPage } from './pages/OperationsDashboardPage';
-import { PromptLibraryPage } from './pages/PromptLibraryPage';
-import { OverviewDashboardPage } from './pages/OverviewDashboardPage';
+import { ToastContainer } from './components/Toast';
 import { Menu, X as XIcon } from 'lucide-react';
 import { API_BASE_URL } from './constants';
+
+// ── Code Splitting: React.lazy 延遲載入所有頁面 ──
+// 只有使用者實際切換到該分頁時才會下載對應的 JS chunk
+const CandidatesPage = React.lazy(() => import('./pages/CandidatesPage').then(m => ({ default: m.CandidatesPage })));
+const JobsPage = React.lazy(() => import('./pages/JobsPage').then(m => ({ default: m.JobsPage })));
+const PipelinePage = React.lazy(() => import('./pages/PipelinePage').then(m => ({ default: m.PipelinePage })));
+const SystemLogPage = React.lazy(() => import('./pages/SystemLogPage').then(m => ({ default: m.SystemLogPage })));
+const BDClientsPage = React.lazy(() => import('./pages/BDClientsPage').then(m => ({ default: m.BDClientsPage })));
+const CrawlerDashboardPage = React.lazy(() => import('./pages/CrawlerDashboardPage'));
+const AIProgressPage = React.lazy(() => import('./pages/AIProgressPage').then(m => ({ default: m.AIProgressPage })));
+const OperationsDashboardPage = React.lazy(() => import('./pages/OperationsDashboardPage'));
+const PromptLibraryPage = React.lazy(() => import('./pages/PromptLibraryPage').then(m => ({ default: m.PromptLibraryPage })));
+const OverviewDashboardPage = React.lazy(() => import('./pages/OverviewDashboardPage').then(m => ({ default: m.OverviewDashboardPage })));
+const MembersPage = React.lazy(() => import('./pages/MembersPage'));
+const MigrationPage = React.lazy(() => import('./pages/MigrationPage'));
+const HelpPage = React.lazy(() => import('./pages/HelpPage'));
+const SOPGuidePage = React.lazy(() => import('./pages/SOPGuidePage'));
+const AIGuidePageNew = React.lazy(() => import('./pages/AIGuidePageNew'));
+
+// ── 頁面切換時的 Loading Spinner ──
+const PageFallback = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
+  </div>
+);
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -245,7 +254,9 @@ const App: React.FC = () => {
           </div>
         </header>
         <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 bg-slate-50/50">
-          {renderContent()}
+          <Suspense fallback={<PageFallback />}>
+            {renderContent()}
+          </Suspense>
         </div>
       </main>
 
@@ -263,6 +274,8 @@ const App: React.FC = () => {
         />
       )}
 
+      {/* 全域 Toast 通知 */}
+      <ToastContainer />
     </div>
   );
 };

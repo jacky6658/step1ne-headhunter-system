@@ -3,6 +3,7 @@ import { UserProfile } from '../types';
 import { updateUserProfile } from '../services/userService';
 import { apiPut, apiGet } from '../config/api';
 import { X, Upload, User, MessageSquare, Save, Loader2, Phone, Mail, Hash, Eye, EyeOff, Github, Search } from 'lucide-react';
+import { toast } from './Toast';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -80,13 +81,13 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const processImageFile = (file: File) => {
     // 檢查檔案類型
     if (!file.type.startsWith('image/')) {
-      alert('請選擇圖片檔案');
+      toast.warning('請選擇圖片檔案');
       return;
     }
 
     // 檢查檔案大小（限制 2MB）
     if (file.size > 2 * 1024 * 1024) {
-      alert('圖片大小不能超過 2MB');
+      toast.warning('圖片大小不能超過 2MB');
       return;
     }
 
@@ -129,7 +130,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 
   const handleSave = async () => {
     if (!displayName.trim()) {
-      alert('請輸入暱稱');
+      toast.warning('請輸入暱稱');
       return;
     }
 
@@ -176,7 +177,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       }
     } catch (err) {
       console.error('更新失敗', err);
-      alert('更新失敗，請稍後再試');
+      toast.error('更新失敗，請稍後再試');
     } finally {
       setSaving(false);
     }

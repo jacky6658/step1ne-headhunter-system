@@ -4,6 +4,7 @@ import { Client, BDContact, BDStatus, BD_STATUS_CONFIG, UserProfile, SubmissionR
 import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../config/api';
 import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3, Trash2, Pencil, Check, ClipboardCheck } from 'lucide-react';
 import { SubmissionRulesEditor } from '../components/SubmissionRulesEditor';
+import { toast } from '../components/Toast';
 
 interface BDClientsPageProps {
   userProfile: UserProfile;
@@ -101,11 +102,11 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
           if (ok && onNavigateToJobs) onNavigateToJobs();
         }
       }
-    } catch (e) { alert('❌ 更新狀態失敗'); }
+    } catch (e) { toast.error('更新狀態失敗'); }
   };
 
   const handleAddClient = async () => {
-    if (!addForm.company_name.trim()) { alert('請填寫公司名稱'); return; }
+    if (!addForm.company_name.trim()) { toast.warning('請填寫公司名稱'); return; }
     setAddLoading(true);
     try {
       const result = await apiPost<any>('/clients', {
@@ -117,7 +118,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
         setAddForm(emptyForm);
         await loadClients();
       }
-    } catch (e) { alert('❌ 新增失敗：' + (e as Error).message); }
+    } catch (e) { toast.error('新增失敗：' + (e as Error).message); }
     finally { setAddLoading(false); }
   };
 
@@ -155,7 +156,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
         setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
         setEditingInfo(false);
       }
-    } catch (e) { alert('❌ 儲存失敗'); }
+    } catch (e) { toast.error('儲存失敗'); }
     finally { setSaveLoading(false); }
   };
 
@@ -169,7 +170,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
         setContactForm({ contact_date: new Date().toISOString().slice(0, 10), contact_type: '電話', summary: '', next_action: '', next_action_date: '', by_user: userProfile.displayName });
         await loadContacts(selectedClient.id);
       }
-    } catch (e) { alert('❌ 新增失敗'); }
+    } catch (e) { toast.error('新增失敗'); }
     finally { setContactLoading(false); }
   };
 
@@ -183,7 +184,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
         setClients(prev => prev.filter(c => c.id !== client.id));
         setSelectedClient(null);
       }
-    } catch (e) { alert('❌ 刪除失敗：' + (e as Error).message); }
+    } catch (e) { toast.error('刪除失敗：' + (e as Error).message); }
     finally { setDeleteLoading(false); }
   };
 
@@ -194,7 +195,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
   };
 
   const handleSaveRename = async () => {
-    if (!selectedClient || !renameValue.trim()) { alert('公司名稱不能為空'); return; }
+    if (!selectedClient || !renameValue.trim()) { toast.warning('公司名稱不能為空'); return; }
     setSaveLoading(true);
     try {
       const result = await apiPatch<any>(`/clients/${selectedClient.id}`, { company_name: renameValue.trim() });
@@ -204,7 +205,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
         setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
         setRenamingTitle(false);
       }
-    } catch (e) { alert('❌ 重命名失敗'); }
+    } catch (e) { toast.error('重命名失敗'); }
     finally { setSaveLoading(false); }
   };
 

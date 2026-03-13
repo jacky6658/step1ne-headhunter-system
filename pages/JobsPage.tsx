@@ -3,6 +3,7 @@ import { UserProfile } from '../types';
 import { Briefcase, Search, Building2, Users, Target, TrendingUp, FileText, Edit3, Save, X as XIcon, Bot, Plus, Trash2, AlertTriangle, ClipboardCheck, ShieldAlert, Hash } from 'lucide-react';
 import { apiGet, apiPut, apiPost, apiDelete } from '../config/api';
 import { fmtDate } from '../utils/dateFormat';
+import { toast } from '../components/Toast';
 
 interface JobsPageProps {
   userProfile: UserProfile;
@@ -282,7 +283,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
       } : null);
       setEditingSearch(false);
     } catch {
-      alert('儲存失敗，請稍後再試');
+      toast.error('儲存失敗，請稍後再試');
     } finally {
       setSavingSearch(false);
     }
@@ -297,7 +298,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
       setJobs(prev => prev.map(j => j.id === selectedJob.id ? { ...j, job_description: jdDraft } : j));
       setEditingJD(false);
     } catch {
-      alert('儲存失敗，請稍後再試');
+      toast.error('儲存失敗，請稍後再試');
     } finally {
       setSavingJD(false);
     }
@@ -347,7 +348,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
     // 新增模式
     if (isCreating) {
       if (!basicDraft.position_name?.trim()) {
-        alert('職位名稱為必填欄位');
+        toast.warning('職位名稱為必填欄位');
         return;
       }
       setSavingCreate(true);
@@ -363,7 +364,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
           showNotification('success', '職缺建立成功');
         }
       } catch {
-        alert('建立職缺失敗，請稍後再試');
+        toast.error('建立職缺失敗，請稍後再試');
       } finally {
         setSavingCreate(false);
       }
@@ -379,7 +380,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
       setJobs(prev => prev.map(j => j.id === selectedJob.id ? { ...j, ...basicDraft } as Job : j));
       setEditingBasic(false);
     } catch {
-      alert('儲存失敗，請稍後再試');
+      toast.error('儲存失敗，請稍後再試');
     } finally {
       setSavingBasic(false);
     }
@@ -396,7 +397,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
       setShowDeleteConfirm(false);
       showNotification('success', '職缺已成功刪除');
     } catch {
-      alert('刪除失敗，請稍後再試');
+      toast.error('刪除失敗，請稍後再試');
     } finally {
       setDeletingJobId(null);
     }

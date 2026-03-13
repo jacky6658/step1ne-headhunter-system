@@ -5,6 +5,7 @@ import { Candidate, SubmissionRule, SubmissionCheckResult } from '../types';
 import { RADAR_DIMENSIONS, computeAutoScores, computeOverallRating } from './RadarChart';
 import { ConsultantEvaluation } from '../types';
 import { apiGet } from '../config/api';
+import { toast } from './Toast';
 import { SubmissionCheckModal, evaluateRulesLocally } from './SubmissionCheckModal';
 
 // ═══════════════════════════════════════════════════════════════
@@ -1566,7 +1567,7 @@ export function generateResumePDF(candidate: Candidate, candidateLabel?: string,
 
   const printWindow = window.open('', '_blank', 'width=800,height=1100');
   if (!printWindow) {
-    alert('請允許彈出視窗以產生履歷 PDF');
+    toast.warning('請允許彈出視窗以產生履歷 PDF');
     return;
   }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UserProfile, Role, Prompt, PromptCategory, Candidate, Job, Client } from '../types';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../config/api';
 import { Plus, ThumbsUp, Pin, Copy, Check, Trash2, Edit3, X, ChevronDown, ChevronUp, RefreshCw, Database, Link2, Server } from 'lucide-react';
+import { toast } from '../components/Toast';
 
 interface Props {
   userProfile: UserProfile;
@@ -1022,7 +1023,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
 
   // ── 新增提示詞 ──
   const handleAdd = async () => {
-    if (!addForm.title.trim() || !addForm.content.trim()) return alert('請填寫標題和內容');
+    if (!addForm.title.trim() || !addForm.content.trim()) return toast.warning('請填寫標題和內容');
     setSaving(true);
     try {
       const result = await apiPost<{ success: boolean; data: Prompt }>('/prompts', {
@@ -1037,7 +1038,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
         setAddForm({ title: '', content: '' });
       }
     } catch (e) {
-      alert('新增失敗');
+      toast.error('新增失敗');
     } finally {
       setSaving(false);
     }
@@ -1058,7 +1059,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
         setEditingPrompt(null);
       }
     } catch (e) {
-      alert('更新失敗');
+      toast.error('更新失敗');
     } finally {
       setSaving(false);
     }
@@ -1071,7 +1072,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
       await apiDelete(`/prompts/${id}`);
       setPrompts(prev => prev.filter(p => p.id !== id));
     } catch (e) {
-      alert('刪除失敗');
+      toast.error('刪除失敗');
     }
   };
 
@@ -1093,7 +1094,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
       await apiPost(`/prompts/${id}/pin`, { action, actor: viewer });
       loadPrompts();
     } catch (e) {
-      alert('置頂操作失敗');
+      toast.error('置頂操作失敗');
     }
   };
 

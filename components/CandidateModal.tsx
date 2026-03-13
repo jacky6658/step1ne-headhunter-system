@@ -5,6 +5,7 @@ import { ResumePreview } from './ResumeGenerator';
 import { RadarChart, RADAR_DIMENSIONS, computeAutoScores, computeOverallRating } from './RadarChart';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
 import { apiPatch, apiGet, getApiUrl } from '../config/api';
+import { toast } from './Toast';
 import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
@@ -352,7 +353,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
         actor: currentUserName || userName,
       });
 
-      alert('✅ 進度新增成功！看板與 Pipeline 欄位已同步更新');
+      toast.success('進度新增成功！看板與 Pipeline 欄位已同步更新');
       // 即時更新 UI 而非整頁重載
       onCandidateUpdate?.(candidate.id, {
         status: newStatus,
@@ -361,7 +362,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
 
     } catch (error) {
       console.error('❌ 新增進度失敗:', error);
-      alert('❌ 新增進度失敗，請稍後再試');
+      toast.error('新增進度失敗，請稍後再試');
     } finally {
       setAddingProgress(false);
       setNewProgressEvent('');
@@ -410,7 +411,7 @@ Step1ne Recruitment`;
       onCandidateUpdate?.(candidate.id, { consultant: recruiterInput });
       setEditingRecruiter(false);
     } catch (err) {
-      alert('❌ 指派失敗，請稍後再試');
+      toast.error('指派失敗，請稍後再試');
     }
   };
 
@@ -426,7 +427,7 @@ Step1ne Recruitment`;
       setTargetJobInput(jobLabel);
       setEditingTargetJob(false);
     } catch (err) {
-      alert('❌ 儲存目標職缺失敗，請稍後再試');
+      toast.error('儲存目標職缺失敗，請稍後再試');
     } finally {
       setSavingTargetJob(false);
     }
@@ -450,7 +451,7 @@ Step1ne Recruitment`;
       setLocalNotes(merged);
       setNewNoteText('');
     } catch (err) {
-      alert('❌ 儲存備註失敗，請稍後再試');
+      toast.error('儲存備註失敗，請稍後再試');
     } finally {
       setSavingNote(false);
     }
@@ -467,7 +468,7 @@ Step1ne Recruitment`;
       await apiPatch(`/api/candidates/${candidate.id}`, { notes: newNotes, actor: author });
       setLocalNotes(newNotes);
     } catch {
-      alert('❌ 刪除備註失敗，請稍後再試');
+      toast.error('刪除備註失敗，請稍後再試');
     }
   };
 
@@ -482,7 +483,7 @@ Step1ne Recruitment`;
       (candidate as any).linkedinUrl = linkedinInput.trim();
       setEditingLinkedin(false);
     } catch (err) {
-      alert('❌ 儲存 LinkedIn 失敗，請稍後再試');
+      toast.error('儲存 LinkedIn 失敗，請稍後再試');
     } finally {
       setSavingLinkedin(false);
     }
@@ -499,7 +500,7 @@ Step1ne Recruitment`;
       (candidate as any).githubUrl = githubInput.trim();
       setEditingGithub(false);
     } catch (err) {
-      alert('❌ 儲存 GitHub 失敗，請稍後再試');
+      toast.error('儲存 GitHub 失敗，請稍後再試');
     } finally {
       setSavingGithub(false);
     }
@@ -660,7 +661,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       (candidate as any).portfolioUrl = portfolioInput.trim();
       setEditingPortfolio(false);
     } catch (err) {
-      alert('❌ 儲存作品集失敗，請稍後再試');
+      toast.error('儲存作品集失敗，請稍後再試');
     } finally {
       setSavingPortfolio(false);
     }
@@ -677,7 +678,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       (candidate as any).biography = bioInput.trim();
       setEditingBio(false);
     } catch (err) {
-      alert('❌ 儲存自傳失敗，請稍後再試');
+      toast.error('儲存自傳失敗，請稍後再試');
     } finally {
       setSavingBio(false);
     }
@@ -706,7 +707,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       setVoiceAudioUrl('');
       setVoiceAnalysis('');
     } catch (err) {
-      alert('❌ 儲存語音評估失敗，請稍後再試');
+      toast.error('儲存語音評估失敗，請稍後再試');
     } finally {
       setSavingVoice(false);
     }
@@ -725,15 +726,15 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       (candidate as any).voiceAssessments = updated;
       setExpandedVoiceId(null);
     } catch (err) {
-      alert('❌ 刪除失敗');
+      toast.error('刪除失敗');
     }
   };
 
   // ── 履歷 PDF 附件上傳 / 預覽 / 下載 / 刪除 ──
   const handleResumeUpload = async (file: File) => {
-    if (file.type !== 'application/pdf') { alert('僅接受 PDF 檔案'); return; }
-    if (file.size > 10 * 1024 * 1024) { alert('檔案大小不可超過 10MB'); return; }
-    if (resumeFiles.length >= 3) { alert('每位候選人最多上傳 3 個 PDF 檔案'); return; }
+    if (file.type !== 'application/pdf') { toast.warning('僅接受 PDF 檔案'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.warning('檔案大小不可超過 10MB'); return; }
+    if (resumeFiles.length >= 3) { toast.warning('每位候選人最多上傳 3 個 PDF 檔案'); return; }
 
     setUploadingResume(true);
     setUploadProgress(0);
@@ -762,7 +763,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       setResumeFiles(prev => [...prev, result.file]);
       (candidate as any).resumeFiles = [...resumeFiles, result.file];
     } catch (err: any) {
-      alert('❌ 上傳失敗：' + err.message);
+      toast.error('上傳失敗：' + err.message);
     } finally {
       setUploadingResume(false);
       setUploadProgress(0);
@@ -785,7 +786,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       setResumeFiles(updated);
       (candidate as any).resumeFiles = updated;
     } catch (err: any) {
-      alert('❌ 刪除失敗：' + err.message);
+      toast.error('刪除失敗：' + err.message);
     }
   };
 
@@ -909,9 +910,9 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       });
       setShowImport(false);
       setImportParsed(null);
-      alert('✅ 已成功套用 PDF 解析資料！');
+      toast.success('已成功套用 PDF 解析資料！');
     } catch (e: any) {
-      alert('❌ 套用失敗：' + e.message);
+      toast.error('套用失敗：' + e.message);
     } finally {
       setApplyingImport(false);
     }
@@ -960,7 +961,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       onCandidateUpdate?.(candidate.id, uiUpdates);
       setEditingBasicInfo(false);
     } catch (err) {
-      alert('❌ 儲存基本資料失敗，請稍後再試');
+      toast.error('儲存基本資料失敗，請稍後再試');
     } finally {
       setSavingBasicInfo(false);
     }
@@ -977,7 +978,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       setWorkItems(items);
       onCandidateUpdate?.(candidate.id, { workHistory: items as any });
     } catch (err) {
-      alert('❌ 儲存工作經歷失敗');
+      toast.error('儲存工作經歷失敗');
     } finally {
       setSavingWork(false);
       setAddingWork(false);
@@ -996,7 +997,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       setEduItems(items);
       onCandidateUpdate?.(candidate.id, { educationJson: items as any });
     } catch (err) {
-      alert('❌ 儲存教育背景失敗');
+      toast.error('儲存教育背景失敗');
     } finally {
       setSavingEdu(false);
       setAddingEdu(false);
@@ -1007,10 +1008,10 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
   // 複製邀請訊息到剪貼簿
   const handleCopyInviteMessage = () => {
     navigator.clipboard.writeText(inviteMessage).then(() => {
-      alert('✅ 邀請訊息已複製到剪貼簿！');
+      toast.success('邀請訊息已複製到剪貼簿！');
     }).catch(err => {
       console.error('複製失敗:', err);
-      alert('❌ 複製失敗，請手動複製');
+      toast.error('複製失敗，請手動複製');
     });
   };
   
@@ -2288,7 +2289,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                             });
                             setConsultEval(evalData);
                             setEditingEval(false);
-                          } catch { alert('❌ 儲存評估失敗'); } finally { setSavingEval(false); }
+                          } catch { toast.error('儲存評估失敗'); } finally { setSavingEval(false); }
                         }}
                         className="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-60"
                       >
