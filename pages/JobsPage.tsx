@@ -177,16 +177,8 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
   };
 
   const showNotification = (type: 'success' | 'error', message: string) => {
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white px-6 py-3 rounded-lg shadow-lg z-[60] flex items-center gap-2`;
-    notification.innerHTML = `
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${type === 'success' ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'}"></path>
-      </svg>
-      <span>${message}</span>
-    `;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
+    if (type === 'success') toast.success(message);
+    else toast.error(message);
   };
 
   const parseTags = (str: string | undefined) =>
