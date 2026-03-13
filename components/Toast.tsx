@@ -9,6 +9,10 @@
  *   toast.info('提示訊息');
  *
  * 在 App.tsx 根層加入 <ToastContainer /> 即可。
+ *
+ * 實作原理：
+ *   使用 CustomEvent 廣播機制，避免 Vite HMR / React StrictMode
+ *   導致的 closure 捕獲到幽靈實例的問題。
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react';
@@ -22,21 +26,18 @@ interface ToastItem {
   leaving?: boolean;
 }
 
-// ── 全域事件匯流排 ──
-type ToastListener = (t: Omit<ToastItem, 'id'>) => void;
-const listeners = new Set<ToastListener>();
-let idCounter = 0;
+type ToastPayload = { type: ToastType; message: string };
 
-function emit(type: ToastType, message: string) {
-  listeners.forEach(fn => fn({ type, message }));
-}
+// ── CustomEvent 名稱（全域唯一）──
+const EVENT_NAME = '__step1ne_toast__';
+let idCounter = 0;
 
 /** 全域 toast 呼叫介面 — 可在任何元件中直接 import 使用 */
 export const toast = {
-  success: (msg: string) => emit('success', msg),
-  error:   (msg: string) => emit('error', msg),
-  warning: (msg: string) => emit('warning', msg),
-  info:    (msg: string) => emit('info', msg),
+  success: (msg: string) => window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { type: 'success', message: msg } })),
+  error:   (msg: string) => window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { type: 'error',   message: msg } })),
+  warning: (msg: string) => window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { type: 'warning', message: msg } })),
+  info:    (msg: string) => window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { type: 'info',    message: msg } })),
 };
 
 // ── 樣式配置 ──
@@ -53,16 +54,21 @@ const DURATION = 4000; // 自動消失時間（ms）
 export function ToastContainer() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
-  const addToast = useCallback((t: Omit<ToastItem, 'id'>) => {
-    const id = ++idCounter;
-    setToasts(prev => [...prev, { ...t, id }]);
-    // 自動消失：先觸發退場動畫，再移除
-    setTimeout(() => {
-      setToasts(prev => prev.map(tt => tt.id === id ? { ...tt, leaving: true } : tt));
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { type, message } = (e as CustomEvent<ToastPayload>).detail;
+      const id = ++idCounter;
+      setToasts(prev => [...prev, { type, message, id }]);
+      // 自動消失：先觸發退場動畫，再移除
       setTimeout(() => {
-        setToasts(prev => prev.filter(tt => tt.id !== id));
-      }, 300);
-    }, DURATION);
+        setToasts(prev => prev.map(tt => tt.id === id ? { ...tt, leaving: true } : tt));
+        setTimeout(() => {
+          setToasts(prev => prev.filter(tt => tt.id !== id));
+        }, 300);
+      }, DURATION);
+    };
+    window.addEventListener(EVENT_NAME, handler);
+    return () => window.removeEventListener(EVENT_NAME, handler);
   }, []);
 
   // 手動關閉
@@ -72,11 +78,6 @@ export function ToastContainer() {
       setToasts(prev => prev.filter(tt => tt.id !== id));
     }, 300);
   }, []);
-
-  useEffect(() => {
-    listeners.add(addToast);
-    return () => { listeners.delete(addToast); };
-  }, [addToast]);
 
   if (toasts.length === 0) return null;
 
