@@ -656,6 +656,7 @@ router.get('/candidates', async (req, res) => {
         c.job_search_status, c.reason_for_change, c.motivation,
         c.deal_breakers, c.competing_offers, c.relationship_level,
         c.voice_assessments, c.biography, c.portfolio_url, c.ai_summary,
+        c.consultant_note, c.birthday, c.gender, c.english_name,
         (SELECT COALESCE(jsonb_agg(
           jsonb_build_object(
             'id', elem->>'id', 'filename', elem->>'filename',

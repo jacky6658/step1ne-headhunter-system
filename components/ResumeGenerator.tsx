@@ -758,7 +758,8 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
   if (vf.field_age && age) basicInfoItems.push({ label: t.field_age, value: lang === 'en' ? `${age}` : `${age} 歲${zodiac ? `（屬${zodiac}）` : ''}` });
   if (vf.field_education && candidate.education) basicInfoItems.push({ label: t.field_education, value: candidate.education.length > 40 ? candidate.education.substring(0, 40) + '…' : candidate.education });
   if (vf.field_languages && languages) basicInfoItems.push({ label: t.field_languages, value: languages });
-  if (vf.field_certifications && certifications) basicInfoItems.push({ label: t.field_certifications, value: certifications });
+  // 證照不放在基本資料格子（太長），改由下方「專業證照」獨立區塊呈現
+  if (vf.field_certifications && certsList.length > 0) basicInfoItems.push({ label: t.field_certifications, value: `${certsList.length} 項` });
   if (vf.field_currentSalary && currentSalary) basicInfoItems.push({ label: t.field_currentSalary, value: currentSalary });
   if (vf.field_expectedSalary && expectedSalary) basicInfoItems.push({ label: t.field_expectedSalary, value: expectedSalary });
   if (vf.field_noticePeriod && noticePeriod) basicInfoItems.push({ label: t.field_noticePeriod, value: noticePeriod });

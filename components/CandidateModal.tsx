@@ -1696,9 +1696,9 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       <label className="block text-xs text-gray-500 mb-1">語言能力</label>
                       <input value={editLanguages} onChange={e => setEditLanguages(e.target.value)} placeholder="例：中文母語、英文流利" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">證照</label>
-                      <input value={editCertifications} onChange={e => setEditCertifications(e.target.value)} placeholder="例：PMP、AWS SAA" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-gray-500 mb-1">證照（以逗號或頓號分隔）</label>
+                      <textarea value={editCertifications} onChange={e => setEditCertifications(e.target.value)} placeholder="例：PMP、AWS SAA、Google Cloud" rows={2} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y" />
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">目前薪資</label>
@@ -1844,10 +1844,14 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       <span className="text-xs text-gray-500">語言</span>
                       <span className="text-sm font-medium text-gray-800 truncate">{editLanguages || '—'}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Award className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-xs text-gray-500">證照</span>
-                      <span className="text-sm font-medium text-gray-800 truncate">{editCertifications || '—'}</span>
+                    <div className="col-span-2 flex items-start gap-2 pt-1 border-t border-gray-100">
+                      <Award className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                      <span className="text-xs text-gray-500 shrink-0">證照</span>
+                      <div className="flex flex-wrap gap-1">
+                        {editCertifications ? editCertifications.split(/[,、;，\n–—]/).filter(s => s.trim()).map((s, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs">{s.trim().replace(/^\*\*|\*\*$/g, '')}</span>
+                        )) : <span className="text-xs text-gray-400">—</span>}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <TrendingUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -4250,7 +4254,7 @@ Content-Type: application/json
     {/* 匿名履歷預覽 Modal */}
     {showResumeGen && (
       <ResumePreview
-        candidate={{ ...candidate, consultantEvaluation: consultEval }}
+        candidate={{ ...candidate, consultantEvaluation: consultEval, consultantNote: editConsultantNote, certifications: editCertifications, languages: editLanguages, education: editEducation, industry: editIndustry, currentSalary: editCurrentSalary, expectedSalary: editExpectedSalary, noticePeriod: editNoticePeriod }}
         candidateLabel={`Candidate ${candidate.id}`}
         onClose={() => setShowResumeGen(false)}
         targetJobId={targetJobId}
