@@ -1,23 +1,32 @@
 # Precision Pool 資料品質報告
 
-> 報告日期：2026-03-14
+> 報告日期：2026-03-14（Phase 1 AI 回填後更新）
 > 資料筆數：1,556 位候選人
 > Precision Pool 合格人數：1 人
 
 ---
 
-## 一、資料完整度分佈
+## 一、資料完整度分佈（Phase 1 回填後）
 
-| 完整度區間 | 人數 | 比例 |
-|-----------|------|------|
-| 80–99% | 1 | 0.06% |
-| 60–79% | 3 | 0.19% |
-| 40–59% | 224 | 14.4% |
-| 20–39% | 772 | 49.6% |
-| 1–19% | 552 | 35.5% |
-| 0% | 0 | 0% |
+| 完整度區間 | 回填前 | 回填後 | 變化 |
+|-----------|--------|--------|------|
+| 80–99% | 1 | **3** | +2 |
+| 60–79% | 3 | **53** | +50 |
+| 40–59% | 224 | **295** | +71 |
+| 20–39% | 772 | **726** | -46 |
+| 1–19% | 552 | **479** | -73 |
 
-**現況**：超過 85% 的候選人資料完整度低於 40%，距離 Precision Pool 門檻（80%）有較大差距。
+### Phase 1 回填成果
+
+| 欄位 | 回填前 | 回填後 | 新增 |
+|------|--------|--------|------|
+| `canonical_role` | 4 人 | **411 人** | +407 |
+| `industry_tag` | 5 人 | **118 人** | +113 |
+| `seniority_level` | 少量 | **+1,148 人** | — |
+
+**回填方法**：使用 `backfill-role-industry.js` 腳本，從 `current_position` 比對 `role-taxonomy.json`、從 `current_company` + `work_history` 比對 `industry-taxonomy.json` + 知名公司映射表（~80 家）。
+
+**現況**：53 人已到 60-79% 完整度，只差顧問面談補 2-3 個商業欄位即可進入 Precision Pool。
 
 ---
 
@@ -180,7 +189,7 @@ AND jobSearchStatusEnum != null （有求職狀態）
 | CandidateModal 提示 | 卡片頂部 banner | ✅ 已實作（顯示缺少欄位 + YES/NO badge）|
 | TalentCard badge | 看板卡片右下角 | ✅ 已實作（綠色 Precision / 灰色 %）|
 | Precision Only 篩選 | 看板篩選列 checkbox | ✅ 已實作 |
-| AI 自動回填 canonicalRole | 排程 / migration | ⏳ 待開發（Phase 1）|
-| AI 自動回填 industryTag | 排程 / migration | ⏳ 待開發（Phase 1）|
+| AI 自動回填 canonicalRole | `backfill-role-industry.js` | ✅ 已完成（411 人）|
+| AI 自動回填 industryTag | `backfill-role-industry.js` | ✅ 已完成（118 人）|
 | 一鍵補資料快捷入口 | CandidateModal banner | ⏳ 待開發（Phase 2）|
 | 批量 PDF 解析回填 | 排程腳本 | ⏳ 待開發（Phase 3）|
