@@ -37,7 +37,7 @@
   },
   "QA": {
     "label": "品質保證",
-    "canonicalRoles": ["QA Engineer", "SDET", "Test Engineer", "Automation QA Engineer", "QA Lead"]
+    "canonicalRoles": ["QA Engineer", "SDET", "Test Engineer", "Automation QA Engineer", "QA Lead", "遊戲測試人員", "Game Tester"]
   },
   "Security": {
     "label": "資安",
@@ -58,6 +58,34 @@
   "HR": {
     "label": "人資",
     "canonicalRoles": ["HR Manager", "HR Business Partner", "Recruiter", "Talent Acquisition", "C&B Specialist", "HRBP"]
+  },
+  "Hospitality": {
+    "label": "餐飲/飯店",
+    "canonicalRoles": ["廚師", "主廚", "副主廚", "西點師", "調酒師", "外場主管", "餐飲服務人員", "飯店經理", "宴會管理"]
+  },
+  "Admin": {
+    "label": "行政/總務",
+    "canonicalRoles": ["行政助理", "總機", "秘書", "主管司機", "總務專員", "辦公室管理", "文件管理師", "接待人員"]
+  },
+  "Logistics": {
+    "label": "物流/運輸",
+    "canonicalRoles": ["物流專員", "倉管人員", "司機", "車隊管理", "供應鏈管理", "採購專員", "報關人員"]
+  },
+  "Marketing": {
+    "label": "行銷/公關",
+    "canonicalRoles": ["Marketing Manager", "Content Marketer", "Digital Marketing", "SEO Specialist", "Social Media Manager", "Brand Manager", "PR Manager", "活動企劃"]
+  },
+  "CustomerService": {
+    "label": "客服/支援",
+    "canonicalRoles": ["客服專員", "客服主管", "Technical Support", "Customer Success Manager", "Help Desk", "售後服務"]
+  },
+  "Legal": {
+    "label": "法務/法遵",
+    "canonicalRoles": ["法務專員", "法遵人員", "合約管理", "智財管理", "Legal Counsel", "Compliance Officer"]
+  },
+  "Translation": {
+    "label": "翻譯/語言",
+    "canonicalRoles": ["翻譯人員", "口譯人員", "在地化專員", "Localization Manager", "印度文翻譯", "馬來文翻譯", "日文翻譯"]
   },
   "Other": {
     "label": "其他",
