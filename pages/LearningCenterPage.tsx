@@ -160,9 +160,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 列出面試中應該深入追問的 3 個技術問題
 4. 提供紅旗警示清單（哪些回答代表候選人可能不適合）
 
-職缺描述：{{job_description}}
-公司規模：{{company_size}}
-技術棧：{{tech_stack}}`,
+職缺描述：[貼上完整職缺描述 JD]
+公司規模：[填入公司規模，如 50-200人]
+技術棧：[填入技術棧，如 Java, Spring Boot]`,
   },
   {
     id: 'frontend-engineer',
@@ -234,9 +234,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 建議最適合挖角的目標公司
 4. 列出面試中應該深入追問的技術問題
 
-職缺描述：{{job_description}}
-框架要求：{{framework}}
-團隊規模：{{team_size}}`,
+職缺描述：[貼上完整職缺描述 JD]
+框架要求：[填入框架，如 React, Vue]
+團隊規模：[填入團隊人數，如 10人]`,
   },
   {
     id: 'fullstack-engineer',
@@ -307,9 +307,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 必備技能 vs 加分技能的優先排序
 4. 面試重點應放在哪些面向？
 
-職缺描述：{{job_description}}
-公司階段：{{company_stage}}
-團隊現況：{{team_composition}}`,
+職缺描述：[貼上完整職缺描述 JD]
+公司階段：[填入公司階段，如 新創/成長期]
+團隊現況：[填入團隊現況，如 3前端2後端]`,
   },
   {
     id: 'devops-engineer',
@@ -381,9 +381,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 建議挖角的目標公司與原因
 4. 面試中如何驗證候選人的實戰經驗
 
-職缺描述：{{job_description}}
-雲端環境：{{cloud_provider}}
-團隊規模：{{team_size}}`,
+職缺描述：[貼上完整職缺描述 JD]
+雲端環境：[填入雲端環境，如 AWS/GCP]
+團隊規模：[填入團隊人數，如 10人]`,
   },
   {
     id: 'qa-engineer',
@@ -454,9 +454,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 合適的候選人背景與轉型路徑
 4. 面試中如何驗證測試思維與能力
 
-職缺描述：{{job_description}}
-產品類型：{{product_type}}
-開發流程：{{development_process}}`,
+職缺描述：[貼上完整職缺描述 JD]
+產品類型：[填入產品類型，如 電商SaaS]
+開發流程：[填入開發流程，如 Scrum/Kanban]`,
   },
   {
     id: 'security-engineer',
@@ -528,9 +528,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 合適的目標公司與人才庫
 4. 面試中如何驗證實戰能力（非僅證照）
 
-職缺描述：{{job_description}}
-產業別：{{industry}}
-合規需求：{{compliance_requirements}}`,
+職缺描述：[貼上完整職缺描述 JD]
+產業別：[填入產業別，如 金融/電商]
+合規需求：[填入合規需求，如 ISO27001]`,
   },
   {
     id: 'product-manager',
@@ -602,9 +602,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 建議的人才來源與挖角策略
 4. 面試中如何評估產品思維與領導力
 
-職缺描述：{{job_description}}
-產品類型：{{product_type}}
-使用者規模：{{user_scale}}`,
+職缺描述：[貼上完整職缺描述 JD]
+產品類型：[填入產品類型，如 電商SaaS]
+使用者規模：[填入使用者規模，如 10萬MAU]`,
   },
   {
     id: 'uiux-designer',
@@ -675,9 +675,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 合適的人才來源（設計公司 vs 產品公司）
 4. 作品集審查的重點與面試設計
 
-職缺描述：{{job_description}}
-產品類型：{{product_type}}
-設計團隊現況：{{design_team}}`,
+職缺描述：[貼上完整職缺描述 JD]
+產品類型：[填入產品類型，如 電商SaaS]
+設計團隊現況：[填入設計團隊現況，如 2位設計師]`,
   },
   {
     id: 'data-engineer',
@@ -748,9 +748,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 目標人才的技術背景組合
 4. 面試中如何驗證大數據處理經驗
 
-職缺描述：{{job_description}}
-資料規模：{{data_scale}}
-技術棧：{{tech_stack}}`,
+職缺描述：[貼上完整職缺描述 JD]
+資料規模：[填入資料規模，如 日處理100GB]
+技術棧：[填入技術棧，如 Java, Spring Boot]`,
   },
   {
     id: 'data-scientist',
@@ -821,9 +821,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 學界 vs 業界人才的適合度
 4. 面試中如何評估實際問題解決能力
 
-職缺描述：{{job_description}}
-應用場景：{{use_case}}
-資料規模：{{data_scale}}`,
+職缺描述：[貼上完整職缺描述 JD]
+應用場景：[填入應用場景，如 推薦系統]
+資料規模：[填入資料規模，如 日處理100GB]`,
   },
   {
     id: 'ios-engineer',
@@ -894,9 +894,9 @@ const ROLE_KNOWLEDGE_BASE: RoleCard[] = [
 3. 合適的挖角目標公司
 4. 面試中如何驗證 iOS 平台深度
 
-職缺描述：{{job_description}}
-App 類型：{{app_type}}
-團隊規模：{{team_size}}`,
+職缺描述：[貼上完整職缺描述 JD]
+App 類型：[填入App類型，如 電商/社群]
+團隊規模：[填入團隊人數，如 10人]`,
   },
   {
     id: 'android-engineer',
@@ -967,9 +967,9 @@ App 類型：{{app_type}}
 3. 合適的挖角目標公司
 4. 面試中如何驗證 Android 平台深度
 
-職缺描述：{{job_description}}
-App 類型：{{app_type}}
-最低支援版本：{{min_sdk}}`,
+職缺描述：[貼上完整職缺描述 JD]
+App 類型：[填入App類型，如 電商/社群]
+最低支援版本：[填入最低支援版本，如 iOS 15]`,
   },
   {
     id: 'bim-engineer',
@@ -1040,9 +1040,9 @@ App 類型：{{app_type}}
 3. 合適的人才來源（營造/顧問/設計）
 4. 面試中如何驗證 BIM 實務經驗
 
-職缺描述：{{job_description}}
-專案類型：{{project_type}}
-BIM 成熟度：{{bim_maturity}}`,
+職缺描述：[貼上完整職缺描述 JD]
+專案類型：[填入專案類型，如 住宅/商辦]
+BIM 成熟度：[填入BIM成熟度，如 初導入/已建置]`,
   },
   {
     id: 'chef',
@@ -1114,9 +1114,9 @@ BIM 成熟度：{{bim_maturity}}`,
 3. 合適的人才來源與挖角策略
 4. 面試與試菜的評估重點
 
-職缺描述：{{job_description}}
-餐廳類型：{{restaurant_type}}
-規模：{{kitchen_size}}`,
+職缺描述：[貼上完整職缺描述 JD]
+餐廳類型：[填入餐廳類型，如 fine dining/快餐]
+規模：[填入廚房規模，如 15人團隊]`,
   },
   {
     id: 'admin-assistant',
@@ -1188,9 +1188,9 @@ BIM 成熟度：{{bim_maturity}}`,
 3. 合適的人才來源
 4. 面試中如何評估細心度與應變能力
 
-職缺描述：{{job_description}}
-公司類型：{{company_type}}
-主管層級：{{supervisor_level}}`,
+職缺描述：[貼上完整職缺描述 JD]
+公司類型：[填入公司類型，如 科技業/傳產]
+主管層級：[填入主管層級，如 部門經理]`,
   },
   {
     id: 'executive-driver',
@@ -1262,9 +1262,9 @@ BIM 成熟度：{{bim_maturity}}`,
 3. 合適的人才來源管道
 4. 面試中如何評估可信度與服務意識
 
-職缺描述：{{job_description}}
-主管層級：{{executive_level}}
-工作時間：{{working_hours}}`,
+職缺描述：[貼上完整職缺描述 JD]
+主管層級：[填入主管層級，如 副總/協理]
+工作時間：[填入工作時間，如 8:30-17:30]`,
   },
 ];
 
@@ -1283,9 +1283,9 @@ const INDUSTRY_MAP: IndustryCard[] = [
     commonRoles: ['Backend Engineer', 'Frontend Engineer', 'Product Manager', 'Customer Success Manager', 'Sales / AE', 'Data Analyst'],
     recruitingChallenges: ['優秀工程師被大廠吸走，中小型 SaaS 難搶人', '需兼具技術與商業思維的 PM 難找', '客戶成功角色定義模糊，候選人認知差異大', '早期新創薪資難與大公司競爭'],
     promptTemplate: `請分析以下 SaaS 公司的招募策略：
-公司名稱：{{company_name}}
-產品類型：{{product_type}}
-目前階段：{{stage}}
+公司名稱：[填入公司名稱，如 Shopline]
+產品類型：[填入產品類型，如 電商SaaS]
+目前階段：[填入公司階段，如 B輪/成長期]
 
 請提供：1. 該公司可能的組織架構 2. 關鍵招募角色 3. 人才來源建議 4. 薪資競爭力評估`,
   },
@@ -1300,9 +1300,9 @@ const INDUSTRY_MAP: IndustryCard[] = [
     commonRoles: ['專案經理', 'Java 工程師', '.NET 工程師', 'SA（系統分析師）', '售前技術顧問', '維運工程師'],
     recruitingChallenges: ['工程師偏好產品公司而非專案制 SI', '資深 SA 與架構師供不應求', '政府標案人才需了解法規與標書撰寫', '薪資天花板較低導致人才流失'],
     promptTemplate: `請分析以下系統整合公司的人才需求：
-公司名稱：{{company_name}}
-主要客戶類型：{{client_type}}
-技術棧：{{tech_stack}}
+公司名稱：[填入公司名稱，如 Shopline]
+主要客戶類型：[填入客戶類型，如 政府/企業]
+技術棧：[填入技術棧，如 Java, Spring Boot]
 
 請提供：1. SI 產業人才特性 2. 與產品公司的競爭策略 3. 適合的人才畫像 4. 留才關鍵因素`,
   },
@@ -1317,9 +1317,9 @@ const INDUSTRY_MAP: IndustryCard[] = [
     commonRoles: ['BIM 工程師', 'BIM 經理', '建築師', '結構技師', '工地主任', '專案經理', '估算工程師'],
     recruitingChallenges: ['BIM 人才稀缺，跨領域人才更少', '傳統營建業數位轉型抗拒', '營建業工作環境較差影響招募', '需要懂建築又懂軟體的複合型人才'],
     promptTemplate: `請分析以下營建/BIM 公司的招募需求：
-公司名稱：{{company_name}}
-專案類型：{{project_type}}
-BIM 應用範圍：{{bim_scope}}
+公司名稱：[填入公司名稱，如 Shopline]
+專案類型：[填入專案類型，如 住宅/商辦]
+BIM 應用範圍：[填入BIM應用範圍，如 設計到施工]
 
 請提供：1. 營建業人才地圖 2. BIM 人才關鍵能力 3. 跨領域人才來源 4. 產業招募挑戰`,
   },
@@ -1334,9 +1334,9 @@ BIM 應用範圍：{{bim_scope}}
     commonRoles: ['Backend Engineer', 'Data Scientist', '風控分析師', '合規專員', 'Product Manager', '資安工程師', 'DevOps Engineer'],
     recruitingChallenges: ['金融法規限制導致技術選型保守', '薪資有競爭力但文化偏傳統，年輕工程師不愛', '需要同時懂金融與技術的跨領域人才', '資安與合規人才全市場搶'],
     promptTemplate: `請分析以下金融/FinTech 公司的招募策略：
-公司名稱：{{company_name}}
-業務類型：{{business_type}}
-數位轉型階段：{{digital_stage}}
+公司名稱：[填入公司名稱，如 Shopline]
+業務類型：[填入業務類型，如 銀行/保險]
+數位轉型階段：[填入數位轉型階段，如 起步/進階]
 
 請提供：1. 金融業人才市場現況 2. FinTech vs 傳統金融的人才差異 3. 跨領域人才策略 4. 法規合規人才來源`,
   },
@@ -1351,9 +1351,9 @@ BIM 應用範圍：{{bim_scope}}
     commonRoles: ['餐廳經理', '主廚', '房務主管', '訂房主任', '宴會業務', '大廳副理', '人力資源專員'],
     recruitingChallenges: ['產業薪資偏低且工時長，不易吸引人才', '基層人員流動率極高', '疫後人力缺口擴大', '外語人才需求高但供給不足'],
     promptTemplate: `請分析以下餐旅飯店的招募需求：
-公司名稱：{{company_name}}
-飯店等級：{{hotel_level}}
-營運規模：{{operation_scale}}
+公司名稱：[填入公司名稱，如 Shopline]
+飯店等級：[填入飯店等級，如 五星/精品]
+營運規模：[填入營運規模，如 200間客房]
 
 請提供：1. 餐旅業人才市場現況 2. 關鍵職缺與人才畫像 3. 降低流動率的招募策略 4. 同業挖角建議`,
   },
@@ -1368,9 +1368,9 @@ BIM 應用範圍：{{bim_scope}}
     commonRoles: ['製程工程師', '設備工程師', 'FAE（應用工程師）', '品質工程師', 'IE 工程師', 'IT 工程師', '採購'],
     recruitingChallenges: ['半導體業薪資極高，其他製造業難競爭', '工廠地點偏遠影響招募意願', '傳統製造業數位轉型人才缺乏', 'AI/IoT 跨領域人才需求急增'],
     promptTemplate: `請分析以下製造業公司的招募需求：
-公司名稱：{{company_name}}
-產業別：{{sub_industry}}
-製程類型：{{process_type}}
+公司名稱：[填入公司名稱，如 Shopline]
+產業別：[填入產業別，如 半導體/PCB]
+製程類型：[填入製程類型，如 晶圓代工]
 
 請提供：1. 製造業人才市場特性 2. 關鍵技術人才來源 3. 與半導體業的人才競爭策略 4. 智慧製造人才需求`,
   },
@@ -1385,9 +1385,9 @@ BIM 應用範圍：{{bim_scope}}
     commonRoles: ['Backend Engineer', 'Frontend Engineer', 'Data Analyst', '商品企劃', '數位行銷', '物流管理', '客服主管'],
     recruitingChallenges: ['電商季節性用人需求波動大', '數據與 AI 人才被科技公司搶走', '需要同時懂技術與商業的人才', '物流與倉儲人才流動率高'],
     promptTemplate: `請分析以下電商/零售公司的招募需求：
-公司名稱：{{company_name}}
-電商模式：{{business_model}}
-年營收規模：{{revenue_scale}}
+公司名稱：[填入公司名稱，如 Shopline]
+電商模式：[填入電商模式，如 B2C/D2C]
+年營收規模：[填入年營收規模，如 10億]
 
 請提供：1. 電商業人才市場分析 2. 技術 vs 營運角色配比 3. 季節性招募策略 4. 人才競爭力評估`,
   },
@@ -1402,9 +1402,9 @@ BIM 應用範圍：{{bim_scope}}
     commonRoles: ['ML Engineer', 'Data Scientist', 'Data Engineer', 'AI Researcher', 'Backend Engineer', 'MLOps Engineer', 'Product Manager'],
     recruitingChallenges: ['頂尖 AI 人才多往海外或大廠', '學界與業界的技能落差大', '需要論文發表+工程能力的全才', 'AI 領域技術變化快，人才技能容易過時'],
     promptTemplate: `請分析以下 AI/數據公司的招募需求：
-公司名稱：{{company_name}}
-AI 應用領域：{{ai_domain}}
-研究 vs 應用比重：{{research_ratio}}
+公司名稱：[填入公司名稱，如 Shopline]
+AI 應用領域：[填入AI應用領域，如 NLP/CV]
+研究 vs 應用比重：[填入研究vs應用比重，如 3:7]
 
 請提供：1. AI 人才市場供需分析 2. 學界 vs 業界人才評估 3. 關鍵技術能力要求 4. 國際人才招募策略`,
   },
@@ -1419,9 +1419,9 @@ AI 應用領域：{{ai_domain}}
     commonRoles: ['臨床研究員（CRA）', '法規專員（RA）', '品保工程師', '醫藥業務代表', '生物資訊工程師', '軟體工程師（醫材）', '數據科學家'],
     recruitingChallenges: ['高度專業門檻，人才庫小', 'FDA/TFDA 法規人才極稀缺', '生技業薪資波動大（看 pipeline 成敗）', '軟體人才不了解醫療法規（FDA SaMD）'],
     promptTemplate: `請分析以下醫療/生技公司的招募需求：
-公司名稱：{{company_name}}
-產品類別：{{product_category}}
-法規市場：{{regulatory_market}}
+公司名稱：[填入公司名稱，如 Shopline]
+產品類別：[填入產品類別，如 醫材/藥品]
+法規市場：[填入法規市場，如 FDA/TFDA]
 
 請提供：1. 醫療/生技人才市場特性 2. 法規人才來源分析 3. 跨領域人才（技術+醫療）策略 4. 產業特有的面試重點`,
   },
@@ -1436,9 +1436,9 @@ AI 應用領域：{{ai_domain}}
     commonRoles: ['物流管理師', '倉儲主管', '車隊調度', '供應鏈分析師', '軟體工程師', '資料分析師', '客服主管'],
     recruitingChallenges: ['基層物流人員嚴重缺工', '物流科技人才需懂領域知識', '工作環境與待遇難吸引年輕族群', '數位轉型需要的 IT 人才與科技業競爭'],
     promptTemplate: `請分析以下物流/運輸公司的招募需求：
-公司名稱：{{company_name}}
-物流類型：{{logistics_type}}
-數位化程度：{{digital_level}}
+公司名稱：[填入公司名稱，如 Shopline]
+物流類型：[填入物流類型，如 倉儲/宅配]
+數位化程度：[填入數位化程度，如 初步導入]
 
 請提供：1. 物流業人才市場現況 2. 物流科技人才來源 3. 基層人力招募策略 4. 產業數位轉型人才需求`,
   },
@@ -2581,7 +2581,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
               <div className="text-xs text-blue-700 space-y-1.5">
                 <p><span className="font-semibold">步驟 1</span>：點擊「查看詳情」展開產業卡片，瀏覽商業模式、代表公司、常見職缺</p>
                 <p><span className="font-semibold">步驟 2</span>：點擊「📋 複製 Prompt」，Prompt 模板會自動複製到剪貼簿</p>
-                <p><span className="font-semibold">步驟 3</span>：將 Prompt 貼到 <span className="font-semibold">ChatGPT / Claude</span>，把 <code className="bg-blue-100 px-1 rounded">{`{{公司名稱}}`}</code> 等變數替換成真實資訊</p>
+                <p><span className="font-semibold">步驟 3</span>：將 Prompt 貼到 <span className="font-semibold">ChatGPT / Claude</span>，把 <code className="bg-blue-100 px-1 rounded">[填入...]</code> 的地方替換成真實資訊（每個都有範例提示）</p>
                 <p><span className="font-semibold">你會獲得</span>：AI 會產出該公司的組織架構推測、關鍵招募角色、人才來源建議、薪資競爭力評估</p>
               </div>
             </div>
@@ -2654,7 +2654,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                         </ul>
                       </div>
                       <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                        <p className="text-[10px] text-gray-400 mb-1 font-medium">Prompt 預覽 — 複製後替換 {`{{變數}}`} 即可使用</p>
+                        <p className="text-[10px] text-gray-400 mb-1 font-medium">Prompt 預覽 — 複製後將 [填入...] 替換成實際資料即可使用</p>
                         <pre className="text-[11px] text-gray-600 whitespace-pre-wrap leading-relaxed font-sans">{ind.promptTemplate}</pre>
                       </div>
                       <div className="flex items-center gap-3">
@@ -3128,9 +3128,9 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
 
                   const promptText = matchingRole
                     ? matchingRole.promptTemplate
-                      .replace('{{job_description}}', description || title)
-                      .replace('{{company_size}}', job.team_size || '未知')
-                      .replace('{{tech_stack}}', requirements.join(', '))
+                      .replace('[貼上完整職缺描述 JD]', description || title)
+                      .replace('[填入公司規模，如 50-200人]', job.team_size || '未知')
+                      .replace('[填入技術棧，如 Java, Spring Boot]', requirements.join(', '))
                     : `請幫我分析以下職缺：\n\n職缺名稱：${title}\n公司：${company}\n描述：${description || '無'}\n需求技能：${requirements.join(', ')}`;
 
                   // Parse description into structured sections
@@ -3325,7 +3325,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
               <div className="text-xs text-purple-700 space-y-1.5">
                 <p><span className="font-semibold">步驟 1</span>：選擇分類（產業分析 / 公司理解 / 角色理解 / 人選評估），找到適合的 Prompt</p>
                 <p><span className="font-semibold">步驟 2</span>：點擊「📋 複製 Prompt」，模板自動複製到剪貼簿</p>
-                <p><span className="font-semibold">步驟 3</span>：貼到 <span className="font-semibold">ChatGPT / Claude</span>，將 <code className="bg-purple-100 px-1 rounded">{`{{變數}}`}</code> 替換為你手上的真實資訊（如公司名稱、職位、產業）</p>
+                <p><span className="font-semibold">步驟 3</span>：貼到 <span className="font-semibold">ChatGPT / Claude</span>，將 <code className="bg-purple-100 px-1 rounded">[填入...]</code> 或 <code className="bg-purple-100 px-1 rounded">{`「」`}</code> 內替換為真實資訊（每個欄位都有範例提示）</p>
                 <p><span className="font-semibold">效果</span>：AI 會產出結構化的分析報告，幫你在 5 分鐘內搞懂一個產業、公司、職位或候選人</p>
               </div>
             </div>
@@ -3356,9 +3356,9 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
             {/* Prompt Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredPrompts.map(prompt => {
-                // Highlight {{variables}} in template preview
-                const preview = prompt.template.slice(0, 150);
-                const parts = preview.split(/({{[^}]+}})/g);
+                // Highlight [填入...] and {{中文}} variables in template preview
+                const preview = prompt.template.slice(0, 200);
+                const parts = preview.split(/(\[填入[^\]]+\]|{{[^}]+}}|「[^」]*」)/g);
 
                 return (
                   <div key={prompt.id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all">
@@ -3383,13 +3383,15 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                     <div className="bg-gray-50 rounded-lg p-2.5 mb-3 border border-gray-100 max-h-24 overflow-hidden">
                       <p className="text-[11px] text-gray-500 font-mono leading-relaxed">
                         {parts.map((part, i) =>
-                          part.match(/^{{.*}}$/) ? (
+                          part.match(/^\[填入/) || part.match(/^{{/) ? (
                             <span key={i} className="text-indigo-600 font-semibold bg-indigo-50 px-1 rounded">{part}</span>
+                          ) : part.match(/^「.*」$/) ? (
+                            <span key={i} className="text-blue-600 font-semibold">{part}</span>
                           ) : (
                             <span key={i}>{part}</span>
                           )
                         )}
-                        {prompt.template.length > 150 && '...'}
+                        {prompt.template.length > 200 && '...'}
                       </p>
                     </div>
 
