@@ -54,23 +54,21 @@ app.use('/api', limiter);
 const allowedOrigins = [
   'https://step1ne.zeabur.app',
   'https://step1ne.com',
+  // 允許本地開發代理（Vite proxy changeOrigin 仍會帶 localhost Origin）
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:5173',
 ];
-
-if (!isProduction) {
-  allowedOrigins.push(
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:3002',
-    'http://localhost:5173',
-  );
-}
 
 app.use(cors({
   origin: function(origin, callback) {
     // 允許沒有 origin 的請求（如 curl, server-to-server, OpenClaw）
-    if (!origin || allowedOrigins.includes(origin)) {
+    // 允許空字串 origin（Vite proxy headers.Origin = '' 的情況）
+    if (!origin || origin === '' || allowedOrigins.includes(origin)) {
       callback(null, true);
-    } else if (!isProduction && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+    } else if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+      // 內部工具，允許任何 localhost port
       callback(null, true);
     } else {
       console.warn(`CORS 拒絕: ${origin}`);

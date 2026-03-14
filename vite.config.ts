@@ -16,6 +16,10 @@ export default defineConfig({
         target: process.env.VITE_PROXY_TARGET || 'https://backendstep1ne.zeabur.app',
         changeOrigin: true,
         secure: false,
+        // 移除 Origin header，避免生產 CORS 白名單拒絕 localhost
+        headers: {
+          Origin: '',
+        },
       },
     },
   },
