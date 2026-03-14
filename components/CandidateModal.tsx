@@ -96,6 +96,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [showInviteMessage, setShowInviteMessage] = useState(false);
   const [showResumeGen, setShowResumeGen] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [editingRecruiter, setEditingRecruiter] = useState(false);
   const [recruiterInput, setRecruiterInput] = useState(candidate.consultant || '');
   const [newNoteText, setNewNoteText] = useState('');
@@ -5002,11 +5003,54 @@ Content-Type: application/json
               </button>
               
               {onUpdateStatus && (
-                <div className="relative group">
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowStatusMenu(!showStatusMenu)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                  >
                     更新狀態
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showStatusMenu ? 'rotate-180' : ''}`} />
                   </button>
-                  {/* Dropdown menu (future enhancement) */}
+
+                  {/* Status dropdown menu (opens upward) */}
+                  {showStatusMenu && (
+                    <>
+                      {/* Backdrop to close on outside click */}
+                      <div className="fixed inset-0 z-40" onClick={() => setShowStatusMenu(false)} />
+                      <div className="absolute bottom-full right-0 mb-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1.5 overflow-hidden">
+                        <div className="px-3 py-1.5 text-[10px] text-gray-400 font-medium border-b border-gray-100 mb-1">選擇新狀態</div>
+                        {(Object.keys(CANDIDATE_STATUS_CONFIG) as Array<CandidateStatus>).map((statusKey) => {
+                          const config = CANDIDATE_STATUS_CONFIG[statusKey];
+                          const isCurrent = candidate.status === statusKey;
+                          const dotColorMap: Record<string, string> = {
+                            slate: 'bg-slate-400', violet: 'bg-violet-500', blue: 'bg-blue-500',
+                            indigo: 'bg-indigo-500', amber: 'bg-amber-500', green: 'bg-green-500',
+                            rose: 'bg-rose-500', purple: 'bg-purple-500', cyan: 'bg-cyan-500'
+                          };
+                          return (
+                            <button
+                              key={statusKey}
+                              type="button"
+                              disabled={isCurrent}
+                              onClick={() => {
+                                setShowStatusMenu(false);
+                                onUpdateStatus(candidate.id, statusKey);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2.5 transition-colors ${
+                                isCurrent
+                                  ? 'bg-blue-50 font-medium cursor-default'
+                                  : 'hover:bg-gray-50 cursor-pointer'
+                              }`}
+                            >
+                              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dotColorMap[config.color] || 'bg-gray-400'}`} />
+                              <span className={isCurrent ? 'text-blue-700' : 'text-gray-700'}>{config.label}</span>
+                              {isCurrent && <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 ml-auto" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
