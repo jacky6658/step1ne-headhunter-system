@@ -2285,12 +2285,36 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
     }
   }, [activeTab]);
 
-  // --- Copy handler ---
+  // --- Copy handler (with fallback for non-HTTPS) ---
   const handleCopy = useCallback((text: string, id: string) => {
-    navigator.clipboard.writeText(text).then(() => {
+    const onSuccess = () => {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2500);
-    });
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+        // Fallback: textarea method
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        onSuccess();
+      });
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      onSuccess();
+    }
   }, []);
 
   // --- Task toggle ---
@@ -2354,12 +2378,12 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
   }, [promptFilter]);
 
   const filteredJobs = useMemo(() => {
-    let list = jobs.filter((j: any) => j.status === 'active' || !j.status);
+    let list = jobs;
     if (jobSearch) {
       const q = jobSearch.toLowerCase();
       list = list.filter((j: any) =>
-        (j.title || '').toLowerCase().includes(q) ||
-        (j.company?.name || j.company_name || '').toLowerCase().includes(q)
+        (j.position_name || j.title || '').toLowerCase().includes(q) ||
+        (j.client_company || j.company?.name || '').toLowerCase().includes(q)
       );
     }
     return list;
@@ -2549,6 +2573,19 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
         {/* ===================== TAB 2: Industry Map ===================== */}
         {activeTab === 'industry-map' && (
           <div className="space-y-4">
+            {/* How to use guide */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <h4 className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" /> 如何使用產業 Prompt？
+              </h4>
+              <div className="text-xs text-blue-700 space-y-1.5">
+                <p><span className="font-semibold">步驟 1</span>：點擊「查看詳情」展開產業卡片，瀏覽商業模式、代表公司、常見職缺</p>
+                <p><span className="font-semibold">步驟 2</span>：點擊「📋 複製 Prompt」，Prompt 模板會自動複製到剪貼簿</p>
+                <p><span className="font-semibold">步驟 3</span>：將 Prompt 貼到 <span className="font-semibold">ChatGPT / Claude</span>，把 <code className="bg-blue-100 px-1 rounded">{`{{公司名稱}}`}</code> 等變數替換成真實資訊</p>
+                <p><span className="font-semibold">你會獲得</span>：AI 會產出該公司的組織架構推測、關鍵招募角色、人才來源建議、薪資競爭力評估</p>
+              </div>
+            </div>
+
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -2616,16 +2653,22 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                           ))}
                         </ul>
                       </div>
-                      <button
-                        onClick={() => handleCopy(ind.promptTemplate, `ind-prompt-${ind.id}`)}
-                        className="bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5 hover:bg-indigo-100 transition-colors"
-                      >
-                        {copiedId === `ind-prompt-${ind.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                        {copiedId === `ind-prompt-${ind.id}` ? '已複製' : '複製 Prompt'}
-                      </button>
-                      <button onClick={() => setExpandedIndustry(null)} className="text-xs text-gray-400 hover:text-gray-600">
-                        收合
-                      </button>
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <p className="text-[10px] text-gray-400 mb-1 font-medium">Prompt 預覽 — 複製後替換 {`{{變數}}`} 即可使用</p>
+                        <pre className="text-[11px] text-gray-600 whitespace-pre-wrap leading-relaxed font-sans">{ind.promptTemplate}</pre>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleCopy(ind.promptTemplate, `ind-prompt-${ind.id}`)}
+                          className="bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5 hover:bg-indigo-100 transition-colors"
+                        >
+                          {copiedId === `ind-prompt-${ind.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          {copiedId === `ind-prompt-${ind.id}` ? '已複製！貼到 AI 工具使用' : '📋 複製 Prompt'}
+                        </button>
+                        <button onClick={() => setExpandedIndustry(null)} className="text-xs text-gray-400 hover:text-gray-600">
+                          收合
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -2736,9 +2779,13 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
 
                 {/* 薪資行情 */}
                 <div className="bg-white rounded-xl border border-gray-200 p-4">
-                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-emerald-500" /> 薪資行情（{selectedRole.salaryRange.currency}）
+                  <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-emerald-500" /> 薪資行情參考（{selectedRole.salaryRange.currency}）
                   </h3>
+                  <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded px-2 py-1 mb-3 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                    僅供初步參考，實際薪資因公司規模、產業、地區、個人資歷而有顯著差異。報價前請務必確認客戶預算與市場行情。
+                  </p>
                   <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={[
@@ -2764,6 +2811,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                  <p className="text-[10px] text-gray-400 mt-2">資料來源：綜合 CakeResume、104、Glassdoor 及獵頭實務經驗估算（2024-2025）</p>
                 </div>
 
                 {/* 常見來源公司 */}
@@ -2905,9 +2953,10 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                         </div>
                       </div>
                       <p className="text-xs text-gray-500 line-clamp-2">{role.whyExists}</p>
-                      <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+                      <div className="flex items-center gap-2 mt-2 text-xs text-gray-400" title="僅供參考，實際薪資依公司與個人資歷而異">
                         <DollarSign className="w-3 h-3" />
                         <span>{role.salaryRange.junior} ~ {role.salaryRange.senior}</span>
+                        <span className="text-[9px] text-amber-500">*參考</span>
                       </div>
                     </div>
                   ))}
@@ -3030,11 +3079,11 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                           : 'border-gray-200 hover:shadow-sm'
                       }`}
                     >
-                      <h4 className="font-medium text-sm text-gray-800">{job.title}</h4>
-                      <p className="text-xs text-gray-500 mt-0.5">{job.company?.name || job.company_name || '未知公司'}</p>
-                      {job.salary_range && (
+                      <h4 className="font-medium text-sm text-gray-800">{job.position_name || job.title || '未命名職缺'}</h4>
+                      <p className="text-xs text-gray-500 mt-0.5">{job.client_company || job.company?.name || '未知公司'}</p>
+                      {(job.salary_range || job.salary_min) && (
                         <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                          <DollarSign className="w-3 h-3" /> {job.salary_range}
+                          <DollarSign className="w-3 h-3" /> {job.salary_range || `${job.salary_min}~${job.salary_max}`}
                         </p>
                       )}
                     </div>
@@ -3046,39 +3095,51 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
               <div className="lg:col-span-2">
                 {selectedJob ? (() => {
                   const job = selectedJob;
-                  const title = job.title || '';
+                  const title = job.position_name || job.title || '';
+                  const company = job.client_company || job.company?.name || '';
+                  const description = job.job_description || job.description || '';
+                  const salary = job.salary_range || (job.salary_min ? `${job.salary_min}~${job.salary_max}` : '');
                   const matchingRole = ROLE_KNOWLEDGE_BASE.find(r =>
                     title.toLowerCase().includes(r.titleEn.toLowerCase()) ||
                     title.includes(r.title)
                   );
-                  const requirements = job.requirements || job.must_have_skills || [];
+                  const skillsRaw = job.key_skills || job.requirements || job.must_have_skills || [];
+                  const requirements = typeof skillsRaw === 'string'
+                    ? skillsRaw.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean)
+                    : Array.isArray(skillsRaw) ? skillsRaw : [];
                   const niceToHave = job.nice_to_have_skills || job.nice_to_have || [];
-                  const rejectionCriteria = job.rejection_criteria || [];
+                  const rejectionRaw = job.rejection_criteria || [];
+                  const rejectionCriteria = typeof rejectionRaw === 'string'
+                    ? rejectionRaw.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean)
+                    : Array.isArray(rejectionRaw) ? rejectionRaw : [];
 
                   // Build analysis text for copy
                   const analysisText = [
                     `職缺分析：${title}`,
-                    `公司：${job.company?.name || job.company_name || ''}`,
+                    `公司：${company}`,
+                    job.department ? `部門：${job.department}` : '',
                     ``,
-                    `核心技能：${Array.isArray(requirements) ? requirements.join(', ') : requirements}`,
-                    job.salary_range ? `薪資範圍：${job.salary_range}` : '',
+                    `核心技能：${requirements.join(', ')}`,
+                    salary ? `薪資範圍：${salary}` : '',
+                    job.experience_required ? `經驗要求：${job.experience_required}` : '',
+                    job.location ? `地點：${job.location}` : '',
                     rejectionCriteria.length > 0 ? `紅旗：${rejectionCriteria.join(', ')}` : '',
                   ].filter(Boolean).join('\n');
 
                   const promptText = matchingRole
                     ? matchingRole.promptTemplate
-                      .replace('{{job_description}}', job.description || title)
-                      .replace('{{company_size}}', job.company?.size || '未知')
-                      .replace('{{tech_stack}}', Array.isArray(requirements) ? requirements.join(', ') : '')
-                    : `請幫我分析以下職缺：\n\n職缺名稱：${title}\n公司：${job.company?.name || job.company_name || ''}\n描述：${job.description || '無'}\n需求技能：${Array.isArray(requirements) ? requirements.join(', ') : requirements}`;
+                      .replace('{{job_description}}', description || title)
+                      .replace('{{company_size}}', job.team_size || '未知')
+                      .replace('{{tech_stack}}', requirements.join(', '))
+                    : `請幫我分析以下職缺：\n\n職缺名稱：${title}\n公司：${company}\n描述：${description || '無'}\n需求技能：${requirements.join(', ')}`;
 
                   return (
                     <div className="space-y-4">
                       <div className="bg-white rounded-xl border border-gray-200 p-4">
                         <h3 className="font-semibold text-gray-800 text-lg mb-1">{title}</h3>
-                        <p className="text-sm text-gray-500">{job.company?.name || job.company_name || ''}</p>
-                        {job.description && (
-                          <p className="text-sm text-gray-600 mt-2 leading-relaxed">{job.description}</p>
+                        <p className="text-sm text-gray-500">{company}</p>
+                        {description && (
+                          <p className="text-sm text-gray-600 mt-2 leading-relaxed">{description}</p>
                         )}
                       </div>
 
@@ -3111,12 +3172,12 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                       )}
 
                       {/* Salary */}
-                      {job.salary_range && (
+                      {salary && (
                         <div className="bg-white rounded-xl border border-gray-200 p-4">
                           <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
                             <DollarSign className="w-4 h-4 text-emerald-500" /> 薪資資訊
                           </h4>
-                          <p className="text-sm text-gray-600">{job.salary_range}</p>
+                          <p className="text-sm text-gray-600">{salary}</p>
                         </div>
                       )}
 
@@ -3215,6 +3276,19 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
         {/* ===================== TAB 6: Prompt Toolbox ===================== */}
         {activeTab === 'prompt-toolbox' && (
           <div className="space-y-4" data-tour="prompt-copy">
+            {/* How to use guide */}
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+              <h4 className="text-sm font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                <Bot className="w-4 h-4" /> 如何使用 Prompt 模板？
+              </h4>
+              <div className="text-xs text-purple-700 space-y-1.5">
+                <p><span className="font-semibold">步驟 1</span>：選擇分類（產業分析 / 公司理解 / 角色理解 / 人選評估），找到適合的 Prompt</p>
+                <p><span className="font-semibold">步驟 2</span>：點擊「📋 複製 Prompt」，模板自動複製到剪貼簿</p>
+                <p><span className="font-semibold">步驟 3</span>：貼到 <span className="font-semibold">ChatGPT / Claude</span>，將 <code className="bg-purple-100 px-1 rounded">{`{{變數}}`}</code> 替換為你手上的真實資訊（如公司名稱、職位、產業）</p>
+                <p><span className="font-semibold">效果</span>：AI 會產出結構化的分析報告，幫你在 5 分鐘內搞懂一個產業、公司、職位或候選人</p>
+              </div>
+            </div>
+
             {/* Category pills */}
             <div className="flex flex-wrap gap-2">
               {([
