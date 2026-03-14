@@ -160,10 +160,26 @@ function fillLearningPrompt(
   doReplace(/\[填入物流類型[^\]]*\]/g, '');
   doReplace(/\[填入數位化程度[^\]]*\]/g, '');
   doReplace(/\[填入製程類型[^\]]*\]/g, '');
-  doReplace(/\[填入業務類型[^\]]*\]/g, '');
+  doReplace(/\[填入業務類型[^\]]*\]/g, clientIndustry);
   doReplace(/\[填入數位轉型階段[^\]]*\]/g, '');
   doReplace(/\[填入工作時間[^\]]*\]/g, '');
   doReplace(/\[貼上完整職缺描述[^\]]*\]/g, description || jobTitle);
+
+  // --- 最終兜底：把剩餘的 [填入XXX，如 YYY] 用範例值 YYY 自動補上 ---
+  result = result.replace(/\[填入[^\]]*[，,]如\s*([^\]]+)\]/g, (match, example) => {
+    count++;
+    return example.trim();
+  });
+  // 去除剩餘沒有「如」範例的 [填入...] — 用 _____ 標記讓使用者知道需手動填
+  result = result.replace(/\[填入([^\]]*)\]/g, (match, content) => {
+    count++;
+    return `_____`;
+  });
+  // 去除剩餘的 [貼上...]
+  result = result.replace(/\[貼上([^\]]*)\]/g, (match) => {
+    count++;
+    return `_____`;
+  });
 
   // --- 格式 B: {{XXX}} ---
   doReplace(/\{\{產業名稱\}\}/g, clientIndustry);
@@ -195,6 +211,12 @@ function fillLearningPrompt(
   doReplace(/\{\{溝通權重\}\}/g, '15');
   doReplace(/\{\{文化權重\}\}/g, '15');
   doReplace(/\{\{成長權重\}\}/g, '10');
+
+  // --- 最終兜底：剩餘的 {{XXX}} 用 _____ 標記 ---
+  result = result.replace(/\{\{([^}]+)\}\}/g, (match) => {
+    count++;
+    return '_____';
+  });
 
   return { filled: result, replacementCount: count };
 }
@@ -2498,7 +2520,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
 
   // --- Load jobs + clients from API ---
   useEffect(() => {
-    if (['job-analyzer', 'prompt-toolbox', 'industry-map'].includes(activeTab)) {
+    if (['job-analyzer', 'prompt-toolbox', 'industry-map', 'role-encyclopedia'].includes(activeTab)) {
       if (jobs.length === 0) {
         apiGet<any>('/jobs').then((data: any) => {
           const jobList = Array.isArray(data) ? data : (data?.jobs || data?.data || []);
@@ -3153,6 +3175,9 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
         {/* ===================== TAB 3: Role Encyclopedia ===================== */}
         {activeTab === 'role-encyclopedia' && (
           <div className="space-y-4">
+            {/* Smart Fill Bar for Role Encyclopedia */}
+            {renderSmartFillBar()}
+
             {/* L3: Selected Role Detail */}
             {selectedRole ? (
               <div className="space-y-4">
@@ -3374,22 +3399,42 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                   </div>
                 </div>
 
-                {/* Prompt 複製區 */}
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                  <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-indigo-500" /> Prompt 複製區
-                  </h3>
-                  <pre className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600 font-mono whitespace-pre-wrap overflow-x-auto border border-gray-100 max-h-48 overflow-y-auto">
-                    {selectedRole.promptTemplate}
-                  </pre>
-                  <button
-                    onClick={() => handleCopy(selectedRole.promptTemplate, `role-prompt-${selectedRole.id}`)}
-                    className="mt-2 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5 hover:bg-indigo-100 transition-colors"
-                  >
-                    {copiedId === `role-prompt-${selectedRole.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                    {copiedId === `role-prompt-${selectedRole.id}` ? '已複製' : '複製 Prompt'}
-                  </button>
-                </div>
+                {/* Prompt 複製區 — 整合智能填入 */}
+                {(() => {
+                  const { filled: roleFilled, replacementCount: roleFillCount } = hasFillData
+                    ? fillLearningPrompt(selectedRole.promptTemplate, sfSelectedJob, sfSelectedClient, sfIndustry)
+                    : { filled: selectedRole.promptTemplate, replacementCount: 0 };
+                  const roleIsFilled = hasFillData && roleFillCount > 0;
+                  return (
+                    <div className={`rounded-xl border p-4 ${roleIsFilled ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
+                      <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-indigo-500" /> Prompt 複製區
+                        {roleIsFilled && (
+                          <span className="text-[10px] text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> 已自動填入 {roleFillCount} 個變數
+                          </span>
+                        )}
+                      </h3>
+                      <pre className={`rounded-lg p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto border max-h-48 overflow-y-auto ${
+                        roleIsFilled ? 'bg-white/70 border-emerald-100 text-gray-700' : 'bg-gray-50 border-gray-100 text-gray-600'
+                      }`}>
+                        {roleFilled}
+                      </pre>
+                      <button
+                        onClick={() => handleCopy(roleFilled, `role-prompt-${selectedRole.id}`)}
+                        className={`mt-2 rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                          roleIsFilled
+                            ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                            : 'bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100'
+                        }`}
+                      >
+                        {copiedId === `role-prompt-${selectedRole.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copiedId === `role-prompt-${selectedRole.id}` ? '已複製！貼到 AI 工具使用' :
+                         roleIsFilled ? '複製已填入版本' : '複製 Prompt'}
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             ) : selectedFamily ? (
               /* L2: Family selected → show roles in this family */
