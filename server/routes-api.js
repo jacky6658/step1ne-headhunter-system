@@ -800,6 +800,12 @@ router.get('/candidates', async (req, res) => {
         c.deal_breakers, c.competing_offers, c.relationship_level,
         c.voice_assessments, c.biography, c.portfolio_url, c.ai_summary,
         c.consultant_note, c.birthday, c.gender, c.english_name,
+        c.current_title, c.current_company, c.role_family, c.canonical_role,
+        c.seniority_level, c.total_years, c.industry_tag, c.normalized_skills,
+        c.education_level, c.current_salary_min, c.current_salary_max,
+        c.expected_salary_min, c.expected_salary_max, c.salary_currency, c.salary_period,
+        c.notice_period_enum, c.job_search_status_enum,
+        c.auto_derived, c.data_quality, c.grade_level, c.source_tier, c.heat_level,
         (SELECT COALESCE(jsonb_agg(
           jsonb_build_object(
             'id', elem->>'id', 'filename', elem->>'filename',
@@ -921,6 +927,29 @@ router.get('/candidates', async (req, res) => {
       portfolioUrl: row.portfolio_url || '',
       aiSummary: row.ai_summary || null,
       resumeFiles: row.resume_files || [],
+      // Sprint 1: Structured fields
+      currentTitle: row.current_title || '',
+      currentCompany: row.current_company || '',
+      roleFamily: row.role_family || '',
+      canonicalRole: row.canonical_role || '',
+      seniorityLevel: row.seniority_level || '',
+      totalYears: row.total_years != null ? parseFloat(row.total_years) : null,
+      industryTag: row.industry_tag || '',
+      normalizedSkills: (() => { const v = row.normalized_skills; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      educationLevel: row.education_level || '',
+      currentSalaryMin: row.current_salary_min != null ? parseInt(row.current_salary_min) : null,
+      currentSalaryMax: row.current_salary_max != null ? parseInt(row.current_salary_max) : null,
+      expectedSalaryMin: row.expected_salary_min != null ? parseInt(row.expected_salary_min) : null,
+      expectedSalaryMax: row.expected_salary_max != null ? parseInt(row.expected_salary_max) : null,
+      salaryCurrency: row.salary_currency || 'TWD',
+      salaryPeriod: row.salary_period || 'monthly',
+      noticePeriodEnum: row.notice_period_enum || '',
+      jobSearchStatusEnum: row.job_search_status_enum || '',
+      autoDerived: (() => { const v = row.auto_derived; if (!v) return null; if (typeof v === 'object') return v; if (typeof v === 'string') { try { return JSON.parse(v); } catch {} } return null; })(),
+      dataQuality: (() => { const v = row.data_quality; if (!v) return null; if (typeof v === 'object') return v; if (typeof v === 'string') { try { return JSON.parse(v); } catch {} } return null; })(),
+      gradeLevel: row.grade_level || '',
+      sourceTier: row.source_tier || '',
+      heatLevel: row.heat_level || '',
     }));
 
     res.json({

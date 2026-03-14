@@ -1508,18 +1508,50 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                 </div>
               )}
 
-              {/* ── Data Quality Banner ── */}
-              {candidate.dataQuality && candidate.dataQuality.completenessScore < 100 && (
-                <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span className="text-xs text-amber-700">
-                    資料完整度 {candidate.dataQuality.completenessScore}%
-                    {candidate.dataQuality.missingCoreFields.length > 0 && (
-                      <> — 缺少：{candidate.dataQuality.missingCoreFields.join('、')}</>
-                    )}
-                  </span>
-                </div>
-              )}
+              {/* ── AI 匹配必填欄位提示 ── */}
+              {(() => {
+                const ca = candidate as any;
+                const missing: string[] = [];
+                if (!ca.current_title && !candidate.position) missing.push('目前職稱');
+                if (!ca.role_family) missing.push('職務類別');
+                if (!ca.total_years && !candidate.years) missing.push('總年資');
+                const hasSkills = (Array.isArray(ca.normalized_skills) && ca.normalized_skills.length > 0) ||
+                  (typeof candidate.skills === 'string' && candidate.skills.trim());
+                if (!hasSkills) missing.push('核心技能');
+                if (!candidate.location) missing.push('地區');
+                if (!ca.job_search_status_enum && !ca.job_search_status) missing.push('求職狀態');
+                if (!ca.expected_salary_min && !ca.expected_salary && !ca.current_salary_min) missing.push('薪資資訊');
+                const score = candidate.dataQuality?.completenessScore;
+
+                return missing.length > 0 ? (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span className="text-xs font-bold text-amber-800">
+                        AI 匹配精準度不足{score != null ? ` — 資料完整度 ${score}%` : ''}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-700 ml-6">
+                      缺少以下 AI 必填欄位：
+                      {missing.map((f, i) => (
+                        <span key={f} className="inline-flex items-center mx-0.5">
+                          {i > 0 && '、'}
+                          <span className="font-bold text-amber-900">{f}</span>
+                        </span>
+                      ))}
+                    </p>
+                    <p className="text-[10px] text-amber-600 ml-6 mt-1">
+                      填寫完整後，AI 配對推薦準確度可提升 2-3 倍
+                    </p>
+                  </div>
+                ) : score != null ? (
+                  <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <span className="text-xs text-emerald-700 font-medium">
+                      AI 必填欄位已齊全 — 資料完整度 {score}%
+                    </span>
+                  </div>
+                ) : null;
+              })()}
 
               {/* ── 全域編輯控制列 ── */}
               <div className="flex items-center justify-between">

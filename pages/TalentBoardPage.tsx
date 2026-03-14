@@ -6,7 +6,7 @@ import { TalentCard } from '../components/TalentCard';
 import { CandidateModal } from '../components/CandidateModal';
 import {
   Search, Filter, RefreshCw, LayoutGrid, Flame, Building2, GitBranch,
-  X, ChevronDown, Users
+  X, ChevronDown, Users, Shield
 } from 'lucide-react';
 
 interface TalentBoardPageProps {
@@ -48,9 +48,9 @@ const BOARD_COLUMNS: Record<BoardMode, { key: string; label: string; color: stri
 function classifyCandidate(c: any, mode: BoardMode): string {
   switch (mode) {
     case 'grade':
-      return c.grade_level || 'ungraded';
+      return c.gradeLevel || c.grade_level || 'ungraded';
     case 'source':
-      return c.source_tier || 'untiered';
+      return c.sourceTier || c.source_tier || 'untiered';
     case 'heat':
       return computeHeatLevel(c);
     case 'pipeline':
@@ -93,9 +93,15 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
     return Array.from(set).sort();
   }, [candidates]);
 
-  // Filtered candidates
+  // Role-based filtering: non-admin only sees their own candidates
+  const myCandidates = useMemo(() => {
+    if (userProfile.role === 'ADMIN') return candidates;
+    return candidates.filter(c => c.consultant === userProfile.displayName);
+  }, [candidates, userProfile]);
+
+  // Filtered candidates (from myCandidates, not all)
   const filtered = useMemo(() => {
-    let list = candidates;
+    let list = myCandidates;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       list = list.filter(c => {
@@ -108,11 +114,11 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
           (Array.isArray(ca.normalized_skills) && ca.normalized_skills.some((s: string) => s.toLowerCase().includes(q)));
       });
     }
-    if (filterGrade) list = list.filter(c => (c as any).grade_level === filterGrade);
+    if (filterGrade) list = list.filter(c => { const ca = c as any; return (ca.gradeLevel || ca.grade_level) === filterGrade; });
     if (filterHeat) list = list.filter(c => computeHeatLevel(c as any) === filterHeat);
     if (filterConsultant) list = list.filter(c => c.consultant === filterConsultant);
     return list;
-  }, [candidates, searchQuery, filterGrade, filterHeat, filterConsultant]);
+  }, [myCandidates, searchQuery, filterGrade, filterHeat, filterConsultant]);
 
   // Group by board columns
   const columns = BOARD_COLUMNS[boardMode];
@@ -208,6 +214,12 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
             <Users size={13} />
             <span>{filtered.length}</span>
           </div>
+          {userProfile.role !== 'ADMIN' && (
+            <div className="flex items-center gap-1 text-xs text-blue-500">
+              <Shield size={12} />
+              <span>只顯示您負責的人選</span>
+            </div>
+          )}
         </div>
       </div>
 

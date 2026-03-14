@@ -1,7 +1,7 @@
 import React from 'react';
 import { Candidate } from '../types';
 import { GRADE_CONFIG, TIER_CONFIG, HEAT_CONFIG, computeHeatLevel } from '../constants';
-import { MapPin, Briefcase, Clock } from 'lucide-react';
+import { Briefcase, Clock, AlertTriangle } from 'lucide-react';
 
 interface TalentCardProps {
   candidate: Candidate;
@@ -10,8 +10,8 @@ interface TalentCardProps {
 
 export function TalentCard({ candidate, onClick }: TalentCardProps) {
   const c = candidate as any;
-  const grade = c.grade_level as string | undefined;
-  const tier = c.source_tier as string | undefined;
+  const grade = (c.gradeLevel || c.grade_level) as string | undefined;
+  const tier = (c.sourceTier || c.source_tier) as string | undefined;
   const heat = computeHeatLevel(c);
 
   const gradeConf = grade ? GRADE_CONFIG[grade] : null;
@@ -42,6 +42,10 @@ export function TalentCard({ candidate, onClick }: TalentCardProps) {
   const daysAgo = lastContact
     ? Math.floor((Date.now() - new Date(lastContact).getTime()) / 86400000)
     : null;
+
+  // Data quality score
+  const qualityScore = c.data_quality?.completenessScore ?? c.dataQuality?.completenessScore ?? null;
+  const missingCount = c.data_quality?.missingCoreFields?.length ?? c.dataQuality?.missingCoreFields?.length ?? 0;
 
   return (
     <div
@@ -109,12 +113,20 @@ export function TalentCard({ candidate, onClick }: TalentCardProps) {
         )}
       </div>
 
-      {/* Consultant */}
-      {c.consultant && (
-        <div className="text-[10px] text-gray-400 mt-1 truncate">
-          {c.consultant}
-        </div>
-      )}
+      {/* Consultant + Quality */}
+      <div className="flex items-center justify-between mt-1">
+        {c.consultant && (
+          <span className="text-[10px] text-gray-400 truncate">
+            {c.consultant}
+          </span>
+        )}
+        {qualityScore !== null && qualityScore < 60 && (
+          <span className="flex items-center gap-0.5 text-[10px] text-amber-500" title={`資料完整度 ${qualityScore}%，缺少 ${missingCount} 個 AI 必填欄位`}>
+            <AlertTriangle size={10} />
+            {qualityScore}%
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { RefreshCw, Users, Filter } from 'lucide-react';
+import { RefreshCw, Users, Filter, Shield } from 'lucide-react';
 
 interface TalentMapPageProps {
   userProfile: UserProfile;
@@ -48,26 +48,32 @@ export function TalentMapPage({ userProfile }: TalentMapPageProps) {
 
   useEffect(() => { fetchData(); }, []);
 
+  // Role-based filtering: non-admin only sees their own candidates
+  const myCandidates = useMemo(() => {
+    if (userProfile.role === 'ADMIN') return candidates;
+    return candidates.filter(c => c.consultant === userProfile.displayName);
+  }, [candidates, userProfile]);
+
   // Filter by selected job's role_family if applicable
   const filteredCandidates = useMemo(() => {
-    if (!selectedJobId) return candidates;
+    if (!selectedJobId) return myCandidates;
     const job = jobs.find(j => j.id === selectedJobId);
-    if (!job) return candidates;
+    if (!job) return myCandidates;
     // Filter candidates that match this job (by role family or skills overlap)
     const jobSkills = (job.key_skills || '').split(/[,，、\s]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
-    return candidates.filter(c => {
+    return myCandidates.filter(c => {
       const cSkills = Array.isArray(c.normalized_skills)
         ? c.normalized_skills.map((s: string) => s.toLowerCase())
         : (typeof c.skills === 'string' ? c.skills.toLowerCase().split(/[,，、|]+/) : []);
       return jobSkills.some(js => cSkills.some((cs: string) => cs.includes(js) || js.includes(cs)));
     });
-  }, [candidates, selectedJobId, jobs]);
+  }, [myCandidates, selectedJobId, jobs]);
 
   // Chart 1: Grade distribution (pie)
   const gradeData = useMemo(() => {
     const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, '未分級': 0 };
     filteredCandidates.forEach(c => {
-      const g = c.grade_level || '未分級';
+      const g = c.gradeLevel || c.grade_level || '未分級';
       counts[g] = (counts[g] || 0) + 1;
     });
     return Object.entries(counts).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }));
@@ -160,6 +166,12 @@ export function TalentMapPage({ userProfile }: TalentMapPageProps) {
           <button onClick={fetchData} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
             <RefreshCw size={16} />
           </button>
+          {userProfile.role !== 'ADMIN' && (
+            <span className="flex items-center gap-1 text-xs text-blue-500">
+              <Shield size={12} />
+              只顯示您負責的人選
+            </span>
+          )}
         </div>
       </div>
 
