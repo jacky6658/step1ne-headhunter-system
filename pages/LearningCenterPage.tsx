@@ -3133,15 +3133,56 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                       .replace('{{tech_stack}}', requirements.join(', '))
                     : `請幫我分析以下職缺：\n\n職缺名稱：${title}\n公司：${company}\n描述：${description || '無'}\n需求技能：${requirements.join(', ')}`;
 
+                  // Parse description into structured sections
+                  const descSections = (() => {
+                    if (!description) return [];
+                    // Split by common delimiters: numbered items, 【】brackets, newlines
+                    return description
+                      .replace(/(\d+)\.\s*/g, '\n$1. ')
+                      .replace(/【/g, '\n【')
+                      .split('\n')
+                      .map((s: string) => s.trim())
+                      .filter((s: string) => s.length > 0);
+                  })();
+
                   return (
                     <div className="space-y-4">
                       <div className="bg-white rounded-xl border border-gray-200 p-4">
                         <h3 className="font-semibold text-gray-800 text-lg mb-1">{title}</h3>
-                        <p className="text-sm text-gray-500">{company}</p>
-                        {description && (
-                          <p className="text-sm text-gray-600 mt-2 leading-relaxed">{description}</p>
-                        )}
+                        <p className="text-sm text-gray-500 mb-1">{company}</p>
+                        {job.department && <p className="text-xs text-gray-400">部門：{job.department}</p>}
+                        {job.experience_required && <p className="text-xs text-gray-400">經驗：{job.experience_required}</p>}
+                        {job.location && <p className="text-xs text-gray-400">地點：{job.location}</p>}
                       </div>
+
+                      {/* Job Description - structured */}
+                      {descSections.length > 0 && (
+                        <div className="bg-white rounded-xl border border-gray-200 p-4">
+                          <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-blue-500" /> 職缺描述
+                          </h4>
+                          <div className="space-y-2">
+                            {descSections.map((section: string, i: number) => {
+                              const isBracket = section.startsWith('【');
+                              const isNumbered = /^\d+\./.test(section);
+                              if (isBracket) {
+                                return (
+                                  <h5 key={i} className="text-sm font-semibold text-blue-700 mt-3 first:mt-0">{section}</h5>
+                                );
+                              }
+                              if (isNumbered) {
+                                return (
+                                  <p key={i} className="text-sm text-gray-600 leading-relaxed pl-2 flex items-start gap-1.5">
+                                    <span className="text-blue-400 font-medium flex-shrink-0">{section.match(/^\d+/)?.[0]}.</span>
+                                    <span>{section.replace(/^\d+\.\s*/, '')}</span>
+                                  </p>
+                                );
+                              }
+                              return <p key={i} className="text-sm text-gray-600 leading-relaxed">{section}</p>;
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Key skills */}
                       {Array.isArray(requirements) && requirements.length > 0 && (
