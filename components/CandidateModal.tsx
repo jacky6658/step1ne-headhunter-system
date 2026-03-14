@@ -6,14 +6,14 @@ import { RadarChart, RADAR_DIMENSIONS, computeAutoScores, computeOverallRating }
 import { SkillTagInput } from './SkillTagInput';
 import { SalaryRangeInput, SalaryRangeDisplay } from './SalaryRangeInput';
 import { CANDIDATE_STATUS_CONFIG, GRADE_CONFIG, TIER_CONFIG, computeAutoGradeTier } from '../constants';
-import { apiPatch, apiGet, apiPost, getApiUrl, getAuthHeaders } from '../config/api';
+import { apiPatch, apiGet, getApiUrl, getAuthHeaders } from '../config/api';
 import { toast } from './Toast';
 import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
   CheckCircle2, AlertCircle, Bot, Star, ThumbsUp, ThumbsDown,
   HelpCircle, Sparkles, Target, Globe, Trash2, Brain, Copy, ChevronDown,
-  Download, Eye, Upload, ChevronRight, AlertTriangle, Building2, Hash
+  Download, Eye, Upload, ChevronRight, AlertTriangle, Building2, Hash, BookOpen
 } from 'lucide-react';
 
 // ── 系統外職缺建議：rule-based 技能→產業/職缺對照 ──────────────────────────
@@ -299,71 +299,98 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
     dataQuality: candidate.dataQuality,
   }), [editCurrentCompany, editCurrentTitle, editRoleFamily, editCanonicalRole, editSeniorityLevel, editYears, editNormalizedSkills, editIndustryTag, editExpectedSalaryMin, editNoticePeriodEnum, editJobSearchStatusEnum, workItems, candidate.dataQuality]);
 
-  // Layer 2: LLM-powered deep analysis state
-  const [layer2Loading, setLayer2Loading] = useState(false);
-  const [layer2Result, setLayer2Result] = useState<{
-    suggestedGrade: string | null;
-    suggestedTier: string | null;
-    confidence: number;
-    reasons: string[];
-    detailedAnalysis: string | null;
-    error?: string;
-  } | null>(null);
+  // Layer 2: AI prompt template for deep analysis
+  const [showPromptTemplate, setShowPromptTemplate] = useState(false);
 
-  const handleLayer2Analyze = async () => {
-    setLayer2Loading(true);
-    setLayer2Result(null);
-    try {
-      const payload = {
-        name: candidate.name,
-        currentCompany: editCurrentCompany,
-        currentTitle: editCurrentTitle,
-        roleFamily: editRoleFamily,
-        canonicalRole: editCanonicalRole,
-        seniorityLevel: editSeniorityLevel,
-        totalYears: parseFloat(editYears) || 0,
-        normalizedSkills: editNormalizedSkills,
-        industryTag: editIndustryTag,
-        expectedSalaryMin: editExpectedSalaryMin ? parseInt(editExpectedSalaryMin) : undefined,
-        expectedSalaryMax: editExpectedSalaryMax ? parseInt(editExpectedSalaryMax) : undefined,
-        currentSalaryMin: editCurrentSalaryMin ? parseInt(editCurrentSalaryMin) : undefined,
-        currentSalaryMax: editCurrentSalaryMax ? parseInt(editCurrentSalaryMax) : undefined,
-        salaryCurrency: editSalaryCurrency,
-        salaryPeriod: editSalaryPeriod,
-        noticePeriodEnum: editNoticePeriodEnum,
-        jobSearchStatusEnum: editJobSearchStatusEnum,
-        workHistory: workItems,
-        educationJson: candidate.educationJson,
-        skills: candidate.skills,
-        location: editLocation,
-        position: candidate.position,
-        stabilityScore: candidate.stabilityScore,
-        jobChanges: candidate.jobChanges,
-        avgTenure: candidate.avgTenure,
-        quitReasons: candidate.quitReasons,
-        notes: candidate.notes,
-        dataQuality: candidate.dataQuality,
-      };
-      const resp: any = await apiPost(`/candidates/${candidate.id}/ai-grade-suggest`, payload);
-      if (resp.success && resp.data) {
-        setLayer2Result(resp.data);
-        if (resp.data.suggestedGrade || resp.data.suggestedTier) {
-          toast.success('AI 深度分析完成');
-        } else if (resp.data.error) {
-          toast.warning(resp.data.error);
-        }
-      } else {
-        toast.error('AI 分析回應異常');
-      }
-    } catch (err: any) {
-      toast.error(`AI 分析失敗: ${err.message || '連線錯誤'}`);
-      setLayer2Result({
-        suggestedGrade: null, suggestedTier: null, confidence: 0,
-        reasons: ['API 連線失敗'], detailedAnalysis: null, error: err.message,
-      });
-    } finally {
-      setLayer2Loading(false);
-    }
+  const generatePromptTemplate = () => {
+    const workSummary = workItems
+      .slice(0, 5)
+      .map((w: any, i: number) => `  ${i + 1}. ${w.company || '?'} / ${w.title || w.position || '?'} (${w.start || '?'} ~ ${w.end || '在職'})${w.description ? '\n     ' + w.description.substring(0, 100) : ''}`)
+      .join('\n');
+    const eduSummary = (candidate.educationJson || [])
+      .slice(0, 3)
+      .map((e: any, i: number) => `  ${i + 1}. ${e.school || '?'} / ${e.degree || '?'} / ${e.major || e.field || '?'}`)
+      .join('\n');
+    const skillsList = editNormalizedSkills.length > 0 ? editNormalizedSkills.join(', ') : (candidate.skills || '無資料');
+    const cur = editSalaryCurrency || 'TWD';
+    const per = editSalaryPeriod === 'annual' ? '/年' : '/月';
+    const salaryParts: string[] = [];
+    if (editCurrentSalaryMin || editCurrentSalaryMax) salaryParts.push(`目前: ${editCurrentSalaryMin || '?'}~${editCurrentSalaryMax || '?'} ${cur}${per}`);
+    if (editExpectedSalaryMin || editExpectedSalaryMax) salaryParts.push(`期望: ${editExpectedSalaryMin || '?'}~${editExpectedSalaryMax || '?'} ${cur}${per}`);
+
+    return `## 系統指令（System Prompt）
+你是一位資深獵頭顧問 AI 助理，專精於科技業人才評估。
+請根據以下候選人資料，評估其 Grade（人選等級）和 Source Tier（來源層級）。
+
+### Grade 定義
+- A 級（核心人選）：技術深度出色、經歷亮眼（知名企業/重要產品線）、年資匹配、資料完整
+- B 級（合格人選）：技術紮實、經歷中等偏上、多數條件符合
+- C 級（觀察人選）：有潛力但某些維度不足（經驗淺、技能不完全匹配、資料不完整）
+- D 級（不適合）：多數維度明顯不符、資料嚴重不足
+
+### Source Tier 定義
+- T1（FAANG / 獨角獸）：Google, Meta, Apple, Amazon, Microsoft, NVIDIA, TSMC, MediaTek 等
+- T2（知名企業 / 上市）：LINE, Shopee, Appier, ASUS, Trend Micro, KKday, 91APP 等
+- T3（一般企業 / 中小型）：其他企業
+
+### 評估維度（按權重）
+1. 公司背景 (25%) — 現職/過往公司等級
+2. 年資匹配 (20%) — 總年資是否在合理範圍
+3. 技能豐富度 (20%) — 標準化技能數量與深度
+4. 資深程度 (15%) — 職級 (IC/Senior/Lead/Manager/Director)
+5. 資料完整度 (10%) — 核心欄位填寫比例
+6. 職涯穩定度 (10%) — 平均任期、跳槽頻率
+
+請回覆 JSON 格式：
+{ "suggestedGrade": "A"|"B"|"C"|"D", "suggestedTier": "T1"|"T2"|"T3"|null, "confidence": 0-100, "reasons": ["原因1","原因2",...], "detailedAnalysis": "完整分析（2-3 段）" }
+
+---
+## 候選人資料
+
+- 姓名：${candidate.name}
+- 現職公司：${editCurrentCompany || '未提供'}
+- 現職職稱：${editCurrentTitle || candidate.position || '未提供'}
+- 標準職能：${editRoleFamily || '未分類'} / ${editCanonicalRole || '未分類'}
+- 資深程度：${editSeniorityLevel || '未分類'}
+- 總年資：${editYears || '未知'} 年
+- 產業標籤：${editIndustryTag || '未分類'}
+- 地區：${editLocation || '未提供'}
+
+### 技能
+${skillsList}
+
+### 薪資
+${salaryParts.length > 0 ? salaryParts.join(' | ') : '無資料'}
+
+### 工作經歷
+${workSummary || '  無經歷資料'}
+
+### 教育背景
+${eduSummary || '  無學歷資料'}
+
+### 求職狀態
+- 求職狀態：${editJobSearchStatusEnum || '未知'}
+- 到職時間：${editNoticePeriodEnum || '未知'}
+- 穩定度評分：${candidate.stabilityScore || '未知'}
+- 跳槽次數：${candidate.jobChanges || '未知'}
+- 平均任期：${candidate.avgTenure || '未知'} 個月
+
+### 其他
+- 資料完整度：${candidate.dataQuality?.completenessScore ?? '未知'}%
+- 離職原因：${candidate.quitReasons || '未提供'}
+- 備註：${(candidate.notes || '').substring(0, 200) || '無'}
+
+---
+## API 串接方式（OpenClaw）
+
+GET /api/candidates/${candidate.id} 可取得完整人選資料
+POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
+
+### 建議 LLM 模型
+- OpenAI: gpt-4o / gpt-4o-mini（推薦 gpt-4o，評估品質最佳）
+- Anthropic: claude-sonnet-4-20250514 / claude-3.5-haiku
+- 本地部署: Qwen2.5-72B / Llama-3.1-70B / Mistral-Large
+- Temperature: 0.3（低溫度確保穩定評級）`;
   };
 
   // 禁止背景滾動
@@ -1667,6 +1694,83 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                 ) : null;
               })()}
 
+              {/* ── 新手使用指南 ── */}
+              {(() => {
+                const guideKey = 'step1ne-candidate-modal-guide';
+                const [guideExpanded, setGuideExpanded] = React.useState(() => !localStorage.getItem(guideKey));
+                return guideExpanded ? (
+                  <div className="bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <BookOpen size={15} className="text-blue-600" />
+                        </div>
+                        <h3 className="text-sm font-bold text-blue-900">如何使用人選卡片</h3>
+                      </div>
+                      <button
+                        onClick={() => { setGuideExpanded(false); localStorage.setItem(guideKey, '1'); }}
+                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-blue-600 bg-white border border-blue-200 rounded-md hover:bg-blue-50"
+                      >我知道了</button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div className="flex items-start gap-2.5 bg-white/70 rounded-lg px-3 py-2.5">
+                        <div className="w-6 h-6 bg-blue-100 rounded-md flex items-center justify-center shrink-0 mt-0.5">
+                          <Target size={13} className="text-blue-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-blue-900">步驟 1：檢查核心匹配資料</p>
+                          <p className="text-[11px] text-blue-700/80 leading-relaxed mt-0.5">標有 <span className="text-orange-500 font-bold">* Match Core</span> 的 10 個欄位是 AI 比對關鍵，有 <span className="text-orange-500">⚠ 待填寫</span> 的要優先補齊</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2.5 bg-white/70 rounded-lg px-3 py-2.5">
+                        <div className="w-6 h-6 bg-purple-100 rounded-md flex items-center justify-center shrink-0 mt-0.5">
+                          <Award size={13} className="text-purple-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-blue-900">步驟 2：參考 AI 評級建議</p>
+                          <p className="text-[11px] text-blue-700/80 leading-relaxed mt-0.5">系統自動計算 Grade（A~D）和 Source Tier（T1~T3），點「採用建議」或手動選擇</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2.5 bg-white/70 rounded-lg px-3 py-2.5">
+                        <div className="w-6 h-6 bg-green-100 rounded-md flex items-center justify-center shrink-0 mt-0.5">
+                          <Briefcase size={13} className="text-green-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-blue-900">步驟 3：補充工作經歷與學歷</p>
+                          <p className="text-[11px] text-blue-700/80 leading-relaxed mt-0.5">工作經歷影響評級 35%（公司背景 + 穩定度），部分客戶職缺會要求學歷</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2.5 bg-white/70 rounded-lg px-3 py-2.5">
+                        <div className="w-6 h-6 bg-indigo-100 rounded-md flex items-center justify-center shrink-0 mt-0.5">
+                          <Brain size={13} className="text-indigo-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-blue-900">步驟 4：AI 深度分析（進階）</p>
+                          <p className="text-[11px] text-blue-700/80 leading-relaxed mt-0.5">點「AI 深度分析提示詞」複製 Prompt，貼到 ChatGPT / Claude / OpenClaw 做深度評估</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2.5 bg-white/70 rounded-lg px-3 py-2.5 sm:col-span-2">
+                        <div className="w-6 h-6 bg-amber-100 rounded-md flex items-center justify-center shrink-0 mt-0.5">
+                          <TrendingUp size={13} className="text-amber-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-blue-900">步驟 5：更新進度與狀態</p>
+                          <p className="text-[11px] text-blue-700/80 leading-relaxed mt-0.5">使用「進度追蹤」分頁更新人選狀態（聯繫 → AI 推薦 → 面試 → 錄取），用「備註紀錄」記錄溝通內容</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setGuideExpanded(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <BookOpen size={13} />
+                    使用說明
+                  </button>
+                );
+              })()}
+
               {/* ── 全域編輯控制列 ── */}
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">候選人資料</span>
@@ -2012,100 +2116,66 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                               onClick={() => {
                                 if (autoSuggestion.suggestedGrade) setEditGradeLevel(autoSuggestion.suggestedGrade);
                                 if (autoSuggestion.suggestedTier) setEditSourceTier(autoSuggestion.suggestedTier);
-                                toast.success('已採用 Layer 1 建議');
+                                toast.success('已採用建議');
                               }}
                               className="text-[10px] px-2 py-0.5 bg-purple-600 text-white rounded hover:bg-purple-700 font-medium"
                             >
                               ✅ 採用建議
                             </button>
-                            {!layer2Result && !layer2Loading && (
-                              <button
-                                type="button"
-                                onClick={handleLayer2Analyze}
-                                className="text-[10px] px-2 py-0.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium flex items-center gap-1"
-                              >
-                                <Brain className="w-3 h-3" />
-                                AI 深度分析
-                              </button>
-                            )}
-                            {layer2Loading && (
-                              <span className="text-[10px] text-indigo-600 flex items-center gap-1 animate-pulse">
-                                <Brain className="w-3 h-3 animate-spin" />
-                                分析中...
-                              </span>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => setShowPromptTemplate(!showPromptTemplate)}
+                              className="text-[10px] px-2 py-0.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium flex items-center gap-1"
+                            >
+                              <Brain className="w-3 h-3" />
+                              {showPromptTemplate ? '收起提示詞' : 'AI 深度分析提示詞'}
+                            </button>
                             <span className="text-[10px] text-gray-400">或在下方手動選擇</span>
                           </div>
                         </div>
                       )}
 
-                      {/* Layer 2: LLM Deep Analysis Result */}
-                      {layer2Result && (layer2Result.suggestedGrade || layer2Result.suggestedTier || layer2Result.error) && (
+                      {/* Layer 2: AI Prompt Template (copy to external AI) */}
+                      {showPromptTemplate && (
                         <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-300 rounded-lg p-2.5 mb-2">
-                          <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-1.5">
                               <Brain className="w-3.5 h-3.5 text-indigo-600" />
-                              <span className="text-[11px] font-bold text-indigo-700">AI 深度分析</span>
+                              <span className="text-[11px] font-bold text-indigo-700">AI 深度分析提示詞</span>
                               <span className="text-[9px] px-1 py-0.5 bg-indigo-100 text-indigo-600 rounded">Layer 2</span>
-                              {layer2Result.confidence > 0 && (
-                                <span className="text-[10px] text-gray-400">信心度 {layer2Result.confidence}%</span>
-                              )}
                             </div>
                             <div className="flex items-center gap-1.5">
-                              {layer2Result.suggestedGrade && GRADE_CONFIG[layer2Result.suggestedGrade] && (
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${GRADE_CONFIG[layer2Result.suggestedGrade].bg} ${GRADE_CONFIG[layer2Result.suggestedGrade].color} ${GRADE_CONFIG[layer2Result.suggestedGrade].border} border`}>
-                                  {GRADE_CONFIG[layer2Result.suggestedGrade].label}
-                                </span>
-                              )}
-                              {layer2Result.suggestedTier && TIER_CONFIG[layer2Result.suggestedTier] && (
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TIER_CONFIG[layer2Result.suggestedTier].bg} ${TIER_CONFIG[layer2Result.suggestedTier].color} ${TIER_CONFIG[layer2Result.suggestedTier].border} border`}>
-                                  {TIER_CONFIG[layer2Result.suggestedTier].label}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {layer2Result.error && (
-                            <div className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded ml-5 mb-1">
-                              ⚠ {layer2Result.error}
-                            </div>
-                          )}
-                          {layer2Result.reasons.length > 0 && (
-                            <div className="text-[10px] text-gray-600 ml-5 space-y-0.5">
-                              {layer2Result.reasons.slice(0, 6).map((r, i) => (
-                                <div key={i}>• {r}</div>
-                              ))}
-                            </div>
-                          )}
-                          {layer2Result.detailedAnalysis && (
-                            <details className="mt-1.5 ml-5">
-                              <summary className="text-[10px] text-indigo-600 cursor-pointer hover:underline">查看詳細分析</summary>
-                              <div className="text-[10px] text-gray-600 mt-1 p-2 bg-white/60 rounded border border-indigo-100 whitespace-pre-wrap leading-relaxed">
-                                {layer2Result.detailedAnalysis}
-                              </div>
-                            </details>
-                          )}
-                          {(layer2Result.suggestedGrade || layer2Result.suggestedTier) && (
-                            <div className="flex items-center gap-1.5 mt-2 ml-5">
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (layer2Result.suggestedGrade) setEditGradeLevel(layer2Result.suggestedGrade);
-                                  if (layer2Result.suggestedTier) setEditSourceTier(layer2Result.suggestedTier);
-                                  toast.success('已採用 AI 深度分析建議');
+                                  navigator.clipboard.writeText(generatePromptTemplate());
+                                  toast.success('已複製提示詞到剪貼簿');
                                 }}
-                                className="text-[10px] px-2 py-0.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium"
+                                className="text-[10px] px-2 py-0.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium flex items-center gap-1"
                               >
-                                ✅ 採用此建議
+                                <Copy className="w-3 h-3" />
+                                複製提示詞
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setLayer2Result(null)}
-                                className="text-[10px] px-2 py-0.5 text-gray-500 hover:text-gray-700"
+                                onClick={() => setShowPromptTemplate(false)}
+                                className="text-[10px] px-1 py-0.5 text-gray-500 hover:text-gray-700"
                               >
-                                ✕ 關閉
+                                ✕
                               </button>
                             </div>
-                          )}
+                          </div>
+                          <p className="text-[10px] text-indigo-600 mb-1.5 ml-0.5">
+                            複製以下提示詞，貼到 ChatGPT / Claude / 本地 OpenClaw AI 進行深度評估
+                          </p>
+                          <div className="relative">
+                            <pre className="text-[10px] text-gray-700 bg-white/80 border border-indigo-100 rounded p-2.5 whitespace-pre-wrap leading-relaxed max-h-[240px] overflow-y-auto font-mono">
+                              {generatePromptTemplate()}
+                            </pre>
+                          </div>
+                          <div className="mt-2 p-2 bg-indigo-100/50 rounded text-[10px] text-indigo-700">
+                            <span className="font-bold">API 串接：</span> OpenClaw 可透過 <code className="bg-white/80 px-1 rounded text-[9px]">GET /api/candidates/{candidate.id}</code> 取得人選資料，搭配上述 System Prompt 送入 LLM 自動評級
+                          </div>
                         </div>
                       )}
                     </div>
@@ -3167,10 +3237,11 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
 
               {/* Work History */}
               <div>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-1">
                   <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-blue-600" />
                     工作經歷
+                    <span className="text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 font-normal">影響 Grade 評級</span>
                   </h3>
                   <button
                     onClick={() => { setWorkForm({ company: '', title: '', start: '', end: '', description: '' }); setAddingWork(true); setEditingWorkIdx(null); }}
@@ -3179,6 +3250,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     + 新增
                   </button>
                 </div>
+                <p className="text-[10px] text-gray-400 mb-3 ml-7">公司背景佔評級 25%、職涯穩定度佔 10%，AI 深度分析也會參考完整經歷</p>
                 {/* 新增工作經歷表單 */}
                 {addingWork && editingWorkIdx === null && (
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-2">
@@ -3293,9 +3365,10 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 bg-gray-50 rounded-lg text-center">
-                    <Briefcase className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm text-gray-400">尚無工作經歷</p>
+                  <div className="p-4 bg-amber-50/50 rounded-lg text-center border border-amber-100">
+                    <Briefcase className="w-8 h-8 mx-auto mb-2 text-amber-300" />
+                    <p className="text-sm text-gray-500">尚無工作經歷</p>
+                    <p className="text-[10px] text-amber-600 mt-1">⚠ 缺少工作經歷將影響 Grade 評級準確度（公司背景 25% + 穩定度 10%）</p>
                     <button onClick={() => { setWorkForm({ company: '', title: '', start: '', end: '', description: '' }); setAddingWork(true); }} className="mt-2 text-xs text-blue-600 hover:underline">+ 手動新增</button>
                   </div>
                 )}
@@ -3303,10 +3376,11 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
               
               {/* Education */}
               <div>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-1">
                   <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                     <Award className="w-5 h-5 text-blue-600" />
                     教育背景
+                    <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 font-normal">部分職缺要求</span>
                   </h3>
                   <button
                     onClick={() => { setEduForm({ school: '', degree: '', major: '', start: '', end: '' }); setAddingEdu(true); setEditingEduIdx(null); }}
@@ -3315,6 +3389,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     + 新增
                   </button>
                 </div>
+                <p className="text-[10px] text-gray-400 mb-3 ml-7">部分客戶職缺會要求學歷條件，AI 深度分析也會參考教育背景</p>
                 {/* 新增教育背景表單 */}
                 {addingEdu && editingEduIdx === null && (
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-2">
@@ -3420,9 +3495,10 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 bg-gray-50 rounded-lg text-center">
-                    <Award className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm text-gray-400">尚無教育背景資料</p>
+                  <div className="p-4 bg-blue-50/30 rounded-lg text-center border border-blue-100">
+                    <Award className="w-8 h-8 mx-auto mb-2 text-blue-200" />
+                    <p className="text-sm text-gray-500">尚無教育背景資料</p>
+                    <p className="text-[10px] text-blue-500 mt-1">部分客戶職缺會要求學歷，建議填寫以提升推薦完整度</p>
                     <button onClick={() => { setEduForm({ school: '', degree: '', major: '', start: '', end: '' }); setAddingEdu(true); }} className="mt-2 text-xs text-blue-600 hover:underline">+ 手動新增</button>
                   </div>
                 )}
