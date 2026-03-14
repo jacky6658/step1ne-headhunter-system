@@ -393,8 +393,10 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
       ]);
       const candJson = await candRes.json();
       const jobsJson = await jobsRes.json();
-      setCandidates(candJson.data || candJson.candidates || candJson);
-      setJobs(jobsJson.data || jobsJson.jobs || jobsJson);
+      const candArr = candJson.data || candJson.candidates || candJson;
+      const jobsArr = jobsJson.data || jobsJson.jobs || jobsJson;
+      setCandidates(Array.isArray(candArr) ? candArr : []);
+      setJobs(Array.isArray(jobsArr) ? jobsArr : []);
       setLastRefresh(new Date());
     } catch (e) {
       console.error('Dashboard fetch error:', e);
@@ -405,7 +407,7 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
   useEffect(() => { fetchData(); }, []);
 
   // --- Computed data ---
-  const activeJobs = useMemo(() => jobs.filter(j => j.job_status === '招募中' || j.job_status === '開放中'), [jobs]);
+  const activeJobs = useMemo(() => (Array.isArray(jobs) ? jobs : []).filter(j => j.job_status === '招募中' || j.job_status === '開放中'), [jobs]);
 
   const jobKeywordSets = useMemo(() => {
     return activeJobs.map(j => {
@@ -416,7 +418,8 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
   }, [activeJobs]);
 
   const stats = useMemo(() => {
-    const total = candidates.length;
+    const safeCandidates = Array.isArray(candidates) ? candidates : [];
+    const total = safeCandidates.length;
     const byStatus: Record<string, number> = {};
     const bySource: Record<string, number> = {};
     const byConsultant: Record<string, number> = {};
@@ -430,7 +433,7 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
     // Monthly-weekly import stats: { '2026-02': { w1: 0, w2: 0, w3: 0, w4: 0, w5: 0 }, ... }
     const monthlyWeekly: Record<string, Record<string, number>> = {};
 
-    candidates.forEach(c => {
+    safeCandidates.forEach(c => {
       const st = normalizeStatus(c.status || '未知');
       const src = normalizeSource(c.source || '');
       byStatus[st] = (byStatus[st] || 0) + 1;
