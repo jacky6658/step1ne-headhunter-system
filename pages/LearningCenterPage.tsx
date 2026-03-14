@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { apiGet } from '../config/api';
 import { OnboardingTour, TourStep } from '../components/OnboardingTour';
 import {
@@ -84,6 +84,118 @@ function parseSalaryMid(range: string): number {
   if (!nums || nums.length === 0) return 0;
   if (nums.length === 1) return parseInt(nums[0]);
   return (parseInt(nums[0]) + parseInt(nums[1])) / 2;
+}
+
+// ============================================================
+// HELPER: fillLearningPrompt — 智能填入 Prompt 變數
+// ============================================================
+function fillLearningPrompt(
+  template: string,
+  job: any | null,
+  client: any | null,
+): { filled: string; replacementCount: number } {
+  let result = template;
+  let count = 0;
+
+  const doReplace = (pattern: RegExp, value: string) => {
+    if (!value) return;
+    const before = result;
+    result = result.replace(pattern, value);
+    if (result !== before) count++;
+  };
+
+  // 從 job 提取欄位（與 Job Analyzer 同款映射）
+  const jobTitle = job?.position_name || job?.title || '';
+  const company = job?.client_company || job?.company?.name || '';
+  const salary = job?.salary_range || (job?.salary_min ? `${job.salary_min}~${job.salary_max}` : '');
+  const description = job?.job_description || job?.description || '';
+  const skillsRaw = job?.key_skills || job?.requirements || job?.must_have_skills || [];
+  const skills = typeof skillsRaw === 'string'
+    ? skillsRaw.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean)
+    : Array.isArray(skillsRaw) ? skillsRaw : [];
+  const department = job?.department || '';
+  const teamSize = job?.team_size || '';
+  const experience = job?.experience_required || '';
+
+  // 從 client 提取欄位
+  const clientCompany = client?.company_name || company;
+  const clientIndustry = client?.industry || '';
+  const clientSize = client?.company_size || '';
+
+  // --- 格式 A: [填入XXX，如 YYY] ---
+  doReplace(/\[填入公司名稱[^\]]*\]/g, clientCompany || company);
+  doReplace(/\[填入產品類型[^\]]*\]/g, clientIndustry);
+  doReplace(/\[填入公司階段[^\]]*\]/g, '');
+  doReplace(/\[填入技術棧[^\]]*\]/g, skills.join(', '));
+  doReplace(/\[填入公司規模[^\]]*\]/g, clientSize || teamSize);
+  doReplace(/\[填入產業別[^\]]*\]/g, clientIndustry);
+  doReplace(/\[填入客戶類型[^\]]*\]/g, clientIndustry);
+  doReplace(/\[填入團隊人數[^\]]*\]/g, teamSize);
+  doReplace(/\[填入框架[^\]]*\]/g, skills.join(', '));
+  doReplace(/\[填入雲端環境[^\]]*\]/g, '');
+  doReplace(/\[填入開發流程[^\]]*\]/g, '');
+  doReplace(/\[填入合規需求[^\]]*\]/g, '');
+  doReplace(/\[填入使用者規模[^\]]*\]/g, '');
+  doReplace(/\[填入設計團隊現況[^\]]*\]/g, '');
+  doReplace(/\[填入資料規模[^\]]*\]/g, '');
+  doReplace(/\[填入應用場景[^\]]*\]/g, '');
+  doReplace(/\[填入App類型[^\]]*\]/g, '');
+  doReplace(/\[填入最低支援版本[^\]]*\]/g, '');
+  doReplace(/\[填入專案類型[^\]]*\]/g, '');
+  doReplace(/\[填入BIM[^\]]*\]/g, '');
+  doReplace(/\[填入餐廳類型[^\]]*\]/g, '');
+  doReplace(/\[填入廚房規模[^\]]*\]/g, '');
+  doReplace(/\[填入公司類型[^\]]*\]/g, clientIndustry);
+  doReplace(/\[填入主管層級[^\]]*\]/g, '');
+  doReplace(/\[填入團隊現況[^\]]*\]/g, teamSize);
+  doReplace(/\[填入飯店等級[^\]]*\]/g, '');
+  doReplace(/\[填入營運規模[^\]]*\]/g, clientSize);
+  doReplace(/\[填入電商模式[^\]]*\]/g, '');
+  doReplace(/\[填入年營收規模[^\]]*\]/g, '');
+  doReplace(/\[填入AI應用領域[^\]]*\]/g, '');
+  doReplace(/\[填入研究vs應用比重[^\]]*\]/g, '');
+  doReplace(/\[填入產品類別[^\]]*\]/g, '');
+  doReplace(/\[填入法規市場[^\]]*\]/g, '');
+  doReplace(/\[填入物流類型[^\]]*\]/g, '');
+  doReplace(/\[填入數位化程度[^\]]*\]/g, '');
+  doReplace(/\[填入製程類型[^\]]*\]/g, '');
+  doReplace(/\[填入業務類型[^\]]*\]/g, '');
+  doReplace(/\[填入數位轉型階段[^\]]*\]/g, '');
+  doReplace(/\[填入工作時間[^\]]*\]/g, '');
+  doReplace(/\[貼上完整職缺描述[^\]]*\]/g, description || jobTitle);
+
+  // --- 格式 B: {{XXX}} ---
+  doReplace(/\{\{產業名稱\}\}/g, clientIndustry);
+  doReplace(/\{\{公司名稱\}\}/g, clientCompany || company);
+  doReplace(/\{\{公司A名稱\}\}/g, clientCompany || company);
+  doReplace(/\{\{公司B名稱\}\}/g, '');
+  doReplace(/\{\{職位名稱\}\}/g, jobTitle);
+  doReplace(/\{\{職缺描述或 JD\}\}/g, description || jobTitle);
+  doReplace(/\{\{貼上完整 JD\}\}/g, description || '');
+  doReplace(/\{\{員工人數\}\}/g, clientSize || teamSize);
+  doReplace(/\{\{產品描述\}\}/g, description || '');
+  doReplace(/\{\{職缺列表\}\}/g, jobTitle);
+  doReplace(/\{\{核心技能\}\}/g, skills.join('、'));
+  doReplace(/\{\{核心需求\}\}/g, skills.join('、'));
+  doReplace(/\{\{核心需求摘要\}\}/g, skills.join('、'));
+  doReplace(/\{\{薪資預算\}\}/g, salary);
+  doReplace(/\{\{年資範圍\}\}/g, experience);
+  doReplace(/\{\{職缺類型\}\}/g, jobTitle);
+  doReplace(/\{\{職缺描述\}\}/g, description || jobTitle);
+  doReplace(/\{\{期限\}\}/g, '');
+  doReplace(/\{\{公開資訊\/評價摘要\}\}/g, '');
+  doReplace(/\{\{候選人履歷摘要\}\}/g, '');
+  doReplace(/\{\{候選人簡介\}\}/g, '');
+  doReplace(/\{\{確認重點\}\}/g, skills.join('、'));
+  doReplace(/\{\{現有薪資\}\}/g, '');
+  doReplace(/\{\{期望薪資\}\}/g, '');
+  doReplace(/\{\{技術權重\}\}/g, '40');
+  doReplace(/\{\{問題解決權重\}\}/g, '20');
+  doReplace(/\{\{溝通權重\}\}/g, '15');
+  doReplace(/\{\{文化權重\}\}/g, '15');
+  doReplace(/\{\{成長權重\}\}/g, '10');
+
+  return { filled: result, replacementCount: count };
 }
 
 // ============================================================
@@ -2244,6 +2356,18 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
   const [jobSearch, setJobSearch] = useState('');
   const [taxonomyFamilies, setTaxonomyFamilies] = useState<any[]>([]);
 
+  // --- Smart Fill state ---
+  const [clients, setClients] = useState<any[]>([]);
+  const [smartFillJobId, setSmartFillJobId] = useState('');
+  const [smartFillClientId, setSmartFillClientId] = useState('');
+  const [sfJobOpen, setSfJobOpen] = useState(false);
+  const [sfClientOpen, setSfClientOpen] = useState(false);
+  const [sfJobSearch, setSfJobSearch] = useState('');
+  const [sfClientSearch, setSfClientSearch] = useState('');
+  const [showFilledPreview, setShowFilledPreview] = useState<string | null>(null);
+  const sfJobRef = useRef<HTMLDivElement>(null);
+  const sfClientRef = useRef<HTMLDivElement>(null);
+
   // --- Auto-start onboarding tour on first visit ---
   useEffect(() => {
     const done = localStorage.getItem('learning-center-tour-done');
@@ -2275,15 +2399,33 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
     }
   }, [activeTab]);
 
-  // --- Load jobs from API ---
+  // --- Load jobs + clients from API ---
   useEffect(() => {
-    if (activeTab === 'job-analyzer') {
-      apiGet<any>('/jobs').then((data: any) => {
-        const jobList = Array.isArray(data) ? data : (data?.jobs || data?.data || []);
-        setJobs(jobList);
-      }).catch(() => setJobs([]));
+    if (['job-analyzer', 'prompt-toolbox', 'industry-map'].includes(activeTab)) {
+      if (jobs.length === 0) {
+        apiGet<any>('/jobs').then((data: any) => {
+          const jobList = Array.isArray(data) ? data : (data?.jobs || data?.data || []);
+          setJobs(jobList);
+        }).catch(() => setJobs([]));
+      }
+      if (clients.length === 0) {
+        apiGet<any>('/clients').then((data: any) => {
+          const clientList = Array.isArray(data) ? data : (data?.data || []);
+          setClients(clientList);
+        }).catch(() => setClients([]));
+      }
     }
   }, [activeTab]);
+
+  // --- Click-outside for smart fill dropdowns ---
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (sfJobRef.current && !sfJobRef.current.contains(e.target as Node)) setSfJobOpen(false);
+      if (sfClientRef.current && !sfClientRef.current.contains(e.target as Node)) setSfClientOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // --- Copy handler (with fallback for non-HTTPS) ---
   const handleCopy = useCallback((text: string, id: string) => {
@@ -2399,6 +2541,143 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
     completed: p.tasks.filter(t => completedTasks.has(t.id)).length,
     total: p.tasks.length,
   }));
+
+  // --- Smart Fill computed values ---
+  const sfSelectedJob = useMemo(() =>
+    jobs.find((j: any) => String(j._id || j.id) === smartFillJobId) || null
+  , [jobs, smartFillJobId]);
+
+  const sfSelectedClient = useMemo(() =>
+    clients.find((c: any) => String(c._id || c.id) === smartFillClientId) || null
+  , [clients, smartFillClientId]);
+
+  const hasFillData = !!smartFillJobId || !!smartFillClientId;
+
+  const sfFilteredJobs = useMemo(() => {
+    if (!sfJobSearch) return jobs.slice(0, 50);
+    const q = sfJobSearch.toLowerCase();
+    return jobs.filter((j: any) =>
+      (j.position_name || j.title || '').toLowerCase().includes(q) ||
+      (j.client_company || j.company?.name || '').toLowerCase().includes(q)
+    ).slice(0, 50);
+  }, [jobs, sfJobSearch]);
+
+  const sfFilteredClients = useMemo(() => {
+    if (!sfClientSearch) return clients.slice(0, 50);
+    const q = sfClientSearch.toLowerCase();
+    return clients.filter((c: any) =>
+      (c.company_name || '').toLowerCase().includes(q) ||
+      (c.industry || '').toLowerCase().includes(q)
+    ).slice(0, 50);
+  }, [clients, sfClientSearch]);
+
+  // --- Smart Fill Bar render ---
+  const renderSmartFillBar = () => (
+    <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-4 mb-4">
+      <h4 className="text-sm font-semibold text-indigo-800 mb-3 flex items-center gap-2">
+        <Zap className="w-4 h-4" /> 智能填入 — 選擇職缺/客戶自動替換 Prompt 變數
+      </h4>
+      <div className="flex flex-col sm:flex-row gap-3">
+        {/* Job Selector */}
+        <div className="flex-1 min-w-0" ref={sfJobRef}>
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">職缺</label>
+          <div className="relative">
+            <Briefcase className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={sfJobSearch}
+              onChange={e => { setSfJobSearch(e.target.value); setSfJobOpen(true); if (!e.target.value) setSmartFillJobId(''); }}
+              onFocus={() => setSfJobOpen(true)}
+              placeholder={smartFillJobId ? '' : '搜尋職缺名稱或公司...'}
+              className="w-full pl-8 pr-8 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+            />
+            {smartFillJobId && !sfJobSearch && (
+              <div className="absolute inset-0 flex items-center pl-8 pr-8 pointer-events-none">
+                <span className="text-sm text-gray-700 truncate">
+                  {sfSelectedJob ? `${sfSelectedJob.position_name || sfSelectedJob.title} (${sfSelectedJob.client_company || ''})` : ''}
+                </span>
+              </div>
+            )}
+            {smartFillJobId && (
+              <button onClick={() => { setSmartFillJobId(''); setSfJobSearch(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+            )}
+            {sfJobOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {sfFilteredJobs.length > 0 ? sfFilteredJobs.map((j: any) => (
+                  <div
+                    key={j._id || j.id}
+                    onClick={() => { setSmartFillJobId(String(j._id || j.id)); setSfJobSearch(''); setSfJobOpen(false); }}
+                    className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${String(j._id || j.id) === smartFillJobId ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-gray-700'}`}
+                  >
+                    {j.position_name || j.title} <span className="text-gray-400">({j.client_company || ''})</span>
+                  </div>
+                )) : (
+                  <div className="px-3 py-3 text-sm text-gray-400 text-center">
+                    {jobs.length === 0 ? '載入中...' : '找不到符合的職缺'}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Client Selector */}
+        <div className="flex-1 min-w-0" ref={sfClientRef}>
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">客戶</label>
+          <div className="relative">
+            <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={sfClientSearch}
+              onChange={e => { setSfClientSearch(e.target.value); setSfClientOpen(true); if (!e.target.value) setSmartFillClientId(''); }}
+              onFocus={() => setSfClientOpen(true)}
+              placeholder={smartFillClientId ? '' : '搜尋客戶公司或產業...'}
+              className="w-full pl-8 pr-8 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+            />
+            {smartFillClientId && !sfClientSearch && (
+              <div className="absolute inset-0 flex items-center pl-8 pr-8 pointer-events-none">
+                <span className="text-sm text-gray-700 truncate">
+                  {sfSelectedClient ? `${sfSelectedClient.company_name}${sfSelectedClient.industry ? ` (${sfSelectedClient.industry})` : ''}` : ''}
+                </span>
+              </div>
+            )}
+            {smartFillClientId && (
+              <button onClick={() => { setSmartFillClientId(''); setSfClientSearch(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+            )}
+            {sfClientOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {sfFilteredClients.length > 0 ? sfFilteredClients.map((c: any) => (
+                  <div
+                    key={c._id || c.id}
+                    onClick={() => { setSmartFillClientId(String(c._id || c.id)); setSfClientSearch(''); setSfClientOpen(false); }}
+                    className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${String(c._id || c.id) === smartFillClientId ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-gray-700'}`}
+                  >
+                    {c.company_name} {c.industry && <span className="text-gray-400">({c.industry})</span>}
+                  </div>
+                )) : (
+                  <div className="px-3 py-3 text-sm text-gray-400 text-center">
+                    {clients.length === 0 ? '載入中...' : '找不到符合的客戶'}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Fill status */}
+      {hasFillData && (
+        <div className="mt-2.5 text-xs text-indigo-600 flex items-center gap-1.5">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>已選擇：</span>
+          {sfSelectedJob && <span className="font-semibold">{sfSelectedJob.position_name || sfSelectedJob.title}</span>}
+          {sfSelectedJob && sfSelectedClient && <span className="text-indigo-400"> + </span>}
+          {sfSelectedClient && <span className="font-semibold">{sfSelectedClient.company_name}</span>}
+          <span className="text-indigo-400 ml-1">— 下方 Prompt 已自動填入</span>
+        </div>
+      )}
+    </div>
+  );
 
   // --- Tab definitions ---
   const tabs: { id: LearningTab; label: string; shortLabel: string; icon: React.ReactNode }[] = [
@@ -2579,12 +2858,15 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                 <MessageSquare className="w-4 h-4" /> 如何使用產業 Prompt？
               </h4>
               <div className="text-xs text-blue-700 space-y-1.5">
-                <p><span className="font-semibold">步驟 1</span>：點擊「查看詳情」展開產業卡片，瀏覽商業模式、代表公司、常見職缺</p>
-                <p><span className="font-semibold">步驟 2</span>：點擊「📋 複製 Prompt」，Prompt 模板會自動複製到剪貼簿</p>
-                <p><span className="font-semibold">步驟 3</span>：將 Prompt 貼到 <span className="font-semibold">ChatGPT / Claude</span>，把 <code className="bg-blue-100 px-1 rounded">[填入...]</code> 的地方替換成真實資訊（每個都有範例提示）</p>
+                <p><span className="font-semibold">步驟 1</span>：用下方「智能填入」選擇職缺或客戶，系統自動替換 Prompt 變數</p>
+                <p><span className="font-semibold">步驟 2</span>：點擊「查看詳情」展開產業卡片，瀏覽商業模式、代表公司、常見職缺</p>
+                <p><span className="font-semibold">步驟 3</span>：點擊「複製 Prompt」，貼到 <span className="font-semibold">ChatGPT / Claude / 龍蝦 AI</span> 即可使用</p>
                 <p><span className="font-semibold">你會獲得</span>：AI 會產出該公司的組織架構推測、關鍵招募角色、人才來源建議、薪資競爭力評估</p>
               </div>
             </div>
+
+            {/* Smart Fill Bar */}
+            {renderSmartFillBar()}
 
             {/* Search */}
             <div className="relative">
@@ -2600,7 +2882,14 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
 
             {/* Industry Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredIndustries.map(ind => (
+              {filteredIndustries.map(ind => {
+                // Smart Fill for industry prompts
+                const { filled: indFilled, replacementCount: indFillCount } = hasFillData
+                  ? fillLearningPrompt(ind.promptTemplate, sfSelectedJob, sfSelectedClient)
+                  : { filled: ind.promptTemplate, replacementCount: 0 };
+                const indIsFilled = hasFillData && indFillCount > 0;
+
+                return (
                 <div key={ind.id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-2xl">{ind.emoji}</span>
@@ -2653,17 +2942,30 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                           ))}
                         </ul>
                       </div>
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                        <p className="text-[10px] text-gray-400 mb-1 font-medium">Prompt 預覽 — 複製後將 [填入...] 替換成實際資料即可使用</p>
-                        <pre className="text-[11px] text-gray-600 whitespace-pre-wrap leading-relaxed font-sans">{ind.promptTemplate}</pre>
+                      {/* Prompt preview with smart fill */}
+                      {indIsFilled && (
+                        <div className="flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full w-fit">
+                          <CheckCircle2 className="w-3 h-3" /> 已自動填入 {indFillCount} 個變數
+                        </div>
+                      )}
+                      <div className={`rounded-lg p-3 border ${indIsFilled ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
+                        <p className="text-[10px] text-gray-400 mb-1 font-medium">
+                          {indIsFilled ? 'Prompt 預覽（已自動填入）' : 'Prompt 預覽 — 複製後將 [填入...] 替換成實際資料即可使用'}
+                        </p>
+                        <pre className="text-[11px] text-gray-600 whitespace-pre-wrap leading-relaxed font-sans">{indFilled}</pre>
                       </div>
                       <div className="flex items-center gap-3">
                         <button
-                          onClick={() => handleCopy(ind.promptTemplate, `ind-prompt-${ind.id}`)}
-                          className="bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5 hover:bg-indigo-100 transition-colors"
+                          onClick={() => handleCopy(indFilled, `ind-prompt-${ind.id}`)}
+                          className={`rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                            indIsFilled
+                              ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                              : 'bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100'
+                          }`}
                         >
                           {copiedId === `ind-prompt-${ind.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                          {copiedId === `ind-prompt-${ind.id}` ? '已複製！貼到 AI 工具使用' : '📋 複製 Prompt'}
+                          {copiedId === `ind-prompt-${ind.id}` ? '已複製！貼到 AI 工具使用' :
+                           indIsFilled ? '複製已填入版本' : '複製 Prompt'}
                         </button>
                         <button onClick={() => setExpandedIndustry(null)} className="text-xs text-gray-400 hover:text-gray-600">
                           收合
@@ -2679,7 +2981,8 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                     </button>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -3323,12 +3626,15 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                 <Bot className="w-4 h-4" /> 如何使用 Prompt 模板？
               </h4>
               <div className="text-xs text-purple-700 space-y-1.5">
-                <p><span className="font-semibold">步驟 1</span>：選擇分類（產業分析 / 公司理解 / 角色理解 / 人選評估），找到適合的 Prompt</p>
-                <p><span className="font-semibold">步驟 2</span>：點擊「📋 複製 Prompt」，模板自動複製到剪貼簿</p>
-                <p><span className="font-semibold">步驟 3</span>：貼到 <span className="font-semibold">ChatGPT / Claude</span>，將 <code className="bg-purple-100 px-1 rounded">[填入...]</code> 或 <code className="bg-purple-100 px-1 rounded">{`「」`}</code> 內替換為真實資訊（每個欄位都有範例提示）</p>
+                <p><span className="font-semibold">步驟 1</span>：用下方「智能填入」選擇職缺或客戶，系統自動替換所有變數</p>
+                <p><span className="font-semibold">步驟 2</span>：選擇分類（產業分析 / 公司理解 / 角色理解 / 人選評估），找到適合的 Prompt</p>
+                <p><span className="font-semibold">步驟 3</span>：點擊「複製已填入版本」，貼到 <span className="font-semibold">ChatGPT / Claude / 龍蝦 AI</span> 即可使用</p>
                 <p><span className="font-semibold">效果</span>：AI 會產出結構化的分析報告，幫你在 5 分鐘內搞懂一個產業、公司、職位或候選人</p>
               </div>
             </div>
+
+            {/* Smart Fill Bar */}
+            {renderSmartFillBar()}
 
             {/* Category pills */}
             <div className="flex flex-wrap gap-2">
@@ -3356,12 +3662,21 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
             {/* Prompt Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredPrompts.map(prompt => {
-                // Highlight [填入...] and {{中文}} variables in template preview
-                const preview = prompt.template.slice(0, 200);
+                // Smart Fill: compute filled version
+                const { filled, replacementCount } = hasFillData
+                  ? fillLearningPrompt(prompt.template, sfSelectedJob, sfSelectedClient)
+                  : { filled: prompt.template, replacementCount: 0 };
+                const isFilled = hasFillData && replacementCount > 0;
+
+                // Preview: show filled or original
+                const displayText = isFilled ? filled : prompt.template;
+                const preview = displayText.slice(0, 200);
                 const parts = preview.split(/(\[填入[^\]]+\]|{{[^}]+}}|「[^」]*」)/g);
 
                 return (
-                  <div key={prompt.id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all">
+                  <div key={prompt.id} className={`rounded-xl border p-4 hover:shadow-md transition-all ${
+                    isFilled ? 'bg-emerald-50/50 border-emerald-200' : 'bg-white border-gray-200'
+                  }`}>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div>
                         <h4 className="font-semibold text-gray-800 text-sm">{prompt.title}</h4>
@@ -3379,8 +3694,17 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                       </span>
                     </div>
 
+                    {/* Filled badge */}
+                    {isFilled && (
+                      <div className="mb-2 flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full w-fit">
+                        <CheckCircle2 className="w-3 h-3" /> 已自動填入 {replacementCount} 個變數
+                      </div>
+                    )}
+
                     {/* Template preview */}
-                    <div className="bg-gray-50 rounded-lg p-2.5 mb-3 border border-gray-100 max-h-24 overflow-hidden">
+                    <div className={`rounded-lg p-2.5 mb-3 border max-h-24 overflow-hidden ${
+                      isFilled ? 'bg-emerald-50 border-emerald-100' : 'bg-gray-50 border-gray-100'
+                    }`}>
                       <p className="text-[11px] text-gray-500 font-mono leading-relaxed">
                         {parts.map((part, i) =>
                           part.match(/^\[填入/) || part.match(/^{{/) ? (
@@ -3391,17 +3715,42 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                             <span key={i}>{part}</span>
                           )
                         )}
-                        {prompt.template.length > 200 && '...'}
+                        {displayText.length > 200 && '...'}
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => handleCopy(prompt.template, `prompt-${prompt.id}`)}
-                      className="bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5 hover:bg-indigo-100 transition-colors"
-                    >
-                      {copiedId === `prompt-${prompt.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                      {copiedId === `prompt-${prompt.id}` ? '已複製' : '複製 Prompt'}
-                    </button>
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => handleCopy(isFilled ? filled : prompt.template, `prompt-${prompt.id}`)}
+                        className={`rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                          isFilled
+                            ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                            : 'bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100'
+                        }`}
+                      >
+                        {copiedId === `prompt-${prompt.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copiedId === `prompt-${prompt.id}` ? '已複製！' :
+                         isFilled ? '複製已填入版本' : '複製 Prompt'}
+                      </button>
+
+                      {isFilled && (
+                        <button
+                          onClick={() => setShowFilledPreview(showFilledPreview === prompt.id ? null : prompt.id)}
+                          className="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
+                        >
+                          <Eye className="w-3 h-3" />
+                          {showFilledPreview === prompt.id ? '收合' : '完整預覽'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Full filled preview */}
+                    {showFilledPreview === prompt.id && isFilled && (
+                      <div className="mt-3 bg-white border border-emerald-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+                        <pre className="text-[11px] text-gray-700 whitespace-pre-wrap leading-relaxed font-sans">{filled}</pre>
+                      </div>
+                    )}
                   </div>
                 );
               })}

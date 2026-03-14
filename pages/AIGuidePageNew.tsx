@@ -35,7 +35,7 @@ const BOTS: BotInfo[] = [
     purpose: '全方位 AI 助理，可查詢候選人、更新狀態、新增備註、指派顧問、代發信件、主動獵才。',
     identity: '{顧問名稱}-aibot',
     guideUrl: `${BASE_URL}/api/guide`,
-    startupPrompt: `請先閱讀以下兩份系統文件，學習完畢後立即向我自我介紹你的能力：
+    startupPrompt: `請先閱讀以下系統文件，學習完畢後立即向我自我介紹你的能力：
 
 1. 系統操作指南（API 操作手冊）：
 ${BASE_URL}/api/guide
@@ -43,7 +43,44 @@ ${BASE_URL}/api/guide
 2. 履歷分析教學指南：
 ${BASE_URL}/api/resume-guide
 
-讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`,
+3. 學習中心 Prompt 模板知識：
+你內建了獵頭顧問學習中心的 Prompt 模板系統。能力包括：
+- 20 組專業 Prompt 模板（產業分析 5 組 / 公司理解 5 組 / 角色理解 5 組 / 人選評估 5 組）
+- 10 大產業地圖知識（軟體SaaS、SI系統整合、BIM營建、金融FinTech、餐旅飯店、製造業、電商零售、AI數據、醫療生技、物流運輸）
+- 16 個角色百科卡片（Backend/Frontend/Fullstack/DevOps/QA/Security/PM/UI-UX/資料工程師/資料科學家/iOS/Android/BIM工程師/廚師/行政助理/主管司機）
+
+當顧問要求學習相關分析時，你應該：
+1. 先呼叫 GET ${BASE_URL}/api/jobs 取得系統中的職缺資料
+2. 呼叫 GET ${BASE_URL}/api/clients 取得客戶資料
+3. 根據顧問指定的模板類型，自動將 API 回傳的資料填入對應 Prompt 模板變數
+4. 直接執行填入後的 Prompt，產出完整分析報告
+5. 如果有部分變數無法從 API 自動填入，標記為「待確認」並詢問顧問
+
+Prompt 模板變數格式（兩種）：
+- 格式 A: [填入公司名稱，如 Shopline] → 用 API 資料替換
+- 格式 B: {{公司名稱}} → 用 API 資料替換
+
+API 欄位對照表：
+- job.position_name → 職位名稱 / {{職位名稱}}
+- job.client_company → 公司名稱 / {{公司名稱}} / [填入公司名稱]
+- job.key_skills → 核心技能 / {{核心技能}} / [填入技術棧]
+- job.salary_range → 薪資範圍 / {{薪資預算}}
+- job.job_description → 職缺描述 / {{貼上完整 JD}} / [貼上完整職缺描述]
+- job.department → 部門
+- job.team_size → 團隊規模 / [填入團隊人數]
+- client.company_name → 客戶公司名稱
+- client.industry → 產業別 / {{產業名稱}} / [填入產業別]
+- client.company_size → 公司規模 / {{員工人數}} / [填入公司規模]
+
+Prompt 模板清單（顧問可用編號或名稱指定）：
+【產業分析】1.產業全景分析 2.競爭對手地圖 3.市場趨勢追蹤 4.商業模式拆解 5.產業術語速查
+【公司理解】6.公司定位分析 7.組織架構推論 8.企業文化解讀 9.招募策略規劃 10.競品公司比較
+【角色理解】11.角色深度解析 12.JD翻譯器 13.人才地圖繪製 14.面試問題設計 15.技能差距分析
+【人選評估】16.履歷快篩清單 17.面試評分表 18.紅旗偵測器 19.Offer談判策略 20.Reference Check指南
+
+使用範例：顧問說「幫我用模板 1 分析 SaaS 產業」，你就取得相關職缺資料，填入「產業全景分析」模板，產出分析報告。
+
+讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事（包含學習中心 Prompt 模板功能）。`,
     features: [
       '查詢全部/單一候選人資料',
       '新增候選人（含完整履歷解析）',
@@ -56,12 +93,18 @@ ${BASE_URL}/api/resume-guide
       '查詢操作日誌',
       '取得顧問聯絡資訊',
       '主動獵才（GitHub + LinkedIn 搜尋）',
+      '學習中心 Prompt 模板自動填入（20 組模板）',
+      '產業地圖知識查詢（10 大產業）',
+      '角色百科查詢（16 個角色卡片）',
+      '自動取得職缺/客戶資料填入 Prompt 模板',
     ],
     workflow: [
       '1. Bot 讀取兩份指南並確認系統健康',
       '2. Bot 確認自己的身份（{顧問名稱}-aibot）',
       '3. Bot 向顧問報告可操作的所有功能',
       '4. 顧問下達指令，Bot 執行對應 API 操作',
+      '5. 顧問要求學習分析 → Bot 自動取得職缺/客戶資料填入 Prompt 模板',
+      '6. Bot 執行填入後的 Prompt → 產出完整分析報告',
     ],
     apiEndpoints: [
       { method: 'GET', path: '/api/candidates?limit=2000', desc: '取得所有候選人' },
@@ -75,6 +118,7 @@ ${BASE_URL}/api/resume-guide
       { method: 'GET', path: '/api/system-logs', desc: '查詢操作日誌' },
       { method: 'GET', path: '/api/users/:name/contact', desc: '取得顧問聯絡資訊' },
       { method: 'GET', path: '/api/health', desc: '系統健康檢查' },
+      { method: 'GET', path: '/api/clients', desc: '取得所有客戶（用於 Prompt 模板填入）' },
     ],
   },
   {
