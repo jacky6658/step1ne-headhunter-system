@@ -2244,6 +2244,15 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
   const [jobSearch, setJobSearch] = useState('');
   const [taxonomyFamilies, setTaxonomyFamilies] = useState<any[]>([]);
 
+  // --- Auto-start onboarding tour on first visit ---
+  useEffect(() => {
+    const done = localStorage.getItem('learning-center-tour-done');
+    if (!done) {
+      const timer = setTimeout(() => setTourActive(true), 600);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // --- Persist completed tasks ---
   useEffect(() => {
     localStorage.setItem('learning-completed-tasks', JSON.stringify([...completedTasks]));
