@@ -93,6 +93,7 @@ function fillLearningPrompt(
   template: string,
   job: any | null,
   client: any | null,
+  manualIndustry?: string,
 ): { filled: string; replacementCount: number } {
   let result = template;
   let count = 0;
@@ -117,9 +118,9 @@ function fillLearningPrompt(
   const teamSize = job?.team_size || '';
   const experience = job?.experience_required || '';
 
-  // 從 client 提取欄位
+  // 從 client 提取欄位（manualIndustry 優先）
   const clientCompany = client?.company_name || company;
-  const clientIndustry = client?.industry || '';
+  const clientIndustry = manualIndustry || client?.industry || job?.industry || '';
   const clientSize = client?.company_size || '';
 
   // --- 格式 A: [填入XXX，如 YYY] ---
@@ -2459,6 +2460,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
   const [sfClientOpen, setSfClientOpen] = useState(false);
   const [sfJobSearch, setSfJobSearch] = useState('');
   const [sfClientSearch, setSfClientSearch] = useState('');
+  const [sfIndustry, setSfIndustry] = useState('');
   const [showFilledPreview, setShowFilledPreview] = useState<string | null>(null);
   const sfJobRef = useRef<HTMLDivElement>(null);
   const sfClientRef = useRef<HTMLDivElement>(null);
@@ -2521,6 +2523,25 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // --- Auto-match client when job is selected ---
+  useEffect(() => {
+    if (!smartFillJobId || smartFillClientId) return; // skip if no job or client already picked
+    const job = jobs.find((j: any) => String(j._id || j.id) === smartFillJobId);
+    if (!job) return;
+    const companyName = (job.client_company || job.company?.name || '').toLowerCase().trim();
+    if (!companyName) return;
+    const matchedClient = clients.find((c: any) =>
+      (c.company_name || '').toLowerCase().trim() === companyName
+    );
+    if (matchedClient) {
+      setSmartFillClientId(String(matchedClient._id || matchedClient.id));
+      // Also set industry from matched client
+      if (matchedClient.industry && !sfIndustry) {
+        setSfIndustry(matchedClient.industry);
+      }
+    }
+  }, [smartFillJobId, jobs, clients]);
 
   // --- Copy handler (with fallback for non-HTTPS) ---
   const handleCopy = useCallback((text: string, id: string) => {
@@ -2646,7 +2667,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
     clients.find((c: any) => String(c._id || c.id) === smartFillClientId) || null
   , [clients, smartFillClientId]);
 
-  const hasFillData = !!smartFillJobId || !!smartFillClientId;
+  const hasFillData = !!smartFillJobId || !!smartFillClientId || !!sfIndustry;
 
   const sfFilteredJobs = useMemo(() => {
     if (!sfJobSearch) return jobs.slice(0, 50);
@@ -2666,11 +2687,14 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
     ).slice(0, 50);
   }, [clients, sfClientSearch]);
 
+  // --- Smart Fill: industry quick-pick options ---
+  const INDUSTRY_QUICK_PICKS = INDUSTRY_MAP.map(ind => ind.name);
+
   // --- Smart Fill Bar render ---
   const renderSmartFillBar = () => (
     <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-4 mb-4">
       <h4 className="text-sm font-semibold text-indigo-800 mb-3 flex items-center gap-2">
-        <Zap className="w-4 h-4" /> 智能填入 — 選擇職缺/客戶自動替換 Prompt 變數
+        <Zap className="w-4 h-4" /> 智能填入 — 選擇職缺/客戶/產業自動替換 Prompt 變數
       </h4>
       <div className="flex flex-col sm:flex-row gap-3">
         {/* Job Selector */}
@@ -2744,7 +2768,13 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                 {sfFilteredClients.length > 0 ? sfFilteredClients.map((c: any) => (
                   <div
                     key={c._id || c.id}
-                    onClick={() => { setSmartFillClientId(String(c._id || c.id)); setSfClientSearch(''); setSfClientOpen(false); }}
+                    onClick={() => {
+                      setSmartFillClientId(String(c._id || c.id));
+                      setSfClientSearch('');
+                      setSfClientOpen(false);
+                      // Auto-fill industry from selected client
+                      if (c.industry && !sfIndustry) setSfIndustry(c.industry);
+                    }}
                     className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${String(c._id || c.id) === smartFillClientId ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-gray-700'}`}
                   >
                     {c.company_name} {c.industry && <span className="text-gray-400">({c.industry})</span>}
@@ -2760,14 +2790,52 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
         </div>
       </div>
 
+      {/* Industry input + quick picks */}
+      <div className="mt-3">
+        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">產業名稱</label>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 max-w-[300px]">
+            <MapIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={sfIndustry}
+              onChange={e => setSfIndustry(e.target.value)}
+              placeholder="輸入產業名稱，如 SaaS、金融科技..."
+              className="w-full pl-8 pr-8 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+            />
+            {sfIndustry && (
+              <button onClick={() => setSfIndustry('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {INDUSTRY_QUICK_PICKS.map(ind => (
+            <button
+              key={ind}
+              onClick={() => setSfIndustry(ind)}
+              className={`text-[11px] px-2.5 py-1 rounded-full transition-all ${
+                sfIndustry === ind
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white border border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+            >
+              {ind}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Fill status */}
       {hasFillData && (
-        <div className="mt-2.5 text-xs text-indigo-600 flex items-center gap-1.5">
-          <CheckCircle2 className="w-3.5 h-3.5" />
+        <div className="mt-2.5 text-xs text-indigo-600 flex items-center gap-1.5 flex-wrap">
+          <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
           <span>已選擇：</span>
           {sfSelectedJob && <span className="font-semibold">{sfSelectedJob.position_name || sfSelectedJob.title}</span>}
-          {sfSelectedJob && sfSelectedClient && <span className="text-indigo-400"> + </span>}
+          {sfSelectedJob && (sfSelectedClient || sfIndustry) && <span className="text-indigo-400"> + </span>}
           {sfSelectedClient && <span className="font-semibold">{sfSelectedClient.company_name}</span>}
+          {sfSelectedClient && sfIndustry && <span className="text-indigo-400"> + </span>}
+          {sfIndustry && !sfSelectedClient && sfSelectedJob && <span className="text-indigo-400"> + </span>}
+          {sfIndustry && <span className="font-semibold">{sfIndustry}</span>}
           <span className="text-indigo-400 ml-1">— 下方 Prompt 已自動填入</span>
         </div>
       )}
@@ -2980,7 +3048,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
               {filteredIndustries.map(ind => {
                 // Smart Fill for industry prompts
                 const { filled: indFilled, replacementCount: indFillCount } = hasFillData
-                  ? fillLearningPrompt(ind.promptTemplate, sfSelectedJob, sfSelectedClient)
+                  ? fillLearningPrompt(ind.promptTemplate, sfSelectedJob, sfSelectedClient, sfIndustry)
                   : { filled: ind.promptTemplate, replacementCount: 0 };
                 const indIsFilled = hasFillData && indFillCount > 0;
 
@@ -3759,7 +3827,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
               {filteredPrompts.map(prompt => {
                 // Smart Fill: compute filled version
                 const { filled, replacementCount } = hasFillData
-                  ? fillLearningPrompt(prompt.template, sfSelectedJob, sfSelectedClient)
+                  ? fillLearningPrompt(prompt.template, sfSelectedJob, sfSelectedClient, sfIndustry)
                   : { filled: prompt.template, replacementCount: 0 };
                 const isFilled = hasFillData && replacementCount > 0;
 
