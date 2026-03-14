@@ -6065,5 +6065,237 @@ router.delete('/interactions/:id', async (req, res) => {
   }
 });
 
+// ==================== AI Grade/Tier Suggestion (Layer 2: LLM-powered) ====================
+
+/**
+ * POST /api/candidates/:id/ai-grade-suggest
+ * 使用本地 LLM (OpenClaw) 深度分析候選人，回傳建議的 Grade / Source Tier
+ *
+ * 需要的欄位已由 GET /candidates/:id 提供，前端傳入即可。
+ * 回傳格式: { suggestedGrade, suggestedTier, confidence, reasons[], detailedAnalysis }
+ */
+router.post('/candidates/:id/ai-grade-suggest', async (req, res) => {
+  const OPENCLAW_URL = process.env.OPENCLAW_URL || 'http://127.0.0.1:18789/v1/chat/completions';
+  const OPENCLAW_MODEL = process.env.OPENCLAW_MODEL || 'openclaw';
+  const TIMEOUT_MS = 30000; // 30 秒上限
+
+  try {
+    const { id } = req.params;
+    const candidateData = req.body; // 前端傳入完整候選人資料
+
+    if (!candidateData || !candidateData.name) {
+      return res.status(400).json({ success: false, error: '缺少候選人資料' });
+    }
+
+    // 組裝 prompt
+    const systemPrompt = `你是一位資深獵頭顧問 AI 助理，專精於科技業人才評估。
+你的任務是根據候選人資料，精確評估其 Grade（人選等級）和 Source Tier（來源層級）。
+
+## Grade 定義
+- A 級（核心人選）：技術深度出色、經歷亮眼（知名企業/重要產品線）、年資匹配、資料完整
+- B 級（合格人選）：技術紮實、經歷中等偏上、多數條件符合
+- C 級（觀察人選）：有潛力但某些維度不足（如經驗淺、技能不完全匹配、資料不完整）
+- D 級（不適合）：多數維度明顯不符、資料嚴重不足
+
+## Source Tier 定義
+- T1（FAANG / 獨角獸）：Google, Meta, Apple, Amazon, Microsoft, NVIDIA, TSMC, MediaTek, Netflix, ByteDance, OpenAI, Stripe, Databricks 等全球頂級企業
+- T2（知名企業 / 上市）：LINE, Shopee, Appier, Gogolook, ASUS, Acer, HTC, Trend Micro, KKday, 91APP, PChome, momo, 國泰, 中信, 富邦等區域知名企業
+- T3（一般企業 / 中小型）：其他企業
+
+## 評估維度（按權重）
+1. 公司背景 (25%) — 現職/過往公司等級
+2. 年資匹配 (20%) — 總年資是否在合理範圍
+3. 技能豐富度 (20%) — 標準化技能數量與深度
+4. 資深程度 (15%) — 職級 (IC/Senior/Lead/Manager/Director)
+5. 資料完整度 (10%) — 核心欄位填寫比例
+6. 職涯穩定度 (10%) — 平均任期、跳槽頻率
+
+請以 JSON 格式回覆（不要 markdown code block），包含：
+{
+  "suggestedGrade": "A" | "B" | "C" | "D",
+  "suggestedTier": "T1" | "T2" | "T3" | null,
+  "confidence": 0-100,
+  "reasons": ["原因1", "原因2", ...],
+  "detailedAnalysis": "完整分析文字（2-3 段）"
+}`;
+
+    // 候選人摘要
+    const workHistorySummary = (candidateData.workHistory || [])
+      .slice(0, 5)
+      .map((w, i) => `  ${i + 1}. ${w.company || '?'} / ${w.title || w.position || '?'} (${w.startDate || '?'} ~ ${w.endDate || '在職'})`)
+      .join('\n');
+
+    const educationSummary = (candidateData.educationJson || candidateData.education_details || [])
+      .slice(0, 3)
+      .map((e, i) => `  ${i + 1}. ${e.school || '?'} / ${e.degree || '?'} / ${e.major || e.field || '?'}`)
+      .join('\n');
+
+    const skillsList = Array.isArray(candidateData.normalizedSkills) && candidateData.normalizedSkills.length > 0
+      ? candidateData.normalizedSkills.join(', ')
+      : candidateData.skills || '無資料';
+
+    const salaryInfo = (() => {
+      const cur = candidateData.salaryCurrency || 'TWD';
+      const per = candidateData.salaryPeriod === 'annual' ? '/年' : '/月';
+      const parts = [];
+      if (candidateData.currentSalaryMin || candidateData.currentSalaryMax) {
+        parts.push(`目前: ${candidateData.currentSalaryMin || '?'}~${candidateData.currentSalaryMax || '?'} ${cur}${per}`);
+      }
+      if (candidateData.expectedSalaryMin || candidateData.expectedSalaryMax) {
+        parts.push(`期望: ${candidateData.expectedSalaryMin || '?'}~${candidateData.expectedSalaryMax || '?'} ${cur}${per}`);
+      }
+      return parts.length > 0 ? parts.join(' | ') : '無資料';
+    })();
+
+    const userMessage = `請評估以下候選人：
+
+## 基本資料
+- 姓名：${candidateData.name}
+- 現職公司：${candidateData.currentCompany || candidateData.current_company || '未提供'}
+- 現職職稱：${candidateData.currentTitle || candidateData.current_title || candidateData.position || '未提供'}
+- 標準職能：${candidateData.roleFamily || '未分類'} / ${candidateData.canonicalRole || '未分類'}
+- 資深程度：${candidateData.seniorityLevel || candidateData.seniority_level || '未分類'}
+- 總年資：${candidateData.totalYears || candidateData.years || '未知'} 年
+- 產業標籤：${candidateData.industryTag || candidateData.industry_tag || '未分類'}
+- 地區：${candidateData.location || '未提供'}
+
+## 技能
+${skillsList}
+
+## 薪資
+${salaryInfo}
+
+## 經歷
+${workHistorySummary || '  無經歷資料'}
+
+## 學歷
+${educationSummary || '  無學歷資料'}
+
+## 求職狀態
+- 求職狀態：${candidateData.jobSearchStatusEnum || candidateData.job_search_status_enum || '未知'}
+- 到職時間：${candidateData.noticePeriodEnum || candidateData.notice_period_enum || '未知'}
+- 穩定度評分：${candidateData.stabilityScore || candidateData.stability_score || '未知'}
+- 跳槽次數：${candidateData.jobChanges || candidateData.job_changes || '未知'}
+- 平均任期：${candidateData.avgTenure || candidateData.avg_tenure_months || '未知'} 個月
+
+## 其他
+- 資料完整度：${candidateData.dataQuality?.completenessScore ?? candidateData.data_quality?.completenessScore ?? '未知'}%
+- 離職原因：${candidateData.quitReasons || candidateData.leaving_reason || '未提供'}
+- 備註：${(candidateData.notes || '').substring(0, 300) || '無'}
+
+請根據以上資料給出評級建議。`;
+
+    // 呼叫 LLM
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+    let llmResponse;
+    try {
+      llmResponse = await fetch(OPENCLAW_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: OPENCLAW_MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage },
+          ],
+          temperature: 0.3,
+          max_tokens: 1500,
+        }),
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      clearTimeout(timeout);
+      // LLM 不可用 — 回傳優雅降級
+      console.warn(`[AI Grade Suggest] LLM 不可用 (${fetchErr.message}), candidate #${id}`);
+      return res.json({
+        success: true,
+        source: 'fallback',
+        data: {
+          suggestedGrade: null,
+          suggestedTier: null,
+          confidence: 0,
+          reasons: ['LLM 服務目前不可用，請使用 Layer 1 規則建議或手動評級'],
+          detailedAnalysis: null,
+          error: fetchErr.name === 'AbortError' ? 'LLM 回應超時' : `LLM 連線失敗: ${fetchErr.message}`,
+        },
+      });
+    }
+    clearTimeout(timeout);
+
+    if (!llmResponse.ok) {
+      const errText = await llmResponse.text().catch(() => 'unknown');
+      console.error(`[AI Grade Suggest] LLM HTTP ${llmResponse.status}: ${errText}`);
+      return res.json({
+        success: true,
+        source: 'fallback',
+        data: {
+          suggestedGrade: null,
+          suggestedTier: null,
+          confidence: 0,
+          reasons: [`LLM 回應錯誤 (HTTP ${llmResponse.status})`],
+          detailedAnalysis: null,
+          error: `HTTP ${llmResponse.status}`,
+        },
+      });
+    }
+
+    const llmJson = await llmResponse.json();
+    const content = llmJson.choices?.[0]?.message?.content || '';
+
+    // 解析 LLM 回傳的 JSON
+    let parsed;
+    try {
+      // 先嘗試直接解析
+      parsed = JSON.parse(content);
+    } catch {
+      // 嘗試從 markdown code block 提取
+      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || content.match(/(\{[\s\S]*\})/);
+      if (jsonMatch) {
+        try { parsed = JSON.parse(jsonMatch[1]); } catch { parsed = null; }
+      }
+    }
+
+    if (!parsed || !parsed.suggestedGrade) {
+      console.warn(`[AI Grade Suggest] 無法解析 LLM 回應:`, content.substring(0, 200));
+      return res.json({
+        success: true,
+        source: 'llm_parse_error',
+        data: {
+          suggestedGrade: null,
+          suggestedTier: null,
+          confidence: 0,
+          reasons: ['AI 回應格式異常，請使用 Layer 1 規則建議'],
+          detailedAnalysis: content.substring(0, 500),
+          rawResponse: content.substring(0, 1000),
+        },
+      });
+    }
+
+    // 驗證 + 標準化回傳
+    const validGrades = ['A', 'B', 'C', 'D'];
+    const validTiers = ['T1', 'T2', 'T3'];
+
+    res.json({
+      success: true,
+      source: 'llm',
+      data: {
+        suggestedGrade: validGrades.includes(parsed.suggestedGrade) ? parsed.suggestedGrade : null,
+        suggestedTier: validTiers.includes(parsed.suggestedTier) ? parsed.suggestedTier : null,
+        confidence: Math.max(0, Math.min(100, parseInt(parsed.confidence) || 50)),
+        reasons: Array.isArray(parsed.reasons) ? parsed.reasons.slice(0, 8) : [],
+        detailedAnalysis: parsed.detailedAnalysis || null,
+      },
+    });
+
+    console.log(`[AI Grade Suggest] candidate #${id} → Grade=${parsed.suggestedGrade}, Tier=${parsed.suggestedTier}, confidence=${parsed.confidence}%`);
+
+  } catch (error) {
+    console.error('[AI Grade Suggest] Unexpected error:', error);
+    safeError(res, error, 'POST /candidates/:id/ai-grade-suggest');
+  }
+});
+
 module.exports = router;
 

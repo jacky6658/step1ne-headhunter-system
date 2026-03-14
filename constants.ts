@@ -189,6 +189,198 @@ export function computeHeatLevel(candidate: {
   return 'Cold';
 }
 
+// ===== Rule-based Grade / Tier 自動建議（Layer 1, 純前端即時計算）=====
+
+// 知名公司 → Tier 映射
+const T1_COMPANIES = [
+  'google', 'meta', 'facebook', 'amazon', 'apple', 'microsoft', 'netflix', 'nvidia',
+  'tsmc', '台積電', 'broadcom', 'qualcomm', 'intel', 'amd', 'arm', 'asml',
+  'uber', 'bytedance', 'tiktok', 'spotify', 'linkedin', 'twitter', 'stripe',
+  'salesforce', 'adobe', 'oracle', 'sap', 'vmware', 'snowflake', 'databricks',
+  'mediatek', '聯發科', 'synopsys', 'cadence', 'marvell',
+  'jpmorgan', 'goldman sachs', 'morgan stanley', 'ubs', 'citadel',
+  'tesla', 'spacex',
+];
+const T2_COMPANIES = [
+  'shopee', '蝦皮', 'line', 'grab', 'gojek', 'sea group',
+  'appier', 'gogolook', 'dcard', 'ikala', '91app', 'shopline',
+  'asus', '華碩', 'acer', '宏碁', 'htc', 'delta', '台達', 'foxconn', '鴻海',
+  'quanta', '廣達', 'pegatron', '和碩', 'compal', '仁寶',
+  'realtek', '瑞昱', 'novatek', '聯詠', 'micron', '美光',
+  'cathay', '國泰', 'ctbc', '中信', 'fubon', '富邦', 'esun', '玉山', 'taishin', '台新',
+  'momo', 'pchome', 'foodpanda', 'uber eats',
+  'accenture', 'deloitte', 'ey', 'kpmg', 'pwc', 'mckinsey', 'bain', 'bcg',
+  'atlassian', 'cloudflare', 'datadog', 'twilio', 'hubspot', 'slack',
+  'garena', 'riot', 'blizzard', 'ea', 'ubisoft',
+  'gogoro', 'binance', 'coinbase',
+  '中華電信', '遠傳', '台灣大哥大',
+  '精誠', '資拓宏宇', 'tcs', 'infosys', 'capgemini',
+];
+
+function matchCompanyTier(company: string): 'T1' | 'T2' | 'T3' | null {
+  if (!company) return null;
+  const lower = company.toLowerCase().trim();
+  if (T1_COMPANIES.some(c => lower.includes(c) || c.includes(lower))) return 'T1';
+  if (T2_COMPANIES.some(c => lower.includes(c) || c.includes(lower))) return 'T2';
+  return null; // 不確定時不建議
+}
+
+export interface AutoGradeTierSuggestion {
+  suggestedGrade: string | null;
+  suggestedTier: string | null;
+  confidence: number; // 0-100
+  reasons: string[];
+  scores: {
+    companyTier: number;
+    yearsScore: number;
+    skillsScore: number;
+    seniorityScore: number;
+    dataCompletenessScore: number;
+  };
+}
+
+export function computeAutoGradeTier(candidate: {
+  currentCompany?: string;
+  currentTitle?: string;
+  roleFamily?: string;
+  canonicalRole?: string;
+  seniorityLevel?: string;
+  totalYears?: number;
+  years?: number;
+  normalizedSkills?: string[];
+  skills?: string | string[];
+  industryTag?: string;
+  expectedSalaryMin?: number;
+  expectedSalaryMax?: number;
+  noticePeriodEnum?: string;
+  jobSearchStatusEnum?: string;
+  workHistory?: any[];
+  dataQuality?: { completenessScore?: number };
+}): AutoGradeTierSuggestion {
+  const reasons: string[] = [];
+  let totalScore = 0;
+  let maxScore = 0;
+
+  // ── 1. Company Tier (25 分) ──
+  const company = candidate.currentCompany || '';
+  const workCompanies = (candidate.workHistory || []).map((w: any) => w.company || '');
+  const allCompanies = [company, ...workCompanies].filter(Boolean);
+
+  let companyTierScore = 0;
+  let detectedTier: 'T1' | 'T2' | 'T3' | null = null;
+
+  for (const c of allCompanies) {
+    const tier = matchCompanyTier(c);
+    if (tier === 'T1') { detectedTier = 'T1'; companyTierScore = 25; break; }
+    if (tier === 'T2' && detectedTier !== 'T1') { detectedTier = 'T2'; companyTierScore = 18; }
+  }
+  if (!detectedTier && allCompanies.length > 0) {
+    detectedTier = 'T3';
+    companyTierScore = 8;
+  }
+
+  if (detectedTier === 'T1') reasons.push(`來自 T1 公司（${company || workCompanies[0]}）`);
+  else if (detectedTier === 'T2') reasons.push(`來自 T2 知名企業（${company || workCompanies[0]}）`);
+  else if (company) reasons.push(`一般企業背景（${company}）`);
+
+  totalScore += companyTierScore;
+  maxScore += 25;
+
+  // ── 2. Years of Experience (20 分) ──
+  const years = candidate.totalYears || candidate.years || 0;
+  let yearsScore = 0;
+  if (years >= 10) { yearsScore = 20; reasons.push(`${years} 年資深經驗`); }
+  else if (years >= 7) { yearsScore = 17; reasons.push(`${years} 年豐富經驗`); }
+  else if (years >= 5) { yearsScore = 14; reasons.push(`${years} 年中高階經驗`); }
+  else if (years >= 3) { yearsScore = 10; reasons.push(`${years} 年基礎經驗`); }
+  else if (years >= 1) { yearsScore = 6; reasons.push(`${years} 年經驗（偏初階）`); }
+  else { yearsScore = 0; }
+
+  totalScore += yearsScore;
+  maxScore += 20;
+
+  // ── 3. Skills Richness (20 分) ──
+  const skills: string[] = Array.isArray(candidate.normalizedSkills) && candidate.normalizedSkills.length > 0
+    ? candidate.normalizedSkills
+    : (typeof candidate.skills === 'string'
+        ? candidate.skills.split(/[,、，]+/).map(s => s.trim()).filter(Boolean)
+        : Array.isArray(candidate.skills) ? candidate.skills : []);
+
+  let skillsScore = 0;
+  if (skills.length >= 8) { skillsScore = 20; reasons.push(`技能豐富（${skills.length} 項）`); }
+  else if (skills.length >= 5) { skillsScore = 15; reasons.push(`技能良好（${skills.length} 項）`); }
+  else if (skills.length >= 3) { skillsScore = 10; reasons.push(`基礎技能（${skills.length} 項）`); }
+  else if (skills.length >= 1) { skillsScore = 5; }
+  else { skillsScore = 0; }
+
+  totalScore += skillsScore;
+  maxScore += 20;
+
+  // ── 4. Seniority Level (15 分) ──
+  const seniority = (candidate.seniorityLevel || '').toLowerCase();
+  let seniorityScore = 0;
+  if (['cxo', 'vp', 'director'].includes(seniority)) { seniorityScore = 15; reasons.push(`高階主管級別`); }
+  else if (['principal', 'staff'].includes(seniority)) { seniorityScore = 13; reasons.push(`Staff / Principal 等級`); }
+  else if (['lead', 'manager'].includes(seniority)) { seniorityScore = 11; reasons.push(`Lead / Manager 等級`); }
+  else if (seniority === 'senior') { seniorityScore = 9; reasons.push(`Senior 等級`); }
+  else if (seniority === 'ic') { seniorityScore = 6; }
+  else if (seniority === 'junior') { seniorityScore = 3; }
+  else if (seniority === 'intern') { seniorityScore = 1; }
+
+  totalScore += seniorityScore;
+  maxScore += 15;
+
+  // ── 5. Data Completeness (10 分) ──
+  const completeness = candidate.dataQuality?.completenessScore ?? 0;
+  let dataScore = Math.round(completeness / 10);
+  totalScore += dataScore;
+  maxScore += 10;
+
+  // ── 6. Career Stability (10 分) ──
+  const workHistory = candidate.workHistory || [];
+  let stabilityScore = 0;
+  if (workHistory.length >= 2) {
+    const avgMonths = workHistory.reduce((sum: number, w: any) => sum + (w.duration_months || 0), 0) / workHistory.length;
+    if (avgMonths >= 36) { stabilityScore = 10; reasons.push('職涯穩定（平均任期 3+ 年）'); }
+    else if (avgMonths >= 24) { stabilityScore = 7; }
+    else if (avgMonths >= 12) { stabilityScore = 4; }
+    else { stabilityScore = 1; reasons.push('頻繁跳槽（平均任期 < 1 年）'); }
+  }
+  totalScore += stabilityScore;
+  maxScore += 10;
+
+  // ── 計算百分比 & 映射 Grade ──
+  const pct = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+
+  let suggestedGrade: string | null = null;
+  if (pct >= 80) suggestedGrade = 'A';
+  else if (pct >= 60) suggestedGrade = 'B';
+  else if (pct >= 40) suggestedGrade = 'C';
+  else if (pct > 0) suggestedGrade = 'D';
+
+  // 信心度：資料越完整信心越高
+  const hasCompany = !!company;
+  const hasYears = years > 0;
+  const hasSkills = skills.length >= 3;
+  const hasSeniority = !!seniority;
+  const filledFactors = [hasCompany, hasYears, hasSkills, hasSeniority].filter(Boolean).length;
+  const confidence = Math.min(100, Math.round(filledFactors / 4 * 70 + completeness * 0.3));
+
+  return {
+    suggestedGrade,
+    suggestedTier: detectedTier,
+    confidence,
+    reasons,
+    scores: {
+      companyTier: companyTierScore,
+      yearsScore,
+      skillsScore,
+      seniorityScore,
+      dataCompletenessScore: dataScore,
+    },
+  };
+}
+
 // 客戶送件規範預設模板
 export const SUBMISSION_RULE_PRESETS: Omit<SubmissionRule, 'id' | 'sort_order'>[] = [
   { rule_type: 'content_format', label: '必須使用中文姓名', field_key: 'name', check_config: { format: 'chinese_name' }, is_auto_checkable: true, enabled: true },

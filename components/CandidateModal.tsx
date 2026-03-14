@@ -5,8 +5,8 @@ import { ResumePreview } from './ResumeGenerator';
 import { RadarChart, RADAR_DIMENSIONS, computeAutoScores, computeOverallRating } from './RadarChart';
 import { SkillTagInput } from './SkillTagInput';
 import { SalaryRangeInput, SalaryRangeDisplay } from './SalaryRangeInput';
-import { CANDIDATE_STATUS_CONFIG } from '../constants';
-import { apiPatch, apiGet, getApiUrl, getAuthHeaders } from '../config/api';
+import { CANDIDATE_STATUS_CONFIG, GRADE_CONFIG, TIER_CONFIG, computeAutoGradeTier } from '../constants';
+import { apiPatch, apiGet, apiPost, getApiUrl, getAuthHeaders } from '../config/api';
 import { toast } from './Toast';
 import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
@@ -211,6 +211,10 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [editNoticePeriodEnum, setEditNoticePeriodEnum] = useState(candidate.noticePeriodEnum || '');
   const [editJobSearchStatusEnum, setEditJobSearchStatusEnum] = useState(candidate.jobSearchStatusEnum || '');
 
+  // Grade / Source Tier
+  const [editGradeLevel, setEditGradeLevel] = useState(candidate.gradeLevel || '');
+  const [editSourceTier, setEditSourceTier] = useState(candidate.sourceTier || '');
+
   // Sprint 2: Collapsible section states
   const [sectionDealOpen, setSectionDealOpen] = useState(false);
   const [sectionSupplementOpen, setSectionSupplementOpen] = useState(false);
@@ -277,6 +281,90 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [jobs, setJobs] = useState<{ id: number; position_name: string; client_company: string }[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [targetJobSearch, setTargetJobSearch] = useState('');
+
+  // Layer 1: Rule-based Grade/Tier auto-suggestion (instant, frontend-only)
+  const autoSuggestion = React.useMemo(() => computeAutoGradeTier({
+    currentCompany: editCurrentCompany,
+    currentTitle: editCurrentTitle,
+    roleFamily: editRoleFamily,
+    canonicalRole: editCanonicalRole,
+    seniorityLevel: editSeniorityLevel,
+    totalYears: parseFloat(editYears) || 0,
+    normalizedSkills: editNormalizedSkills,
+    industryTag: editIndustryTag,
+    expectedSalaryMin: editExpectedSalaryMin ? parseInt(editExpectedSalaryMin) : undefined,
+    noticePeriodEnum: editNoticePeriodEnum,
+    jobSearchStatusEnum: editJobSearchStatusEnum,
+    workHistory: workItems,
+    dataQuality: candidate.dataQuality,
+  }), [editCurrentCompany, editCurrentTitle, editRoleFamily, editCanonicalRole, editSeniorityLevel, editYears, editNormalizedSkills, editIndustryTag, editExpectedSalaryMin, editNoticePeriodEnum, editJobSearchStatusEnum, workItems, candidate.dataQuality]);
+
+  // Layer 2: LLM-powered deep analysis state
+  const [layer2Loading, setLayer2Loading] = useState(false);
+  const [layer2Result, setLayer2Result] = useState<{
+    suggestedGrade: string | null;
+    suggestedTier: string | null;
+    confidence: number;
+    reasons: string[];
+    detailedAnalysis: string | null;
+    error?: string;
+  } | null>(null);
+
+  const handleLayer2Analyze = async () => {
+    setLayer2Loading(true);
+    setLayer2Result(null);
+    try {
+      const payload = {
+        name: candidate.name,
+        currentCompany: editCurrentCompany,
+        currentTitle: editCurrentTitle,
+        roleFamily: editRoleFamily,
+        canonicalRole: editCanonicalRole,
+        seniorityLevel: editSeniorityLevel,
+        totalYears: parseFloat(editYears) || 0,
+        normalizedSkills: editNormalizedSkills,
+        industryTag: editIndustryTag,
+        expectedSalaryMin: editExpectedSalaryMin ? parseInt(editExpectedSalaryMin) : undefined,
+        expectedSalaryMax: editExpectedSalaryMax ? parseInt(editExpectedSalaryMax) : undefined,
+        currentSalaryMin: editCurrentSalaryMin ? parseInt(editCurrentSalaryMin) : undefined,
+        currentSalaryMax: editCurrentSalaryMax ? parseInt(editCurrentSalaryMax) : undefined,
+        salaryCurrency: editSalaryCurrency,
+        salaryPeriod: editSalaryPeriod,
+        noticePeriodEnum: editNoticePeriodEnum,
+        jobSearchStatusEnum: editJobSearchStatusEnum,
+        workHistory: workItems,
+        educationJson: candidate.educationJson,
+        skills: candidate.skills,
+        location: editLocation,
+        position: candidate.position,
+        stabilityScore: candidate.stabilityScore,
+        jobChanges: candidate.jobChanges,
+        avgTenure: candidate.avgTenure,
+        quitReasons: candidate.quitReasons,
+        notes: candidate.notes,
+        dataQuality: candidate.dataQuality,
+      };
+      const resp: any = await apiPost(`/candidates/${candidate.id}/ai-grade-suggest`, payload);
+      if (resp.success && resp.data) {
+        setLayer2Result(resp.data);
+        if (resp.data.suggestedGrade || resp.data.suggestedTier) {
+          toast.success('AI 深度分析完成');
+        } else if (resp.data.error) {
+          toast.warning(resp.data.error);
+        }
+      } else {
+        toast.error('AI 分析回應異常');
+      }
+    } catch (err: any) {
+      toast.error(`AI 分析失敗: ${err.message || '連線錯誤'}`);
+      setLayer2Result({
+        suggestedGrade: null, suggestedTier: null, confidence: 0,
+        reasons: ['API 連線失敗'], detailedAnalysis: null, error: err.message,
+      });
+    } finally {
+      setLayer2Loading(false);
+    }
+  };
 
   // 禁止背景滾動
   React.useEffect(() => {
@@ -1007,6 +1095,9 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
         salary_period: editSalaryPeriod,
         notice_period_enum: editNoticePeriodEnum,
         job_search_status_enum: editJobSearchStatusEnum,
+        // Grade / Source Tier
+        grade_level: editGradeLevel || null,
+        source_tier: editSourceTier || null,
         // Phase 1 新增欄位
         birthday: editBirthday || null,
         age: editBirthday ? calcAgeFromBirthday(editBirthday) : (editAge ? parseInt(editAge) : null),
@@ -1596,7 +1687,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     <button onClick={handleSaveBasicInfo} disabled={savingBasicInfo} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">
                       {savingBasicInfo ? '儲存中...' : '儲存'}
                     </button>
-                    <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditCurrentTitle(candidate.currentTitle||candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditEducation(typeof candidate.education === 'string' ? candidate.education : ''); setEditEnglishName(candidate.englishName||''); setEditIndustry(candidate.industry||''); setEditCurrentCompany(candidate.currentCompany||''); setEditRoleFamily(candidate.roleFamily||''); setEditCanonicalRole(candidate.canonicalRole||''); setEditSeniorityLevel(candidate.seniorityLevel||''); setEditIndustryTag(candidate.industryTag||''); setEditNormalizedSkills(candidate.normalizedSkills||[]); setEditCurrentSalaryMin(String(candidate.currentSalaryMin??'')); setEditCurrentSalaryMax(String(candidate.currentSalaryMax??'')); setEditExpectedSalaryMin(String(candidate.expectedSalaryMin??'')); setEditExpectedSalaryMax(String(candidate.expectedSalaryMax??'')); setEditSalaryCurrency(candidate.salaryCurrency||'TWD'); setEditSalaryPeriod(candidate.salaryPeriod||'monthly'); setEditNoticePeriodEnum(candidate.noticePeriodEnum||''); setEditJobSearchStatusEnum(candidate.jobSearchStatusEnum||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); setEditJobSearchStatus(candidate.jobSearchStatus||''); setEditReasonForChange(candidate.reasonForChange||''); setEditMotivation(candidate.motivation||''); setEditDealBreakers(candidate.dealBreakers||''); setEditCompetingOffers(candidate.competingOffers||''); setEditRelationshipLevel(candidate.relationshipLevel||''); setEditConsultantNote(candidate.consultantNote||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                    <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditCurrentTitle(candidate.currentTitle||candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditEducation(typeof candidate.education === 'string' ? candidate.education : ''); setEditEnglishName(candidate.englishName||''); setEditIndustry(candidate.industry||''); setEditCurrentCompany(candidate.currentCompany||''); setEditRoleFamily(candidate.roleFamily||''); setEditCanonicalRole(candidate.canonicalRole||''); setEditSeniorityLevel(candidate.seniorityLevel||''); setEditIndustryTag(candidate.industryTag||''); setEditNormalizedSkills(candidate.normalizedSkills||[]); setEditCurrentSalaryMin(String(candidate.currentSalaryMin??'')); setEditCurrentSalaryMax(String(candidate.currentSalaryMax??'')); setEditExpectedSalaryMin(String(candidate.expectedSalaryMin??'')); setEditExpectedSalaryMax(String(candidate.expectedSalaryMax??'')); setEditSalaryCurrency(candidate.salaryCurrency||'TWD'); setEditSalaryPeriod(candidate.salaryPeriod||'monthly'); setEditNoticePeriodEnum(candidate.noticePeriodEnum||''); setEditJobSearchStatusEnum(candidate.jobSearchStatusEnum||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); setEditJobSearchStatus(candidate.jobSearchStatus||''); setEditReasonForChange(candidate.reasonForChange||''); setEditMotivation(candidate.motivation||''); setEditDealBreakers(candidate.dealBreakers||''); setEditCompetingOffers(candidate.competingOffers||''); setEditRelationshipLevel(candidate.relationshipLevel||''); setEditConsultantNote(candidate.consultantNote||''); setEditGradeLevel(candidate.gradeLevel||''); setEditSourceTier(candidate.sourceTier||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
                   </div>
                 )}
               </div>
@@ -1789,12 +1880,12 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       <input value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="0912-345-678" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">地點 *</label>
+                      <label className="block text-xs text-gray-500 mb-1">地點 <span className="text-red-500">*</span> <span className="text-[10px] text-orange-500 bg-orange-50 px-1 rounded">Match Core</span></label>
                       <input value={editLocation} onChange={e => setEditLocation(e.target.value)} placeholder="台北市" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                     {/* Row 2: Company + Title */}
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">目前公司</label>
+                      <label className="block text-xs text-gray-500 mb-1">目前公司 <span className="text-red-500">*</span> <span className="text-[10px] text-orange-500 bg-orange-50 px-1 rounded">Match Core</span></label>
                       <input value={editCurrentCompany} onChange={e => setEditCurrentCompany(e.target.value)} placeholder="例：Google" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                     <div>
@@ -1812,7 +1903,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">標準職稱</label>
+                      <label className="block text-xs text-gray-500 mb-1">標準職稱 <span className="text-red-500">*</span> <span className="text-[10px] text-orange-500 bg-orange-50 px-1 rounded">Match Core</span></label>
                       <select value={editCanonicalRole} onChange={e => setEditCanonicalRole(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" disabled={!editRoleFamily}>
                         <option value="">— 請選擇 —</option>
                         {(roleTaxonomy[editRoleFamily]?.canonicalRoles || []).map(r => (
@@ -1833,11 +1924,11 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     </div>
                     {/* Row 4: Years + Industry */}
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">總年資 *</label>
+                      <label className="block text-xs text-gray-500 mb-1">總年資 <span className="text-red-500">*</span> <span className="text-[10px] text-orange-500 bg-orange-50 px-1 rounded">Match Core</span></label>
                       <input value={editYears} onChange={e => setEditYears(e.target.value)} type="number" min="0" step="0.5" placeholder="0" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">產業標籤</label>
+                      <label className="block text-xs text-gray-500 mb-1">產業標籤 <span className="text-red-500">*</span> <span className="text-[10px] text-orange-500 bg-orange-50 px-1 rounded">Match Core</span></label>
                       <select value={editIndustryTag} onChange={e => setEditIndustryTag(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
                         <option value="">— 請選擇 —</option>
                         {industryTaxonomy.map(ind => (
@@ -1847,17 +1938,17 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     </div>
                     {/* Row 5: Normalized Skills (tag input) */}
                     <div className="sm:col-span-2">
-                      <label className="block text-xs text-gray-500 mb-1">核心技能 *（輸入後按 Enter 或逗號新增）</label>
+                      <label className="block text-xs text-gray-500 mb-1">核心技能 <span className="text-red-500">*</span> <span className="text-[10px] text-orange-500 bg-orange-50 px-1 rounded">Match Core</span>（輸入後按 Enter 或逗號新增）</label>
                       <SkillTagInput value={editNormalizedSkills} onChange={setEditNormalizedSkills} placeholder="React, Python, Docker..." />
                     </div>
                     {/* Row 6: Salary (structured) */}
                     <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <SalaryRangeInput label="目前薪資" min={editCurrentSalaryMin} max={editCurrentSalaryMax} currency={editSalaryCurrency} period={editSalaryPeriod} onMinChange={setEditCurrentSalaryMin} onMaxChange={setEditCurrentSalaryMax} onCurrencyChange={setEditSalaryCurrency} onPeriodChange={setEditSalaryPeriod} />
-                      <SalaryRangeInput label="期望薪資" min={editExpectedSalaryMin} max={editExpectedSalaryMax} currency={editSalaryCurrency} period={editSalaryPeriod} onMinChange={setEditExpectedSalaryMin} onMaxChange={setEditExpectedSalaryMax} onCurrencyChange={setEditSalaryCurrency} onPeriodChange={setEditSalaryPeriod} />
+                      <SalaryRangeInput label="期望薪資" required min={editExpectedSalaryMin} max={editExpectedSalaryMax} currency={editSalaryCurrency} period={editSalaryPeriod} onMinChange={setEditExpectedSalaryMin} onMaxChange={setEditExpectedSalaryMax} onCurrencyChange={setEditSalaryCurrency} onPeriodChange={setEditSalaryPeriod} />
                     </div>
                     {/* Row 7: Notice Period + Job Search Status (enum dropdowns) */}
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">到職時間</label>
+                      <label className="block text-xs text-gray-500 mb-1">到職時間 <span className="text-red-500">*</span> <span className="text-[10px] text-orange-500 bg-orange-50 px-1 rounded">Match Core</span></label>
                       <select value={editNoticePeriodEnum} onChange={e => setEditNoticePeriodEnum(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
                         <option value="">— 請選擇 —</option>
                         <option value="immediate">即刻到職</option>
@@ -1869,13 +1960,206 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">求職狀態</label>
+                      <label className="block text-xs text-gray-500 mb-1">求職狀態 <span className="text-red-500">*</span> <span className="text-[10px] text-orange-500 bg-orange-50 px-1 rounded">Match Core</span></label>
                       <select value={editJobSearchStatusEnum} onChange={e => setEditJobSearchStatusEnum(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
                         <option value="">— 請選擇 —</option>
                         <option value="active">主動求職</option>
                         <option value="passive">被動觀望</option>
                         <option value="not_open">暫不考慮</option>
                       </select>
+                    </div>
+                    {/* ── Grade / Source Tier 評級 ── */}
+                    <div className="sm:col-span-2 pt-2 mt-1 border-t border-blue-100">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Award className="w-3.5 h-3.5 text-purple-500" />
+                        <span className="text-xs font-semibold text-purple-700">顧問評級</span>
+                        <span className="text-[10px] text-gray-400">— 評估人選等級與來源公司層級</span>
+                      </div>
+                      {/* AI Auto-Suggestion Card (Layer 1 rule-based + Layer 2 LLM) */}
+                      {(autoSuggestion.suggestedGrade || autoSuggestion.suggestedTier) && (
+                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-2.5 mb-2">
+                          {/* Layer 1: Rule-based instant suggestion */}
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                              <span className="text-[11px] font-bold text-purple-700">快速建議</span>
+                              <span className="text-[9px] px-1 py-0.5 bg-purple-100 text-purple-600 rounded">Layer 1</span>
+                              <span className="text-[10px] text-gray-400">信心度 {autoSuggestion.confidence}%</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {autoSuggestion.suggestedGrade && GRADE_CONFIG[autoSuggestion.suggestedGrade] && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${GRADE_CONFIG[autoSuggestion.suggestedGrade].bg} ${GRADE_CONFIG[autoSuggestion.suggestedGrade].color} ${GRADE_CONFIG[autoSuggestion.suggestedGrade].border} border`}>
+                                  {GRADE_CONFIG[autoSuggestion.suggestedGrade].label}
+                                </span>
+                              )}
+                              {autoSuggestion.suggestedTier && TIER_CONFIG[autoSuggestion.suggestedTier] && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TIER_CONFIG[autoSuggestion.suggestedTier].bg} ${TIER_CONFIG[autoSuggestion.suggestedTier].color} ${TIER_CONFIG[autoSuggestion.suggestedTier].border} border`}>
+                                  {TIER_CONFIG[autoSuggestion.suggestedTier].label}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {autoSuggestion.reasons.length > 0 && (
+                            <div className="text-[10px] text-gray-600 ml-5 space-y-0.5">
+                              {autoSuggestion.reasons.slice(0, 4).map((r, i) => (
+                                <div key={i}>• {r}</div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1.5 mt-2 ml-5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (autoSuggestion.suggestedGrade) setEditGradeLevel(autoSuggestion.suggestedGrade);
+                                if (autoSuggestion.suggestedTier) setEditSourceTier(autoSuggestion.suggestedTier);
+                                toast.success('已採用 Layer 1 建議');
+                              }}
+                              className="text-[10px] px-2 py-0.5 bg-purple-600 text-white rounded hover:bg-purple-700 font-medium"
+                            >
+                              ✅ 採用建議
+                            </button>
+                            {!layer2Result && !layer2Loading && (
+                              <button
+                                type="button"
+                                onClick={handleLayer2Analyze}
+                                className="text-[10px] px-2 py-0.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium flex items-center gap-1"
+                              >
+                                <Brain className="w-3 h-3" />
+                                AI 深度分析
+                              </button>
+                            )}
+                            {layer2Loading && (
+                              <span className="text-[10px] text-indigo-600 flex items-center gap-1 animate-pulse">
+                                <Brain className="w-3 h-3 animate-spin" />
+                                分析中...
+                              </span>
+                            )}
+                            <span className="text-[10px] text-gray-400">或在下方手動選擇</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Layer 2: LLM Deep Analysis Result */}
+                      {layer2Result && (layer2Result.suggestedGrade || layer2Result.suggestedTier || layer2Result.error) && (
+                        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-300 rounded-lg p-2.5 mb-2">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Brain className="w-3.5 h-3.5 text-indigo-600" />
+                              <span className="text-[11px] font-bold text-indigo-700">AI 深度分析</span>
+                              <span className="text-[9px] px-1 py-0.5 bg-indigo-100 text-indigo-600 rounded">Layer 2</span>
+                              {layer2Result.confidence > 0 && (
+                                <span className="text-[10px] text-gray-400">信心度 {layer2Result.confidence}%</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {layer2Result.suggestedGrade && GRADE_CONFIG[layer2Result.suggestedGrade] && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${GRADE_CONFIG[layer2Result.suggestedGrade].bg} ${GRADE_CONFIG[layer2Result.suggestedGrade].color} ${GRADE_CONFIG[layer2Result.suggestedGrade].border} border`}>
+                                  {GRADE_CONFIG[layer2Result.suggestedGrade].label}
+                                </span>
+                              )}
+                              {layer2Result.suggestedTier && TIER_CONFIG[layer2Result.suggestedTier] && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TIER_CONFIG[layer2Result.suggestedTier].bg} ${TIER_CONFIG[layer2Result.suggestedTier].color} ${TIER_CONFIG[layer2Result.suggestedTier].border} border`}>
+                                  {TIER_CONFIG[layer2Result.suggestedTier].label}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {layer2Result.error && (
+                            <div className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded ml-5 mb-1">
+                              ⚠ {layer2Result.error}
+                            </div>
+                          )}
+                          {layer2Result.reasons.length > 0 && (
+                            <div className="text-[10px] text-gray-600 ml-5 space-y-0.5">
+                              {layer2Result.reasons.slice(0, 6).map((r, i) => (
+                                <div key={i}>• {r}</div>
+                              ))}
+                            </div>
+                          )}
+                          {layer2Result.detailedAnalysis && (
+                            <details className="mt-1.5 ml-5">
+                              <summary className="text-[10px] text-indigo-600 cursor-pointer hover:underline">查看詳細分析</summary>
+                              <div className="text-[10px] text-gray-600 mt-1 p-2 bg-white/60 rounded border border-indigo-100 whitespace-pre-wrap leading-relaxed">
+                                {layer2Result.detailedAnalysis}
+                              </div>
+                            </details>
+                          )}
+                          {(layer2Result.suggestedGrade || layer2Result.suggestedTier) && (
+                            <div className="flex items-center gap-1.5 mt-2 ml-5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (layer2Result.suggestedGrade) setEditGradeLevel(layer2Result.suggestedGrade);
+                                  if (layer2Result.suggestedTier) setEditSourceTier(layer2Result.suggestedTier);
+                                  toast.success('已採用 AI 深度分析建議');
+                                }}
+                                className="text-[10px] px-2 py-0.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium"
+                              >
+                                ✅ 採用此建議
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setLayer2Result(null)}
+                                className="text-[10px] px-2 py-0.5 text-gray-500 hover:text-gray-700"
+                              >
+                                ✕ 關閉
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        Grade（人選等級）
+                        <HelpCircle className="inline w-3 h-3 ml-1 text-gray-400" />
+                      </label>
+                      <select value={editGradeLevel} onChange={e => setEditGradeLevel(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 bg-white">
+                        <option value="">— 請選擇 —</option>
+                        {Object.entries(GRADE_CONFIG).map(([key, conf]) => (
+                          <option key={key} value={key}>{conf.label} — {conf.description}</option>
+                        ))}
+                      </select>
+                      {editGradeLevel && GRADE_CONFIG[editGradeLevel] && (
+                        <p className={`text-[10px] mt-1 ${GRADE_CONFIG[editGradeLevel].color}`}>
+                          {GRADE_CONFIG[editGradeLevel].description}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        Source Tier（來源層級）
+                        <HelpCircle className="inline w-3 h-3 ml-1 text-gray-400" />
+                      </label>
+                      <select value={editSourceTier} onChange={e => setEditSourceTier(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 bg-white">
+                        <option value="">— 請選擇 —</option>
+                        {Object.entries(TIER_CONFIG).map(([key, conf]) => (
+                          <option key={key} value={key}>{conf.label} — {conf.description}</option>
+                        ))}
+                      </select>
+                      {editSourceTier && TIER_CONFIG[editSourceTier] && (
+                        <p className={`text-[10px] mt-1 ${TIER_CONFIG[editSourceTier].color}`}>
+                          {TIER_CONFIG[editSourceTier].description}
+                        </p>
+                      )}
+                    </div>
+                    {/* 評分參考指南 */}
+                    <div className="sm:col-span-2 bg-purple-50 rounded-lg p-2.5 border border-purple-100">
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-purple-700 font-semibold flex items-center gap-1">
+                          <HelpCircle className="w-3 h-3" /> 評分參考指南
+                        </summary>
+                        <div className="mt-2 space-y-1.5 text-[11px] text-gray-600">
+                          <div><span className="font-bold text-emerald-700">A 級</span>：技能高度匹配、來自 T1 公司、3+ 年相關經驗、有量化成果</div>
+                          <div><span className="font-bold text-blue-700">B 級</span>：基本條件符合、技能 70%+ 匹配、有發展潛力</div>
+                          <div><span className="font-bold text-amber-700">C 級</span>：部分條件不符、需要培訓或轉型、經驗不足</div>
+                          <div><span className="font-bold text-red-700">D 級</span>：條件明顯不符、技能差距大、不建議推薦</div>
+                          <hr className="border-purple-200 my-1.5" />
+                          <div><span className="font-bold text-violet-700">T1</span>：FAANG / 獨角獸 / 市值 Top 50（Google, TSMC, Meta...）</div>
+                          <div><span className="font-bold text-indigo-700">T2</span>：上市公司 / 知名新創 / 行業領導者（Shopee, LINE, Appier...）</div>
+                          <div><span className="font-bold text-slate-600">T3</span>：中小型企業 / 傳統產業 / 新創早期</div>
+                        </div>
+                      </details>
                     </div>
                   </div>
                 ) : (
@@ -1884,7 +2168,9 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     <div className="flex items-center gap-2">
                       <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">公司</span>
-                      <span className="text-sm font-medium text-gray-800 truncate">{editCurrentCompany || '—'}</span>
+                      {editCurrentCompany ? (
+                        <span className="text-sm font-medium text-gray-800 truncate">{editCurrentCompany}</span>
+                      ) : <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">⚠ 待填寫</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -1908,12 +2194,16 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     <div className="flex items-center gap-2">
                       <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">地點</span>
-                      <span className="text-sm font-medium text-gray-800 truncate">{editLocation || '—'}</span>
+                      {editLocation ? (
+                        <span className="text-sm font-medium text-gray-800 truncate">{editLocation}</span>
+                      ) : <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">⚠ 待填寫</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">年資</span>
-                      <span className="text-sm font-medium text-gray-800">{editYears && Number(editYears) > 0 ? `${editYears} 年` : '—'}</span>
+                      {editYears && Number(editYears) > 0 ? (
+                        <span className="text-sm font-medium text-gray-800">{editYears} 年</span>
+                      ) : <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">⚠ 待填寫</span>}
                     </div>
                     {/* Phone + Email */}
                     <div className="flex items-center gap-2">
@@ -1934,12 +2224,14 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       <span className="text-xs text-gray-500">產業</span>
                       {editIndustryTag ? (
                         <span className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full font-medium">{editIndustryTag}</span>
-                      ) : <span className="text-sm text-gray-400">—</span>}
+                      ) : <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">⚠ 待填寫</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">標準職稱</span>
-                      <span className="text-sm font-medium text-gray-800 truncate">{editCanonicalRole || '—'}</span>
+                      {editCanonicalRole ? (
+                        <span className="text-sm font-medium text-gray-800 truncate">{editCanonicalRole}</span>
+                      ) : <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">⚠ 待填寫</span>}
                     </div>
                     {/* Skills */}
                     <div className="col-span-2 flex items-start gap-2 pt-1 border-t border-gray-100">
@@ -1948,7 +2240,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       <div className="flex flex-wrap gap-1">
                         {editNormalizedSkills.length > 0 ? editNormalizedSkills.map((s, i) => (
                           <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs">{s}</span>
-                        )) : <span className="text-xs text-gray-400">—</span>}
+                        )) : <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">⚠ 待填寫</span>}
                       </div>
                     </div>
                     {/* Salary */}
@@ -1960,21 +2252,24 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     <div className="flex items-center gap-2">
                       <TrendingUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">期望薪資</span>
-                      <SalaryRangeDisplay min={editExpectedSalaryMin ? Number(editExpectedSalaryMin) : candidate.expectedSalaryMin} max={editExpectedSalaryMax ? Number(editExpectedSalaryMax) : candidate.expectedSalaryMax} currency={editSalaryCurrency} period={editSalaryPeriod} />
+                      {(editExpectedSalaryMin || candidate.expectedSalaryMin || editExpectedSalaryMax || candidate.expectedSalaryMax) ? (
+                        <SalaryRangeDisplay min={editExpectedSalaryMin ? Number(editExpectedSalaryMin) : candidate.expectedSalaryMin} max={editExpectedSalaryMax ? Number(editExpectedSalaryMax) : candidate.expectedSalaryMax} currency={editSalaryCurrency} period={editSalaryPeriod} />
+                      ) : <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">⚠ 待填寫</span>}
                     </div>
                     {/* Notice Period + Job Search Status */}
                     <div className="flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">到職時間</span>
-                      <span className="text-sm font-medium text-gray-800">{
-                        editNoticePeriodEnum === 'immediate' ? '即刻到職' :
-                        editNoticePeriodEnum === '2weeks' ? '2 週內' :
-                        editNoticePeriodEnum === '1month' ? '1 個月' :
-                        editNoticePeriodEnum === '2months' ? '2 個月' :
-                        editNoticePeriodEnum === '3months' ? '3 個月' :
-                        editNoticePeriodEnum === 'negotiable' ? '可議' :
-                        editNoticePeriod || '—'
-                      }</span>
+                      {editNoticePeriodEnum ? (
+                        <span className="text-sm font-medium text-gray-800">{
+                          editNoticePeriodEnum === 'immediate' ? '即刻到職' :
+                          editNoticePeriodEnum === '2weeks' ? '2 週內' :
+                          editNoticePeriodEnum === '1month' ? '1 個月' :
+                          editNoticePeriodEnum === '2months' ? '2 個月' :
+                          editNoticePeriodEnum === '3months' ? '3 個月' :
+                          editNoticePeriodEnum === 'negotiable' ? '可議' : editNoticePeriodEnum
+                        }</span>
+                      ) : <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">⚠ 待填寫</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       <Target className="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -1985,7 +2280,27 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                           editJobSearchStatusEnum === 'passive' ? 'bg-amber-50 text-amber-700' :
                           'bg-gray-100 text-gray-600'
                         }`}>{editJobSearchStatusEnum === 'active' ? '主動求職' : editJobSearchStatusEnum === 'passive' ? '被動觀望' : '暫不考慮'}</span>
-                      ) : <span className="text-sm text-gray-400">—</span>}
+                      ) : <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">⚠ 待填寫</span>}
+                    </div>
+                    {/* Grade / Source Tier display */}
+                    <div className="col-span-2 flex items-center gap-3 pt-1.5 mt-1 border-t border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <Award className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        <span className="text-xs text-gray-500">Grade</span>
+                        {editGradeLevel && GRADE_CONFIG[editGradeLevel] ? (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${GRADE_CONFIG[editGradeLevel].bg} ${GRADE_CONFIG[editGradeLevel].color} ${GRADE_CONFIG[editGradeLevel].border} border`}>
+                            {GRADE_CONFIG[editGradeLevel].label}
+                          </span>
+                        ) : <span className="text-xs text-gray-400">未評級</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Source Tier</span>
+                        {editSourceTier && TIER_CONFIG[editSourceTier] ? (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TIER_CONFIG[editSourceTier].bg} ${TIER_CONFIG[editSourceTier].color} ${TIER_CONFIG[editSourceTier].border} border`}>
+                            {TIER_CONFIG[editSourceTier].label}
+                          </span>
+                        ) : <span className="text-xs text-gray-400">未分類</span>}
+                      </div>
                     </div>
                   </div>
                 )}
