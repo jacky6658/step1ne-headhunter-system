@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile } from '../types';
-import { getApiUrl } from '../config/api';
+import { getApiUrl, getAuthHeaders } from '../config/api';
 import {
   BarChart3, Users, Briefcase, TrendingUp, AlertTriangle, CheckCircle,
   RefreshCw, UserCheck, UserX, Globe, Github, Mail, Bot, Filter, Eye,
@@ -388,8 +388,8 @@ export const OperationsDashboardPage: React.FC<OperationsDashboardPageProps> = (
     setLoading(true);
     try {
       const [candRes, jobsRes] = await Promise.all([
-        fetch(getApiUrl('/candidates?limit=2000')),
-        fetch(getApiUrl('/jobs')),
+        fetch(getApiUrl('/candidates?limit=2000'), { headers: getAuthHeaders() }),
+        fetch(getApiUrl('/jobs'), { headers: getAuthHeaders() }),
       ]);
       const candJson = await candRes.json();
       const jobsJson = await jobsRes.json();

@@ -3,15 +3,17 @@ import React, { useState, useRef } from 'react';
 import { Candidate, CandidateStatus, AiMatchResult, JobRankingEntry, ExternalJobSuggestion, ConsultantEvaluation, VoiceAssessment, ResumeFile } from '../types';
 import { ResumePreview } from './ResumeGenerator';
 import { RadarChart, RADAR_DIMENSIONS, computeAutoScores, computeOverallRating } from './RadarChart';
+import { SkillTagInput } from './SkillTagInput';
+import { SalaryRangeInput, SalaryRangeDisplay } from './SalaryRangeInput';
 import { CANDIDATE_STATUS_CONFIG } from '../constants';
-import { apiPatch, apiGet, getApiUrl } from '../config/api';
+import { apiPatch, apiGet, getApiUrl, getAuthHeaders } from '../config/api';
 import { toast } from './Toast';
 import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
   TrendingUp, Award, FileText, MessageSquare, Clock,
   CheckCircle2, AlertCircle, Bot, Star, ThumbsUp, ThumbsDown,
   HelpCircle, Sparkles, Target, Globe, Trash2, Brain, Copy, ChevronDown,
-  Download, Eye, Upload
+  Download, Eye, Upload, ChevronRight, AlertTriangle, Building2, Hash
 } from 'lucide-react';
 
 // ── 系統外職缺建議：rule-based 技能→產業/職缺對照 ──────────────────────────
@@ -185,6 +187,38 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [editCompetingOffers, setEditCompetingOffers] = useState(candidate.competingOffers || '');
   const [editRelationshipLevel, setEditRelationshipLevel] = useState(candidate.relationshipLevel || '');
 
+  // Sprint 2: 結構化欄位 edit states
+  const [editCurrentCompany, setEditCurrentCompany] = useState(candidate.currentCompany || '');
+  const [editCurrentTitle, setEditCurrentTitle] = useState(candidate.currentTitle || candidate.position || '');
+  const [editRoleFamily, setEditRoleFamily] = useState(candidate.roleFamily || '');
+  const [editCanonicalRole, setEditCanonicalRole] = useState(candidate.canonicalRole || '');
+  const [editSeniorityLevel, setEditSeniorityLevel] = useState(candidate.seniorityLevel || '');
+  const [editIndustryTag, setEditIndustryTag] = useState(candidate.industryTag || '');
+  const [editNormalizedSkills, setEditNormalizedSkills] = useState<string[]>(() => {
+    if (candidate.normalizedSkills && candidate.normalizedSkills.length > 0) return candidate.normalizedSkills;
+    // Fallback: parse from skills string
+    const raw = candidate.skills;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim()) return raw.split(/[,、，]+/).map(s => s.trim()).filter(Boolean);
+    return [];
+  });
+  const [editCurrentSalaryMin, setEditCurrentSalaryMin] = useState(String(candidate.currentSalaryMin ?? ''));
+  const [editCurrentSalaryMax, setEditCurrentSalaryMax] = useState(String(candidate.currentSalaryMax ?? ''));
+  const [editExpectedSalaryMin, setEditExpectedSalaryMin] = useState(String(candidate.expectedSalaryMin ?? ''));
+  const [editExpectedSalaryMax, setEditExpectedSalaryMax] = useState(String(candidate.expectedSalaryMax ?? ''));
+  const [editSalaryCurrency, setEditSalaryCurrency] = useState(candidate.salaryCurrency || 'TWD');
+  const [editSalaryPeriod, setEditSalaryPeriod] = useState(candidate.salaryPeriod || 'monthly');
+  const [editNoticePeriodEnum, setEditNoticePeriodEnum] = useState(candidate.noticePeriodEnum || '');
+  const [editJobSearchStatusEnum, setEditJobSearchStatusEnum] = useState(candidate.jobSearchStatusEnum || '');
+
+  // Sprint 2: Collapsible section states
+  const [sectionDealOpen, setSectionDealOpen] = useState(false);
+  const [sectionSupplementOpen, setSectionSupplementOpen] = useState(false);
+
+  // Sprint 2: Taxonomy data for dropdowns
+  const [roleTaxonomy, setRoleTaxonomy] = useState<Record<string, { label: string; canonicalRoles: string[] }>>({});
+  const [industryTaxonomy, setIndustryTaxonomy] = useState<Array<{ tag: string; label: string }>>([]);
+
   // 顧問評估
   const [consultEval, setConsultEval] = useState<ConsultantEvaluation>(candidate.consultantEvaluation || {});
   const [editingEval, setEditingEval] = useState(false);
@@ -256,7 +290,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   React.useEffect(() => {
     const fetchLatest = async () => {
       try {
-        const response = await fetch(getApiUrl(`/candidates/${candidate.id}`));
+        const response = await fetch(getApiUrl(`/candidates/${candidate.id}`), { headers: getAuthHeaders() });
         if (response.ok) {
           const result = await response.json();
           const data = result.data || {};
@@ -274,12 +308,24 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
     fetchLatest();
   }, [candidate.id, candidate]);
 
+  // Sprint 2: Load taxonomy data for dropdowns
+  React.useEffect(() => {
+    apiGet<any>('/api/taxonomy/roles').then(data => {
+      const { _meta, ...families } = data || {};
+      setRoleTaxonomy(families);
+    }).catch(() => {});
+    apiGet<any>('/api/taxonomy/industries').then(data => {
+      const { _meta, ...rest } = data || {};
+      setIndustryTaxonomy(Object.values(rest) as any[]);
+    }).catch(() => {});
+  }, []);
+
   // 職缺匹配排名：切換到 ai_match tab 時才載入（懶加載）
   const fetchJobRankings = React.useCallback(async () => {
     if (rankingsLoaded || loadingRankings) return;
     setLoadingRankings(true);
     try {
-      const res = await fetch(getApiUrl(`/candidates/${candidate.id}/job-rankings`));
+      const res = await fetch(getApiUrl(`/candidates/${candidate.id}/job-rankings`), { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         setJobRankings(data.rankings || []);
@@ -779,7 +825,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
   const handleDeleteResume = async (fileId: string) => {
     if (!confirm('確定要刪除此履歷檔案嗎？')) return;
     try {
-      const resp = await fetch(getApiUrl(`/api/candidates/${candidate.id}/resume/${fileId}`), { method: 'DELETE' });
+      const resp = await fetch(getApiUrl(`/api/candidates/${candidate.id}/resume/${fileId}`), { method: 'DELETE', headers: getAuthHeaders() });
       const json = await resp.json();
       if (!json.success) throw new Error(json.error || '刪除失敗');
       const updated = resumeFiles.filter(f => f.id !== fileId);
@@ -818,7 +864,9 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       const formData = new FormData();
       formData.append('file', file);
       formData.append('format', importFormat);
-      const resp = await fetch(getApiUrl('/api/resume/parse'), { method: 'POST', body: formData });
+      const authH = getAuthHeaders();
+      delete authH['Content-Type'];
+      const resp = await fetch(getApiUrl('/api/resume/parse'), { method: 'POST', headers: authH, body: formData });
       const json = await resp.json();
       if (!json.success) throw new Error(json.error || '解析失敗');
       setImportParsed(json.parsed);
@@ -918,8 +966,20 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
     }
   };
 
-  // 儲存基本資料（含 Phase 1 新增欄位）
+  // 儲存基本資料（含 Phase 1 新增欄位 + Sprint 2 結構化欄位）
   const handleSaveBasicInfo = async () => {
+    // 必填驗證
+    if (!editName.trim()) { toast.warning('請填寫姓名'); return; }
+    // 核心欄位缺失警告（不阻擋儲存）
+    const missingCore: string[] = [];
+    if (!editCurrentTitle.trim() && !editPosition.trim()) missingCore.push('職稱');
+    if (!editRoleFamily) missingCore.push('職位族群');
+    if (!editYears || Number(editYears) === 0) missingCore.push('年資');
+    if (editNormalizedSkills.length === 0) missingCore.push('核心技能');
+    if (!editLocation.trim()) missingCore.push('地點');
+    if (missingCore.length > 0) {
+      toast.warning(`建議補充：${missingCore.join('、')}（影響 AI 匹配精準度）`);
+    }
     setSavingBasicInfo(true);
     try {
       const updates: Record<string, any> = {
@@ -929,7 +989,24 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
         phone: editPhone.trim(),
         email: editEmail.trim(),
         years: parseInt(editYears) || 0,
-        skills: editSkills.trim(),
+        skills: editNormalizedSkills.join(', '),
+        // Sprint 2 結構化匹配欄位
+        current_title: editCurrentTitle.trim(),
+        current_company: editCurrentCompany.trim(),
+        role_family: editRoleFamily,
+        canonical_role: editCanonicalRole,
+        seniority_level: editSeniorityLevel,
+        total_years: parseFloat(editYears) || 0,
+        industry_tag: editIndustryTag,
+        normalized_skills: editNormalizedSkills,
+        current_salary_min: editCurrentSalaryMin ? parseInt(editCurrentSalaryMin) : null,
+        current_salary_max: editCurrentSalaryMax ? parseInt(editCurrentSalaryMax) : null,
+        expected_salary_min: editExpectedSalaryMin ? parseInt(editExpectedSalaryMin) : null,
+        expected_salary_max: editExpectedSalaryMax ? parseInt(editExpectedSalaryMax) : null,
+        salary_currency: editSalaryCurrency,
+        salary_period: editSalaryPeriod,
+        notice_period_enum: editNoticePeriodEnum,
+        job_search_status_enum: editJobSearchStatusEnum,
         // Phase 1 新增欄位
         birthday: editBirthday || null,
         age: editBirthday ? calcAgeFromBirthday(editBirthday) : (editAge ? parseInt(editAge) : null),
@@ -1431,30 +1508,52 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                 </div>
               )}
 
-              {/* 基本資料卡片（可編輯） */}
-              <div className="bg-gray-50 rounded-lg border border-gray-200">
-                <div className="flex items-center justify-between p-3 border-b border-gray-100">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">基本資料</span>
-                  {!editingBasicInfo ? (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => { setShowImport(v => !v); setImportParsed(null); setImportError(null); setImportFormat('auto'); }}
-                        className="text-xs px-2 py-1 border border-blue-200 rounded text-blue-600 hover:bg-blue-50"
-                      >
-                        📄 匯入履歷
-                      </button>
-                      <button onClick={() => setEditingBasicInfo(true)} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">
-                        ✏️ 編輯
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button onClick={handleSaveBasicInfo} disabled={savingBasicInfo} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">
-                        {savingBasicInfo ? '儲存中...' : '儲存'}
-                      </button>
-                      <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditEducation(typeof candidate.education === 'string' ? candidate.education : ''); setEditEnglishName(candidate.englishName||''); setEditIndustry(candidate.industry||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); setEditJobSearchStatus(candidate.jobSearchStatus||''); setEditReasonForChange(candidate.reasonForChange||''); setEditMotivation(candidate.motivation||''); setEditDealBreakers(candidate.dealBreakers||''); setEditCompetingOffers(candidate.competingOffers||''); setEditRelationshipLevel(candidate.relationshipLevel||''); setEditConsultantNote(candidate.consultantNote||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
-                    </div>
-                  )}
+              {/* ── Data Quality Banner ── */}
+              {candidate.dataQuality && candidate.dataQuality.completenessScore < 100 && (
+                <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="text-xs text-amber-700">
+                    資料完整度 {candidate.dataQuality.completenessScore}%
+                    {candidate.dataQuality.missingCoreFields.length > 0 && (
+                      <> — 缺少：{candidate.dataQuality.missingCoreFields.join('、')}</>
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {/* ── 全域編輯控制列 ── */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">候選人資料</span>
+                {!editingBasicInfo ? (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => { setShowImport(v => !v); setImportParsed(null); setImportError(null); setImportFormat('auto'); }}
+                      className="text-xs px-2 py-1 border border-blue-200 rounded text-blue-600 hover:bg-blue-50"
+                    >
+                      📄 匯入履歷
+                    </button>
+                    <button onClick={() => setEditingBasicInfo(true)} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">
+                      ✏️ 編輯
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={handleSaveBasicInfo} disabled={savingBasicInfo} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">
+                      {savingBasicInfo ? '儲存中...' : '儲存'}
+                    </button>
+                    <button onClick={() => { setEditingBasicInfo(false); setEditName(candidate.name); setEditPosition(candidate.position||''); setEditCurrentTitle(candidate.currentTitle||candidate.position||''); setEditLocation(candidate.location||''); setEditPhone(candidate.phone||''); setEditEmail(candidate.email||''); setEditYears(String(candidate.years||'')); setEditSkills(Array.isArray(candidate.skills)?candidate.skills.join('、'):(candidate.skills||'')); setEditAge(String(candidate.age??'')); setEditEducation(typeof candidate.education === 'string' ? candidate.education : ''); setEditEnglishName(candidate.englishName||''); setEditIndustry(candidate.industry||''); setEditCurrentCompany(candidate.currentCompany||''); setEditRoleFamily(candidate.roleFamily||''); setEditCanonicalRole(candidate.canonicalRole||''); setEditSeniorityLevel(candidate.seniorityLevel||''); setEditIndustryTag(candidate.industryTag||''); setEditNormalizedSkills(candidate.normalizedSkills||[]); setEditCurrentSalaryMin(String(candidate.currentSalaryMin??'')); setEditCurrentSalaryMax(String(candidate.currentSalaryMax??'')); setEditExpectedSalaryMin(String(candidate.expectedSalaryMin??'')); setEditExpectedSalaryMax(String(candidate.expectedSalaryMax??'')); setEditSalaryCurrency(candidate.salaryCurrency||'TWD'); setEditSalaryPeriod(candidate.salaryPeriod||'monthly'); setEditNoticePeriodEnum(candidate.noticePeriodEnum||''); setEditJobSearchStatusEnum(candidate.jobSearchStatusEnum||''); setEditLanguages(candidate.languages||''); setEditCertifications(candidate.certifications||''); setEditCurrentSalary(candidate.currentSalary||''); setEditExpectedSalary(candidate.expectedSalary||''); setEditNoticePeriod(candidate.noticePeriod||''); setEditManagement(candidate.managementExperience||false); setEditTeamSize(candidate.teamSize||''); setEditJobSearchStatus(candidate.jobSearchStatus||''); setEditReasonForChange(candidate.reasonForChange||''); setEditMotivation(candidate.motivation||''); setEditDealBreakers(candidate.dealBreakers||''); setEditCompetingOffers(candidate.competingOffers||''); setEditRelationshipLevel(candidate.relationshipLevel||''); setEditConsultantNote(candidate.consultantNote||''); }} className="text-xs px-2 py-1 border border-gray-200 rounded text-gray-600 hover:bg-white">取消</button>
+                  </div>
+                )}
+              </div>
+
+              {/* ════════════════════════════════════════════════════════ */}
+              {/* Block 1: Core Match (核心匹配) — 預設展開               */}
+              {/* ════════════════════════════════════════════════════════ */}
+              <div className="bg-blue-50/50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 p-3 border-b border-blue-100">
+                  <Target className="w-4 h-4 text-blue-500" />
+                  <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">核心匹配資料</span>
+                  <span className="text-[10px] text-blue-400 ml-auto">AI 第一輪比對用</span>
                 </div>
                 {/* PDF 履歷匯入面板 — 放在 header 下方方便立即看到 */}
                 {showImport && (
@@ -1621,171 +1720,147 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                 )}
                 {editingBasicInfo ? (
                   <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Row 1: Name + Email + Phone + Location */}
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">姓名</label>
+                      <label className="block text-xs text-gray-500 mb-1">姓名 *</label>
                       <input value={editName} onChange={e => setEditName(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">職位 / 背景</label>
-                      <input value={editPosition} onChange={e => setEditPosition(e.target.value)} placeholder="例：資深工程師" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">地點</label>
-                      <input value={editLocation} onChange={e => setEditLocation(e.target.value)} placeholder="例：台北市" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">年資</label>
-                      <input value={editYears} onChange={e => setEditYears(e.target.value)} type="number" min="0" placeholder="0" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">電話</label>
-                      <input value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="例：0912-345-678" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Email</label>
                       <input value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="example@email.com" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs text-gray-500 mb-1">核心技能（以逗號或頓號分隔）</label>
-                      <input value={editSkills} onChange={e => setEditSkills(e.target.value)} placeholder="例：React、TypeScript、Node.js" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    {/* Phase 1 新增欄位 */}
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">出生年月日</label>
-                      <input
-                        value={editBirthday}
-                        onChange={e => {
-                          const bd = e.target.value;
-                          setEditBirthday(bd);
-                          const age = calcAgeFromBirthday(bd);
-                          if (age !== null) setEditAge(String(age));
-                        }}
-                        type="date"
-                        max={new Date().toISOString().split('T')[0]}
-                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                      {editBirthday && calcAgeFromBirthday(editBirthday) !== null && (
-                        <span className="text-xs text-blue-600 mt-0.5 block">→ {calcAgeFromBirthday(editBirthday)} 歲</span>
-                      )}
+                      <label className="block text-xs text-gray-500 mb-1">電話</label>
+                      <input value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="0912-345-678" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">年齡（無生日時手動填）</label>
-                      <input value={editAge} onChange={e => setEditAge(e.target.value)} type="number" min="18" max="70" placeholder="例：32" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" disabled={!!editBirthday} />
+                      <label className="block text-xs text-gray-500 mb-1">地點 *</label>
+                      <input value={editLocation} onChange={e => setEditLocation(e.target.value)} placeholder="台北市" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    {/* Row 2: Company + Title */}
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">目前公司</label>
+                      <input value={editCurrentCompany} onChange={e => setEditCurrentCompany(e.target.value)} placeholder="例：Google" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">性別</label>
-                      <select value={editGender} onChange={e => setEditGender(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                      <label className="block text-xs text-gray-500 mb-1">目前職稱 *</label>
+                      <input value={editCurrentTitle} onChange={e => { setEditCurrentTitle(e.target.value); setEditPosition(e.target.value); }} placeholder="資深後端工程師" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    {/* Row 3: Role Family + Canonical Role + Seniority */}
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">職位族群 *</label>
+                      <select value={editRoleFamily} onChange={e => { setEditRoleFamily(e.target.value); setEditCanonicalRole(''); }} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
                         <option value="">— 請選擇 —</option>
-                        <option value="男">男</option>
-                        <option value="女">女</option>
-                        <option value="其他">其他</option>
+                        {Object.entries(roleTaxonomy).map(([key, val]) => (
+                          <option key={key} value={key}>{val.label} ({key})</option>
+                        ))}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">英文名（匿名履歷用）</label>
-                      <input value={editEnglishName} onChange={e => setEditEnglishName(e.target.value)} placeholder="例：Iris、Jack Chen" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      <label className="block text-xs text-gray-500 mb-1">標準職稱</label>
+                      <select value={editCanonicalRole} onChange={e => setEditCanonicalRole(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" disabled={!editRoleFamily}>
+                        <option value="">— 請選擇 —</option>
+                        {(roleTaxonomy[editRoleFamily]?.canonicalRoles || []).map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">學歷</label>
-                      <input value={editEducation} onChange={e => setEditEducation(e.target.value)} placeholder="例：台大資工碩士" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      <label className="block text-xs text-gray-500 mb-1">資歷等級</label>
+                      <select value={editSeniorityLevel} onChange={e => setEditSeniorityLevel(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                        <option value="">— 請選擇 —</option>
+                        <option value="IC">IC (Individual Contributor)</option>
+                        <option value="Senior">Senior</option>
+                        <option value="Lead">Lead / Staff</option>
+                        <option value="Manager">Manager</option>
+                        <option value="Director">Director+</option>
+                      </select>
+                    </div>
+                    {/* Row 4: Years + Industry */}
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">總年資 *</label>
+                      <input value={editYears} onChange={e => setEditYears(e.target.value)} type="number" min="0" step="0.5" placeholder="0" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">產業</label>
-                      <input value={editIndustry} onChange={e => setEditIndustry(e.target.value)} placeholder="例：半導體、金融科技" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      <label className="block text-xs text-gray-500 mb-1">產業標籤</label>
+                      <select value={editIndustryTag} onChange={e => setEditIndustryTag(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                        <option value="">— 請選擇 —</option>
+                        {industryTaxonomy.map(ind => (
+                          <option key={ind.tag} value={ind.tag}>{ind.label} ({ind.tag})</option>
+                        ))}
+                      </select>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">語言能力</label>
-                      <input value={editLanguages} onChange={e => setEditLanguages(e.target.value)} placeholder="例：中文母語、英文流利" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
+                    {/* Row 5: Normalized Skills (tag input) */}
                     <div className="sm:col-span-2">
-                      <label className="block text-xs text-gray-500 mb-1">證照（以逗號或頓號分隔）</label>
-                      <textarea value={editCertifications} onChange={e => setEditCertifications(e.target.value)} placeholder="例：PMP、AWS SAA、Google Cloud" rows={2} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y" />
+                      <label className="block text-xs text-gray-500 mb-1">核心技能 *（輸入後按 Enter 或逗號新增）</label>
+                      <SkillTagInput value={editNormalizedSkills} onChange={setEditNormalizedSkills} placeholder="React, Python, Docker..." />
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">目前薪資</label>
-                      <input value={editCurrentSalary} onChange={e => setEditCurrentSalary(e.target.value)} placeholder="例：90K" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    {/* Row 6: Salary (structured) */}
+                    <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <SalaryRangeInput label="目前薪資" min={editCurrentSalaryMin} max={editCurrentSalaryMax} currency={editSalaryCurrency} period={editSalaryPeriod} onMinChange={setEditCurrentSalaryMin} onMaxChange={setEditCurrentSalaryMax} onCurrencyChange={setEditSalaryCurrency} onPeriodChange={setEditSalaryPeriod} />
+                      <SalaryRangeInput label="期望薪資" min={editExpectedSalaryMin} max={editExpectedSalaryMax} currency={editSalaryCurrency} period={editSalaryPeriod} onMinChange={setEditExpectedSalaryMin} onMaxChange={setEditExpectedSalaryMax} onCurrencyChange={setEditSalaryCurrency} onPeriodChange={setEditSalaryPeriod} />
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">期望薪資</label>
-                      <input value={editExpectedSalary} onChange={e => setEditExpectedSalary(e.target.value)} placeholder="例：100K+" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
+                    {/* Row 7: Notice Period + Job Search Status (enum dropdowns) */}
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">到職時間</label>
-                      <input value={editNoticePeriod} onChange={e => setEditNoticePeriod(e.target.value)} placeholder="例：1個月" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">管理人數</label>
-                      <input value={editTeamSize} onChange={e => setEditTeamSize(e.target.value)} placeholder="例：5-10人" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div className="sm:col-span-2 flex items-center gap-2">
-                      <input type="checkbox" id="edit-mgmt" checked={editManagement} onChange={e => setEditManagement(e.target.checked)} className="rounded border-gray-300" />
-                      <label htmlFor="edit-mgmt" className="text-xs text-gray-600">具備管理經驗</label>
-                    </div>
-                    {/* Phase 3 動機與交易條件 */}
-                    <div className="sm:col-span-2 pt-2 border-t border-gray-200">
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">動機與交易條件</span>
+                      <select value={editNoticePeriodEnum} onChange={e => setEditNoticePeriodEnum(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                        <option value="">— 請選擇 —</option>
+                        <option value="immediate">即刻到職</option>
+                        <option value="2weeks">2 週內</option>
+                        <option value="1month">1 個月</option>
+                        <option value="2months">2 個月</option>
+                        <option value="3months">3 個月</option>
+                        <option value="negotiable">可議</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">求職狀態</label>
-                      <select value={editJobSearchStatus} onChange={e => setEditJobSearchStatus(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                      <select value={editJobSearchStatusEnum} onChange={e => setEditJobSearchStatusEnum(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
                         <option value="">— 請選擇 —</option>
-                        <option value="主動求職">主動求職</option>
-                        <option value="被動觀望">被動觀望</option>
-                        <option value="暫不考慮">暫不考慮</option>
+                        <option value="active">主動求職</option>
+                        <option value="passive">被動觀望</option>
+                        <option value="not_open">暫不考慮</option>
                       </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">主要動機</label>
-                      <select value={editMotivation} onChange={e => setEditMotivation(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
-                        <option value="">— 請選擇 —</option>
-                        <option value="薪資提升">薪資提升</option>
-                        <option value="技術成長">技術成長</option>
-                        <option value="管理發展">管理發展</option>
-                        <option value="產業轉型">產業轉型</option>
-                        <option value="出國發展">出國發展</option>
-                        <option value="離開現職">離開現職</option>
-                        <option value="Work-Life Balance">Work-Life Balance</option>
-                        <option value="其他">其他</option>
-                      </select>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs text-gray-500 mb-1">轉職原因</label>
-                      <input value={editReasonForChange} onChange={e => setEditReasonForChange(e.target.value)} placeholder="例：現公司發展有限、想挑戰新領域" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs text-gray-500 mb-1">不適配條件</label>
-                      <input value={editDealBreakers} onChange={e => setEditDealBreakers(e.target.value)} placeholder="例：不接受輪班、不考慮傳產" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">競爭 Offer</label>
-                      <input value={editCompetingOffers} onChange={e => setEditCompetingOffers(e.target.value)} placeholder="例：已有 Google Offer" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">顧問關係程度</label>
-                      <select value={editRelationshipLevel} onChange={e => setEditRelationshipLevel(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
-                        <option value="">— 請選擇 —</option>
-                        <option value="初次接觸">初次接觸</option>
-                        <option value="已建立關係">已建立關係</option>
-                        <option value="深度信任">深度信任</option>
-                      </select>
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-xs text-gray-500 mb-1">📝 顧問備註（與人選溝通後的重點記錄）</label>
-                      <textarea value={editConsultantNote} onChange={e => setEditConsultantNote(e.target.value)} placeholder="例：人選目前在 A 公司做到主管，主要想換的原因是加班太多。薪資底線 80K，可接受新竹。英文口說流利但沒有證照。" rows={3} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y" />
                     </div>
                   </div>
                 ) : (
                   <div className="p-3 grid grid-cols-2 gap-x-4 gap-y-2">
+                    {/* Display: Company + Title */}
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">公司</span>
+                      <span className="text-sm font-medium text-gray-800 truncate">{editCurrentCompany || '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">職稱</span>
+                      <span className="text-sm font-medium text-gray-800 truncate">{editCurrentTitle || editPosition || '—'}</span>
+                    </div>
+                    {/* Role Family + Seniority */}
+                    <div className="flex items-center gap-2">
+                      <Target className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">職位族群</span>
+                      {editRoleFamily ? (
+                        <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium">{editRoleFamily}</span>
+                      ) : <span className="text-sm text-gray-400">—</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Hash className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">資歷</span>
+                      <span className="text-sm font-medium text-gray-800">{editSeniorityLevel || '—'}</span>
+                    </div>
+                    {/* Location + Years */}
                     <div className="flex items-center gap-2">
                       <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">地點</span>
                       <span className="text-sm font-medium text-gray-800 truncate">{editLocation || '—'}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">年資</span>
                       <span className="text-sm font-medium text-gray-800">{editYears && Number(editYears) > 0 ? `${editYears} 年` : '—'}</span>
                     </div>
+                    {/* Phone + Email */}
                     <div className="flex items-center gap-2">
                       <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">電話</span>
@@ -1796,147 +1871,298 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       <span className="text-xs text-gray-500">Email</span>
                       {editEmail ? (
                         <a href={`mailto:${editEmail}`} className="text-sm font-medium text-blue-600 hover:underline truncate">{editEmail}</a>
-                      ) : (
-                        <span className="text-sm font-medium text-gray-400">—</span>
-                      )}
+                      ) : <span className="text-sm text-gray-400">—</span>}
                     </div>
+                    {/* Industry */}
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">產業</span>
+                      {editIndustryTag ? (
+                        <span className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full font-medium">{editIndustryTag}</span>
+                      ) : <span className="text-sm text-gray-400">—</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-500">標準職稱</span>
+                      <span className="text-sm font-medium text-gray-800 truncate">{editCanonicalRole || '—'}</span>
+                    </div>
+                    {/* Skills */}
                     <div className="col-span-2 flex items-start gap-2 pt-1 border-t border-gray-100">
                       <Award className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
                       <span className="text-xs text-gray-500 shrink-0">技能</span>
                       <div className="flex flex-wrap gap-1">
-                        {editSkills ? editSkills.split(/[、,，]/).filter(Boolean).map((s, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs">{s.trim()}</span>
+                        {editNormalizedSkills.length > 0 ? editNormalizedSkills.map((s, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs">{s}</span>
                         )) : <span className="text-xs text-gray-400">—</span>}
                       </div>
                     </div>
-                    {/* Phase 1 新增欄位顯示 — 始終顯示所有欄位 */}
-                    <div className="flex items-center gap-2">
-                      <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-xs text-gray-500">性別</span>
-                      <span className="text-sm font-medium text-gray-800">{editGender || '—'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Globe className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-xs text-gray-500">英文名</span>
-                      <span className="text-sm font-medium text-gray-800">{editEnglishName || '—'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-xs text-gray-500">年齡</span>
-                      <span className="text-sm font-medium text-gray-800">
-                        {(editAge || candidate.age) ? (<>{candidate.ageEstimated ? '~' : ''}{editAge || candidate.age} 歲</>) : '—'}
-                      </span>
-                      {candidate.ageEstimated && (editAge || candidate.age) && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">推估</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Award className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-xs text-gray-500">學歷</span>
-                      <span className="text-sm font-medium text-gray-800 truncate">{editEducation || '—'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-xs text-gray-500">產業</span>
-                      <span className="text-sm font-medium text-gray-800 truncate">{editIndustry || '—'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Globe className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-xs text-gray-500">語言</span>
-                      <span className="text-sm font-medium text-gray-800 truncate">{editLanguages || '—'}</span>
-                    </div>
-                    <div className="col-span-2 flex items-start gap-2 pt-1 border-t border-gray-100">
-                      <Award className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                      <span className="text-xs text-gray-500 shrink-0">證照</span>
-                      <div className="flex flex-wrap gap-1">
-                        {editCertifications ? editCertifications.split(/[,、;，\n–—]/).filter(s => s.trim()).map((s, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs">{s.trim().replace(/^\*\*|\*\*$/g, '')}</span>
-                        )) : <span className="text-xs text-gray-400">—</span>}
-                      </div>
-                    </div>
+                    {/* Salary */}
                     <div className="flex items-center gap-2">
                       <TrendingUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">目前薪資</span>
-                      <span className="text-sm font-medium text-gray-800">{editCurrentSalary || '—'}</span>
+                      <SalaryRangeDisplay min={editCurrentSalaryMin ? Number(editCurrentSalaryMin) : candidate.currentSalaryMin} max={editCurrentSalaryMax ? Number(editCurrentSalaryMax) : candidate.currentSalaryMax} currency={editSalaryCurrency} period={editSalaryPeriod} />
                     </div>
                     <div className="flex items-center gap-2">
                       <TrendingUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">期望薪資</span>
-                      <span className="text-sm font-medium text-gray-800">{editExpectedSalary || '—'}</span>
+                      <SalaryRangeDisplay min={editExpectedSalaryMin ? Number(editExpectedSalaryMin) : candidate.expectedSalaryMin} max={editExpectedSalaryMax ? Number(editExpectedSalaryMax) : candidate.expectedSalaryMax} currency={editSalaryCurrency} period={editSalaryPeriod} />
                     </div>
+                    {/* Notice Period + Job Search Status */}
                     <div className="flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">到職時間</span>
-                      <span className="text-sm font-medium text-gray-800">{editNoticePeriod || '—'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-xs text-gray-500">管理經驗</span>
-                      <span className="text-sm font-medium text-gray-800">
-                        {editManagement ? `有${editTeamSize ? `（${editTeamSize}）` : ''}` : (editTeamSize || '—')}
-                      </span>
-                    </div>
-                    {/* Phase 3 動機與交易條件 */}
-                    <div className="col-span-2 pt-2 border-t border-gray-200">
-                      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">動機與交易條件</span>
+                      <span className="text-sm font-medium text-gray-800">{
+                        editNoticePeriodEnum === 'immediate' ? '即刻到職' :
+                        editNoticePeriodEnum === '2weeks' ? '2 週內' :
+                        editNoticePeriodEnum === '1month' ? '1 個月' :
+                        editNoticePeriodEnum === '2months' ? '2 個月' :
+                        editNoticePeriodEnum === '3months' ? '3 個月' :
+                        editNoticePeriodEnum === 'negotiable' ? '可議' :
+                        editNoticePeriod || '—'
+                      }</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Target className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                       <span className="text-xs text-gray-500">求職狀態</span>
-                      {editJobSearchStatus ? (
+                      {editJobSearchStatusEnum ? (
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          editJobSearchStatus === '主動求職' ? 'bg-green-50 text-green-700' :
-                          editJobSearchStatus === '被動觀望' ? 'bg-amber-50 text-amber-700' :
+                          editJobSearchStatusEnum === 'active' ? 'bg-green-50 text-green-700' :
+                          editJobSearchStatusEnum === 'passive' ? 'bg-amber-50 text-amber-700' :
                           'bg-gray-100 text-gray-600'
-                        }`}>{editJobSearchStatus}</span>
-                      ) : <span className="text-sm font-medium text-gray-400">—</span>}
+                        }`}>{editJobSearchStatusEnum === 'active' ? '主動求職' : editJobSearchStatusEnum === 'passive' ? '被動觀望' : '暫不考慮'}</span>
+                      ) : <span className="text-sm text-gray-400">—</span>}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-xs text-gray-500">動機</span>
-                      <span className="text-sm font-medium text-gray-800">{editMotivation || '—'}</span>
-                    </div>
-                    <div className="col-span-2 flex items-start gap-2">
-                      <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
-                      <span className="text-xs text-gray-500 shrink-0">轉職原因</span>
-                      <span className="text-sm text-gray-800">{editReasonForChange || '—'}</span>
-                    </div>
-                    <div className="col-span-2 flex items-start gap-2">
-                      <AlertCircle className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
-                      <span className="text-xs text-gray-500 shrink-0">不適配條件</span>
-                      <span className={`text-sm ${editDealBreakers ? 'text-red-700' : 'text-gray-400'}`}>{editDealBreakers || '—'}</span>
-                    </div>
-                    <div className="col-span-2 flex items-start gap-2">
-                      <Star className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
-                      <span className="text-xs text-gray-500 shrink-0">競爭 Offer</span>
-                      <span className={`text-sm font-medium ${editCompetingOffers ? 'text-amber-700' : 'text-gray-400'}`}>{editCompetingOffers || '—'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-xs text-gray-500">顧問關係</span>
-                      {editRelationshipLevel ? (
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          editRelationshipLevel === '深度信任' ? 'bg-green-50 text-green-700' :
-                          editRelationshipLevel === '已建立關係' ? 'bg-blue-50 text-blue-700' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>{editRelationshipLevel}</span>
-                      ) : <span className="text-sm font-medium text-gray-400">—</span>}
-                    </div>
-                    {editConsultantNote && (
-                      <div className="col-span-2 mt-1 p-2 bg-amber-50 border border-amber-200 rounded-lg">
-                        <div className="flex items-center gap-1 mb-1">
-                          <FileText className="w-3 h-3 text-amber-600" />
-                          <span className="text-[10px] font-semibold text-amber-600 uppercase">顧問備註</span>
-                        </div>
-                        <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{editConsultantNote}</p>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
 
+              {/* ════════════════════════════════════════════════════════ */}
+              {/* Block 3: Deal Terms (成交條件) — 預設收合               */}
+              {/* ════════════════════════════════════════════════════════ */}
+              <div className="bg-amber-50/50 rounded-lg border border-amber-200">
+                <button
+                  onClick={() => setSectionDealOpen(v => !v)}
+                  className="w-full flex items-center gap-2 p-3 hover:bg-amber-50 transition-colors"
+                >
+                  <MessageSquare className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">成交條件</span>
+                  <span className="text-[10px] text-amber-400 ml-1">轉職原因 / 動機 / 不適配</span>
+                  <ChevronDown className={`w-4 h-4 text-amber-400 ml-auto transition-transform ${sectionDealOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {sectionDealOpen && (
+                  editingBasicInfo ? (
+                    <div className="p-3 border-t border-amber-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">求職狀態</label>
+                        <select value={editJobSearchStatus} onChange={e => setEditJobSearchStatus(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                          <option value="">— 請選擇 —</option>
+                          <option value="主動求職">主動求職</option>
+                          <option value="被動觀望">被動觀望</option>
+                          <option value="暫不考慮">暫不考慮</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">主要動機</label>
+                        <select value={editMotivation} onChange={e => setEditMotivation(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                          <option value="">— 請選擇 —</option>
+                          <option value="薪資提升">薪資提升</option>
+                          <option value="技術成長">技術成長</option>
+                          <option value="管理發展">管理發展</option>
+                          <option value="產業轉型">產業轉型</option>
+                          <option value="出國發展">出國發展</option>
+                          <option value="離開現職">離開現職</option>
+                          <option value="Work-Life Balance">Work-Life Balance</option>
+                          <option value="其他">其他</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs text-gray-500 mb-1">轉職原因</label>
+                        <input value={editReasonForChange} onChange={e => setEditReasonForChange(e.target.value)} placeholder="例：現公司發展有限、想挑戰新領域" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs text-gray-500 mb-1">不適配條件</label>
+                        <input value={editDealBreakers} onChange={e => setEditDealBreakers(e.target.value)} placeholder="例：不接受輪班、不考慮傳產" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">競爭 Offer</label>
+                        <input value={editCompetingOffers} onChange={e => setEditCompetingOffers(e.target.value)} placeholder="例：已有 Google Offer" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">顧問關係程度</label>
+                        <select value={editRelationshipLevel} onChange={e => setEditRelationshipLevel(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                          <option value="">— 請選擇 —</option>
+                          <option value="初次接觸">初次接觸</option>
+                          <option value="已建立關係">已建立關係</option>
+                          <option value="深度信任">深度信任</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs text-gray-500 mb-1">顧問備註</label>
+                        <textarea value={editConsultantNote} onChange={e => setEditConsultantNote(e.target.value)} placeholder="例：人選目前在 A 公司做到主管，主要想換的原因是加班太多..." rows={3} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 border-t border-amber-100 grid grid-cols-2 gap-x-4 gap-y-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="text-xs text-gray-500">動機</span>
+                        <span className="text-sm font-medium text-gray-800">{editMotivation || '—'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="text-xs text-gray-500">顧問關係</span>
+                        {editRelationshipLevel ? (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            editRelationshipLevel === '深度信任' ? 'bg-green-50 text-green-700' :
+                            editRelationshipLevel === '已建立關係' ? 'bg-blue-50 text-blue-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>{editRelationshipLevel}</span>
+                        ) : <span className="text-sm text-gray-400">—</span>}
+                      </div>
+                      <div className="col-span-2 flex items-start gap-2">
+                        <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                        <span className="text-xs text-gray-500 shrink-0">轉職原因</span>
+                        <span className="text-sm text-gray-800">{editReasonForChange || '—'}</span>
+                      </div>
+                      <div className="col-span-2 flex items-start gap-2">
+                        <AlertCircle className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                        <span className="text-xs text-gray-500 shrink-0">不適配條件</span>
+                        <span className={`text-sm ${editDealBreakers ? 'text-red-700' : 'text-gray-400'}`}>{editDealBreakers || '—'}</span>
+                      </div>
+                      <div className="col-span-2 flex items-start gap-2">
+                        <Star className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                        <span className="text-xs text-gray-500 shrink-0">競爭 Offer</span>
+                        <span className={`text-sm font-medium ${editCompetingOffers ? 'text-amber-700' : 'text-gray-400'}`}>{editCompetingOffers || '—'}</span>
+                      </div>
+                      {editConsultantNote && (
+                        <div className="col-span-2 mt-1 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="flex items-center gap-1 mb-1">
+                            <FileText className="w-3 h-3 text-amber-600" />
+                            <span className="text-[10px] font-semibold text-amber-600 uppercase">顧問備註</span>
+                          </div>
+                          <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{editConsultantNote}</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
+              </div>
 
-              {/* 外部連結：LinkedIn / GitHub / Google Drive（始終顯示，可編輯） */}
+
+              {/* ════════════════════════════════════════════════════════ */}
+              {/* Block 4: Supplementary (補充資料) — 預設收合            */}
+              {/* ════════════════════════════════════════════════════════ */}
+              <div className="bg-gray-50/50 rounded-lg border border-gray-200">
+                <button
+                  onClick={() => setSectionSupplementOpen(v => !v)}
+                  className="w-full flex items-center gap-2 p-3 hover:bg-gray-50 transition-colors"
+                >
+                  <FileText className="w-4 h-4 text-gray-500" />
+                  <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">補充資料</span>
+                  <span className="text-[10px] text-gray-400 ml-1">學歷 / 語言 / 證照 / 連結 / 履歷附件</span>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 ml-auto transition-transform ${sectionSupplementOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {sectionSupplementOpen && (
+                <div className="border-t border-gray-100 p-3 space-y-4">
+
+                  {/* Supplementary edit fields */}
+                  {editingBasicInfo && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">出生年月日</label>
+                        <input value={editBirthday} onChange={e => { setEditBirthday(e.target.value); const a = calcAgeFromBirthday(e.target.value); if (a !== null) setEditAge(String(a)); }} type="date" max={new Date().toISOString().split('T')[0]} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        {editBirthday && calcAgeFromBirthday(editBirthday) !== null && (
+                          <span className="text-xs text-blue-600 mt-0.5 block">→ {calcAgeFromBirthday(editBirthday)} 歲</span>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">年齡（無生日時手動填）</label>
+                        <input value={editAge} onChange={e => setEditAge(e.target.value)} type="number" min="18" max="70" placeholder="32" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" disabled={!!editBirthday} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">性別</label>
+                        <select value={editGender} onChange={e => setEditGender(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                          <option value="">— 請選擇 —</option>
+                          <option value="男">男</option>
+                          <option value="女">女</option>
+                          <option value="其他">其他</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">英文名（匿名履歷用）</label>
+                        <input value={editEnglishName} onChange={e => setEditEnglishName(e.target.value)} placeholder="Iris, Jack Chen" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">學歷</label>
+                        <input value={editEducation} onChange={e => setEditEducation(e.target.value)} placeholder="台大資工碩士" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">語言能力</label>
+                        <input value={editLanguages} onChange={e => setEditLanguages(e.target.value)} placeholder="中文母語、英文流利" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs text-gray-500 mb-1">證照</label>
+                        <textarea value={editCertifications} onChange={e => setEditCertifications(e.target.value)} placeholder="PMP、AWS SAA、Google Cloud" rows={2} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">管理人數</label>
+                        <input value={editTeamSize} onChange={e => setEditTeamSize(e.target.value)} placeholder="5-10人" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div className="flex items-center gap-2 pt-6">
+                        <input type="checkbox" id="edit-mgmt" checked={editManagement} onChange={e => setEditManagement(e.target.checked)} className="rounded border-gray-300" />
+                        <label htmlFor="edit-mgmt" className="text-xs text-gray-600">具備管理經驗</label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Supplementary display fields (when not editing) */}
+                  {!editingBasicInfo && (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      <div className="flex items-center gap-2">
+                        <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="text-xs text-gray-500">性別</span>
+                        <span className="text-sm font-medium text-gray-800">{editGender || '—'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="text-xs text-gray-500">英文名</span>
+                        <span className="text-sm font-medium text-gray-800">{editEnglishName || '—'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="text-xs text-gray-500">年齡</span>
+                        <span className="text-sm font-medium text-gray-800">
+                          {(editAge || candidate.age) ? (<>{candidate.ageEstimated ? '~' : ''}{editAge || candidate.age} 歲</>) : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Award className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="text-xs text-gray-500">學歷</span>
+                        <span className="text-sm font-medium text-gray-800 truncate">{editEducation || '—'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="text-xs text-gray-500">語言</span>
+                        <span className="text-sm font-medium text-gray-800 truncate">{editLanguages || '—'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="text-xs text-gray-500">管理經驗</span>
+                        <span className="text-sm font-medium text-gray-800">{editManagement ? `有${editTeamSize ? `（${editTeamSize}）` : ''}` : '—'}</span>
+                      </div>
+                      <div className="col-span-2 flex items-start gap-2 pt-1 border-t border-gray-100">
+                        <Award className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        <span className="text-xs text-gray-500 shrink-0">證照</span>
+                        <div className="flex flex-wrap gap-1">
+                          {editCertifications ? editCertifications.split(/[,、;，\n–—]/).filter(s => s.trim()).map((s, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs">{s.trim().replace(/^\*\*|\*\*$/g, '')}</span>
+                          )) : <span className="text-xs text-gray-400">—</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+              {/* 外部連結：LinkedIn / GitHub / Google Drive */}
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">外部連結</h3>
 
@@ -2185,6 +2411,11 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                   </div>
                 )}
               </div>
+
+                </div>
+                )}
+              </div>
+              {/* ═══ End Block 4 ═══ */}
 
               {/* 穩定度 & 綜合評級 並排 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

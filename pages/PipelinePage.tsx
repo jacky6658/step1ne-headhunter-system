@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Candidate, CandidateStatus, ProgressEvent, UserProfile } from '../types';
 import { getCandidates, clearCache } from '../services/candidateService';
 import { CandidateModal } from '../components/CandidateModal';
-import { apiPut, getApiUrl } from '../config/api';
+import { apiPut, getApiUrl, getAuthHeaders } from '../config/api';
 import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2, Linkedin, Github, Star } from 'lucide-react';
 import { toast } from '../components/Toast';
 
@@ -259,7 +259,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     }
 
     try {
-      const response = await fetch(getApiUrl(`/candidates/${candidateId}/github-stats`));
+      const response = await fetch(getApiUrl(`/candidates/${candidateId}/github-stats`), { headers: getAuthHeaders() });
       const result = await response.json();
       
       if (result.success) {
@@ -281,7 +281,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   }, [userProfile]);
 
   useEffect(() => {
-    fetch(getApiUrl('/jobs'))
+    fetch(getApiUrl('/jobs'), { headers: getAuthHeaders() })
       .then(r => r.json())
       .then(d => { if (d.success && d.data) setApiJobs(d.data); })
       .catch(() => {});
@@ -570,6 +570,7 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     try {
       const response = await fetch(getApiUrl(`/candidates/${candidateId}`), {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {

@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-import { apiPatch, apiPost, getApiUrl } from '../config/api';
+import { apiPatch, apiPost, getApiUrl, getAuthHeaders } from '../config/api';
 import { toast } from '../components/Toast';
 
 // ── 型別 ──────────────────────────────────────────────────────
@@ -67,8 +67,11 @@ export default function ResumeImportPage() {
       const formData = new FormData();
       files.forEach(f => formData.append('files', f));
 
+      const authH = getAuthHeaders();
+      delete authH['Content-Type']; // Let browser set multipart boundary
       const resp = await fetch(getApiUrl('/api/resume/batch-parse'), {
         method: 'POST',
+        headers: authH,
         body: formData,
       });
       const json = await resp.json();

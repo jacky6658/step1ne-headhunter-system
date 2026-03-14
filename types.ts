@@ -496,11 +496,97 @@ export interface Candidate {
   biography?: string;                     // 自傳 / 自我介紹
   portfolioUrl?: string;                  // 作品集連結
   resumeFiles?: ResumeFile[];             // 履歷 PDF 附件（最多 3 個）
+  // ── Sprint 1: 結構化匹配欄位 (Layer 1: Match Core) ──
+  currentTitle?: string;                  // 目前職稱（從 position 映射）
+  currentCompany?: string;                // 目前公司（從 workHistory[0] 取）
+  roleFamily?: string;                    // Backend / Frontend / DevOps / PM / ...
+  canonicalRole?: string;                 // Java Backend Engineer / ...
+  seniorityLevel?: string;                // IC / Senior / Lead / Manager / Director
+  totalYears?: number;                    // 總年資（從 years 映射）
+  industryTag?: string;                   // SaaS / Fintech / SI / ...
+  normalizedSkills?: string[];            // 標準化技能陣列
+  skillEvidence?: SkillEvidence[];        // 技能證據 [{skill, level, yearsUsed}]
+  educationLevel?: string;                // 最高學歷：專科/大學/碩士/博士
+  currentSalaryMin?: number;              // 目前薪資下限
+  currentSalaryMax?: number;              // 目前薪資上限
+  expectedSalaryMin?: number;             // 期望薪資下限
+  expectedSalaryMax?: number;             // 期望薪資上限
+  salaryCurrency?: string;               // TWD / USD / ...
+  salaryPeriod?: string;                  // monthly / annual
+  noticePeriodEnum?: string;              // immediate / 2weeks / 1month / 2months / 3months / negotiable
+  jobSearchStatusEnum?: string;           // active / passive / not_open
+  // ── Layer 3: Enrichment / Meta ──
+  educationSummary?: string;              // 從 educationJson 自動生成
+  resumeAssets?: ResumeAsset[];           // 統一附件格式
+  autoDerived?: AutoDerived;              // 自動衍生穩定性指標
+  dataQuality?: DataQuality;             // 資料品質評分
+  // ── Talent Board: 三層分類 ──
+  gradeLevel?: string;                    // A / B / C / D（人才品質）
+  sourceTier?: string;                    // T1 / T2 / T3（來源公司層級）
+  heatLevel?: string;                     // Hot / Warm / Cold（成交機會）
+  // ── Metadata ──
   createdAt: string;
   updatedAt: string;
   createdBy: string;
   lastContactAt?: string;
   _sheetRow?: number;
+}
+
+// ── Sprint 1: 新增型別 ──
+
+export interface SkillEvidence {
+  skill: string;
+  level?: 'basic' | 'intermediate' | 'advanced' | 'expert';
+  lastUsedYear?: number;
+  yearsUsed?: number;
+}
+
+export interface ResumeAsset {
+  id: string;
+  type: 'file' | 'link';
+  url: string;
+  filename?: string;
+  mimetype?: string;
+  size?: number;
+  uploaded_at?: string;
+  uploaded_by?: string;
+}
+
+export interface AutoDerived {
+  jobChanges: number;
+  avgTenureMonths: number;
+  lastGapMonths: number;
+  stabilityScore: number;
+}
+
+export interface DataQuality {
+  completenessScore: number;
+  missingCoreFields: string[];
+  normalizationWarnings: string[];
+}
+
+// AI Match Input: Layer 1 only — clean structured data for first-round matching
+export interface CandidateMatchCore {
+  candidateId: string;
+  name: string;
+  currentTitle: string;
+  currentCompany?: string;
+  roleFamily?: string;
+  canonicalRole?: string;
+  seniorityLevel?: string;
+  totalYears: number;
+  location: string;
+  industryTag?: string;
+  normalizedSkills: string[];
+  educationLevel?: string;
+  currentSalaryMin?: number;
+  currentSalaryMax?: number;
+  expectedSalaryMin?: number;
+  expectedSalaryMax?: number;
+  salaryCurrency?: string;
+  salaryPeriod?: string;
+  noticePeriodEnum?: string;
+  jobSearchStatusEnum?: string;
 }
 
 // 職缺

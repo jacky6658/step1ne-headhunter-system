@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Industry taxonomy for candidate classification"
+  },
+  "industries": [
+    { "tag": "SaaS", "label": "SaaS / 軟體服務", "aliases": ["saas", "software as a service", "雲端服務"] },
+    { "tag": "Fintech", "label": "金融科技", "aliases": ["fintech", "金融科技", "數位金融"] },
+    { "tag": "Banking", "label": "銀行 / 金融", "aliases": ["banking", "銀行", "金融", "bank", "證券", "insurance", "保險"] },
+    { "tag": "E-commerce", "label": "電商", "aliases": ["ecommerce", "e-commerce", "電商", "電子商務", "marketplace"] },
+    { "tag": "Gaming", "label": "遊戲", "aliases": ["gaming", "game", "遊戲", "手遊", "mobile game"] },
+    { "tag": "AI", "label": "AI / 人工智慧", "aliases": ["ai", "artificial intelligence", "人工智慧", "ml", "machine learning"] },
+    { "tag": "Semiconductor", "label": "半導體", "aliases": ["semiconductor", "半導體", "ic design", "ic設計", "foundry", "晶圓"] },
+    { "tag": "Hardware", "label": "硬體 / 電子", "aliases": ["hardware", "硬體", "電子", "iot", "embedded", "嵌入式"] },
+    { "tag": "Telecom", "label": "電信", "aliases": ["telecom", "telecommunications", "電信", "5g"] },
+    { "tag": "Internet", "label": "網路 / 平台", "aliases": ["internet", "網路", "platform", "平台", "social media", "社群"] },
+    { "tag": "SI", "label": "系統整合", "aliases": ["si", "system integration", "系統整合", "系統整合商", "it services"] },
+    { "tag": "Consulting", "label": "顧問 / 諮詢", "aliases": ["consulting", "顧問", "諮詢", "management consulting", "四大"] },
+    { "tag": "Healthcare", "label": "醫療 / 生技", "aliases": ["healthcare", "醫療", "biotech", "生技", "pharmaceutical", "pharma", "製藥"] },
+    { "tag": "Manufacturing", "label": "製造業", "aliases": ["manufacturing", "製造", "工廠", "factory", "production"] },
+    { "tag": "Logistics", "label": "物流 / 供應鏈", "aliases": ["logistics", "物流", "supply chain", "供應鏈", "warehousing"] },
+    { "tag": "Retail", "label": "零售", "aliases": ["retail", "零售", "百貨", "convenience store", "門市"] },
+    { "tag": "Media", "label": "媒體 / 內容", "aliases": ["media", "媒體", "content", "publishing", "出版", "streaming"] },
+    { "tag": "Education", "label": "教育 / EdTech", "aliases": ["education", "教育", "edtech", "線上學習", "e-learning"] },
+    { "tag": "Construction", "label": "建築 / 營造", "aliases": ["construction", "建築", "營造", "建設", "real estate", "不動產"] },
+    { "tag": "Government", "label": "政府 / 公部門", "aliases": ["government", "政府", "公部門", "public sector"] },
+    { "tag": "Startup", "label": "新創", "aliases": ["startup", "新創", "start-up", "early stage"] },
+    { "tag": "Automotive", "label": "汽車 / 車用", "aliases": ["automotive", "汽車", "車用", "ev", "electric vehicle", "電動車"] },
+    { "tag": "Energy", "label": "能源", "aliases": ["energy", "能源", "renewable", "再生能源", "solar", "wind"] },
+    { "tag": "Other", "label": "其他", "aliases": [] }
+  ]
+}

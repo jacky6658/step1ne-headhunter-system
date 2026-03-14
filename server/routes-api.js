@@ -444,6 +444,92 @@ pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs_pipeline(job_stat
 pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs_pipeline(created_at DESC)`).catch(() => {});
 pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_priority ON jobs_pipeline(priority)`).catch(() => {});
 
+// ====================== Sprint 1: Structured Candidate Fields ======================
+// Auto-migration for Layer 1 (Match Core) + Layer 2 (Deal/Timing) + Layer 3 (Enrichment) + Talent Board
+
+// Layer 1: Match Core
+pool.query(`
+  ALTER TABLE candidates_pipeline
+  ADD COLUMN IF NOT EXISTS current_title VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS current_company VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS role_family VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS canonical_role VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS seniority_level VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS total_years NUMERIC(4,1),
+  ADD COLUMN IF NOT EXISTS industry_tag VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS normalized_skills JSONB DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS skill_evidence JSONB DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS education_level VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS current_salary_min INTEGER,
+  ADD COLUMN IF NOT EXISTS current_salary_max INTEGER,
+  ADD COLUMN IF NOT EXISTS expected_salary_min INTEGER,
+  ADD COLUMN IF NOT EXISTS expected_salary_max INTEGER,
+  ADD COLUMN IF NOT EXISTS salary_currency VARCHAR(10) DEFAULT 'TWD',
+  ADD COLUMN IF NOT EXISTS salary_period VARCHAR(20) DEFAULT 'monthly',
+  ADD COLUMN IF NOT EXISTS notice_period_enum VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS job_search_status_enum VARCHAR(20)
+`).catch(err => console.warn('Sprint1 Layer1 migration:', err.message));
+
+// Layer 2: Deal/Timing (fields types.ts references but were missing)
+pool.query(`
+  ALTER TABLE candidates_pipeline
+  ADD COLUMN IF NOT EXISTS age INTEGER,
+  ADD COLUMN IF NOT EXISTS industry VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS languages TEXT,
+  ADD COLUMN IF NOT EXISTS certifications TEXT,
+  ADD COLUMN IF NOT EXISTS notice_period VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS management_experience BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS team_size VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS consultant_evaluation JSONB,
+  ADD COLUMN IF NOT EXISTS job_search_status VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS reason_for_change TEXT,
+  ADD COLUMN IF NOT EXISTS motivation VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS deal_breakers TEXT,
+  ADD COLUMN IF NOT EXISTS competing_offers TEXT,
+  ADD COLUMN IF NOT EXISTS relationship_level VARCHAR(50)
+`).catch(err => console.warn('Sprint1 Layer2 migration:', err.message));
+
+// Layer 3: Enrichment + Meta + Talent Board
+pool.query(`
+  ALTER TABLE candidates_pipeline
+  ADD COLUMN IF NOT EXISTS education_summary TEXT,
+  ADD COLUMN IF NOT EXISTS resume_assets JSONB,
+  ADD COLUMN IF NOT EXISTS auto_derived JSONB,
+  ADD COLUMN IF NOT EXISTS data_quality JSONB,
+  ADD COLUMN IF NOT EXISTS grade_level VARCHAR(2),
+  ADD COLUMN IF NOT EXISTS source_tier VARCHAR(2),
+  ADD COLUMN IF NOT EXISTS heat_level VARCHAR(10)
+`).catch(err => console.warn('Sprint1 Layer3+Board migration:', err.message));
+
+// Indexes for new fields
+pool.query(`CREATE INDEX IF NOT EXISTS idx_cp_role_family ON candidates_pipeline(role_family)`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_cp_industry_tag ON candidates_pipeline(industry_tag)`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_cp_grade_level ON candidates_pipeline(grade_level)`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_cp_heat_level ON candidates_pipeline(heat_level)`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_cp_source_tier ON candidates_pipeline(source_tier)`).catch(() => {});
+pool.query(`CREATE INDEX IF NOT EXISTS idx_cp_normalized_skills ON candidates_pipeline USING GIN (normalized_skills)`).catch(() => {});
+
+// ── Sprint 5: interactions 互動紀錄表 ──
+pool.query(`
+  CREATE TABLE IF NOT EXISTS interactions (
+    id SERIAL PRIMARY KEY,
+    candidate_id INTEGER NOT NULL,
+    interaction_type VARCHAR(30) NOT NULL,
+    interaction_date TIMESTAMP NOT NULL DEFAULT NOW(),
+    channel VARCHAR(30),
+    summary TEXT,
+    next_action TEXT,
+    next_action_date DATE,
+    response_level VARCHAR(20),
+    created_by VARCHAR(100),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )
+`).then(() => {
+  pool.query(`CREATE INDEX IF NOT EXISTS idx_interactions_candidate ON interactions(candidate_id)`).catch(() => {});
+  pool.query(`CREATE INDEX IF NOT EXISTS idx_interactions_next_action ON interactions(next_action_date) WHERE next_action_date IS NOT NULL`).catch(() => {});
+}).catch(err => console.warn('interactions table migration:', err.message));
+
 // Telegram 發送輔助函數
 async function sendTelegram(botToken, chatId, text) {
   if (!botToken || !chatId) return;
@@ -966,6 +1052,34 @@ router.get('/candidates/:id', async (req, res) => {
           github_url: am.github_url || ''
         };
       })() : null,
+      // Sprint 1: Structured fields (Layer 1 Match Core)
+      currentTitle: row.current_title || row.current_position || '',
+      currentCompany: row.current_company || '',
+      roleFamily: row.role_family || '',
+      canonicalRole: row.canonical_role || '',
+      seniorityLevel: row.seniority_level || '',
+      totalYears: row.total_years != null ? parseFloat(row.total_years) : (parseInt(row.years_experience) || 0),
+      industryTag: row.industry_tag || '',
+      normalizedSkills: (() => { const v = row.normalized_skills; if (!v) return []; if (Array.isArray(v)) return v; return []; })(),
+      skillEvidence: row.skill_evidence || [],
+      educationLevel: row.education_level || '',
+      currentSalaryMin: row.current_salary_min || null,
+      currentSalaryMax: row.current_salary_max || null,
+      expectedSalaryMin: row.expected_salary_min || null,
+      expectedSalaryMax: row.expected_salary_max || null,
+      salaryCurrency: row.salary_currency || 'TWD',
+      salaryPeriod: row.salary_period || 'monthly',
+      noticePeriodEnum: row.notice_period_enum || '',
+      jobSearchStatusEnum: row.job_search_status_enum || '',
+      // Layer 3: Enrichment / Meta
+      educationSummary: row.education_summary || '',
+      autoDerived: row.auto_derived || null,
+      dataQuality: row.data_quality || null,
+      // Talent Board: 3-Layer Classification
+      gradeLevel: row.grade_level || '',
+      sourceTier: row.source_tier || '',
+      heatLevel: row.heat_level || '',
+
       createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
       updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString(),
     };
@@ -976,6 +1090,70 @@ router.get('/candidates/:id', async (req, res) => {
     });
   } catch (error) {
     safeError(res, error, 'GET /candidates/:id');
+  }
+});
+
+/**
+ * GET /api/candidates/:id/match-input
+ * Sprint 1: Return ONLY Layer 1 (Match Core) structured fields for AI matching.
+ * This endpoint gives AI a clean, structured input — no noise from biography, notes, etc.
+ */
+router.get('/candidates/:id/match-input', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!/^\d+$/.test(id)) {
+      return res.status(404).json({ success: false, error: 'Candidate not found' });
+    }
+    const { rows } = await pool.query(
+      `SELECT id, name, current_title, current_position, current_company,
+              role_family, canonical_role, seniority_level,
+              total_years, years_experience, location, industry_tag,
+              normalized_skills, skills, education_level,
+              current_salary_min, current_salary_max,
+              expected_salary_min, expected_salary_max,
+              salary_currency, salary_period,
+              notice_period_enum, job_search_status_enum
+       FROM candidates_pipeline WHERE id = $1`, [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Candidate not found' });
+    }
+    const r = rows[0];
+    // Fallback to old fields if new fields not yet populated
+    const normalizedSkills = (() => {
+      if (Array.isArray(r.normalized_skills) && r.normalized_skills.length > 0) return r.normalized_skills;
+      // Fallback: parse old skills field
+      const { normalizeSkillsArray } = require('./taxonomy/matchSkills');
+      return normalizeSkillsArray(r.skills);
+    })();
+
+    res.json({
+      success: true,
+      data: {
+        candidateId: r.id.toString(),
+        name: r.name || '',
+        currentTitle: r.current_title || r.current_position || '',
+        currentCompany: r.current_company || '',
+        roleFamily: r.role_family || '',
+        canonicalRole: r.canonical_role || '',
+        seniorityLevel: r.seniority_level || '',
+        totalYears: r.total_years != null ? parseFloat(r.total_years) : (parseInt(r.years_experience) || 0),
+        location: r.location || '',
+        industryTag: r.industry_tag || '',
+        normalizedSkills,
+        educationLevel: r.education_level || '',
+        currentSalaryMin: r.current_salary_min || null,
+        currentSalaryMax: r.current_salary_max || null,
+        expectedSalaryMin: r.expected_salary_min || null,
+        expectedSalaryMax: r.expected_salary_max || null,
+        salaryCurrency: r.salary_currency || 'TWD',
+        salaryPeriod: r.salary_period || 'monthly',
+        noticePeriodEnum: r.notice_period_enum || '',
+        jobSearchStatusEnum: r.job_search_status_enum || '',
+      }
+    });
+  } catch (error) {
+    safeError(res, error, 'GET /candidates/:id/match-input');
   }
 });
 
@@ -1196,6 +1374,30 @@ router.patch('/candidates/:id', async (req, res) => {
     const portfolio_url = req.body.portfolio_url !== undefined ? req.body.portfolio_url : req.body.portfolioUrl;
     // AI 總結結果
     const ai_summary = req.body.ai_summary !== undefined ? req.body.ai_summary : req.body.aiSummary;
+    // Sprint 1: Structured fields (Layer 1 Match Core)
+    const current_title = req.body.current_title !== undefined ? req.body.current_title : req.body.currentTitle;
+    const current_company = req.body.current_company !== undefined ? req.body.current_company : req.body.currentCompany;
+    const role_family = req.body.role_family !== undefined ? req.body.role_family : req.body.roleFamily;
+    const canonical_role = req.body.canonical_role !== undefined ? req.body.canonical_role : req.body.canonicalRole;
+    const seniority_level = req.body.seniority_level !== undefined ? req.body.seniority_level : req.body.seniorityLevel;
+    const total_years = req.body.total_years !== undefined ? req.body.total_years : req.body.totalYears;
+    const industry_tag = req.body.industry_tag !== undefined ? req.body.industry_tag : req.body.industryTag;
+    const normalized_skills = req.body.normalized_skills !== undefined ? req.body.normalized_skills : req.body.normalizedSkills;
+    const skill_evidence = req.body.skill_evidence !== undefined ? req.body.skill_evidence : req.body.skillEvidence;
+    const education_level = req.body.education_level !== undefined ? req.body.education_level : req.body.educationLevel;
+    const current_salary_min = req.body.current_salary_min !== undefined ? req.body.current_salary_min : req.body.currentSalaryMin;
+    const current_salary_max = req.body.current_salary_max !== undefined ? req.body.current_salary_max : req.body.currentSalaryMax;
+    const expected_salary_min = req.body.expected_salary_min !== undefined ? req.body.expected_salary_min : req.body.expectedSalaryMin;
+    const expected_salary_max = req.body.expected_salary_max !== undefined ? req.body.expected_salary_max : req.body.expectedSalaryMax;
+    const salary_currency = req.body.salary_currency !== undefined ? req.body.salary_currency : req.body.salaryCurrency;
+    const salary_period = req.body.salary_period !== undefined ? req.body.salary_period : req.body.salaryPeriod;
+    const notice_period_enum = req.body.notice_period_enum !== undefined ? req.body.notice_period_enum : req.body.noticePeriodEnum;
+    const job_search_status_enum = req.body.job_search_status_enum !== undefined ? req.body.job_search_status_enum : req.body.jobSearchStatusEnum;
+    // Talent Board classification
+    const grade_level = req.body.grade_level !== undefined ? req.body.grade_level : req.body.gradeLevel;
+    const source_tier = req.body.source_tier !== undefined ? req.body.source_tier : req.body.sourceTier;
+    const heat_level = req.body.heat_level !== undefined ? req.body.heat_level : req.body.heatLevel;
+
     const actor = req.body.actor || req.body.by || '';
     const isAIBot = /aibot|bot$|openclaw|yuqi|ai$/i.test(actor);
 
@@ -1375,6 +1577,82 @@ router.patch('/candidates/:id', async (req, res) => {
     if (portfolio_url !== undefined) { setClauses.push(`portfolio_url = $${idx++}`); values.push(portfolio_url); }
     // AI 總結結果
     if (ai_summary !== undefined) { setClauses.push(`ai_summary = $${idx++}`); values.push(JSON.stringify(ai_summary)); }
+    // Sprint 1: Structured fields
+    if (current_title !== undefined) { setClauses.push(`current_title = $${idx++}`); values.push(current_title); }
+    if (current_company !== undefined) { setClauses.push(`current_company = $${idx++}`); values.push(current_company); }
+    if (role_family !== undefined) { setClauses.push(`role_family = $${idx++}`); values.push(role_family); }
+    if (canonical_role !== undefined) { setClauses.push(`canonical_role = $${idx++}`); values.push(canonical_role); }
+    if (seniority_level !== undefined) { setClauses.push(`seniority_level = $${idx++}`); values.push(seniority_level); }
+    if (total_years !== undefined) { setClauses.push(`total_years = $${idx++}`); values.push(total_years === null ? null : Number(total_years)); }
+    if (industry_tag !== undefined) { setClauses.push(`industry_tag = $${idx++}`); values.push(industry_tag); }
+    if (normalized_skills !== undefined) { setClauses.push(`normalized_skills = $${idx++}`); values.push(JSON.stringify(normalized_skills)); }
+    if (skill_evidence !== undefined) { setClauses.push(`skill_evidence = $${idx++}`); values.push(JSON.stringify(skill_evidence)); }
+    if (education_level !== undefined) { setClauses.push(`education_level = $${idx++}`); values.push(education_level); }
+    if (current_salary_min !== undefined) { setClauses.push(`current_salary_min = $${idx++}`); values.push(current_salary_min === null ? null : Number(current_salary_min)); }
+    if (current_salary_max !== undefined) { setClauses.push(`current_salary_max = $${idx++}`); values.push(current_salary_max === null ? null : Number(current_salary_max)); }
+    if (expected_salary_min !== undefined) { setClauses.push(`expected_salary_min = $${idx++}`); values.push(expected_salary_min === null ? null : Number(expected_salary_min)); }
+    if (expected_salary_max !== undefined) { setClauses.push(`expected_salary_max = $${idx++}`); values.push(expected_salary_max === null ? null : Number(expected_salary_max)); }
+    if (salary_currency !== undefined) { setClauses.push(`salary_currency = $${idx++}`); values.push(salary_currency); }
+    if (salary_period !== undefined) { setClauses.push(`salary_period = $${idx++}`); values.push(salary_period); }
+    if (notice_period_enum !== undefined) { setClauses.push(`notice_period_enum = $${idx++}`); values.push(notice_period_enum); }
+    if (job_search_status_enum !== undefined) { setClauses.push(`job_search_status_enum = $${idx++}`); values.push(job_search_status_enum); }
+    if (grade_level !== undefined) { setClauses.push(`grade_level = $${idx++}`); values.push(grade_level); }
+    if (source_tier !== undefined) { setClauses.push(`source_tier = $${idx++}`); values.push(source_tier); }
+    if (heat_level !== undefined) { setClauses.push(`heat_level = $${idx++}`); values.push(heat_level); }
+
+    // Auto-normalization: when skills/salary/work_history change, auto-derive structured fields
+    if (skills !== undefined && normalized_skills === undefined) {
+      const { normalizeSkillsArray } = require('./taxonomy/matchSkills');
+      const autoNormalized = normalizeSkillsArray(skills);
+      if (autoNormalized.length > 0) {
+        setClauses.push(`normalized_skills = $${idx++}`);
+        values.push(JSON.stringify(autoNormalized));
+      }
+    }
+    if (current_salary !== undefined && current_salary_min === undefined) {
+      const { parseSalaryText } = require('./taxonomy/matchSkills');
+      const parsed = parseSalaryText(current_salary);
+      if (parsed.min != null) {
+        setClauses.push(`current_salary_min = $${idx++}`); values.push(parsed.min);
+        setClauses.push(`current_salary_max = $${idx++}`); values.push(parsed.max || parsed.min);
+      }
+    }
+    if (expected_salary !== undefined && expected_salary_min === undefined) {
+      const { parseSalaryText } = require('./taxonomy/matchSkills');
+      const parsed = parseSalaryText(expected_salary);
+      if (parsed.min != null) {
+        setClauses.push(`expected_salary_min = $${idx++}`); values.push(parsed.min);
+        setClauses.push(`expected_salary_max = $${idx++}`); values.push(parsed.max || parsed.min);
+      }
+    }
+    if (notice_period !== undefined && notice_period_enum === undefined) {
+      const { parseNoticePeriod } = require('./taxonomy/matchSkills');
+      const parsed = parseNoticePeriod(notice_period);
+      if (parsed) { setClauses.push(`notice_period_enum = $${idx++}`); values.push(parsed); }
+    }
+    if (job_search_status !== undefined && job_search_status_enum === undefined) {
+      const { parseJobSearchStatus } = require('./taxonomy/matchSkills');
+      const parsed = parseJobSearchStatus(job_search_status);
+      if (parsed) { setClauses.push(`job_search_status_enum = $${idx++}`); values.push(parsed); }
+    }
+    if (work_history !== undefined) {
+      const { computeAutoDerived } = require('./taxonomy/matchSkills');
+      const wh = Array.isArray(work_history) ? work_history : [];
+      if (wh.length > 0) {
+        const derived = computeAutoDerived(wh);
+        setClauses.push(`auto_derived = $${idx++}`);
+        values.push(JSON.stringify(derived));
+      }
+    }
+    if (position !== undefined && current_title === undefined) {
+      setClauses.push(`current_title = $${idx++}`);
+      values.push(position);
+    }
+    if (years !== undefined && total_years === undefined) {
+      setClauses.push(`total_years = $${idx++}`);
+      values.push(Number(years) || 0);
+    }
+
     // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析
     let resolvedAiMatch = ai_match_result;
 
@@ -3821,115 +4099,8 @@ router.get('/github/analyze/:username', async (req, res) => {
 // 職缺匹配推薦 v2：5 維度評分 + 中英文同義詞 + 快取
 // ============================================================
 
-/** 中英文技能同義詞對照表 — 用於跨語言技能比對 */
-const SKILL_SYNONYMS = {
-  // 財會
-  'ifrs': ['國際財務報導準則', '國際會計準則', 'international financial reporting standards'],
-  'gaap': ['一般公認會計原則', 'us gaap', 'tw gaap', '美國會計準則', '會計準則'],
-  'consolidation': ['合併報表', '合併報告', '合併財報', 'consolidated financial statements'],
-  'audit': ['審計', '稽核', '查核', 'auditing', '外部稽核', '內部稽核'],
-  'tax': ['稅務', '稅法', 'taxation', '稅務規劃', 'tax planning'],
-  'ipo': ['首次公開發行', '上市', 'initial public offering', '股票上市'],
-  'm&a': ['併購', '合併收購', 'mergers and acquisitions', 'merger', 'acquisition'],
-  'due diligence': ['盡職調查', 'dd', '盡調'],
-  'transfer pricing': ['移轉訂價', '轉讓定價', 'tp'],
-  'budgeting': ['預算編制', '預算管理', 'budget', '預算'],
-  'forecasting': ['財務預測', '預測', 'financial forecasting'],
-  'cost accounting': ['成本會計', '成本分析', 'cost analysis'],
-  'treasury': ['資金管理', '財務管理', 'cash management', '資金調度'],
-  'compliance': ['法規遵循', '合規', '法遵', 'regulatory compliance'],
-  'internal control': ['內部控制', '內控', 'ic', 'internal audit'],
-  'financial analysis': ['財務分析', '財報分析', 'financial reporting'],
-  'accounts payable': ['應付帳款', 'ap'],
-  'accounts receivable': ['應收帳款', 'ar'],
-  'general ledger': ['總帳', 'gl', '總分類帳'],
-  'cpa': ['會計師', '註冊會計師', 'certified public accountant'],
-  'cfa': ['特許金融分析師', 'chartered financial analyst'],
-  'erp': ['企業資源規劃', 'sap', 'oracle erp', 'sap erp', 'sap fico', 'oracle'],
-  'lean': ['精實管理', '精益管理', 'lean management', 'lean manufacturing'],
-  'sox': ['沙賓法案', 'sarbanes-oxley', '薩班斯'],
-  // 科技
-  'python': ['python3', 'python 3'],
-  'javascript': ['js', 'node.js', 'nodejs', 'node', 'ecmascript'],
-  'typescript': ['ts'],
-  'react': ['react.js', 'reactjs', 'react native'],
-  'vue': ['vue.js', 'vuejs'],
-  'angular': ['angularjs', 'angular.js'],
-  'java': ['jvm', 'spring', 'spring boot'],
-  'c#': ['csharp', 'c sharp', '.net', 'dotnet'],
-  'sql': ['mysql', 'postgresql', 'postgres', 'mssql', 'sql server', 'oracle db'],
-  'nosql': ['mongodb', 'redis', 'cassandra', 'dynamodb'],
-  'aws': ['amazon web services', 'ec2', 's3', 'lambda', '亞馬遜雲端'],
-  'azure': ['microsoft azure', '微軟雲端'],
-  'gcp': ['google cloud', 'google cloud platform', 'google 雲端'],
-  'docker': ['container', 'containerization', '容器化'],
-  'kubernetes': ['k8s', '容器編排'],
-  'ci/cd': ['cicd', 'continuous integration', 'continuous deployment', '持續整合', '持續部署'],
-  'machine learning': ['機器學習', 'ml', 'deep learning', '深度學習', 'ai', '人工智慧'],
-  'data analysis': ['數據分析', '資料分析', 'data analytics', 'data science', '資料科學'],
-  'devops': ['dev ops', '開發維運'],
-  'api': ['api design', 'restful', 'rest api', 'graphql'],
-  'microservices': ['微服務', 'micro services'],
-  // 管理 & 軟技能
-  'project management': ['專案管理', 'pm', 'pmp', '項目管理'],
-  'agile': ['敏捷', 'scrum', 'kanban', '敏捷開發'],
-  'leadership': ['領導力', '團隊管理', 'team management', 'team lead', '帶領團隊'],
-  'communication': ['溝通能力', '表達能力', '溝通協調'],
-  'negotiation': ['談判', '商務談判', '議價'],
-  'strategic planning': ['策略規劃', '戰略規劃', 'business strategy'],
-  'stakeholder management': ['利害關係人管理', '利益相關者管理'],
-  'cross functional': ['跨部門', '跨功能', 'cross-functional'],
-  'presentation': ['簡報能力', '提案能力', 'public speaking'],
-  // 人資
-  'recruitment': ['招募', '徵才', 'talent acquisition', '人才招募'],
-  'compensation': ['薪酬', '薪資', 'comp & ben', 'c&b', '薪酬福利'],
-  'performance management': ['績效管理', 'performance review', 'kpi'],
-  'employee relations': ['員工關係', 'er', '勞資關係'],
-  'hrbp': ['人力資源業務夥伴', 'hr business partner'],
-  // 業務 & 行銷
-  'b2b': ['企業對企業', 'business to business', '企業銷售'],
-  'b2c': ['企業對消費者', 'business to consumer'],
-  'crm': ['客戶關係管理', 'customer relationship management', 'salesforce'],
-  'digital marketing': ['數位行銷', '網路行銷', 'online marketing'],
-  'seo': ['搜尋引擎優化', 'search engine optimization'],
-  'content marketing': ['內容行銷', 'content strategy'],
-  'brand management': ['品牌管理', 'branding', '品牌經營'],
-  'supply chain': ['供應鏈', '供應鏈管理', 'scm', 'logistics', '物流'],
-  'procurement': ['採購', '採購管理', 'sourcing', '供應商管理'],
-  // 語言
-  'english': ['英文', '英語', '英文能力'],
-  'japanese': ['日文', '日語', '日本語'],
-  'mandarin': ['中文', '國語', '華語', 'chinese'],
-  'korean': ['韓文', '韓語'],
-};
-
-/** 展開同義詞比對：candidateSkill 和 requiredSkill 是否語意相同 */
-function expandedMatch(candidateSkill, requiredSkill) {
-  if (candidateSkill.includes(requiredSkill) || requiredSkill.includes(candidateSkill)) return true;
-  for (const [key, synonyms] of Object.entries(SKILL_SYNONYMS)) {
-    const group = [key, ...synonyms].map(s => s.toLowerCase());
-    const reqInGroup = group.some(g => g.includes(requiredSkill) || requiredSkill.includes(g));
-    const candInGroup = group.some(g => g.includes(candidateSkill) || candidateSkill.includes(g));
-    if (reqInGroup && candInGroup) return true;
-  }
-  return false;
-}
-
-/** 統一 skills 格式（JSON 陣列或逗號/頓號分隔字串）*/
-function normalizeSkills(skills) {
-  if (!skills) return [];
-  if (Array.isArray(skills)) return skills;
-  if (typeof skills === 'string') {
-    try {
-      const parsed = JSON.parse(skills);
-      if (Array.isArray(parsed)) return parsed;
-      return [skills];
-    } catch {
-      return skills.split(/[,、;；]/).map(s => s.trim()).filter(s => s.length > 0);
-    }
-  }
-  return [];
-}
+// ── v3 Job Ranking: 7-dimension scoring with unified taxonomy ──
+const { matchSkills: unifiedMatchSkills, normalizeSkillsArray: unifiedNormalizeSkills } = require('./taxonomy/matchSkills');
 
 /** 解析 work_history JSONB（可能是字串或陣列）*/
 function parseWorkHistory(wh) {
@@ -3948,32 +4119,60 @@ function parseExperienceRequired(text) {
   return singleMatch ? parseInt(singleMatch[1]) : 0;
 }
 
-/** v2 技能匹配分（含同義詞）*/
-function calcSkillScore(cand, job) {
-  const rawSkills = [job.key_skills, job.special_conditions].filter(Boolean).join(',');
-  const requiredSkills = rawSkills
-    .split(/[,、\n\/；;]/)
-    .map(s => s.trim().toLowerCase())
-    .filter(s => s.length > 1 && s.length < 40);
-
-  const candidateSkills = (cand.skills || []).map(s => (s || '').toLowerCase());
-  const candidateBio = (cand.bio || '').toLowerCase();
-
-  const matched = requiredSkills.filter(req =>
-    candidateSkills.some(cs => expandedMatch(cs, req)) ||
-    candidateBio.includes(req)
-  );
-
-  const score = requiredSkills.length > 0
-    ? Math.round((matched.length / requiredSkills.length) * 100)
-    : 50;
-
-  return { score, matched, missing: requiredSkills.filter(r => !matched.includes(r)), requiredCount: requiredSkills.length };
+/** 解析薪資範圍文字 → { min, max } */
+function parseSalaryRange(text) {
+  if (!text) return { min: 0, max: 0 };
+  const rangeMatch = text.match(/(\d[\d,]*)\s*[-~至到]\s*(\d[\d,]*)/);
+  if (rangeMatch) return { min: parseInt(rangeMatch[1].replace(/,/g, '')), max: parseInt(rangeMatch[2].replace(/,/g, '')) };
+  const kMatch = text.match(/(\d+)\s*[kK]/);
+  if (kMatch) { const v = parseInt(kMatch[1]) * 1000; return { min: v, max: v }; }
+  const numMatch = text.match(/(\d[\d,]+)/);
+  if (numMatch) { const v = parseInt(numMatch[1].replace(/,/g, '')); return { min: v, max: v }; }
+  return { min: 0, max: 0 };
 }
 
-/** v2 年資匹配分 */
-function calcExperienceScore(cand, job) {
-  const candYears = parseFloat(cand.years_experience) || 0;
+/** D1: Role + Skill 匹配分 (35%) — 使用 unified taxonomy */
+function calcSkillScoreV3(cand, job) {
+  // Prefer normalized_skills, fallback to raw skills
+  const candidateSkills = cand.normalized_skills || cand.skills || [];
+  const rawJobSkills = [job.key_skills, job.special_conditions].filter(Boolean).join(',');
+
+  const result = unifiedMatchSkills(candidateSkills, rawJobSkills);
+
+  // Bio fallback: check if any missing skills appear in bio text
+  const candidateBio = (cand.bio || '').toLowerCase();
+  const bioRecovered = [];
+  if (candidateBio && result.missingSkills.length > 0) {
+    for (const skill of result.missingSkills) {
+      if (candidateBio.includes(skill.toLowerCase())) {
+        bioRecovered.push(skill);
+      }
+    }
+  }
+
+  const totalMatched = [...result.matchedSkills, ...bioRecovered];
+  const totalRequired = result.matchedSkills.length + result.missingSkills.length;
+  const score = totalRequired > 0 ? Math.round((totalMatched.length / totalRequired) * 100) : 50;
+
+  // Role family bonus: if candidate's role_family matches job title keywords
+  let roleBonus = 0;
+  const candRole = (cand.canonical_role || cand.role_family || '').toLowerCase();
+  const jobTitle = (job.position_name || '').toLowerCase();
+  if (candRole && jobTitle && (jobTitle.includes(candRole) || candRole.includes(jobTitle.split(' ')[0]))) {
+    roleBonus = 10;
+  }
+
+  return {
+    score: Math.min(100, score + roleBonus),
+    matched: totalMatched.slice(0, 10),
+    missing: result.missingSkills.filter(s => !bioRecovered.includes(s)).slice(0, 10),
+    requiredCount: totalRequired,
+  };
+}
+
+/** D2: 年資匹配分 (15%) */
+function calcExperienceScoreV3(cand, job) {
+  const candYears = parseFloat(cand.total_years || cand.years_experience) || 0;
   const reqYears = parseExperienceRequired(job.experience_required);
   if (reqYears === 0) return 60;
   if (candYears === 0) return 40;
@@ -3985,81 +4184,152 @@ function calcExperienceScore(cand, job) {
   return 30;
 }
 
-/** v2 產業+職能匹配分（from work_history）*/
-function calcIndustryScore(cand, job) {
-  const workHistory = parseWorkHistory(cand.work_history);
+/** D3: 薪資匹配分 (15%) — 新增維度 */
+function calcSalaryScoreV3(cand, job) {
+  // Candidate expected salary
+  const candMin = parseInt(cand.expected_salary_min) || 0;
+  const candMax = parseInt(cand.expected_salary_max) || 0;
+  if (candMin === 0 && candMax === 0) return 50; // no data → neutral
+
+  // Job salary range
+  const jobSalary = parseSalaryRange(job.salary_range);
+  if (jobSalary.min === 0 && jobSalary.max === 0) return 60; // no job salary data
+
+  // Normalize to same period if needed (assume both monthly for now)
+  const candMid = candMax > 0 ? (candMin + candMax) / 2 : candMin;
+  const jobMid = jobSalary.max > 0 ? (jobSalary.min + jobSalary.max) / 2 : jobSalary.min;
+
+  if (jobMid === 0) return 60;
+  const ratio = candMid / jobMid;
+
+  // Perfect overlap or candidate below budget → high score
+  if (ratio <= 1.0) return 100;
+  if (ratio <= 1.1) return 85; // slightly above budget
+  if (ratio <= 1.2) return 65;
+  if (ratio <= 1.3) return 45;
+  return 25; // way over budget
+}
+
+/** D4: 產業匹配分 (10%) */
+function calcIndustryScoreV3(cand, job) {
+  // Prefer structured industry_tag
+  const candIndustry = (cand.industry_tag || cand.industry || '').toLowerCase();
   const jobIndustry = (job.industry_background || '').toLowerCase();
   const jobTitle = (job.position_name || '').toLowerCase();
+
   let score = 40;
 
-  const historyText = workHistory.map(w =>
-    [w.title, w.company, w.description].filter(Boolean).join(' ')
-  ).join(' ').toLowerCase();
-
-  // 也加入 bio/notes 做補充
-  const fullText = historyText + ' ' + (cand.bio || '').toLowerCase();
-
-  if (jobIndustry && fullText) {
+  // Direct industry match
+  if (candIndustry && jobIndustry) {
     const industryKeywords = jobIndustry.split(/[,、;；\/\s]/).filter(s => s.length > 1);
-    const industryHits = industryKeywords.filter(k => fullText.includes(k));
-    if (industryHits.length > 0) score += Math.min(30, industryHits.length * 15);
+    const industryHits = industryKeywords.filter(k => candIndustry.includes(k));
+    if (industryHits.length > 0) score += 30;
   }
 
-  if (jobTitle && workHistory.length > 0) {
-    const titleKeywords = jobTitle.split(/[\s\/,、]/).filter(s => s.length > 1);
-    const titleHits = titleKeywords.filter(k =>
-      workHistory.some(w => (w.title || '').toLowerCase().includes(k))
-    );
-    if (titleHits.length > 0) score += Math.min(30, titleHits.length * 10);
+  // Work history text matching
+  const workHistory = parseWorkHistory(cand.work_history);
+  if (workHistory.length > 0) {
+    const historyText = workHistory.map(w =>
+      [w.title, w.company, w.description].filter(Boolean).join(' ')
+    ).join(' ').toLowerCase();
+
+    if (jobIndustry) {
+      const industryKeywords = jobIndustry.split(/[,、;；\/\s]/).filter(s => s.length > 1);
+      const hits = industryKeywords.filter(k => historyText.includes(k));
+      if (hits.length > 0) score += Math.min(20, hits.length * 10);
+    }
+    if (jobTitle) {
+      const titleKeywords = jobTitle.split(/[\s\/,、]/).filter(s => s.length > 1);
+      const hits = titleKeywords.filter(k => workHistory.some(w => (w.title || '').toLowerCase().includes(k)));
+      if (hits.length > 0) score += Math.min(10, hits.length * 5);
+    }
   }
 
   return Math.min(100, score);
 }
 
-/** v2 學歷匹配分 */
-function calcEducationScore(cand, job) {
-  const eduRequired = (job.education_required || '').toLowerCase();
-  const candEdu = (cand.education || '').toLowerCase();
-  if (!eduRequired || eduRequired.includes('不拘') || eduRequired.includes('不限')) return 70;
+/** D5: 到職+求職狀態 (10%) — 新增維度 */
+function calcAvailabilityScoreV3(cand) {
+  let score = 50;
 
-  const levels = { '博士': 5, 'phd': 5, 'doctorate': 5, '碩士': 4, 'master': 4, 'mba': 4, 'emba': 4,
-                   '大學': 3, '學士': 3, 'bachelor': 3, 'university': 3, '專科': 2, '高中': 1, '高職': 1 };
-  const getLevel = (text) => { for (const [k, v] of Object.entries(levels)) { if (text.includes(k)) return v; } return 0; };
+  // Job search status
+  const status = cand.job_search_status_enum || cand.job_search_status || '';
+  if (/active|主動|積極/.test(status)) score += 30;
+  else if (/passive|被動|觀望/.test(status)) score += 15;
+  else if (/not.?open|暫不|不考慮/.test(status)) score -= 20;
 
-  const reqLevel = getLevel(eduRequired);
-  const candLevel = getLevel(candEdu);
-  if (candLevel === 0) return 50;
-  if (candLevel >= reqLevel) return 100;
-  if (candLevel === reqLevel - 1) return 70;
-  return 40;
+  // Notice period
+  const notice = cand.notice_period_enum || cand.notice_period || '';
+  if (/immediate|即刻|立即|隨時/.test(notice)) score += 20;
+  else if (/2weeks|兩週/.test(notice)) score += 15;
+  else if (/1month|一個月/.test(notice)) score += 10;
+  else if (/2months|兩個月/.test(notice)) score += 0;
+  else if (/3months|三個月/.test(notice)) score -= 10;
+
+  return Math.max(0, Math.min(100, score));
 }
 
-/** v2 資料完整度分 */
-function calcProfileScore(cand) {
+/** D6: 熱度+等級 (10%) — 新增維度 */
+function calcGradeHeatScoreV3(cand) {
+  let score = 40;
+
+  // Grade level
+  const grade = (cand.grade_level || '').toUpperCase();
+  if (grade === 'A') score += 30;
+  else if (grade === 'B') score += 15;
+  else if (grade === 'C') score += 0;
+  else if (grade === 'D') score -= 10;
+
+  // Heat level
+  const heat = (cand.heat_level || '').toLowerCase();
+  if (heat === 'hot') score += 30;
+  else if (heat === 'warm') score += 15;
+  else if (heat === 'cold') score += 0;
+
+  return Math.max(0, Math.min(100, score));
+}
+
+/** D7: 資料完整度 (5%) */
+function calcDataQualityScoreV3(cand) {
+  // If we have precomputed data_quality, use it
+  let dq = cand.data_quality;
+  if (typeof dq === 'string') { try { dq = JSON.parse(dq); } catch { dq = null; } }
+  if (dq && typeof dq.completenessScore === 'number') return dq.completenessScore;
+
+  // Fallback: compute on the fly
   let score = 30;
-  if (cand.skills && cand.skills.length > 0) score += 15;
-  if (parseWorkHistory(cand.work_history).length > 0) score += 20;
+  if (cand.normalized_skills || (cand.skills && cand.skills.length > 0)) score += 15;
+  if (parseWorkHistory(cand.work_history).length > 0) score += 15;
   if (cand.education) score += 10;
-  if (cand.years_experience) score += 10;
+  if (cand.total_years || cand.years_experience) score += 10;
   if (cand.linkedin_url) score += 10;
   if (cand.github_url) score += 5;
+  if (cand.role_family) score += 5;
   return Math.min(100, score);
 }
 
-/** v2 綜合評分：5 維度加權 */
-function rankAgainstJobV2(cand, job) {
-  const skill = calcSkillScore(cand, job);
-  const experienceScore = calcExperienceScore(cand, job);
-  const industryScore = calcIndustryScore(cand, job);
-  const educationScore = calcEducationScore(cand, job);
-  const profileScore = calcProfileScore(cand);
+/**
+ * v3 綜合評分：7 維度加權
+ * D1: Role + Skill (35%), D2: Experience (15%), D3: Salary (15%),
+ * D4: Industry (10%), D5: Availability (10%), D6: Grade+Heat (10%), D7: Data Quality (5%)
+ */
+function rankAgainstJobV3(cand, job) {
+  const skill = calcSkillScoreV3(cand, job);
+  const experienceScore = calcExperienceScoreV3(cand, job);
+  const salaryScore = calcSalaryScoreV3(cand, job);
+  const industryScore = calcIndustryScoreV3(cand, job);
+  const availabilityScore = calcAvailabilityScoreV3(cand);
+  const gradeHeatScore = calcGradeHeatScoreV3(cand);
+  const dataQualityScore = calcDataQualityScoreV3(cand);
 
   const totalScore = Math.round(
     skill.score * 0.35 +
-    experienceScore * 0.25 +
-    industryScore * 0.20 +
-    educationScore * 0.10 +
-    profileScore * 0.10
+    experienceScore * 0.15 +
+    salaryScore * 0.15 +
+    industryScore * 0.10 +
+    availabilityScore * 0.10 +
+    gradeHeatScore * 0.10 +
+    dataQualityScore * 0.05
   );
 
   let recommendation;
@@ -4078,11 +4348,13 @@ function rankAgainstJobV2(cand, job) {
     match_score: totalScore,
     skill_score: skill.score,
     experience_score: experienceScore,
+    salary_score: salaryScore,
     industry_score: industryScore,
-    education_score: educationScore,
-    profile_score: profileScore,
-    matched_skills: skill.matched.slice(0, 10),
-    missing_skills: skill.missing.slice(0, 10),
+    availability_score: availabilityScore,
+    grade_heat_score: gradeHeatScore,
+    data_quality_score: dataQualityScore,
+    matched_skills: skill.matched,
+    missing_skills: skill.missing,
     required_skills_count: skill.requiredCount,
     recommendation,
   };
@@ -4090,7 +4362,8 @@ function rankAgainstJobV2(cand, job) {
 
 /**
  * GET /api/candidates/:id/job-rankings
- * v2：5 維度評分 + 中英文同義詞 + Top 5 + 快取
+ * v3：7 維度評分（Role+Skill/Exp/Salary/Industry/Availability/Grade+Heat/DataQuality）
+ * 使用 unified taxonomy (matchSkills.js) + Top 5 + 快取
  * 支援 ?force=1 強制重算
  */
 router.get('/candidates/:id/job-rankings', async (req, res) => {
@@ -4155,16 +4428,25 @@ router.get('/candidates/:id/job-rankings', async (req, res) => {
 
       // 3. 搶到鎖（或 fallback），開始計算
       const candRes = await pool.query(
-        `SELECT id, name, skills, notes AS bio, source,
+        `SELECT id, name, skills, normalized_skills, notes AS bio, source,
                 work_history, education, education_details,
-                years_experience, location, current_position,
+                years_experience, total_years, location, current_position,
+                current_title, role_family, canonical_role, industry_tag, industry,
+                expected_salary_min, expected_salary_max, salary_currency, salary_period,
+                notice_period_enum, notice_period, job_search_status_enum, job_search_status,
+                grade_level, heat_level, data_quality,
                 linkedin_url, github_url
          FROM candidates_pipeline WHERE id = $1`,
         [candidateId]
       );
       if (candRes.rows.length === 0) return res.status(404).json({ error: '候選人不存在' });
       const candidate = candRes.rows[0];
-      candidate.skills = normalizeSkills(candidate.skills);
+      // Prefer normalized_skills, fallback to parsing raw skills
+      if (!candidate.normalized_skills) {
+        candidate.normalized_skills = unifiedNormalizeSkills(candidate.skills);
+      } else if (typeof candidate.normalized_skills === 'string') {
+        try { candidate.normalized_skills = JSON.parse(candidate.normalized_skills); } catch { candidate.normalized_skills = []; }
+      }
 
       // 4. 抓所有非關閉職缺
       const jobsRes = await pool.query(
@@ -4177,9 +4459,9 @@ router.get('/candidates/:id/job-rankings', async (req, res) => {
          ORDER BY created_at DESC LIMIT 200`
       );
 
-      // 5. 對每個職缺做 5 維度評分，排序取 Top 5
+      // 5. 對每個職缺做 7 維度評分，排序取 Top 5
       const allRankings = jobsRes.rows
-        .map(job => rankAgainstJobV2(candidate, job))
+        .map(job => rankAgainstJobV3(candidate, job))
         .sort((a, b) => b.match_score - a.match_score);
 
       const top5 = allRankings.slice(0, 5);
@@ -5152,6 +5434,47 @@ router.post('/candidates/backfill-computed', async (req, res) => {
   }
 });
 
+// ==================== Sprint 1: Taxonomy APIs ====================
+
+const skillTaxonomy = require('./taxonomy/skill-taxonomy.json');
+const roleTaxonomy = require('./taxonomy/role-taxonomy.json');
+const industryTaxonomy = require('./taxonomy/industry-taxonomy.json');
+
+/**
+ * GET /api/taxonomy/skills
+ * Returns the unified skill taxonomy for autocomplete and normalization.
+ */
+router.get('/taxonomy/skills', (req, res) => {
+  const { _meta, ...skills } = skillTaxonomy;
+  const result = Object.keys(skills).sort().map(canonical => ({
+    canonical,
+    aliases: skills[canonical],
+  }));
+  res.json({ success: true, data: result });
+});
+
+/**
+ * GET /api/taxonomy/roles
+ * Returns role family + canonical roles for dropdown population.
+ */
+router.get('/taxonomy/roles', (req, res) => {
+  const { _meta, ...roles } = roleTaxonomy;
+  const result = Object.entries(roles).map(([key, val]) => ({
+    roleFamily: key,
+    label: val.label,
+    canonicalRoles: val.canonicalRoles,
+  }));
+  res.json({ success: true, data: result });
+});
+
+/**
+ * GET /api/taxonomy/industries
+ * Returns industry taxonomy for dropdown population.
+ */
+router.get('/taxonomy/industries', (req, res) => {
+  res.json({ success: true, data: industryTaxonomy.industries });
+});
+
 // ==================== 提示詞資料庫 (Prompt Library) API ====================
 
 const VALID_PROMPT_CATEGORIES = [
@@ -5570,6 +5893,89 @@ router.put('/system-config/:key', async (req, res) => {
     res.json({ success: true, message: '設定已更新' });
   } catch (err) {
     safeError(res, err, 'PUT /system-config/:key');
+  }
+});
+
+// ========== Sprint 5: Interactions CRUD ==========
+
+// GET /candidates/:id/interactions — 取得候選人互動紀錄
+router.get('/candidates/:id/interactions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await pool.query(
+      `SELECT * FROM interactions WHERE candidate_id = $1 ORDER BY interaction_date DESC`,
+      [id]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    safeError(res, err, 'GET /candidates/:id/interactions');
+  }
+});
+
+// POST /candidates/:id/interactions — 新增互動紀錄
+router.post('/candidates/:id/interactions', async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    const { interaction_type, interaction_date, channel, summary, next_action, next_action_date, response_level, created_by } = req.body;
+    if (!interaction_type) return res.status(400).json({ success: false, error: 'interaction_type 必填' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO interactions (candidate_id, interaction_type, interaction_date, channel, summary, next_action, next_action_date, response_level, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [candidateId, interaction_type, interaction_date || new Date(), channel || null, summary || null,
+       next_action || null, next_action_date || null, response_level || null, created_by || null]
+    );
+
+    // 自動更新候選人 lastContactAt + heat_level
+    await pool.query(
+      `UPDATE candidates_pipeline SET updated_at = NOW() WHERE id = $1`,
+      [candidateId]
+    );
+
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    safeError(res, err, 'POST /candidates/:id/interactions');
+  }
+});
+
+// PATCH /interactions/:id — 更新互動紀錄
+router.patch('/interactions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fields = ['interaction_type', 'interaction_date', 'channel', 'summary', 'next_action', 'next_action_date', 'response_level'];
+    const sets = [];
+    const vals = [];
+    let idx = 1;
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        sets.push(`${f} = $${idx}`);
+        vals.push(req.body[f]);
+        idx++;
+      }
+    }
+    if (sets.length === 0) return res.status(400).json({ success: false, error: '沒有要更新的欄位' });
+    sets.push(`updated_at = NOW()`);
+    vals.push(id);
+    const { rows } = await pool.query(
+      `UPDATE interactions SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+      vals
+    );
+    if (rows.length === 0) return res.status(404).json({ success: false, error: '找不到互動紀錄' });
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    safeError(res, err, 'PATCH /interactions/:id');
+  }
+});
+
+// DELETE /interactions/:id — 刪除互動紀錄
+router.delete('/interactions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rowCount } = await pool.query(`DELETE FROM interactions WHERE id = $1`, [id]);
+    if (rowCount === 0) return res.status(404).json({ success: false, error: '找不到互動紀錄' });
+    res.json({ success: true, message: '已刪除' });
+  } catch (err) {
+    safeError(res, err, 'DELETE /interactions/:id');
   }
 });
 

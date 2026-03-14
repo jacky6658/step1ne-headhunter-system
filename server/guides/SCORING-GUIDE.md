@@ -29,12 +29,29 @@ GET https://backendstep1ne.zeabur.app/api/candidates?created_today=true
 
 > 💡 **分頁機制**：若需查詢所有候選人（非今日新增），請帶 `?limit=2000&offset=0`。回應的 `pagination.hasMore` 為 `true` 時，需繼續用 offset 翻頁（offset=2000, 4000...）直到取完。
 
-**每筆候選人資料結構：**
+**每筆候選人資料結構（含 Layer 1 結構化欄位）：**
 ```json
 {
   "id": 540,
   "name": "Charkchalk",
   "skills": ["Java", "Spring Boot", "Docker", "Redis"],
+  "normalized_skills": ["Java", "Spring Boot", "Docker", "Redis"],
+  "current_title": "Senior Backend Engineer",
+  "current_company": "TechCorp",
+  "role_family": "Backend",
+  "canonical_role": "Java Backend Engineer",
+  "seniority_level": "Senior",
+  "total_years": 6,
+  "industry_tag": "SaaS",
+  "expected_salary_min": 90000,
+  "expected_salary_max": 120000,
+  "salary_currency": "TWD",
+  "salary_period": "monthly",
+  "notice_period_enum": "1month",
+  "job_search_status_enum": "passive",
+  "grade_level": null,
+  "heat_level": null,
+  "data_quality": { "completenessScore": 80, "missingCoreFields": ["學歷"], "normalizationWarnings": [] },
   "linkedin_url": "https://linkedin.com/in/...",
   "github_url": null,
   "notes": "Bot 自動匯入 | 目標職缺：Java Developer (後端工程師) | 負責顧問：AIBot-pipeline | 2026-02-26",
@@ -47,7 +64,9 @@ GET https://backendstep1ne.zeabur.app/api/candidates?created_today=true
 }
 ```
 
-> 💡 **新欄位說明**：`biography`（自傳）、`portfolioUrl`（作品集連結）、`voiceAssessments`（語音/面談評估）是候選人的深度資訊，務必在評分時納入考量。
+> 💡 **Layer 1 結構化欄位**：`normalized_skills`、`role_family`、`canonical_role`、`seniority_level`、`total_years`、`industry_tag`、薪資 min/max、`notice_period_enum`、`job_search_status_enum` 是標準化欄位，**第一輪評分優先使用這些欄位**，可以做精確比對而非模糊匹配。
+>
+> 💡 **深度資訊**：`biography`（自傳）、`portfolioUrl`（作品集連結）、`voiceAssessments`（語音/面談評估）是第二輪才使用的深度資訊。
 
 從 `notes` 欄位中擷取「目標職缺：」後面的職位名稱，用於下一步查詢職缺。
 
@@ -89,30 +108,59 @@ GET https://backendstep1ne.zeabur.app/api/jobs
 
 ## 第三步：AI 評分 + 撰寫配對結語
 
-### 評分方式（AI 判斷，非公式計算）
+### 評分方式：三輪漸進式評估
 
-**你是 AI，請閱讀三份畫像後做真實判斷，不要只做關鍵字 overlap 計算。**
+**你是 AI，請閱讀結構化欄位 + 三份畫像後做真實判斷，不要只做關鍵字 overlap 計算。**
+
+#### 第一輪：結構化欄位精確比對（Layer 1）
+
+先讀取候選人的結構化欄位做精確匹配，這些欄位來自 unified taxonomy，不需要模糊猜測：
+
+| 比對項目 | 候選人欄位 | 職缺欄位 | 匹配邏輯 |
+|----------|-----------|----------|----------|
+| Role 匹配 | `role_family` + `canonical_role` | `position_name` | Role Family 相同 = 高度匹配 |
+| Skill 匹配 | `normalized_skills` | `key_skills` | 用標準化技能名做 intersection |
+| 年資匹配 | `total_years` | `experience_required` | 數值比較 |
+| 薪資匹配 | `expected_salary_min/max` | `salary_range` | 範圍重疊度 |
+| 到職+狀態 | `notice_period_enum` + `job_search_status_enum` | — | active=高，1month=高 |
+| 產業匹配 | `industry_tag` | `industry_background` | 直接比對 |
+
+#### 第二輪：深度文本比對（Layer 2）
+
+讀取 `consultantNote`、`dealBreakers`、`motivation`、`reason_for_change` 等文字欄位：
+- 顧問備註中的硬性條件 → 不符合直接扣分
+- 轉職動機 → 與職缺的公司文化/發展方向是否吻合
+- 不接受條件 → 是否與職缺有衝突
+
+#### 第三輪：深度資訊加分（Layer 3）
+
+僅在需要深度報告或拉開相近分數時使用：`biography`、`portfolioUrl`、`voiceAssessments`
+
+---
+
+### 評分維度（7 維度，與系統 rule-based 一致）
 
 | 維度 | 權重 | 評分說明 |
 |------|------|----------|
-| 人才畫像符合度 | 35% | 候選人 skills 與 `talent_profile` 描述的理想人才特質吻合程度。硬性條件（年齡、證件、語言）若不符直接給 0–20 分。**若有自傳（`biography`），應從中提取職涯動機、軟實力、自我定位等深度資訊來輔助判斷。** |
-| JD 職責匹配度 | 25% | 候選人技能是否覆蓋 `job_description` 中的核心工作職責，越核心越高分。**若有作品集（`portfolioUrl`），可作為技術實力的佐證。** |
-| 公司適配性 | 15% | 根據 `company_profile` 的文化、產業、規模，判斷此技能背景是否適合這個環境。**若自傳中有表達對特定公司文化的偏好，納入考量。** |
-| 候選人深度資訊 | 15% | 綜合評估自傳、作品集、語音面談三項深度資訊（見下方細則）。無資料不懲罰，有資料可大幅加分拉開差距。 |
-| 可觸達性 | 5% | `linkedin_url` 有 = 60 分；`linkedin_url` + `github_url` 都有 = 80 分；再有 `portfolioUrl` = 100 分。 |
-| 活躍信號 | 5% | `github_url` 有 = 100 分；無 = 50 分（無資料不懲罰）。 |
+| Role + Skill 匹配 | 35% | `normalized_skills` 與 `key_skills` 的 canonical 匹配度 + `role_family`/`canonical_role` 是否對口。**第一輪結構化比對為主**，自傳/作品集為輔。 |
+| 年資匹配 | 15% | `total_years` vs `experience_required`。比值 ≥1.0 滿分，0.7+ 良好，<0.5 偏低。 |
+| 薪資匹配 | 15% | 候選人 `expected_salary_min/max` vs 職缺 `salary_range`。在預算內=滿分，超 10%=良好，超 30%=不匹配。 |
+| 產業匹配 | 10% | `industry_tag` vs `industry_background` + work_history 中的產業經驗。 |
+| 到職+求職狀態 | 10% | `job_search_status_enum`（active=高分）+ `notice_period_enum`（immediate/2weeks=高分）。 |
+| 深度資訊 | 10% | 自傳品質(4%) + 作品集相關性(3%) + 語音評估(3%)。無資料=50（不懲罰），有優質資料可到 100。 |
+| 可觸達性+活躍度 | 5% | LinkedIn + GitHub + Portfolio 存在性。 |
 
-### 候選人深度資訊評分細則（15% 權重）
+### 候選人深度資訊評分細則（10% 權重）
 
-此維度用於拉開 skills 相同的候選人之間的分數差距。
+此維度用於拉開結構化欄位相似的候選人之間的分數差距。
 
 | 子項目 | 佔比 | 評分說明 |
 |--------|------|----------|
-| 自傳（`biography`） | 6% | 有自傳 = 基礎 60 分。內容品質：表達清晰有邏輯 +10、有明確職涯目標 +10、展現與目標職缺相關的軟實力 +10、有具體成就描述 +10。空白 = 50 分（不懲罰）。 |
-| 作品集（`portfolioUrl`） | 5% | 有連結 = 基礎 70 分。連結為知名平台（GitHub Pages, Behance, Dribbble 等）+15、作品與目標職缺相關 +15。空白 = 50 分（不懲罰）。 |
-| 語音/面談評估（`voiceAssessments`） | 4% | 有評估紀錄 = 基礎 60 分。顧問評分 ≥ 4 分 +20、評語正面（溝通佳/積極/專業）+20。空白 = 50 分（不懲罰）。 |
+| 自傳（`biography`） | 4% | 有自傳 = 基礎 60 分。表達清晰+10、有職涯目標+10、展現相關軟實力+10、有具體成就+10。空白 = 50 分。 |
+| 作品集（`portfolioUrl`） | 3% | 有連結 = 基礎 70 分。知名平台+15、與職缺相關+15。空白 = 50 分。 |
+| 語音/面談（`voiceAssessments`） | 3% | 有紀錄 = 基礎 60 分。評分≥4 +20、評語正面+20。空白 = 50 分。 |
 
-> 💡 **關鍵**：同一批 Bot 匯入的候選人 skills 通常相同。有自傳/作品集/語音評估的候選人，代表顧問已經有初步接觸，應給予更高的信任分數。
+> 💡 **關鍵**：同一批 Bot 匯入的候選人 skills 通常相同。但結構化欄位（role_family, total_years, salary, notice_period, industry_tag）可以拉開差距。有自傳/作品集/語音評估的候選人更是如此。
 
 **綜合分數 = 各維度分數 × 權重加總（0–100，取整數）**
 
@@ -182,6 +230,9 @@ GET https://backendstep1ne.zeabur.app/api/jobs
 | `biography_insight` | 字串（可選） | 從自傳中提取的關鍵洞察（職涯動機、自我定位），若無自傳則省略 |
 | `portfolio_assessment` | 字串（可選） | 對作品集的簡要評估，若無作品集則省略 |
 | `voice_summary` | 字串（可選） | 語音/面談評估摘要，若無評估則省略 |
+| `salary_fit_score` | 數字 | 薪資匹配分數 0-100（候選人期望 vs 職缺預算） |
+| `timing_score` | 數字 | 到職+求職狀態分數 0-100（notice_period_enum + job_search_status_enum） |
+| `grade_suggestion` | 字串（可選） | AI 建議的等級 A/B/C/D，供顧問一鍵確認 |
 | `evaluated_at` | 字串 | ISO 8601 時間戳，例如 `"2026-02-26T23:00:00.000Z"` |
 | `evaluated_by` | 字串 | 操作者身份，例如 `"Jacky-scoring-bot"` |
 
@@ -224,6 +275,9 @@ Content-Type: application/json
     "biography_insight": "自傳顯示候選人對微服務架構有深度熱情，主動參與開源社群，職涯目標明確指向 FinTech 領域",
     "portfolio_assessment": "作品集展示了 3 個完整的後端專案，其中包含支付系統整合經驗",
     "voice_summary": "顧問面談評分 4/5，溝通表達清晰，技術理解深入，態度積極",
+    "salary_fit_score": 90,
+    "timing_score": 70,
+    "grade_suggestion": "A",
     "evaluated_at": "2026-02-26T23:00:00.000Z",
     "evaluated_by": "Jacky-scoring-bot"
   }

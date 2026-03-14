@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Role family + canonical roles for candidate classification"
+  },
+  "Backend": {
+    "label": "後端工程",
+    "canonicalRoles": ["Backend Engineer", "Java Backend Engineer", "Python Backend Engineer", "Go Backend Engineer", "Node.js Backend Engineer", "API Engineer", "Platform Engineer", "Server Engineer"]
+  },
+  "Frontend": {
+    "label": "前端工程",
+    "canonicalRoles": ["Frontend Engineer", "React Engineer", "Vue Engineer", "Angular Engineer", "Web Developer", "UI Engineer"]
+  },
+  "Fullstack": {
+    "label": "全端工程",
+    "canonicalRoles": ["Fullstack Engineer", "Full Stack Developer", "Software Engineer"]
+  },
+  "DevOps": {
+    "label": "DevOps / SRE",
+    "canonicalRoles": ["DevOps Engineer", "SRE Engineer", "Platform Engineer", "Infrastructure Engineer", "Cloud Engineer", "System Administrator"]
+  },
+  "Data": {
+    "label": "數據 / AI",
+    "canonicalRoles": ["Data Engineer", "Data Analyst", "Data Scientist", "ML Engineer", "AI Engineer", "BI Analyst", "Analytics Engineer"]
+  },
+  "Mobile": {
+    "label": "行動開發",
+    "canonicalRoles": ["iOS Engineer", "Android Engineer", "Mobile Engineer", "React Native Engineer", "Flutter Engineer"]
+  },
+  "PM": {
+    "label": "產品管理",
+    "canonicalRoles": ["Product Manager", "Product Owner", "Technical PM", "Project Manager", "Program Manager"]
+  },
+  "UIUX": {
+    "label": "設計",
+    "canonicalRoles": ["UI Designer", "UX Designer", "UI/UX Designer", "Product Designer", "Interaction Designer", "Visual Designer"]
+  },
+  "QA": {
+    "label": "品質保證",
+    "canonicalRoles": ["QA Engineer", "SDET", "Test Engineer", "Automation QA Engineer", "QA Lead"]
+  },
+  "Security": {
+    "label": "資安",
+    "canonicalRoles": ["Security Engineer", "InfoSec Engineer", "Penetration Tester", "Security Analyst", "CISO"]
+  },
+  "BIM": {
+    "label": "BIM / 建築",
+    "canonicalRoles": ["BIM Engineer", "BIM Manager", "BIM Modeler", "MEP Engineer", "Structural Engineer"]
+  },
+  "Finance": {
+    "label": "財會",
+    "canonicalRoles": ["Financial Analyst", "Accountant", "Auditor", "Tax Specialist", "Controller", "CFO", "Treasury Manager"]
+  },
+  "Sales": {
+    "label": "業務",
+    "canonicalRoles": ["Sales Manager", "Account Executive", "Business Development", "Key Account Manager", "Pre-Sales Engineer"]
+  },
+  "HR": {
+    "label": "人資",
+    "canonicalRoles": ["HR Manager", "HR Business Partner", "Recruiter", "Talent Acquisition", "C&B Specialist", "HRBP"]
+  },
+  "Other": {
+    "label": "其他",
+    "canonicalRoles": ["Other"]
+  }
+}

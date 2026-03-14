@@ -7,7 +7,7 @@ import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
 import { ColumnTooltip } from '../components/ColumnTooltip';
 import { COLUMN_DESCRIPTIONS } from '../config/columnDescriptions';
-import { apiPost, apiPatch, getApiUrl } from '../config/api';
+import { apiPost, apiPatch, getApiUrl, getAuthHeaders } from '../config/api';
 import { toast } from '../components/Toast';
 
 interface CandidatesPageProps {
@@ -42,7 +42,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
   
   // 載入職缺列表（供篩選用）
   useEffect(() => {
-    fetch(getApiUrl('/jobs'))
+    fetch(getApiUrl('/jobs'), { headers: getAuthHeaders() })
       .then(r => r.json())
       .then(data => {
         const list = (data.data || data || [])

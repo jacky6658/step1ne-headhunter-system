@@ -30,6 +30,8 @@ const SOPGuidePage = React.lazy(() => import('./pages/SOPGuidePage'));
 const AIGuidePageNew = React.lazy(() => import('./pages/AIGuidePageNew'));
 const SiteConfigPage = React.lazy(() => import('./pages/SiteConfigPage'));
 const ResumeImportPage = React.lazy(() => import('./pages/ResumeImportPage'));
+const TalentBoardPage = React.lazy(() => import('./pages/TalentBoardPage'));
+const TalentMapPage = React.lazy(() => import('./pages/TalentMapPage'));
 
 // ── 頁面切換時的 Loading Spinner ──
 const PageFallback = () => (
@@ -140,6 +142,9 @@ const App: React.FC = () => {
       case 'ai-progress': return <AIProgressPage userProfile={profile} />;
       case 'overview-dashboard': return <OverviewDashboardPage userProfile={profile} />;
       case 'ops-dashboard': return <OperationsDashboardPage userProfile={profile} />;
+      // 人才看板 + 人才地圖
+      case 'candidate-kanban': return <TalentBoardPage userProfile={profile} />;
+      case 'talent-map': return <TalentMapPage userProfile={profile} />;
       // 工具
       case 'prompt-library': return <PromptLibraryPage userProfile={profile} />;
       case 'system-log': return <SystemLogPage userProfile={profile} />;
@@ -234,6 +239,8 @@ const App: React.FC = () => {
                activeTab === 'crawler-dashboard' ? '爬蟲整合儀表板' :
                activeTab === 'site-config' ? '我的對外頁面' :
                activeTab === 'ops-dashboard' ? '運營儀表板' :
+               activeTab === 'candidate-kanban' ? '人才看板' :
+               activeTab === 'talent-map' ? '人才地圖' :
                activeTab === 'sop-guide' ? '顧問 SOP 手冊' :
                activeTab === 'ai-guide' ? 'AI Bot 使用教學' : 'Step1ne 獵頭系統'}
             </h1>

@@ -36,29 +36,31 @@ function validateScripts() {
 // 評分邏輯 v2（5 維度 + 中英文同義詞）
 // ============================================================
 
-/** 中英文技能同義詞對照表（與 routes-api.js 同步） */
-const SKILL_SYNONYMS = {
-  'ifrs': ['國際財務報導準則', '國際會計準則'], 'gaap': ['一般公認會計原則', 'us gaap', 'tw gaap'],
-  'consolidation': ['合併報表', '合併報告', '合併財報'], 'audit': ['審計', '稽核', '查核', 'auditing'],
-  'tax': ['稅務', '稅法', 'taxation'], 'ipo': ['首次公開發行', '上市'],
-  'm&a': ['併購', '合併收購', 'mergers and acquisitions'], 'due diligence': ['盡職調查', 'dd'],
-  'erp': ['企業資源規劃', 'sap', 'oracle erp'], 'compliance': ['法規遵循', '合規', '法遵'],
-  'internal control': ['內部控制', '內控', 'ic'], 'financial analysis': ['財務分析', '財報分析'],
-  'python': ['python3'], 'javascript': ['js', 'node.js', 'nodejs'],
-  'react': ['react.js', 'reactjs'], 'typescript': ['ts'],
-  'sql': ['mysql', 'postgresql', 'postgres'], 'aws': ['amazon web services'],
-  'docker': ['container', '容器化'], 'kubernetes': ['k8s'],
-  'machine learning': ['機器學習', 'ml', 'deep learning', '深度學習'],
-  'data analysis': ['數據分析', '資料分析', 'data analytics'],
-  'project management': ['專案管理', 'pm', 'pmp'], 'agile': ['敏捷', 'scrum', 'kanban'],
-  'leadership': ['領導力', '團隊管理', 'team management'],
-  'supply chain': ['供應鏈', '供應鏈管理', 'scm'], 'procurement': ['採購', '採購管理'],
-};
+/**
+ * Unified skill matching - using shared taxonomy from taxonomy/matchSkills.js
+ * This replaces the old inline SKILL_SYNONYMS dictionary.
+ */
+const {
+  normalizeSkill: _taxonomyNormalizeSkill,
+  normalizeSkillsArray,
+  matchSkills: _taxonomyMatchSkills,
+  loadTaxonomy,
+} = require('./taxonomy/matchSkills');
+
+// Load taxonomy at startup
+const _skillTaxonomy = (() => {
+  try { return loadTaxonomy(); } catch { return {}; }
+})();
 
 function expandedMatch(candidateSkill, requiredSkill) {
   if (candidateSkill.includes(requiredSkill) || requiredSkill.includes(candidateSkill)) return true;
-  for (const [key, synonyms] of Object.entries(SKILL_SYNONYMS)) {
-    const group = [key, ...synonyms].map(s => s.toLowerCase());
+  // Use unified taxonomy for synonym matching
+  const candCanonical = _taxonomyNormalizeSkill(candidateSkill).toLowerCase();
+  const reqCanonical = _taxonomyNormalizeSkill(requiredSkill).toLowerCase();
+  if (candCanonical === reqCanonical) return true;
+  // Fallback: check all aliases in taxonomy
+  for (const [canonical, aliases] of Object.entries(_skillTaxonomy)) {
+    const group = [canonical.toLowerCase(), ...aliases.map(a => a.toLowerCase())];
     const reqInGroup = group.some(g => g.includes(requiredSkill) || requiredSkill.includes(g));
     const candInGroup = group.some(g => g.includes(candidateSkill) || candidateSkill.includes(g));
     if (reqInGroup && candInGroup) return true;
@@ -85,13 +87,22 @@ function parseExperienceRequired(text) {
 }
 
 function scoreCandidate(candidate, job, githubAnalysis) {
-  // 技能分（35%）
-  const rawSkills = [job.key_skills, job.special_conditions].filter(Boolean).join(',');
-  const requiredSkills = rawSkills.split(/[,、\n\/；;]/).map(s => s.trim().toLowerCase()).filter(s => s.length > 1 && s.length < 40);
-  const candidateSkills = normalizeSkills(candidate.skills).map(s => (s || '').toLowerCase());
+  // 技能分（35%）— 使用 unified taxonomy matchSkills
+  const rawJobSkills = [job.key_skills, job.special_conditions].filter(Boolean).join(',');
+  const candidateSkills = candidate.normalized_skills || normalizeSkills(candidate.skills);
+  const skillResult = _taxonomyMatchSkills(candidateSkills, rawJobSkills);
+
+  // Bio fallback: check if any missing skills appear in bio text
   const candidateBio = (candidate.bio || '').toLowerCase();
-  const matched = requiredSkills.filter(req => candidateSkills.some(cs => expandedMatch(cs, req)) || candidateBio.includes(req));
-  const skillScore = requiredSkills.length > 0 ? Math.round((matched.length / requiredSkills.length) * 100) : 50;
+  const bioRecovered = [];
+  if (candidateBio && skillResult.missingSkills.length > 0) {
+    for (const skill of skillResult.missingSkills) {
+      if (candidateBio.includes(skill.toLowerCase())) bioRecovered.push(skill);
+    }
+  }
+  const matched = [...skillResult.matchedSkills, ...bioRecovered];
+  const totalRequired = skillResult.matchedSkills.length + skillResult.missingSkills.length;
+  const skillScore = totalRequired > 0 ? Math.round((matched.length / totalRequired) * 100) : 50;
 
   // 年資分（25%）
   const candYears = parseFloat(candidate.years_experience) || 0;
@@ -155,7 +166,7 @@ function scoreCandidate(candidate, job, githubAnalysis) {
   else if (totalScore >= 60) grade = 'B';
   else grade = 'C';
 
-  const missingSkills = requiredSkills.filter(r => !matched.includes(r));
+  const missingSkills = skillResult.missingSkills.filter(s => !bioRecovered.includes(s));
 
   return {
     totalScore, skillScore, profileScore, experienceScore, industryScore, educationScore, grade,

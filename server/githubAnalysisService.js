@@ -9,9 +9,27 @@
 const https = require('https');
 
 // ============================================================
-// 技能別名對照表（用於 fuzzy matching）
+// Unified skill taxonomy (from shared taxonomy/skill-taxonomy.json)
+// Replaces the old inline SKILL_ALIASES dictionary.
 // ============================================================
-const SKILL_ALIASES = {
+const _unifiedTaxonomy = (() => {
+  try {
+    const raw = require('./taxonomy/skill-taxonomy.json');
+    const { _meta, ...skills } = raw;
+    // Convert to lowercase alias format compatible with existing code
+    const aliases = {};
+    for (const [canonical, aliasList] of Object.entries(skills)) {
+      aliases[canonical.toLowerCase()] = aliasList.map(a => a.toLowerCase());
+    }
+    return aliases;
+  } catch {
+    // Fallback to inline if taxonomy file not found
+    return null;
+  }
+})();
+
+const SKILL_ALIASES = _unifiedTaxonomy || {
+  // Legacy fallback — kept only in case taxonomy file is missing
   'javascript': ['js', 'javascript', 'ecmascript', 'es6', 'es2015'],
   'typescript': ['ts', 'typescript'],
   'react': ['react', 'reactjs', 'react.js', 'react-native'],

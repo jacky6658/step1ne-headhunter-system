@@ -146,6 +146,49 @@ export const SOURCE_CONFIG = {
   }
 };
 
+// ===== 人才看板分類配置 =====
+
+// Grade 等級 (AI + 顧問確認)
+export const GRADE_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; description: string }> = {
+  A: { label: 'A 級', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', description: '核心人選 — 技能+經歷高度匹配' },
+  B: { label: 'B 級', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', description: '合格人選 — 基本條件符合，可培養' },
+  C: { label: 'C 級', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', description: '觀察人選 — 部分條件不符，需進一步確認' },
+  D: { label: 'D 級', color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', description: '不適合 — 條件明顯不符' },
+};
+
+// Source Tier (公司來源層級)
+export const TIER_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; description: string }> = {
+  T1: { label: 'T1', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200', description: '一線大廠 — FAANG / 獨角獸' },
+  T2: { label: 'T2', color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200', description: '知名企業 — 上市/知名新創' },
+  T3: { label: 'T3', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200', description: '一般企業 — 中小型/傳產' },
+};
+
+// Heat 熱度 (自動推算 + 顧問覆寫)
+export const HEAT_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; dot: string }> = {
+  Hot:  { label: '熱門', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', dot: 'bg-red-500' },
+  Warm: { label: '溫和', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', dot: 'bg-amber-400' },
+  Cold: { label: '冷門', color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-200', dot: 'bg-blue-400' },
+};
+
+// Heat 自動推算邏輯
+export function computeHeatLevel(candidate: {
+  job_search_status_enum?: string | null;
+  lastContactAt?: string | null;
+  heat_level?: string | null;
+}): string {
+  // 顧問手動覆寫優先
+  if (candidate.heat_level) return candidate.heat_level;
+  const status = candidate.job_search_status_enum;
+  if (status === 'active') return 'Hot';
+  if (status === 'not_open') return 'Cold';
+  // passive: 看最後聯絡日期
+  if (candidate.lastContactAt) {
+    const daysSince = Math.floor((Date.now() - new Date(candidate.lastContactAt).getTime()) / 86400000);
+    return daysSince <= 14 ? 'Warm' : 'Cold';
+  }
+  return 'Cold';
+}
+
 // 客戶送件規範預設模板
 export const SUBMISSION_RULE_PRESETS: Omit<SubmissionRule, 'id' | 'sort_order'>[] = [
   { rule_type: 'content_format', label: '必須使用中文姓名', field_key: 'name', check_config: { format: 'chinese_name' }, is_auto_checkable: true, enabled: true },

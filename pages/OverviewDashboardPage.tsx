@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile } from '../types';
-import { getApiUrl } from '../config/api';
+import { getApiUrl, getAuthHeaders } from '../config/api';
 import {
   Users, Briefcase, TrendingUp, RefreshCw, Phone, UserCheck,
   Target, ChevronDown, ChevronUp, Eye, Award, AlertTriangle,
@@ -63,8 +63,8 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
     setLoading(true);
     try {
       const [candidatesRes, jobsRes] = await Promise.all([
-        fetch(getApiUrl('/api/candidates?limit=2000')),
-        fetch(getApiUrl('/api/jobs')),
+        fetch(getApiUrl('/api/candidates?limit=2000'), { headers: getAuthHeaders() }),
+        fetch(getApiUrl('/api/jobs'), { headers: getAuthHeaders() }),
       ]);
       const candidatesData = await candidatesRes.json();
       const jobsData = await jobsRes.json();
