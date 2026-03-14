@@ -2414,6 +2414,17 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
             />
           </div>
           <span className="text-sm font-medium">{progressPercent}% 完成</span>
+          <button
+            onClick={() => {
+              localStorage.removeItem('learning-center-tour-done');
+              setTourActive(true);
+            }}
+            className="flex items-center gap-1 text-xs bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-full transition-colors"
+            title="重新導覽"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            導覽
+          </button>
         </div>
       </div>
 

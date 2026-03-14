@@ -146,9 +146,9 @@ export function OnboardingTour({ storageKey, steps, active, onComplete }: Onboar
   const isLast = currentStep === steps.length - 1;
 
   return (
-    <div className="fixed inset-0 z-[10000]">
-      {/* Overlay with cutout */}
-      <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
+    <div className="fixed inset-0 z-[10000] pointer-events-none">
+      {/* Overlay with cutout — visual only, doesn't block scroll */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none">
         <defs>
           <mask id="tour-mask">
             <rect x="0" y="0" width="100%" height="100%" fill="white" />
@@ -168,8 +168,6 @@ export function OnboardingTour({ storageKey, steps, active, onComplete }: Onboar
           x="0" y="0" width="100%" height="100%"
           fill="rgba(0,0,0,0.5)"
           mask="url(#tour-mask)"
-          style={{ pointerEvents: 'auto' }}
-          onClick={skip}
         />
       </svg>
 
@@ -187,10 +185,10 @@ export function OnboardingTour({ storageKey, steps, active, onComplete }: Onboar
         />
       )}
 
-      {/* Tooltip */}
+      {/* Tooltip — only this is interactive */}
       <div
         ref={tooltipRef}
-        className="absolute bg-white rounded-xl shadow-2xl border border-gray-200 p-4 w-[300px] z-[10001]"
+        className="absolute bg-white rounded-xl shadow-2xl border border-gray-200 p-4 w-[300px] z-[10001] pointer-events-auto"
         style={{ top: tooltipPos.top, left: tooltipPos.left }}
       >
         {/* Skip button */}
