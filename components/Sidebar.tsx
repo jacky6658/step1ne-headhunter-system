@@ -92,6 +92,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
       label: '學習中心',
       icon: GraduationCap,
       items: [
+        { id: 'learning-center', label: '學習中心', shortLabel: '學習', icon: GraduationCap, roles: [Role.ADMIN, Role.REVIEWER] },
         { id: 'sop-guide', label: '顧問 SOP 手冊', shortLabel: 'SOP', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER] },
         { id: 'ai-guide', label: 'AI Bot 教學', shortLabel: 'AI教學', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER] },
         { id: 'help', label: '使用說明', shortLabel: '說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER] },

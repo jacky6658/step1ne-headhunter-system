@@ -32,6 +32,7 @@ const SiteConfigPage = React.lazy(() => import('./pages/SiteConfigPage'));
 const ResumeImportPage = React.lazy(() => import('./pages/ResumeImportPage'));
 const TalentBoardPage = React.lazy(() => import('./pages/TalentBoardPage'));
 const TalentMapPage = React.lazy(() => import('./pages/TalentMapPage'));
+const LearningCenterPage = React.lazy(() => import('./pages/LearningCenterPage'));
 
 // ── 頁面切換時的 Loading Spinner ──
 const PageFallback = () => (
@@ -182,6 +183,8 @@ const App: React.FC = () => {
         return <SOPGuidePage userProfile={profile} />;
       case 'ai-guide':
         return <AIGuidePageNew userProfile={profile} />;
+      case 'learning-center':
+        return <LearningCenterPage userProfile={profile} />;
       case 'migration': 
         // 只有管理員可以訪問資料遷移
         if (profile.role !== Role.ADMIN) {
@@ -242,7 +245,8 @@ const App: React.FC = () => {
                activeTab === 'candidate-kanban' ? '人才看板' :
                activeTab === 'talent-map' ? '人才地圖' :
                activeTab === 'sop-guide' ? '顧問 SOP 手冊' :
-               activeTab === 'ai-guide' ? 'AI Bot 使用教學' : 'Step1ne 獵頭系統'}
+               activeTab === 'ai-guide' ? 'AI Bot 使用教學' :
+               activeTab === 'learning-center' ? '學習中心' : 'Step1ne 獵頭系統'}
             </h1>
                 <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mt-0.5 hidden sm:block">Collaborative Workspace</p>
           </div>
