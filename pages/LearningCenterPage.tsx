@@ -2302,7 +2302,8 @@ const TOUR_STEPS: TourStep[] = [
 // ============================================================
 // SUB-COMPONENT: OrgTreeNode (recursive)
 // ============================================================
-function OrgTreeNode({ node, depth = 0 }: { node: OrgChartNode; depth?: number }) {
+// --- Mobile: vertical indented tree (unchanged) ---
+function OrgTreeNodeVertical({ node, depth = 0 }: { node: OrgChartNode; depth?: number }) {
   const [expanded, setExpanded] = useState(depth < 2);
 
   return (
@@ -2324,9 +2325,103 @@ function OrgTreeNode({ node, depth = 0 }: { node: OrgChartNode; depth?: number }
         </div>
       </div>
       {expanded && node.children && node.children.map((child, i) => (
-        <OrgTreeNode key={i} node={child} depth={depth + 1} />
+        <OrgTreeNodeVertical key={i} node={child} depth={depth + 1} />
       ))}
     </div>
+  );
+}
+
+// --- Desktop: horizontal top-down org chart ---
+function OrgNodeBox({ node, depth, colorMap }: { node: OrgChartNode; depth: number; colorMap: Record<number, { bg: string; border: string; text: string }> }) {
+  const colors = colorMap[depth] || colorMap[2];
+  return (
+    <div className={`rounded-lg border-2 px-3 py-2 text-center min-w-[140px] max-w-[200px] ${colors.border} ${colors.bg}`}>
+      <div className={`font-semibold text-sm ${colors.text}`}>{node.title}</div>
+      <div className="flex flex-wrap justify-center gap-1 mt-1.5">
+        {node.roles.map((role, i) => (
+          <span key={i} className="text-[10px] px-1.5 py-0.5 bg-white/70 text-gray-600 rounded-full">{role}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HorizontalOrgTree({ tree }: { tree: OrgChartNode }) {
+  const colorMap: Record<number, { bg: string; border: string; text: string }> = {
+    0: { bg: 'bg-blue-50', border: 'border-blue-400', text: 'text-blue-800' },
+    1: { bg: 'bg-indigo-50', border: 'border-indigo-300', text: 'text-indigo-700' },
+    2: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' },
+  };
+
+  return (
+    <div className="overflow-x-auto pb-4">
+      <div className="inline-flex flex-col items-center min-w-full">
+        {/* Root node */}
+        <OrgNodeBox node={tree} depth={0} colorMap={colorMap} />
+
+        {tree.children && tree.children.length > 0 && (
+          <>
+            {/* Vertical line from root */}
+            <div className="w-0.5 h-6 bg-gray-300" />
+
+            {/* Horizontal connector bar */}
+            <div className="relative flex items-start">
+              {/* Horizontal line spanning all L1 children */}
+              {tree.children.length > 1 && (
+                <div
+                  className="absolute top-0 h-0.5 bg-gray-300"
+                  style={{
+                    left: `calc(${100 / tree.children.length / 2}% + 0px)`,
+                    right: `calc(${100 / tree.children.length / 2}% + 0px)`,
+                  }}
+                />
+              )}
+
+              {/* L1 children */}
+              <div className="flex gap-4 justify-center">
+                {tree.children.map((l1, i) => (
+                  <div key={i} className="flex flex-col items-center">
+                    {/* Vertical line down to L1 box */}
+                    <div className="w-0.5 h-6 bg-gray-300" />
+                    <OrgNodeBox node={l1} depth={1} colorMap={colorMap} />
+
+                    {/* L2 children */}
+                    {l1.children && l1.children.length > 0 && (
+                      <>
+                        <div className="w-0.5 h-4 bg-gray-200" />
+                        <div className="flex flex-col gap-1.5 items-center">
+                          {l1.children.map((l2, j) => (
+                            <div key={j} className="w-full">
+                              <OrgNodeBox node={l2} depth={2} colorMap={colorMap} />
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Responsive wrapper: desktop=horizontal, mobile=vertical ---
+function OrgTreeNode({ node }: { node: OrgChartNode }) {
+  return (
+    <>
+      {/* Desktop: horizontal */}
+      <div className="hidden md:block">
+        <HorizontalOrgTree tree={node} />
+      </div>
+      {/* Mobile: vertical */}
+      <div className="md:hidden">
+        <OrgTreeNodeVertical node={node} />
+      </div>
+    </>
   );
 }
 
