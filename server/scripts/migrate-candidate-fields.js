@@ -42,7 +42,7 @@ async function migrate() {
     SELECT id, name, current_position, skills, years_experience,
            current_salary, expected_salary, notice_period, job_search_status,
            work_history, education_details, talent_level, notes,
-           last_updated, consultant_note
+           updated_at, consultant_note
     FROM candidates_pipeline
     ORDER BY id
   `);
@@ -174,7 +174,7 @@ async function migrate() {
         updates.heat_level = 'Hot';
       } else if (jssEnum === 'passive') {
         // Check last contact date
-        const lastContact = row.last_updated ? new Date(row.last_updated) : null;
+        const lastContact = row.updated_at ? new Date(row.updated_at) : null;
         const daysSince = lastContact ? Math.floor((Date.now() - lastContact) / (1000 * 60 * 60 * 24)) : 999;
         updates.heat_level = daysSince <= 14 ? 'Warm' : 'Cold';
       } else if (jssEnum === 'not_open') {
