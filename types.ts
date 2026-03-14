@@ -524,6 +524,8 @@ export interface Candidate {
   gradeLevel?: string;                    // A / B / C / D（人才品質）
   sourceTier?: string;                    // T1 / T2 / T3（來源公司層級）
   heatLevel?: string;                     // Hot / Warm / Cold（成交機會）
+  // ── Precision Evaluation Gate ──
+  precisionEligible?: boolean;            // 是否進入精準匹配池
   // ── Metadata ──
   createdAt: string;
   updatedAt: string;

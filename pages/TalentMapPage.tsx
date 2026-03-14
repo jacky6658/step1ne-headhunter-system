@@ -6,7 +6,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { RefreshCw, Users, Filter, Shield } from 'lucide-react';
+import { RefreshCw, Users, Filter, Shield, PieChart as PieChartIcon, BarChart3 } from 'lucide-react';
+import { PageGuide } from '../components/PageGuide';
+import { OnboardingTour, TourStep } from '../components/OnboardingTour';
 
 interface TalentMapPageProps {
   userProfile: UserProfile;
@@ -28,6 +30,21 @@ export function TalentMapPage({ userProfile }: TalentMapPageProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [tourActive, setTourActive] = useState(false);
+
+  const guideSteps = [
+    { icon: <Filter size={14} className="text-blue-600" />, title: '選擇職缺', desc: '從下拉選單選擇職缺，圖表會顯示該職缺相關人才分布' },
+    { icon: <PieChartIcon size={14} className="text-blue-600" />, title: '等級分布', desc: '圓餅圖顯示 A/B/C/D 各等級人選比例' },
+    { icon: <BarChart3 size={14} className="text-blue-600" />, title: '數據分析', desc: '長條圖顯示公司來源 TOP 10、薪資區間、年資分布' },
+    { icon: <Shield size={14} className="text-blue-600" />, title: '權限說明', desc: '非管理員只能看到自己負責的人選資料' },
+  ];
+
+  const tourSteps: TourStep[] = [
+    { target: 'map-job-selector', title: '選擇職缺', content: '從下拉選單選擇一個職缺，圖表會篩選出技能相符的候選人', placement: 'bottom' },
+    { target: 'map-grade-chart', title: '等級分布', content: '圓餅圖顯示人選的 A/B/C/D 等級比例，快速了解人才池品質', placement: 'bottom' },
+    { target: 'map-company-chart', title: '公司來源', content: '顯示人選來自哪些公司 TOP 10，了解人才來源分布', placement: 'bottom' },
+    { target: 'map-salary-chart', title: '薪資分布', content: '直方圖顯示人選的薪資區間分布，幫助定價', placement: 'top' },
+  ];
 
   const fetchData = async () => {
     setLoading(true);
@@ -143,9 +160,25 @@ export function TalentMapPage({ userProfile }: TalentMapPageProps) {
 
   return (
     <div className="space-y-6">
+      {/* Onboarding Tour */}
+      <OnboardingTour
+        storageKey="step1ne-talent-map-tour"
+        steps={tourSteps}
+        active={tourActive}
+        onComplete={() => setTourActive(false)}
+      />
+
+      {/* Page Guide */}
+      <PageGuide
+        storageKey="step1ne-talent-map-guide"
+        title="如何使用人才地圖"
+        steps={guideSteps}
+        onStartTour={() => { localStorage.removeItem('step1ne-talent-map-tour'); setTourActive(true); }}
+      />
+
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3" data-tour="map-job-selector">
           <Filter size={16} className="text-gray-400" />
           <select
             value={selectedJobId ?? ''}
@@ -178,7 +211,7 @@ export function TalentMapPage({ userProfile }: TalentMapPageProps) {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Grade Distribution */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white rounded-xl border border-gray-200 p-5" data-tour="map-grade-chart">
           <h3 className="text-sm font-bold text-gray-800 mb-4">Grade 等級分布</h3>
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
@@ -203,7 +236,7 @@ export function TalentMapPage({ userProfile }: TalentMapPageProps) {
         </div>
 
         {/* Company Source Top 10 */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white rounded-xl border border-gray-200 p-5" data-tour="map-company-chart">
           <h3 className="text-sm font-bold text-gray-800 mb-4">公司來源 TOP 10</h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={companyData} layout="vertical" margin={{ left: 10, right: 20 }}>
@@ -221,7 +254,7 @@ export function TalentMapPage({ userProfile }: TalentMapPageProps) {
         </div>
 
         {/* Salary Distribution */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white rounded-xl border border-gray-200 p-5" data-tour="map-salary-chart">
           <h3 className="text-sm font-bold text-gray-800 mb-4">薪資分布 (TWD/月)</h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={salaryData} margin={{ left: 0, right: 10 }}>

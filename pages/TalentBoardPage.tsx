@@ -4,9 +4,11 @@ import { getApiUrl, getAuthHeaders } from '../config/api';
 import { GRADE_CONFIG, TIER_CONFIG, HEAT_CONFIG, computeHeatLevel, CANDIDATE_STATUS_CONFIG } from '../constants';
 import { TalentCard } from '../components/TalentCard';
 import { CandidateModal } from '../components/CandidateModal';
+import { PageGuide } from '../components/PageGuide';
+import { OnboardingTour, TourStep } from '../components/OnboardingTour';
 import {
   Search, Filter, RefreshCw, LayoutGrid, Flame, Building2, GitBranch,
-  X, ChevronDown, Users, Shield
+  X, ChevronDown, Users, Shield, MousePointerClick
 } from 'lucide-react';
 
 interface TalentBoardPageProps {
@@ -69,7 +71,24 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
   const [filterGrade, setFilterGrade] = useState<string>('');
   const [filterHeat, setFilterHeat] = useState<string>('');
   const [filterConsultant, setFilterConsultant] = useState<string>('');
+  const [filterPrecisionOnly, setFilterPrecisionOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [tourActive, setTourActive] = useState(false);
+
+  const guideSteps = [
+    { icon: <LayoutGrid size={14} className="text-blue-600" />, title: '四種看板模式', desc: 'Grade / Source / Heat / Pipeline 切換不同分類維度查看人選' },
+    { icon: <Search size={14} className="text-blue-600" />, title: '搜尋與篩選', desc: '搜尋姓名、職位、技能，用篩選器縮小範圍' },
+    { icon: <MousePointerClick size={14} className="text-blue-600" />, title: '點擊卡片', desc: '點擊人選卡片查看詳細資料並編輯核心欄位' },
+    { icon: <Shield size={14} className="text-blue-600" />, title: '權限說明', desc: '非管理員只能看到自己負責的人選' },
+  ];
+
+  const tourSteps: TourStep[] = [
+    { target: 'board-mode-switcher', title: '看板模式切換', content: '切換 Grade / Source / Heat / Pipeline 四種看板視角，從不同維度管理人選', placement: 'bottom' },
+    { target: 'board-search', title: '快速搜尋', content: '輸入姓名、職位、技能或公司名快速找到目標人選', placement: 'bottom' },
+    { target: 'board-filter', title: '進階篩選', content: '按等級、熱度、負責顧問篩選，快速縮小範圍', placement: 'bottom' },
+    { target: 'board-columns', title: '看板欄位', content: '人選按分類排列在各欄位中，點擊卡片可查看詳情並編輯', placement: 'top' },
+    { target: 'board-count', title: '人選統計', content: '顯示目前篩選條件下的人選總數', placement: 'bottom' },
+  ];
 
   const fetchData = async () => {
     setLoading(true);
@@ -117,8 +136,9 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
     if (filterGrade) list = list.filter(c => { const ca = c as any; return (ca.gradeLevel || ca.grade_level) === filterGrade; });
     if (filterHeat) list = list.filter(c => computeHeatLevel(c as any) === filterHeat);
     if (filterConsultant) list = list.filter(c => c.consultant === filterConsultant);
+    if (filterPrecisionOnly) list = list.filter(c => (c as any).precisionEligible === true || (c as any).precision_eligible === true);
     return list;
-  }, [myCandidates, searchQuery, filterGrade, filterHeat, filterConsultant]);
+  }, [myCandidates, searchQuery, filterGrade, filterHeat, filterConsultant, filterPrecisionOnly]);
 
   // Group by board columns
   const columns = BOARD_COLUMNS[boardMode];
@@ -138,7 +158,7 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
     return groups;
   }, [filtered, boardMode, columns]);
 
-  const activeFilters = [filterGrade, filterHeat, filterConsultant].filter(Boolean).length;
+  const activeFilters = [filterGrade, filterHeat, filterConsultant].filter(Boolean).length + (filterPrecisionOnly ? 1 : 0);
 
   const modeButtons: { mode: BoardMode; icon: React.ElementType; label: string }[] = [
     { mode: 'grade', icon: LayoutGrid, label: 'Grade' },
@@ -149,10 +169,26 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
 
   return (
     <div className="h-full flex flex-col">
+      {/* Onboarding Tour */}
+      <OnboardingTour
+        storageKey="step1ne-talent-board-tour"
+        steps={tourSteps}
+        active={tourActive}
+        onComplete={() => setTourActive(false)}
+      />
+
+      {/* Page Guide */}
+      <PageGuide
+        storageKey="step1ne-talent-board-guide"
+        title="如何使用人才看板"
+        steps={guideSteps}
+        onStartTour={() => { localStorage.removeItem('step1ne-talent-board-tour'); setTourActive(true); }}
+      />
+
       {/* Top bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         {/* Search */}
-        <div className="relative flex-1 max-w-md w-full">
+        <div className="relative flex-1 max-w-md w-full" data-tour="board-search">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -170,7 +206,7 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Board mode switcher */}
-          <div className="flex bg-gray-100 rounded-lg p-0.5">
+          <div className="flex bg-gray-100 rounded-lg p-0.5" data-tour="board-mode-switcher">
             {modeButtons.map(({ mode, icon: Icon, label }) => (
               <button
                 key={mode}
@@ -189,6 +225,7 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
 
           {/* Filter toggle */}
           <button
+            data-tour="board-filter"
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
               activeFilters > 0
@@ -210,7 +247,7 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
           </button>
 
           {/* Count */}
-          <div className="flex items-center gap-1 text-xs text-gray-400">
+          <div className="flex items-center gap-1 text-xs text-gray-400" data-tour="board-count">
             <Users size={13} />
             <span>{filtered.length}</span>
           </div>
@@ -256,9 +293,20 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
+          <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={filterPrecisionOnly}
+              onChange={e => setFilterPrecisionOnly(e.target.checked)}
+              className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span className={`font-medium ${filterPrecisionOnly ? 'text-emerald-700' : 'text-gray-500'}`}>
+              Precision Only
+            </span>
+          </label>
           {activeFilters > 0 && (
             <button
-              onClick={() => { setFilterGrade(''); setFilterHeat(''); setFilterConsultant(''); }}
+              onClick={() => { setFilterGrade(''); setFilterHeat(''); setFilterConsultant(''); setFilterPrecisionOnly(false); }}
               className="text-xs text-blue-500 hover:text-blue-700 font-medium"
             >
               清除篩選
@@ -273,7 +321,7 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
         </div>
       ) : (
-        <div className="flex-1 overflow-x-auto">
+        <div className="flex-1 overflow-x-auto" data-tour="board-columns">
           <div className="flex gap-4 min-w-max h-full pb-4">
             {columns.map(col => {
               const items = grouped[col.key] || [];

@@ -429,37 +429,37 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
             )}
           </div>
           
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               title="手動更新候選人資料（清除快取）"
             >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? '更新中...' : '重新整理'}
+              <RefreshCw className={`w-4 h-4 shrink-0 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{refreshing ? '更新中...' : '重新整理'}</span>
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={importLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60"
+              className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 text-sm"
             >
-              <Upload className="w-4 h-4" />
-              {importLoading ? '匯入中...' : '匯入履歷'}
+              <Upload className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">{importLoading ? '匯入中...' : '匯入履歷'}</span>
             </button>
             <button
               onClick={handleExportCsv}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
             >
-              <Download className="w-4 h-4" />
-              匯出 CSV
+              <Download className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">匯出 CSV</span>
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
             >
-              <Plus className="w-4 h-4" />
-              新增候選人
+              <Plus className="w-4 h-4 shrink-0" />
+              <span className="hidden xs:inline">新增候選人</span>
             </button>
             <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImportCsvChange} />
           </div>
@@ -523,7 +523,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
 
         {/* 第二行：快捷篩選標籤 */}
         <div className="px-4 pb-3 pt-0">
-          <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-gray-100">
+          <div className="flex items-center gap-1.5 pt-3 border-t border-gray-100 overflow-x-auto scrollbar-hide pb-1 sm:flex-wrap sm:overflow-x-visible">
             {/* 狀態標籤組 */}
             <span className="text-[10px] text-gray-400 font-medium uppercase mr-1">狀態</span>
             <button
@@ -741,7 +741,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
         <div 
           className="overflow-x-auto overflow-y-visible"
           style={{
-            maxHeight: 'calc(100vh - 280px)',
+            maxHeight: 'calc(100vh - 220px)',
             position: 'relative'
           }}
         >

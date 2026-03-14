@@ -509,6 +509,10 @@ pool.query(`CREATE INDEX IF NOT EXISTS idx_cp_heat_level ON candidates_pipeline(
 pool.query(`CREATE INDEX IF NOT EXISTS idx_cp_source_tier ON candidates_pipeline(source_tier)`).catch(() => {});
 pool.query(`CREATE INDEX IF NOT EXISTS idx_cp_normalized_skills ON candidates_pipeline USING GIN (normalized_skills)`).catch(() => {});
 
+// ── Precision Evaluation Gate: precision_eligible 欄位 ──
+pool.query(`ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS precision_eligible BOOLEAN DEFAULT FALSE`).catch(err => console.warn('Precision eligible migration:', err.message));
+pool.query(`CREATE INDEX IF NOT EXISTS idx_cp_precision_eligible ON candidates_pipeline(precision_eligible)`).catch(() => {});
+
 // ── Sprint 5: interactions 互動紀錄表 ──
 pool.query(`
   CREATE TABLE IF NOT EXISTS interactions (
@@ -805,7 +809,7 @@ router.get('/candidates', async (req, res) => {
         c.education_level, c.current_salary_min, c.current_salary_max,
         c.expected_salary_min, c.expected_salary_max, c.salary_currency, c.salary_period,
         c.notice_period_enum, c.job_search_status_enum,
-        c.auto_derived, c.data_quality, c.grade_level, c.source_tier, c.heat_level,
+        c.auto_derived, c.data_quality, c.precision_eligible, c.grade_level, c.source_tier, c.heat_level,
         (SELECT COALESCE(jsonb_agg(
           jsonb_build_object(
             'id', elem->>'id', 'filename', elem->>'filename',
@@ -950,6 +954,7 @@ router.get('/candidates', async (req, res) => {
       gradeLevel: row.grade_level || '',
       sourceTier: row.source_tier || '',
       heatLevel: row.heat_level || '',
+      precisionEligible: row.precision_eligible || false,
     }));
 
     res.json({
@@ -1108,6 +1113,8 @@ router.get('/candidates/:id', async (req, res) => {
       gradeLevel: row.grade_level || '',
       sourceTier: row.source_tier || '',
       heatLevel: row.heat_level || '',
+      // Precision Evaluation Gate
+      precisionEligible: row.precision_eligible || false,
 
       createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
       updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString(),
@@ -1141,7 +1148,8 @@ router.get('/candidates/:id/match-input', async (req, res) => {
               current_salary_min, current_salary_max,
               expected_salary_min, expected_salary_max,
               salary_currency, salary_period,
-              notice_period_enum, job_search_status_enum
+              notice_period_enum, job_search_status_enum,
+              data_quality, precision_eligible
        FROM candidates_pipeline WHERE id = $1`, [id]
     );
     if (rows.length === 0) {
@@ -1179,6 +1187,8 @@ router.get('/candidates/:id/match-input', async (req, res) => {
         salaryPeriod: r.salary_period || 'monthly',
         noticePeriodEnum: r.notice_period_enum || '',
         jobSearchStatusEnum: r.job_search_status_enum || '',
+        dataQualityScore: (() => { const dq = r.data_quality; if (!dq) return 0; if (typeof dq === 'object') return dq.completenessScore || 0; if (typeof dq === 'string') { try { return JSON.parse(dq).completenessScore || 0; } catch { return 0; } } return 0; })(),
+        precisionEligible: r.precision_eligible || false,
       }
     });
   } catch (error) {
@@ -1680,6 +1690,53 @@ router.patch('/candidates/:id', async (req, res) => {
     if (years !== undefined && total_years === undefined) {
       setClauses.push(`total_years = $${idx++}`);
       values.push(Number(years) || 0);
+    }
+
+    // ── Auto-recalculate data_quality + precision_eligible on every save ──
+    try {
+      const precisionRow = await client.query(
+        `SELECT canonical_role, role_family, normalized_skills, total_years, years_experience,
+                location, current_company, industry_tag, industry, expected_salary_min,
+                expected_salary_max, notice_period_enum, notice_period,
+                job_search_status_enum, job_search_status, skills
+         FROM candidates_pipeline WHERE id = $1`, [id]
+      );
+      if (precisionRow.rows.length > 0) {
+        const merged = { ...precisionRow.rows[0] };
+        // Apply incoming updates on top of current DB values
+        if (canonical_role !== undefined) merged.canonical_role = canonical_role;
+        if (role_family !== undefined) merged.role_family = role_family;
+        if (normalized_skills !== undefined) merged.normalized_skills = normalized_skills;
+        if (total_years !== undefined) merged.total_years = total_years;
+        else if (years !== undefined) merged.total_years = Number(years) || 0;
+        if (location !== undefined) merged.location = location;
+        if (current_company !== undefined) merged.current_company = current_company;
+        if (industry_tag !== undefined) merged.industry_tag = industry_tag;
+        else if (industry !== undefined) merged.industry_tag = industry;
+        if (expected_salary_min !== undefined) merged.expected_salary_min = expected_salary_min;
+        if (expected_salary_max !== undefined) merged.expected_salary_max = expected_salary_max;
+        if (notice_period_enum !== undefined) merged.notice_period_enum = notice_period_enum;
+        if (job_search_status_enum !== undefined) merged.job_search_status_enum = job_search_status_enum;
+        // If skills changed but normalized_skills not explicitly set, auto-normalize
+        if (skills !== undefined && normalized_skills === undefined) {
+          const { normalizeSkillsArray } = require('./taxonomy/matchSkills');
+          merged.normalized_skills = normalizeSkillsArray(skills);
+        }
+
+        const { computePrecisionEligible } = require('./taxonomy/matchSkills');
+        const precision = computePrecisionEligible(merged);
+
+        setClauses.push(`data_quality = $${idx++}`);
+        values.push(JSON.stringify({
+          completenessScore: precision.dataQualityScore,
+          missingCoreFields: precision.missingCoreFields,
+          normalizationWarnings: [],
+        }));
+        setClauses.push(`precision_eligible = $${idx++}`);
+        values.push(precision.precisionEligible);
+      }
+    } catch (precErr) {
+      console.warn('Precision recalc error:', precErr.message);
     }
 
     // 優先使用顯式傳入的 ai_match_result；若未傳但 AIBot 寫了評分備註，自動解析

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Candidate } from '../types';
 import { GRADE_CONFIG, TIER_CONFIG, HEAT_CONFIG, computeHeatLevel } from '../constants';
-import { Briefcase, Clock, AlertTriangle } from 'lucide-react';
+import { Briefcase, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 interface TalentCardProps {
   candidate: Candidate;
@@ -43,7 +43,8 @@ export function TalentCard({ candidate, onClick }: TalentCardProps) {
     ? Math.floor((Date.now() - new Date(lastContact).getTime()) / 86400000)
     : null;
 
-  // Data quality score
+  // Data quality & Precision Pool
+  const isPrecision = c.precisionEligible === true || c.precision_eligible === true;
   const qualityScore = c.data_quality?.completenessScore ?? c.dataQuality?.completenessScore ?? null;
   const missingCount = c.data_quality?.missingCoreFields?.length ?? c.dataQuality?.missingCoreFields?.length ?? 0;
 
@@ -113,19 +114,24 @@ export function TalentCard({ candidate, onClick }: TalentCardProps) {
         )}
       </div>
 
-      {/* Consultant + Quality */}
+      {/* Consultant + Precision / Quality */}
       <div className="flex items-center justify-between mt-1">
         {c.consultant && (
           <span className="text-[10px] text-gray-400 truncate">
             {c.consultant}
           </span>
         )}
-        {qualityScore !== null && qualityScore < 60 && (
-          <span className="flex items-center gap-0.5 text-[10px] text-amber-500" title={`資料完整度 ${qualityScore}%，缺少 ${missingCount} 個 AI 必填欄位`}>
-            <AlertTriangle size={10} />
+        {isPrecision ? (
+          <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="已進入精準匹配池">
+            <ShieldCheck size={10} />
+            Precision
+          </span>
+        ) : qualityScore !== null ? (
+          <span className="flex items-center gap-0.5 text-[10px] text-gray-400" title={`資料完整度 ${qualityScore}%，缺少 ${missingCount} 個核心欄位`}>
+            <AlertTriangle size={10} className={qualityScore < 60 ? 'text-amber-500' : 'text-gray-400'} />
             {qualityScore}%
           </span>
-        )}
+        ) : null}
       </div>
     </div>
   );

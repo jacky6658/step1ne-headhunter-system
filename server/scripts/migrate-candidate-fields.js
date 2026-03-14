@@ -29,6 +29,7 @@ const {
   parseJobSearchStatus,
   computeAutoDerived,
   computeDataQuality,
+  computePrecisionEligible,
 } = require('../taxonomy/matchSkills');
 
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -181,10 +182,15 @@ async function migrate() {
         updates.heat_level = 'Cold';
       }
 
-      // 12. Compute data_quality
+      // 12. Compute data_quality + precision_eligible
       const combined = { ...row, ...updates };
-      const quality = computeDataQuality(combined);
-      updates.data_quality = JSON.stringify(quality);
+      const precision = computePrecisionEligible(combined);
+      updates.data_quality = JSON.stringify({
+        completenessScore: precision.dataQualityScore,
+        missingCoreFields: precision.missingCoreFields,
+        normalizationWarnings: [],
+      });
+      updates.precision_eligible = precision.precisionEligible;
 
       // Check if there are any updates
       const updateKeys = Object.keys(updates);

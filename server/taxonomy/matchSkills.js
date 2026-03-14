@@ -327,17 +327,18 @@ function computeAutoDerived(workHistory) {
  * @returns {{ completenessScore: number, missingCoreFields: string[], normalizationWarnings: string[] }}
  */
 function computeDataQuality(candidate) {
+  // Match Core 10 欄位 — 對齊 Precision Evaluation Gate 規格表
   const coreFields = [
-    { key: 'name', label: '姓名' },
-    { key: 'current_title', fallback: 'current_position', label: '目前職稱' },
-    { key: 'role_family', label: 'Role Family' },
-    { key: 'total_years', fallback: 'years_experience', label: '總年資' },
-    { key: 'normalized_skills', label: '標準化技能' },
-    { key: 'location', label: '地區' },
-    { key: 'job_search_status_enum', fallback: 'job_search_status', label: '求職狀態' },
-    { key: 'industry_tag', fallback: 'industry', label: '產業' },
-    { key: 'expected_salary_min', label: '期望薪資' },
-    { key: 'notice_period_enum', fallback: 'notice_period', label: '到職時間' },
+    { key: 'canonical_role', fallback: 'role_family', label: 'canonicalRole' },
+    { key: 'normalized_skills', label: 'normalizedSkills' },
+    { key: 'total_years', fallback: 'years_experience', label: 'totalYears' },
+    { key: 'location', label: 'location' },
+    { key: 'current_company', label: 'currentCompany' },
+    { key: 'industry_tag', fallback: 'industry', label: 'industryTag' },
+    { key: 'expected_salary_min', label: 'expectedSalaryMin' },
+    { key: 'expected_salary_max', label: 'expectedSalaryMax' },
+    { key: 'notice_period_enum', fallback: 'notice_period', label: 'noticePeriodEnum' },
+    { key: 'job_search_status_enum', fallback: 'job_search_status', label: 'jobSearchStatusEnum' },
   ];
 
   const missingCoreFields = [];
@@ -369,6 +370,38 @@ function computeDataQuality(candidate) {
   return { completenessScore, missingCoreFields, normalizationWarnings };
 }
 
+/**
+ * Compute precision pool eligibility for a candidate.
+ * Based on candidate_precision_evaluation_spec.md
+ * @param {Object} candidate - Candidate record (DB column names: snake_case)
+ * @returns {{ precisionEligible: boolean, dataQualityScore: number, missingCoreFields: string[] }}
+ */
+function computePrecisionEligible(candidate) {
+  const { completenessScore, missingCoreFields, normalizationWarnings } = computeDataQuality(candidate);
+
+  // Parse normalized_skills (could be JSONB array or JSON string)
+  let skills = candidate.normalized_skills;
+  if (typeof skills === 'string') {
+    try { skills = JSON.parse(skills); } catch { skills = []; }
+  }
+  if (!Array.isArray(skills)) skills = [];
+
+  // Precision Pool 進入條件
+  const precisionEligible = (
+    completenessScore >= 80 &&
+    skills.length >= 3 &&
+    candidate.expected_salary_min != null && candidate.expected_salary_min !== '' &&
+    candidate.notice_period_enum != null && candidate.notice_period_enum !== '' &&
+    candidate.job_search_status_enum != null && candidate.job_search_status_enum !== ''
+  );
+
+  return {
+    precisionEligible,
+    dataQualityScore: completenessScore,
+    missingCoreFields,
+  };
+}
+
 module.exports = {
   normalizeSkill,
   normalizeSkillsArray,
@@ -379,5 +412,6 @@ module.exports = {
   parseJobSearchStatus,
   computeAutoDerived,
   computeDataQuality,
+  computePrecisionEligible,
   loadTaxonomy,
 };

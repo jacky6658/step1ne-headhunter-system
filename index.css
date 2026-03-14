@@ -4,6 +4,14 @@
 
 /* 自定義滾動條樣式 */
 @layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
   .scrollbar-thin::-webkit-scrollbar {
     height: 8px;
     width: 8px;
