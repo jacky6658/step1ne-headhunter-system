@@ -426,13 +426,32 @@ POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
 
   // Sprint 2: Load taxonomy data for dropdowns
   React.useEffect(() => {
-    apiGet<any>('/api/taxonomy/roles').then(data => {
-      const { _meta, ...families } = data || {};
-      setRoleTaxonomy(families);
+    apiGet<any>('/api/taxonomy/roles').then(res => {
+      // API 回傳 { success, data: [{ roleFamily, label, canonicalRoles }] }
+      const items = res?.data || res || [];
+      if (Array.isArray(items)) {
+        const families: Record<string, { label: string; canonicalRoles: string[] }> = {};
+        for (const item of items) {
+          if (item.roleFamily) {
+            families[item.roleFamily] = { label: item.label, canonicalRoles: item.canonicalRoles || [] };
+          }
+        }
+        setRoleTaxonomy(families);
+      } else {
+        // Fallback: 舊格式（直接是 { Backend: { label, canonicalRoles }, ... }）
+        const { _meta, success, data, ...families } = items;
+        setRoleTaxonomy(families);
+      }
     }).catch(() => {});
-    apiGet<any>('/api/taxonomy/industries').then(data => {
-      const { _meta, ...rest } = data || {};
-      setIndustryTaxonomy(Object.values(rest) as any[]);
+    apiGet<any>('/api/taxonomy/industries').then(res => {
+      // API 回傳 { success, data: [{ tag, label, aliases }] }
+      const items = res?.data || res || [];
+      if (Array.isArray(items)) {
+        setIndustryTaxonomy(items);
+      } else {
+        const { _meta, success, data, ...rest } = items;
+        setIndustryTaxonomy(Object.values(rest) as any[]);
+      }
     }).catch(() => {});
   }, []);
 
