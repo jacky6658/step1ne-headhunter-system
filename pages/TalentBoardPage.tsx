@@ -8,7 +8,7 @@ import { PageGuide } from '../components/PageGuide';
 import { OnboardingTour, TourStep } from '../components/OnboardingTour';
 import {
   Search, Filter, RefreshCw, LayoutGrid, Flame, Building2, GitBranch,
-  X, ChevronDown, Users, Shield, MousePointerClick
+  X, ChevronDown, Users, Shield, MousePointerClick, Zap, Download
 } from 'lucide-react';
 
 interface TalentBoardPageProps {
@@ -72,6 +72,7 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
   const [filterHeat, setFilterHeat] = useState<string>('');
   const [filterConsultant, setFilterConsultant] = useState<string>('');
   const [filterPrecisionOnly, setFilterPrecisionOnly] = useState(false);
+  const [filterAlmostReady, setFilterAlmostReady] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [tourActive, setTourActive] = useState(false);
 
@@ -137,8 +138,14 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
     if (filterHeat) list = list.filter(c => computeHeatLevel(c as any) === filterHeat);
     if (filterConsultant) list = list.filter(c => c.consultant === filterConsultant);
     if (filterPrecisionOnly) list = list.filter(c => (c as any).precisionEligible === true || (c as any).precision_eligible === true);
+    if (filterAlmostReady) list = list.filter(c => {
+      const ca = c as any;
+      const score = ca.data_quality?.completenessScore ?? ca.dataQuality?.completenessScore ?? 0;
+      const isPrecision = ca.precisionEligible === true || ca.precision_eligible === true;
+      return !isPrecision && score >= 60 && score < 80;
+    });
     return list;
-  }, [myCandidates, searchQuery, filterGrade, filterHeat, filterConsultant, filterPrecisionOnly]);
+  }, [myCandidates, searchQuery, filterGrade, filterHeat, filterConsultant, filterPrecisionOnly, filterAlmostReady]);
 
   // Group by board columns
   const columns = BOARD_COLUMNS[boardMode];
@@ -158,7 +165,78 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
     return groups;
   }, [filtered, boardMode, columns]);
 
-  const activeFilters = [filterGrade, filterHeat, filterConsultant].filter(Boolean).length + (filterPrecisionOnly ? 1 : 0);
+  const activeFilters = [filterGrade, filterHeat, filterConsultant].filter(Boolean).length + (filterPrecisionOnly ? 1 : 0) + (filterAlmostReady ? 1 : 0);
+
+  // Count "almost ready" candidates for badge display
+  const almostReadyCount = useMemo(() => {
+    return myCandidates.filter(c => {
+      const ca = c as any;
+      const score = ca.data_quality?.completenessScore ?? ca.dataQuality?.completenessScore ?? 0;
+      const isPrecision = ca.precisionEligible === true || ca.precision_eligible === true;
+      return !isPrecision && score >= 60 && score < 80;
+    }).length;
+  }, [myCandidates]);
+
+  // Export "almost ready" candidates as CSV
+  const exportAlmostReadyCSV = () => {
+    const fieldLabelMap: Record<string, string> = {
+      canonicalRole: '標準職務類別',
+      industryTag: '產業標籤',
+      normalizedSkills: '核心技能(≥3)',
+      expectedSalaryMin: '期望薪資下限',
+      expectedSalaryMax: '期望薪資上限',
+      jobSearchStatusEnum: '求職狀態',
+      noticePeriodEnum: '到職時間',
+      currentCompany: '目前公司',
+      location: '所在地區',
+      totalYears: '總年資',
+    };
+    const almostReady = myCandidates.filter(c => {
+      const ca = c as any;
+      const score = ca.data_quality?.completenessScore ?? ca.dataQuality?.completenessScore ?? 0;
+      const isPrecision = ca.precisionEligible === true || ca.precision_eligible === true;
+      return !isPrecision && score >= 60 && score < 80;
+    });
+
+    const headers = ['ID', '姓名', '完整度', '目前職位', '目前公司', '職務類別', '產業標籤', '所在地區', '缺少欄位數', '缺少欄位', '建議動作'];
+    const rows = almostReady.map(c => {
+      const ca = c as any;
+      const score = ca.data_quality?.completenessScore ?? ca.dataQuality?.completenessScore ?? 0;
+      const missing: string[] = ca.data_quality?.missingCoreFields ?? ca.dataQuality?.missingCoreFields ?? [];
+      const missingLabels = missing.map(f => fieldLabelMap[f] || f).join(', ');
+      const aiFields = missing.filter(f => ['canonicalRole', 'industryTag', 'normalizedSkills', 'currentCompany', 'location'].includes(f));
+      const consultantFields = missing.filter(f => ['expectedSalaryMin', 'expectedSalaryMax', 'noticePeriodEnum', 'jobSearchStatusEnum'].includes(f));
+      let action = '';
+      if (aiFields.length > 0) action += 'AI可填: ' + aiFields.map(f => fieldLabelMap[f]).join(', ');
+      if (consultantFields.length > 0) {
+        if (action) action += ' | ';
+        action += '顧問需補: ' + consultantFields.map(f => fieldLabelMap[f]).join(', ');
+      }
+      return [
+        ca.id,
+        ca.name || '',
+        score + '%',
+        ca.current_title || ca.position || '',
+        ca.current_company || '',
+        ca.canonical_role || '',
+        ca.industry_tag || '',
+        ca.location || '',
+        missing.length,
+        missingLabels,
+        action,
+      ].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',');
+    });
+
+    const bom = '\uFEFF';
+    const csv = bom + headers.join(',') + '\n' + rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `即將達標候選人_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const modeButtons: { mode: BoardMode; icon: React.ElementType; label: string }[] = [
     { mode: 'grade', icon: LayoutGrid, label: 'Grade' },
@@ -184,6 +262,33 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
         steps={guideSteps}
         onStartTour={() => { localStorage.removeItem('step1ne-talent-board-tour'); setTourActive(true); }}
       />
+
+      {/* Almost Ready Banner */}
+      {almostReadyCount > 0 && !filterAlmostReady && (
+        <div className="mb-3 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <Zap size={16} className="text-amber-500" />
+            <span className="text-sm font-medium text-amber-800">
+              有 <span className="font-bold text-amber-900">{almostReadyCount}</span> 位候選人即將達標（完整度 60-79%），只需顧問面談補齊 2-3 個欄位即可進入 Precision Pool
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 ml-3">
+            <button
+              onClick={() => { setFilterAlmostReady(true); setShowFilters(true); }}
+              className="text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-md border border-amber-300 transition-colors"
+            >
+              查看名單
+            </button>
+            <button
+              onClick={exportAlmostReadyCSV}
+              className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-white hover:bg-amber-50 px-3 py-1.5 rounded-md border border-amber-300 transition-colors"
+            >
+              <Download size={12} />
+              匯出 Excel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Top bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
@@ -297,16 +402,40 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
             <input
               type="checkbox"
               checked={filterPrecisionOnly}
-              onChange={e => setFilterPrecisionOnly(e.target.checked)}
+              onChange={e => { setFilterPrecisionOnly(e.target.checked); if (e.target.checked) setFilterAlmostReady(false); }}
               className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
             />
             <span className={`font-medium ${filterPrecisionOnly ? 'text-emerald-700' : 'text-gray-500'}`}>
               Precision Only
             </span>
           </label>
+          <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={filterAlmostReady}
+              onChange={e => { setFilterAlmostReady(e.target.checked); if (e.target.checked) setFilterPrecisionOnly(false); }}
+              className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+            />
+            <span className={`font-medium ${filterAlmostReady ? 'text-amber-700' : 'text-gray-500'}`}>
+              即將達標
+              {almostReadyCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold">{almostReadyCount}</span>
+              )}
+            </span>
+          </label>
+          {almostReadyCount > 0 && (
+            <button
+              onClick={exportAlmostReadyCSV}
+              className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium bg-amber-50 px-2 py-1 rounded-md border border-amber-200 hover:bg-amber-100 transition-colors"
+              title="匯出即將達標候選人名單"
+            >
+              <Download size={12} />
+              匯出名單
+            </button>
+          )}
           {activeFilters > 0 && (
             <button
-              onClick={() => { setFilterGrade(''); setFilterHeat(''); setFilterConsultant(''); setFilterPrecisionOnly(false); }}
+              onClick={() => { setFilterGrade(''); setFilterHeat(''); setFilterConsultant(''); setFilterPrecisionOnly(false); setFilterAlmostReady(false); }}
               className="text-xs text-blue-500 hover:text-blue-700 font-medium"
             >
               清除篩選

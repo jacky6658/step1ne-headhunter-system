@@ -1,7 +1,7 @@
 import React from 'react';
 import { Candidate } from '../types';
 import { GRADE_CONFIG, TIER_CONFIG, HEAT_CONFIG, computeHeatLevel } from '../constants';
-import { Briefcase, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Briefcase, Clock, AlertTriangle, ShieldCheck, Zap } from 'lucide-react';
 
 interface TalentCardProps {
   candidate: Candidate;
@@ -47,6 +47,7 @@ export function TalentCard({ candidate, onClick }: TalentCardProps) {
   const isPrecision = c.precisionEligible === true || c.precision_eligible === true;
   const qualityScore = c.data_quality?.completenessScore ?? c.dataQuality?.completenessScore ?? null;
   const missingCount = c.data_quality?.missingCoreFields?.length ?? c.dataQuality?.missingCoreFields?.length ?? 0;
+  const isAlmostReady = !isPrecision && qualityScore !== null && qualityScore >= 60 && qualityScore < 80;
 
   return (
     <div
@@ -126,9 +127,14 @@ export function TalentCard({ candidate, onClick }: TalentCardProps) {
             <ShieldCheck size={10} />
             Precision
           </span>
+        ) : isAlmostReady ? (
+          <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 animate-pulse" title={`差 ${missingCount} 個欄位即可進入 Precision Pool（${qualityScore}%）`}>
+            <Zap size={10} />
+            即將達標 {qualityScore}%
+          </span>
         ) : qualityScore !== null ? (
           <span className="flex items-center gap-0.5 text-[10px] text-gray-400" title={`資料完整度 ${qualityScore}%，缺少 ${missingCount} 個核心欄位`}>
-            <AlertTriangle size={10} className={qualityScore < 60 ? 'text-amber-500' : 'text-gray-400'} />
+            <AlertTriangle size={10} className={qualityScore < 40 ? 'text-red-400' : 'text-amber-500'} />
             {qualityScore}%
           </span>
         ) : null}
