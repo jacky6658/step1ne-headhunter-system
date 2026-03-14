@@ -43,7 +43,10 @@ async function migrate() {
     SELECT id, name, current_position, skills, years_experience,
            current_salary, expected_salary, notice_period, job_search_status,
            work_history, education_details, talent_level, notes,
-           updated_at, consultant_note
+           updated_at, consultant_note,
+           location, canonical_role, role_family, current_company, industry_tag, industry,
+           total_years, normalized_skills, expected_salary_min, expected_salary_max,
+           notice_period_enum, job_search_status_enum
     FROM candidates_pipeline
     ORDER BY id
   `);
