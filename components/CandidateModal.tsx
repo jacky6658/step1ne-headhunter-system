@@ -6,6 +6,7 @@ import { RadarChart, RADAR_DIMENSIONS, computeAutoScores, computeOverallRating }
 import { SkillTagInput } from './SkillTagInput';
 import { SalaryRangeInput, SalaryRangeDisplay } from './SalaryRangeInput';
 import { CANDIDATE_STATUS_CONFIG, GRADE_CONFIG, TIER_CONFIG, computeAutoGradeTier } from '../constants';
+import { OnboardingTour, TourStep } from './OnboardingTour';
 import { apiPatch, apiGet, getApiUrl, getAuthHeaders } from '../config/api';
 import { toast } from './Toast';
 import {
@@ -97,6 +98,18 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [showResumeGen, setShowResumeGen] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [tourActive, setTourActive] = useState(false);
+
+  // 互動式新手導覽步驟
+  const modalTourSteps: TourStep[] = [
+    { target: 'modal-tabs', title: '五大功能分頁', content: '基本資訊、進度追蹤、備註紀錄、AI 總結、AI 匹配結語 — 點擊切換不同功能面板。', placement: 'bottom' },
+    { target: 'modal-recruiter', title: '負責顧問', content: '指派或更換負責此人選的顧問。點「指派給我」可快速認領人選。', placement: 'bottom' },
+    { target: 'modal-target-job', title: '目標職缺', content: '為人選指定目標職缺，指定後可自動產生電話篩選腳本與 AI 匹配分析。', placement: 'bottom' },
+    { target: 'modal-precision-gate', title: '資料完整度', content: '系統自動檢查 10 項 Match Core 欄位，填寫越完整，AI 匹配精準度越高（目標 80% 以上）。', placement: 'bottom' },
+    { target: 'modal-candidate-data', title: '候選人資料', content: '點「✏️ 編輯」進入編輯模式，可修改基本資料、技能、薪資、職位分類等欄位。', placement: 'top' },
+    { target: 'modal-work-history', title: '工作經歷 & 學歷', content: '新增或編輯工作經歷與教育背景，這部分影響 AI 評級中 35% 的權重。', placement: 'top' },
+    { target: 'modal-update-status', title: '更新狀態', content: '點此按鈕快速切換人選狀態：聯繫階段、面試、Offer、婉拒等，狀態會同步到看板。', placement: 'top' },
+  ];
   const [editingRecruiter, setEditingRecruiter] = useState(false);
   const [recruiterInput, setRecruiterInput] = useState(candidate.consultant || '');
   const [newNoteText, setNewNoteText] = useState('');
@@ -1317,7 +1330,15 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
         }
       }}
     >
-      <div 
+      {/* 互動式新手導覽 */}
+      <OnboardingTour
+        storageKey="step1ne-candidate-modal-tour"
+        steps={modalTourSteps}
+        active={tourActive}
+        onComplete={() => setTourActive(false)}
+      />
+
+      <div
         className="bg-white rounded-xl shadow-2xl w-[95vw] sm:w-full max-w-4xl h-[95vh] sm:h-[90vh] overflow-hidden flex flex-col mx-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -1375,7 +1396,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
         </div>
         
         {/* Tabs */}
-        <div className="border-b border-gray-200 bg-gray-50 overflow-x-auto">
+        <div className="border-b border-gray-200 bg-gray-50 overflow-x-auto" data-tour="modal-tabs">
           <div className="flex whitespace-nowrap min-w-max sm:min-w-0">
             <button
               onClick={() => setActiveTab('info')}
@@ -1460,7 +1481,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
           {activeTab === 'info' && (
             <div className="space-y-6">
               {/* 負責顧問 */}
-              <div className="bg-indigo-50 rounded-lg border border-indigo-100">
+              <div className="bg-indigo-50 rounded-lg border border-indigo-100" data-tour="modal-recruiter">
                 <div className="flex items-center justify-between p-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <User className="w-4 h-4 text-indigo-500 shrink-0" />
@@ -1530,7 +1551,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
               </div>
 
               {/* 目標職缺 */}
-              <div className="bg-amber-50 rounded-lg border border-amber-100">
+              <div className="bg-amber-50 rounded-lg border border-amber-100" data-tour="modal-target-job">
                 <div className="flex items-center justify-between p-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <Target className="w-4 h-4 text-amber-500 shrink-0" />
@@ -1668,7 +1689,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                 };
 
                 return missing.length > 0 ? (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg" data-tour="modal-precision-gate">
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
@@ -1694,7 +1715,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     </p>
                   </div>
                 ) : isPrecision ? (
-                  <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg" data-tour="modal-precision-gate">
                     <span className="text-xs text-emerald-700 font-medium">
                       Match Core 欄位已齊全 — 資料完整度 {score || 100}%
                     </span>
@@ -1703,7 +1724,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     </span>
                   </div>
                 ) : score != null ? (
-                  <div className="flex items-center justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-lg" data-tour="modal-precision-gate">
                     <span className="text-xs text-blue-700 font-medium">
                       資料完整度 {score}% — 部分條件未達精準匹配標準
                     </span>
@@ -1727,10 +1748,16 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                         </div>
                         <h3 className="text-sm font-bold text-blue-900">如何使用人選卡片</h3>
                       </div>
-                      <button
-                        onClick={() => { setGuideExpanded(false); localStorage.setItem(guideKey, '1'); }}
-                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-blue-600 bg-white border border-blue-200 rounded-md hover:bg-blue-50"
-                      >我知道了</button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => { setGuideExpanded(false); localStorage.setItem(guideKey, '1'); localStorage.removeItem('step1ne-candidate-modal-tour'); setTourActive(true); }}
+                          className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-indigo-600 bg-white border border-indigo-200 rounded-md hover:bg-indigo-50"
+                        >🔄 互動導覽</button>
+                        <button
+                          onClick={() => { setGuideExpanded(false); localStorage.setItem(guideKey, '1'); }}
+                          className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-blue-600 bg-white border border-blue-200 rounded-md hover:bg-blue-50"
+                        >我知道了</button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div className="flex items-start gap-2.5 bg-white/70 rounded-lg px-3 py-2.5">
@@ -1781,18 +1808,26 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     </div>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => setGuideExpanded(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                  >
-                    <BookOpen size={13} />
-                    使用說明
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setGuideExpanded(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                      <BookOpen size={13} />
+                      使用說明
+                    </button>
+                    <button
+                      onClick={() => { localStorage.removeItem('step1ne-candidate-modal-tour'); setTourActive(true); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+                    >
+                      🔄 互動導覽
+                    </button>
+                  </div>
                 );
               })()}
 
               {/* ── 全域編輯控制列 ── */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between" data-tour="modal-candidate-data">
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">候選人資料</span>
                 {!editingBasicInfo ? (
                   <div className="flex items-center gap-1.5">
@@ -3256,7 +3291,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
               </div>
 
               {/* Work History */}
-              <div>
+              <div data-tour="modal-work-history">
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-blue-600" />
@@ -5022,7 +5057,7 @@ Content-Type: application/json
               </button>
               
               {onUpdateStatus && (
-                <div className="relative">
+                <div className="relative" data-tour="modal-update-status">
                   <button
                     onClick={() => setShowStatusMenu(!showStatusMenu)}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
