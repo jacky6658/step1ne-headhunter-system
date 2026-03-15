@@ -780,6 +780,14 @@ Step1ne Recruitment`;
 🔧 技能：${cSkillStr}
 
 ═══════════════════════════════════
+⚡ 通話前準備 Checklist（1 分鐘快速掃）
+═══════════════════════════════════
+☐ 看過人選 LinkedIn / 履歷，記住 2-3 個亮點
+☐ 了解職缺核心需求 & 客戶在意的 Top 3 條件
+☐ 確認薪資範圍，心裡有底線數字
+☐ 準備好「為什麼這個機會值得聊」的 30 秒 elevator pitch
+
+═══════════════════════════════════
 📢 PART A — 公司 & 職缺介紹話術
 ═══════════════════════════════════
 
@@ -790,75 +798,87 @@ Step1ne Recruitment`;
 │ 📏 規模：${clSize}${clWebsite ? `\n│ 🌐 官網：${clWebsite}` : ''}
 └───────────────────────────────────────┘
 
-📌 建議話術：
-「這是一間${clIndustry}領域的公司——${clCompany}，在業界的口碑很不錯。他們目前在積極擴編技術團隊，我覺得蠻適合跟你聊聊的。」
+📌 開場話術（先建立關係再介紹職缺）：
+「嗨 ${cName} 你好，我是 Step1ne 的獵頭顧問。我看到你在${cPos}方面的經歷蠻精彩的，特別是 ${cSkillStr} 的部分，想跟你分享一個蠻符合你背景的機會，方便聊個 15-20 分鐘嗎？」
 
-▎ A2. 職缺介紹重點
+📌 公司介紹話術（簡短有力，不超過 30 秒）：
+「${clCompany} 是${clIndustry}領域的公司，${clSize !== '未提供' ? `規模大概${clSize}，` : ''}目前正在擴編${jTitle}的團隊。我們幾位顧問跟他們合作一段時間了，整體回饋都蠻正面的。」
+
+▎ A2. 職缺亮點（只講最吸引人的 3 點）
 • 職位：${jTitle}
 • 地點：${jLocation}
 • 薪資範圍：${jSalary}
-• 核心技術需求：${jSkillStr}
+• 核心技術：${jSkillStr}
 ${jResponsibilities.length > 0 ? `• 主要職責：\n${jResponsibilities.slice(0, 3).map((r: string) => `  ‣ ${r.trim()}`).join('\n')}` : ''}
 ${jBenefits.length > 0 ? `• 福利亮點：\n${jBenefits.slice(0, 3).map((b: string) => `  ✦ ${b.trim()}`).join('\n')}` : ''}
 
-📌 建議話術：
-「這個 ${jTitle} 的角色主要會負責 ${jSkillStr} 相關的開發，薪資的話客戶端給的範圍是 ${jSalary}，整體 package 可以再細談。」
+📌 職缺話術（聚焦人選可能在意的點）：
+「這個角色主要是 ${jSkillStr} 的方向，薪資大概在 ${jSalary}，但我覺得以你的經歷應該有談的空間。你比較在意的是技術深度還是管理路線？」
 
-▎ A3. 關鍵賣點（吸引人選的角度）
+▎ A3. 關鍵賣點（根據人選背景客製化）
 ✅ 技術面：使用 ${jSkillStr}，技術棧有挑戰性
 ✅ 發展面：${clCompany} 正在擴張，有升遷空間
 ✅ 團隊文化：可在面試時進一步了解${jBenefits.length > 0 ? `\n✅ 福利面：${jBenefits[0].trim()}` : ''}
 
+💡 Tips：根據人選反應調整賣點順序，被動求職者先講「為什麼值得看」
+
 ═══════════════════════════════════
-👤 PART B — 已知人選資訊
+👤 PART B — 已知人選資訊（通話前複習）
 ═══════════════════════════════════
-${cJobSearchStatus ? `• 求職狀態：${cJobSearchStatus}` : ''}
+${cJobSearchStatus ? `• 求職狀態：${cJobSearchStatus}` : '• 求職狀態：未知（需確認）'}
 ${cReasonForChange ? `• 轉職原因：${cReasonForChange}` : ''}
-${cSalary !== '未提供' ? `• 目前薪資：${cSalary}` : ''}
+${cSalary !== '未提供' ? `• 目前薪資：${cSalary}` : '• 目前薪資：未知（需確認）'}
 ${cExpectedSalary !== '未提供' ? `• 期望薪資：${cExpectedSalary}` : ''}
 ${cNoticePeriod !== '未提供' ? `• 可到職時間：${cNoticePeriod}` : ''}
-${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
+${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}\n  → 注意！通話中避免踩到這些地雷` : ''}
 
 ═══════════════════════════════════
-🎙️ PART C — 結構化電話篩選問題
+🎙️ PART C — 結構化電話篩選（約 20 分鐘）
 ═══════════════════════════════════
 
-▎ C1. 開場（2 分鐘）
-• 簡單自我介紹 + 說明通話目的
-• 確認通話時間（約 25-30 分鐘）
-• 「在開始之前，我先簡單介紹一下這個機會...」→ 用 Part A 話術
+▎ C1. 開場暖身（2 分鐘）
+• 簡單自我介紹 + 確認通話時間
+• 先聊 1 句對方背景的亮點，讓對方感受到你做過功課
+• 「在聊這個機會之前，想先了解一下你目前的狀態...」
 
-▎ C2. 動機探測（5 分鐘）
-1. 目前的工作狀態如何？有在看外面的機會嗎？
-2. 如果要換工作，最看重什麼？（技術、薪資、文化、遠端）
-3. 有什麼是「絕對不接受」的條件嗎？
-4. 聽完剛才介紹的機會，你的初步感覺如何？
+▎ C2. 動機 & 狀態探測（5 分鐘）
+1. 目前工作狀態如何？整體開心嗎？（開放式，先聽再引導）
+2. 如果有更好的機會，最看重什麼？（排序：技術/薪資/文化/遠端/title）
+3. 有沒有「絕對不碰」的條件？（早點排雷）
+4. 是主動在看機會，還是只是願意聽聽？
 
-▎ C3. 技術驗證（8 分鐘）
-5. 能否用 1 分鐘描述你目前專案中最有挑戰的部分？
-6. ${jSkillStr} — 這些技術你的熟練程度如何？（1-5 分）
-7. 你在團隊中通常扮演什麼角色？（執行者/架構師/mentor）
-8. 有帶人的經驗嗎？帶過多少人的團隊？
+💡 Tips：被動人選要先創造「不安全感」—「你覺得目前公司未來 2-3 年的成長空間如何？」
 
-▎ C4. 條件確認（5 分鐘）
-9. 目前薪資大概在什麼範圍？（含年終、股票等）
-10. 期望薪資是多少？有什麼硬性底線嗎？
-11. 最快什麼時候可以到職？
-12. 對 ${jLocation} 的工作地點 OK 嗎？
+▎ C3. 技術 & 經歷驗證（5 分鐘）
+5. 你目前專案最有挑戰的部分是什麼？你怎麼解決的？
+6. ${jSkillStr} — 實際用在哪些專案？（要具體案例，不只是「會用」）
+7. 你在團隊中扮演什麼角色？有沒有帶人或 mentor 經驗？
+8. 如果讓你自己打分，${jSkillStr} 你給自己幾分？（1-10）
 
-▎ C5. 收尾 & 興趣確認（3 分鐘）
-13. 目前手上有其他面試或 offer 嗎？
-14. 綜合剛才聊的，你對 ${clCompany} 這個機會有興趣進一步了解嗎？
-15. 如果安排面試，你的時間偏好？
+▎ C4. 條件對焦（5 分鐘）
+9. 目前整包大概什麼水位？（月薪×幾個月 + bonus + stock）
+10. 期望薪資？有硬性底線嗎？（如果超出客戶預算，這裡就要管理期望）
+11. 最快什麼時候可以 on board？
+12. ${jLocation} 的工作地點 OK 嗎？通勤大概多久？
+
+▎ C5. 介紹機會 & 收尾（3 分鐘）
+• 用 Part A 的話術簡介公司 & 職缺（30 秒內）
+13. 聽完你覺得怎麼樣？有什麼想進一步了解的？
+14. 目前有其他面試或 offer 在進行嗎？時程大概到哪？
+15. 如果安排視訊面試，這一兩週哪幾天比較方便？
 
 ═══════════════════════════════════
-📝 通話後顧問 Checklist
+📝 通話後顧問 Checklist（必填）
 ═══════════════════════════════════
-☐ 人選對公司/職缺的興趣程度（1-5）：__
-☐ 技術匹配度評估：__
-☐ 薪資期望 vs 客戶預算是否有落差：__
-☐ 預計到職時間：__
-☐ 下一步：□ 安排面試 □ 再考慮 □ 暫不適合`;
+☐ 興趣程度（1-5）：__（5=超想去, 3=願意看看, 1=沒興趣）
+☐ 技術匹配度（1-5）：__（對照職缺 must-have 技能）
+☐ 文化匹配度（1-5）：__（個性/溝通/團隊 fit）
+☐ 薪資落差：__ %（正數=期望高於預算, 負數=有空間）
+☐ 最快到職：____
+☐ 競爭情報：□ 無其他面試 □ 有面試中 □ 有 offer
+☐ 風險/紅旗：____________________________
+☐ 下一步：□ 安排面試 □ 再跟進 □ 放入人才庫 □ 暫不適合
+☐ 預計回覆客戶日期：____`;
 
       setPhoneScriptContent(script);
     } catch (err) {
@@ -869,9 +889,27 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
   };
 
   const handleCopyPhoneScript = () => {
-    navigator.clipboard.writeText(phoneScriptContent).then(() => {
+    const doCopy = (text: string) => {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+      // Fallback for non-secure contexts
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      return Promise.resolve();
+    };
+    doCopy(phoneScriptContent).then(() => {
       setPhoneScriptCopied(true);
+      toast.success('電話腳本已複製到剪貼簿！');
       setTimeout(() => setPhoneScriptCopied(false), 2000);
+    }).catch(() => {
+      toast.error('複製失敗，請手動選取複製');
     });
   };
 
@@ -1291,6 +1329,11 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       return;
     }
 
+    // 格式相容：將 AI 回傳的各種欄位名映射到系統標準格式
+    // suggestion → next_steps（行動建議欄位名相容）
+    if (aiSummary.suggestion && !aiSummary.next_steps) {
+      aiSummary.next_steps = aiSummary.suggestion;
+    }
     // 自動補上時間戳
     if (!aiSummary.evaluated_at) aiSummary.evaluated_at = new Date().toISOString();
     if (!aiSummary.evaluated_by) aiSummary.evaluated_by = '手動貼入';
@@ -4429,10 +4472,19 @@ Content-Type: application/json
             };
 
             const handleCopyAiPrompt = () => {
-              navigator.clipboard.writeText(generateAiPrompt()).then(() => {
+              const text = generateAiPrompt();
+              const doCopy = (t: string) => {
+                if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t);
+                const ta = document.createElement('textarea');
+                ta.value = t; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+                document.body.removeChild(ta); return Promise.resolve();
+              };
+              doCopy(text).then(() => {
                 setPromptCopied(true);
+                toast.success('AI 深度分析提示詞已複製！');
                 setTimeout(() => setPromptCopied(false), 2500);
-              });
+              }).catch(() => toast.error('複製失敗，請手動選取複製'));
             };
 
             const tagColors = [
@@ -4474,24 +4526,42 @@ Content-Type: application/json
                       </div>
                     )}
 
-                    {/* Top 匹配職缺 */}
+                    {/* Top 匹配職缺 / 核心能力 — 相容兩種格式 */}
                     {aiSummaryData.top_matches && aiSummaryData.top_matches.length > 0 && (
                       <div>
-                        <p className="text-xs font-semibold text-emerald-600 mb-1.5">🎯 Top 匹配職缺</p>
-                        <div className="space-y-1.5">
-                          {aiSummaryData.top_matches.map((m: any, i: number) => (
-                            <div key={i} className="bg-white/70 rounded-lg px-3 py-2 flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
-                                <span className="text-xs font-bold text-slate-700">#{i + 1} {m.job_title}</span>
-                                {m.company && <span className="text-xs text-slate-500 ml-1">({m.company})</span>}
-                                {m.match_reason && <p className="text-[10px] text-slate-500 mt-0.5 truncate">{m.match_reason}</p>}
-                              </div>
-                              <span className={`text-sm font-black ml-2 ${m.match_score >= 80 ? 'text-emerald-600' : m.match_score >= 65 ? 'text-blue-600' : 'text-amber-600'}`}>
-                                {m.match_score}分
-                              </span>
+                        {/* 判斷格式：string[] = 核心能力標籤, object[] = 匹配職缺 */}
+                        {typeof aiSummaryData.top_matches[0] === 'string' ? (
+                          <>
+                            <p className="text-xs font-semibold text-emerald-600 mb-1.5">🏷️ 核心能力</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {aiSummaryData.top_matches.map((skill: string, i: number) => (
+                                <span key={i} className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                                  {skill}
+                                </span>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs font-semibold text-emerald-600 mb-1.5">🎯 Top 匹配職缺</p>
+                            <div className="space-y-1.5">
+                              {aiSummaryData.top_matches.map((m: any, i: number) => (
+                                <div key={i} className="bg-white/70 rounded-lg px-3 py-2 flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-bold text-slate-700">#{i + 1} {m.job_title}</span>
+                                    {m.company && <span className="text-xs text-slate-500 ml-1">({m.company})</span>}
+                                    {m.match_reason && <p className="text-[10px] text-slate-500 mt-0.5 truncate">{m.match_reason}</p>}
+                                  </div>
+                                  {m.match_score != null && (
+                                    <span className={`text-sm font-black ml-2 ${m.match_score >= 80 ? 'text-emerald-600' : m.match_score >= 65 ? 'text-blue-600' : 'text-amber-600'}`}>
+                                      {m.match_score}分
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
 
@@ -4523,10 +4593,61 @@ Content-Type: application/json
                       </div>
                     )}
 
-                    {/* 行動建議 */}
-                    {aiSummaryData.next_steps && (
+                    {/* 評分 & 等級（AI 回傳 grade / score / confidence 時顯示） */}
+                    {(aiSummaryData.grade || aiSummaryData.score != null || aiSummaryData.source_tier) && (
+                      <div className="flex flex-wrap gap-2">
+                        {aiSummaryData.grade && (
+                          <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                            aiSummaryData.grade === 'A' ? 'bg-emerald-100 text-emerald-700' :
+                            aiSummaryData.grade === 'B' ? 'bg-blue-100 text-blue-700' :
+                            aiSummaryData.grade === 'C' ? 'bg-amber-100 text-amber-700' :
+                            'bg-slate-100 text-slate-700'
+                          }`}>
+                            等級：{aiSummaryData.grade}
+                          </div>
+                        )}
+                        {aiSummaryData.score != null && (
+                          <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                            aiSummaryData.score >= 80 ? 'bg-emerald-100 text-emerald-700' :
+                            aiSummaryData.score >= 60 ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            匹配分數：{aiSummaryData.score}分
+                          </div>
+                        )}
+                        {aiSummaryData.confidence != null && (
+                          <div className="px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-100 text-purple-700">
+                            信心度：{aiSummaryData.confidence}%
+                          </div>
+                        )}
+                        {aiSummaryData.source_tier && (
+                          <div className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-700">
+                            來源等級：{aiSummaryData.source_tier}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 薪資風險 */}
+                    {aiSummaryData.salary_risk && (
+                      <div className="bg-amber-50/80 rounded-lg p-2.5">
+                        <p className="text-xs font-semibold text-amber-600 mb-0.5">💰 薪資風險</p>
+                        <p className="text-[11px] text-slate-700">{aiSummaryData.salary_risk}</p>
+                      </div>
+                    )}
+
+                    {/* 行動建議 / 結論 */}
+                    {(aiSummaryData.next_steps || aiSummaryData.suggestion) && (
                       <div className="bg-emerald-100/50 rounded-lg p-2.5">
-                        <p className="text-xs font-semibold text-emerald-700">💡 行動建議：{aiSummaryData.next_steps}</p>
+                        <p className="text-xs font-semibold text-emerald-700">💡 行動建議：{aiSummaryData.next_steps || aiSummaryData.suggestion}</p>
+                      </div>
+                    )}
+
+                    {/* 總結論（AI 回傳 conclusion 時顯示） */}
+                    {aiSummaryData.conclusion && (
+                      <div className="bg-slate-100/80 rounded-lg p-2.5">
+                        <p className="text-xs font-semibold text-slate-600 mb-0.5">📋 總結</p>
+                        <p className="text-[11px] text-slate-700">{aiSummaryData.conclusion}</p>
                       </div>
                     )}
                   </div>
@@ -5031,10 +5152,19 @@ Content-Type: application/json
 **寫入系統後，再將完整分析報告（含 1️⃣ 到 8️⃣ 所有內容）輸出給顧問閱讀。**`;
 
                   const handleCopyMatchPrompt = () => {
-                    navigator.clipboard.writeText(generateMatchPrompt()).then(() => {
+                    const text = generateMatchPrompt();
+                    const doCopy = (t: string) => {
+                      if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t);
+                      const ta = document.createElement('textarea');
+                      ta.value = t; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+                      document.body.removeChild(ta); return Promise.resolve();
+                    };
+                    doCopy(text).then(() => {
                       setMatchPromptCopied(true);
+                      toast.success('AI 匹配提示詞已複製！');
                       setTimeout(() => setMatchPromptCopied(false), 2500);
-                    });
+                    }).catch(() => toast.error('複製失敗，請手動選取複製'));
                   };
 
                   return (

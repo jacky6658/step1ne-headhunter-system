@@ -1,10 +1,39 @@
 // Step1ne 獵頭系統 - BD 客戶開發頁面
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Client, BDContact, BDStatus, BD_STATUS_CONFIG, UserProfile, SubmissionRule } from '../types';
 import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../config/api';
-import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3, Trash2, Pencil, Check, ClipboardCheck } from 'lucide-react';
+import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3, Trash2, Pencil, Check, ClipboardCheck, Sparkles } from 'lucide-react';
 import { SubmissionRulesEditor } from '../components/SubmissionRulesEditor';
 import { toast } from '../components/Toast';
+
+// ===== 產業自動偵測 =====
+const INDUSTRY_OPTIONS = [
+  { value: '軟體 / SaaS', keywords: ['saas', 'sass', 'software', '軟體', '雲端', 'cloud', 'crm', 'erp', 'shopline', 'appier', 'cacafly', '91app', 'omnichat', 'surveycake', 'ocard', 'oen', 'poseidon', 'teamdoor', 'revenuemonster', 'truelove', 'gofreight', 'turing', 'lawsnote', 'rosetta', 'autopass', 'botbonnie', 'pi-top'] },
+  { value: '系統整合（SI）', keywords: ['si', '系統整合', '精誠', '凌群', '中冠', '叡揚', '雲育鏈', '創泓', '振邦', '互動', '重新定義', '紅門', '零壹', '邦鼎', 'systex', 'wingtech', 'digiwin', '資通'] },
+  { value: 'BIM / 營建工程', keywords: ['bim', '營建', '建築', '工程', '營造', '築本', 'autodesk', '衛武'] },
+  { value: '金融 / FinTech', keywords: ['金融', 'fintech', '銀行', '保險', '證券', '信託', '投資', '理財', '支付', 'pay', '國泰', '富邦', '中信', '玉山', '台新', '永豐', '星展', '遠東銀', '將來銀行', '一卡通', 'icash', 'wallet'] },
+  { value: '餐旅飯店', keywords: ['餐', '飯店', '旅', '飲', '食', '餐飲', '旅遊', '觀光', '酒店', '民宿', 'hotel', '晶華', '寒舍', '雲品', '老爺', '六福', '王品', '鼎泰豐', '八方雲集', '饗賓', '雄獅', 'kkday', 'klook', 'booking'] },
+  { value: '製造業', keywords: ['製造', '工廠', '半導體', '電子', '光電', '機械', '台積電', 'tsmc', '鴻海', '聯發科', '瑞昱', '群創', '友達', '研華', '東元', '廣達', 'delta', '大立光', '金寶', '仁寶', '華碩', '微星', '宏碁', '技嘉', 'pcb', '車用'] },
+  { value: '電商 / 零售', keywords: ['電商', '零售', '商城', 'commerce', 'momo', 'pchome', 'shopee', '蝦皮', '博客來', '統一', '全家', '家樂福', '大潤發', 'costco', '好市多', '屈臣氏', '特力屋', '全聯', '誠品', '東森'] },
+  { value: 'AI / 數據', keywords: ['ai', '人工智慧', '機器學習', '深度學習', '數據', 'data', 'ml', '大數據', 'bigdata', 'gpt', 'llm', 'nvidia', 'google', 'openai', '訊連', '趨勢科技', '沛星'] },
+  { value: '醫療 / 生技', keywords: ['醫療', '生技', '醫院', '藥', '生物', '基因', 'biotech', 'pharma', '健康', 'health', '長庚', '台大醫', '慈濟', '國泰醫', '亞東', '保瑞', '合一', '中裕'] },
+  { value: '物流 / 運輸', keywords: ['物流', '運輸', '快遞', '貨運', '倉儲', '供應鏈', 'logistics', '宅配', '嘉里', '新竹物流', '黑貓', '大榮', 'fedex', 'dhl', 'sf', '順豐'] },
+  { value: '顧問 / 專業服務', keywords: ['顧問', '會計', '法律', '事務所', '管理', 'consulting', 'advisory', 'pwc', 'deloitte', 'ey', 'kpmg', 'accenture', 'mckinsey', 'bain', 'bcg'] },
+  { value: '媒體 / 廣告 / 行銷', keywords: ['媒體', '廣告', '行銷', 'media', 'marketing', '公關', '品牌', '數位行銷', '直播', '串流', '影音', 'youtube', 'netflix'] },
+  { value: '教育 / EdTech', keywords: ['教育', '學校', '補習', '培訓', 'edtech', '學習', '線上教育', 'tutoring', 'hahow', 'voicetube', 'amazing talker'] },
+];
+
+/** 根據公司名稱自動推測產業 */
+function autoDetectIndustry(companyName: string): string {
+  if (!companyName) return '';
+  const cn = companyName.toLowerCase().replace(/[\s（）()]/g, '');
+  for (const opt of INDUSTRY_OPTIONS) {
+    for (const kw of opt.keywords) {
+      if (cn.includes(kw.toLowerCase())) return opt.value;
+    }
+  }
+  return '';
+}
 
 interface BDClientsPageProps {
   userProfile: UserProfile;
@@ -48,6 +77,18 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
   const [renamingTitle, setRenamingTitle] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [industrySuggestion, setIndustrySuggestion] = useState('');
+  const [showIndustryDropdown, setShowIndustryDropdown] = useState(false);
+
+  // 公司名稱變更時自動偵測產業
+  useEffect(() => {
+    if (addForm.company_name && !addForm.industry) {
+      const detected = autoDetectIndustry(addForm.company_name);
+      setIndustrySuggestion(detected);
+    } else {
+      setIndustrySuggestion('');
+    }
+  }, [addForm.company_name, addForm.industry]);
 
   useEffect(() => { loadClients(); }, []);
 
@@ -108,15 +149,23 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
   const handleAddClient = async () => {
     if (!addForm.company_name.trim()) { toast.warning('請填寫公司名稱'); return; }
     setAddLoading(true);
+    // 自動偵測產業（若使用者未手動填寫）
+    const finalIndustry = addForm.industry || autoDetectIndustry(addForm.company_name) || '';
     try {
       const result = await apiPost<any>('/clients', {
         ...addForm,
+        industry: finalIndustry,
         fee_percentage: addForm.fee_percentage ? parseFloat(addForm.fee_percentage) : undefined,
       });
       if (result.success) {
+        const autoTagged = !addForm.industry && finalIndustry;
         setShowAddModal(false);
         setAddForm(emptyForm);
+        setIndustrySuggestion('');
         await loadClients();
+        if (autoTagged) {
+          toast.success(`已新增客戶，並自動標記產業：${finalIndustry}`);
+        }
       }
     } catch (e) { toast.error('新增失敗：' + (e as Error).message); }
     finally { setAddLoading(false); }
@@ -715,9 +764,66 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
             </div>
             <div className="overflow-y-auto p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 公司名稱 */}
+                <div>
+                  <label className="text-xs font-medium text-slate-600">公司名稱 *</label>
+                  <input
+                    value={addForm.company_name}
+                    onChange={e => setAddForm(p => ({ ...p, company_name: e.target.value }))}
+                    className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="遊戲橘子集團"
+                  />
+                </div>
+                {/* 產業別 — 下拉選單 + 自動偵測建議 */}
+                <div className="relative">
+                  <label className="text-xs font-medium text-slate-600">
+                    產業別
+                    {industrySuggestion && !addForm.industry && (
+                      <button
+                        onClick={() => { setAddForm(p => ({ ...p, industry: industrySuggestion })); setIndustrySuggestion(''); }}
+                        className="ml-2 inline-flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 hover:bg-amber-100 transition-colors"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        建議：{industrySuggestion}（點擊套用）
+                      </button>
+                    )}
+                  </label>
+                  <div className="relative mt-1">
+                    <input
+                      value={addForm.industry}
+                      onChange={e => { setAddForm(p => ({ ...p, industry: e.target.value })); setShowIndustryDropdown(true); }}
+                      onFocus={() => setShowIndustryDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowIndustryDropdown(false), 200)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="選擇或輸入產業..."
+                      autoComplete="off"
+                    />
+                    {showIndustryDropdown && (
+                      <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {INDUSTRY_OPTIONS
+                          .filter(opt => !addForm.industry || opt.value.toLowerCase().includes(addForm.industry.toLowerCase()))
+                          .map(opt => (
+                            <button
+                              key={opt.value}
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => { setAddForm(p => ({ ...p, industry: opt.value })); setShowIndustryDropdown(false); }}
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 transition-colors ${addForm.industry === opt.value ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-700'}`}
+                            >
+                              {opt.value}
+                            </button>
+                          ))
+                        }
+                        {addForm.industry && !INDUSTRY_OPTIONS.some(opt => opt.value === addForm.industry) && (
+                          <div className="px-3 py-2 text-xs text-slate-400 border-t border-slate-100">
+                            將使用自訂產業：「{addForm.industry}」
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* 其他基本欄位 */}
                 {[
-                  { key: 'company_name', label: '公司名稱 *', placeholder: '遊戲橘子集團' },
-                  { key: 'industry', label: '產業別', placeholder: '遊戲/科技/醫療...' },
                   { key: 'company_size', label: '公司規模', placeholder: '50-200 人' },
                   { key: 'website', label: '網站', placeholder: 'https://...' },
                   { key: 'contact_name', label: '聯絡人', placeholder: '王總監' },

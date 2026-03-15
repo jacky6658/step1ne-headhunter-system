@@ -180,7 +180,7 @@ const App: React.FC = () => {
         // 所有用戶都可以查看使用說明
         return <HelpPage userProfile={profile} />;
       case 'sop-guide':
-        return <SOPGuidePage userProfile={profile} />;
+        return <SOPGuidePage userProfile={profile} onNavigate={setActiveTab} />;
       case 'ai-guide':
         return <AIGuidePageNew userProfile={profile} />;
       case 'learning-center':
@@ -287,7 +287,7 @@ const App: React.FC = () => {
             </div>
           </div>
         </header>
-        <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 bg-slate-50/50">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-10 bg-slate-50/50">
           <Suspense fallback={<PageFallback />}>
             {renderContent()}
           </Suspense>

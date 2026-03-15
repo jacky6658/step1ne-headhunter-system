@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, Users, Briefcase, Target, Phone, MessageSquare, Award, CheckCircle2, XCircle, Archive, Bot, Zap, ArrowRight, AlertCircle, TrendingUp, Clock, MapPin, DollarSign, Brain, Star, Layers, Lightbulb } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, Users, Briefcase, Target, Phone, MessageSquare, Award, CheckCircle2, XCircle, Archive, Bot, Zap, ArrowRight, AlertCircle, TrendingUp, Clock, MapPin, DollarSign, Brain, Star, Layers, Lightbulb, GraduationCap, Sparkles, Map, Compass, Rocket, PlayCircle } from 'lucide-react';
+import { OnboardingTour, TourStep } from '../components/OnboardingTour';
 
 interface SOPGuidePageProps {
   userProfile?: any;
+  onNavigate?: (tab: string) => void;
 }
 
 // ── 階段資料定義 ──────────────────────────────────────────
@@ -269,14 +271,71 @@ const DAILY_WORKFLOW = [
   { time: '週五', task: '週報整理', detail: '查看營運儀表板，整理本週成果，規劃下週計畫' },
 ];
 
-export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
+// ── 顧問導覽步驟 ──────────────────────────────────────────
+const SOP_TOUR_STEPS: TourStep[] = [
+  {
+    target: 'sop-header',
+    title: '歡迎來到顧問 SOP 手冊！',
+    content: '這是你在 Step1ne 系統的操作指南。新人建議依序閱讀，搞懂工作流程後再進入學習中心深造。',
+    placement: 'bottom',
+  },
+  {
+    target: 'sop-tab-playbook',
+    title: '📖 第一站：獵頭 Playbook',
+    content: '先建立獵頭思維框架 — 包含 10 個核心心法：人才地圖、SMT 模型、薪資判斷、候選人分類等。這是你最需要優先讀的內容。',
+    placement: 'bottom',
+  },
+  {
+    target: 'sop-tab-pipeline',
+    title: '📊 第二站：Pipeline 階段',
+    content: '了解系統中 9 個人選追蹤階段（今日新增 → on board → 婉拒），每個階段的用途、SLA 和該做什麼。',
+    placement: 'bottom',
+  },
+  {
+    target: 'sop-tab-workflow',
+    title: '📅 第三站：日常工作流程',
+    content: '了解每天上班該做什麼、看板怎麼操作、SLA 超時怎麼處理。',
+    placement: 'bottom',
+  },
+  {
+    target: 'sop-tab-features',
+    title: '🛠️ 第四站：系統功能速查',
+    content: '快速查找系統各功能的位置和用法：候選人卡片、職缺管理、提示詞資料庫、AI Bot、學習中心。',
+    placement: 'bottom',
+  },
+  {
+    target: 'sop-tab-learning-path',
+    title: '🎓 第五站：學習路徑',
+    content: '看完 SOP 後，這裡有你的 30 天學習路線圖，指引你前往「學習中心」深入了解產業、角色、AI 工具。',
+    placement: 'bottom',
+  },
+  {
+    target: 'sop-go-learning-center',
+    title: '🚀 進階：前往學習中心',
+    content: '學習中心有 6 大模組：30 天速成、產業地圖、角色百科、組織架構、職缺分析器、Prompt 工具箱。搞懂 SOP 後就去那邊繼續學習！',
+    placement: 'bottom',
+  },
+];
+
+export function SOPGuidePage({ userProfile, onNavigate }: SOPGuidePageProps) {
   const [expandedStage, setExpandedStage] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<'pipeline' | 'workflow' | 'features' | 'playbook'>('pipeline');
+  const [activeSection, setActiveSection] = useState<'learning-path' | 'pipeline' | 'workflow' | 'features' | 'playbook'>('playbook');
+  const [tourActive, setTourActive] = useState(false);
+
+  const goToLearningCenter = () => onNavigate?.('learning-center');
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      {/* Onboarding Tour */}
+      <OnboardingTour
+        storageKey="step1ne-sop-guide-tour"
+        steps={SOP_TOUR_STEPS}
+        active={tourActive}
+        onComplete={() => setTourActive(false)}
+      />
+
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 rounded-2xl p-5 sm:p-8 text-white shadow-lg">
+      <div data-tour="sop-header" className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 rounded-2xl p-5 sm:p-8 text-white shadow-lg">
         <div className="flex items-center gap-3 mb-2">
           <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" />
           <h1 className="text-xl sm:text-2xl font-black">獵頭顧問 SOP 使用手冊</h1>
@@ -284,30 +343,284 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
         <p className="text-blue-100 mt-2">
           本手冊教你如何使用 Step1ne 系統管理候選人追蹤表，每個 Pipeline 階段的用意、操作方式與最佳實務。
         </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            data-tour="sop-go-learning-center"
+            onClick={goToLearningCenter}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] active:scale-95 border border-white/20"
+          >
+            <GraduationCap className="w-4 h-4" />
+            前往學習中心（產業/角色/Prompt 深度學習）
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => {
+              localStorage.removeItem('step1ne-sop-guide-tour');
+              // 先關再開，確保 useEffect 偵測到 false→true 變化
+              setTourActive(false);
+              requestAnimationFrame(() => setTourActive(true));
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-xl text-sm font-medium transition-all border border-white/10"
+          >
+            <PlayCircle className="w-4 h-4" />
+            開始導覽
+          </button>
+        </div>
       </div>
 
       {/* Section Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white rounded-xl p-2 shadow-sm border border-gray-100">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 bg-white rounded-xl p-2 shadow-sm border border-gray-100">
         {[
-          { id: 'pipeline' as const, label: '📊 Pipeline', labelFull: '📊 Pipeline 階段說明', desc: '每個欄位代表什麼' },
-          { id: 'workflow' as const, label: '📅 日常流程', labelFull: '📅 日常工作流程', desc: '每天該做什麼' },
-          { id: 'features' as const, label: '🛠️ 功能速查', labelFull: '🛠️ 系統功能速查', desc: '常用功能在哪裡' },
-          { id: 'playbook' as const, label: '📖 Playbook', labelFull: '📖 獵頭 Playbook', desc: '操作心法與方法論' },
+          { id: 'playbook' as const, label: '📖 Playbook', labelFull: '📖 獵頭 Playbook', desc: '操作心法與方法論', tourId: 'sop-tab-playbook' },
+          { id: 'pipeline' as const, label: '📊 Pipeline', labelFull: '📊 Pipeline 階段', desc: '每個欄位代表什麼', tourId: 'sop-tab-pipeline' },
+          { id: 'workflow' as const, label: '📅 日常流程', labelFull: '📅 日常工作流程', desc: '每天該做什麼', tourId: 'sop-tab-workflow' },
+          { id: 'features' as const, label: '🛠️ 功能速查', labelFull: '🛠️ 系統功能速查', desc: '常用功能在哪裡', tourId: 'sop-tab-features' },
+          { id: 'learning-path' as const, label: '🎓 學習路徑', labelFull: '🎓 學習路徑', desc: '進入學習中心前看這', tourId: 'sop-tab-learning-path' },
         ].map(s => (
           <button
             key={s.id}
+            data-tour={s.tourId}
             onClick={() => setActiveSection(s.id)}
-            className={`py-3 px-3 sm:px-4 rounded-lg transition-all text-left ${
+            className={`py-3 px-2 sm:px-4 rounded-lg transition-all text-left ${
               activeSection === s.id
                 ? 'bg-indigo-600 text-white shadow-md'
                 : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
-            <div className="font-semibold text-sm"><span className="sm:hidden">{s.label}</span><span className="hidden sm:inline">{s.labelFull}</span></div>
-            <div className={`text-xs mt-0.5 ${activeSection === s.id ? 'text-indigo-200' : 'text-gray-400'}`}>{s.desc}</div>
+            <div className="font-semibold text-xs sm:text-sm"><span className="sm:hidden">{s.label}</span><span className="hidden sm:inline">{s.labelFull}</span></div>
+            <div className={`text-[10px] sm:text-xs mt-0.5 ${activeSection === s.id ? 'text-indigo-200' : 'text-gray-400'}`}>{s.desc}</div>
           </button>
         ))}
       </div>
+
+      {/* ── 🎓 學習路徑 ── */}
+      {activeSection === 'learning-path' && (
+        <div className="space-y-5">
+
+          {/* 新人 30 天學習路線圖 */}
+          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <Rocket className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-lg font-bold text-gray-900">新人必看！你的學習路線圖</h2>
+            </div>
+            <p className="text-sm text-gray-500 mb-5">
+              不知道從哪裡開始？按照以下順序學習，30 天內成為合格的獵頭顧問
+            </p>
+
+            <div className="space-y-4">
+              {[
+                {
+                  step: 1, day: 'Day 1-2', title: '📖 先讀這份 SOP 手冊',
+                  desc: '了解系統的 Pipeline 流程、日常工作節奏、各功能位置',
+                  action: '閱讀本頁「Pipeline 階段」和「日常流程」Tab',
+                  where: 'sop',
+                  color: 'bg-blue-500',
+                },
+                {
+                  step: 2, day: 'Day 3-7', title: '⚡ 完成學習中心「30 天速成」計畫',
+                  desc: '系統化的新人培訓計畫，包含 5 個階段的學習任務與 Checklist',
+                  action: '前往學習中心 → 30 天速成 Tab',
+                  where: 'learning-center',
+                  color: 'bg-emerald-500',
+                },
+                {
+                  step: 3, day: 'Day 3-14', title: '🗺️ 學習產業地圖 — 認識你的市場',
+                  desc: '了解 10 大產業的商業模式、組織架構、關鍵角色，建立產業 Sense',
+                  action: '前往學習中心 → 產業地圖 Tab',
+                  where: 'learning-center',
+                  color: 'bg-violet-500',
+                },
+                {
+                  step: 4, day: 'Day 7-21', title: '📚 熟悉角色百科 — 懂你的候選人',
+                  desc: '16 個角色卡片：每日工作、必備技能、薪資行情、面試問題、紅旗警示',
+                  action: '前往學習中心 → 角色百科 Tab',
+                  where: 'learning-center',
+                  color: 'bg-amber-500',
+                },
+                {
+                  step: 5, day: 'Day 14-30', title: '🤖 掌握 Prompt 工具箱 — 讓 AI 幫你工作',
+                  desc: '20+ 組 Prompt 模板，涵蓋產業分析、公司理解、角色評估、人選判斷',
+                  action: '前往學習中心 → Prompt 工具箱 Tab',
+                  where: 'learning-center',
+                  color: 'bg-rose-500',
+                },
+                {
+                  step: 6, day: '持續精進', title: '🎯 實戰 — 用「職缺分析器」練功',
+                  desc: '拿到真實 JD 後，用職缺分析器拆解 JD，搭配 Prompt 產出分析報告',
+                  action: '前往學習中心 → 職缺分析 Tab',
+                  where: 'learning-center',
+                  color: 'bg-cyan-500',
+                },
+              ].map((item) => (
+                <div key={item.step} className="flex gap-4 items-start">
+                  <div className="flex flex-col items-center shrink-0">
+                    <div className={`w-9 h-9 ${item.color} rounded-full flex items-center justify-center text-white text-sm font-black shadow-md`}>
+                      {item.step}
+                    </div>
+                    {item.step < 6 && <div className="w-0.5 h-8 bg-gray-200 mt-1" />}
+                  </div>
+                  <div className="flex-1 pb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-gray-900 text-sm">{item.title}</span>
+                      <span className="text-[10px] px-2 py-0.5 bg-white rounded-full text-gray-500 border border-gray-200 font-medium">{item.day}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">{item.desc}</p>
+                    {item.where === 'learning-center' ? (
+                      <button
+                        onClick={goToLearningCenter}
+                        className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold hover:underline transition-colors"
+                      >
+                        <ArrowRight className="w-3 h-3" /> {item.action}
+                      </button>
+                    ) : (
+                      <p className="mt-1.5 text-[11px] text-indigo-600 font-medium">📌 {item.action}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 依情境快速導航 */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 mb-1">
+              <Compass className="w-5 h-5 text-emerald-600" />
+              <h2 className="text-lg font-bold text-gray-900">依情境快速導航</h2>
+            </div>
+            <p className="text-sm text-gray-500 mb-5">遇到什麼問題？我告訴你該看哪裡</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                {
+                  q: '不知道候選人該放哪個階段？',
+                  a: '本頁「Pipeline 階段說明」Tab',
+                  click: () => setActiveSection('pipeline'),
+                  icon: '📊', color: 'bg-blue-50 border-blue-200',
+                },
+                {
+                  q: '每天上班不知道先做什麼？',
+                  a: '本頁「日常工作流程」Tab',
+                  click: () => setActiveSection('workflow'),
+                  icon: '📅', color: 'bg-amber-50 border-amber-200',
+                },
+                {
+                  q: '接到新 JD，看不懂技術要求？',
+                  a: '學習中心 →「角色百科」查技能清單',
+                  click: goToLearningCenter,
+                  icon: '📚', color: 'bg-violet-50 border-violet-200',
+                },
+                {
+                  q: '不了解客戶所在的產業？',
+                  a: '學習中心 →「產業地圖」查產業分析',
+                  click: goToLearningCenter,
+                  icon: '🗺️', color: 'bg-emerald-50 border-emerald-200',
+                },
+                {
+                  q: '要跟候選人打電話，不知道問什麼？',
+                  a: '本頁 Playbook「15 分鐘 SMT 模型」+ 人選卡片「電話腳本」',
+                  click: () => setActiveSection('playbook'),
+                  icon: '📞', color: 'bg-cyan-50 border-cyan-200',
+                },
+                {
+                  q: '想用 AI 幫我分析 JD / 公司 / 人選？',
+                  a: '學習中心 →「Prompt 工具箱」20+ 模板',
+                  click: goToLearningCenter,
+                  icon: '🤖', color: 'bg-rose-50 border-rose-200',
+                },
+                {
+                  q: '不確定候選人的薪資合不合理？',
+                  a: '本頁 Playbook「薪資合理性判斷」+ 角色百科薪資範圍',
+                  click: () => setActiveSection('playbook'),
+                  icon: '💰', color: 'bg-green-50 border-green-200',
+                },
+                {
+                  q: '公司的組織架構怎麼看？',
+                  a: '學習中心 →「組織架構」Tab',
+                  click: goToLearningCenter,
+                  icon: '🏢', color: 'bg-indigo-50 border-indigo-200',
+                },
+              ].map((item, i) => (
+                <button
+                  key={i}
+                  onClick={item.click}
+                  className={`${item.color} border rounded-xl p-4 text-left hover:shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-xl shrink-0">{item.icon}</span>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{item.q}</p>
+                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <ArrowRight className="w-3 h-3 shrink-0" /> {item.a}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 學習中心總覽 */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 mb-1">
+              <GraduationCap className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-lg font-bold text-gray-900">學習中心 — 6 大學習模組總覽</h2>
+            </div>
+            <p className="text-sm text-gray-500 mb-5">
+              學習中心是你的「獵頭大學」，涵蓋產業知識、角色理解、AI 工具。點擊任一模組直接前往
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {[
+                {
+                  icon: '⚡', title: '30 天速成', desc: '新人培訓 5 階段任務',
+                  priority: '新人必修', color: 'from-amber-400 to-orange-400',
+                },
+                {
+                  icon: '🗺️', title: '產業地圖', desc: '10 大產業深度分析',
+                  priority: '核心知識', color: 'from-emerald-400 to-teal-500',
+                },
+                {
+                  icon: '📖', title: '角色百科', desc: '16 個角色完整攻略',
+                  priority: '核心知識', color: 'from-blue-400 to-indigo-500',
+                },
+                {
+                  icon: '🏢', title: '組織架構', desc: '5 種企業組織解析',
+                  priority: '進階理解', color: 'from-violet-400 to-purple-500',
+                },
+                {
+                  icon: '🎯', title: '職缺分析器', desc: '拆解真實 JD 練功',
+                  priority: '實戰工具', color: 'from-cyan-400 to-blue-500',
+                },
+                {
+                  icon: '🤖', title: 'Prompt 工具箱', desc: '20+ AI 模板即用',
+                  priority: '效率武器', color: 'from-rose-400 to-pink-500',
+                },
+              ].map((mod, i) => (
+                <button
+                  key={i}
+                  onClick={goToLearningCenter}
+                  className="rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] text-left group"
+                >
+                  <div className={`bg-gradient-to-br ${mod.color} p-3 text-white`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xl">{mod.icon}</span>
+                      <span className="text-[9px] bg-white/25 px-2 py-0.5 rounded-full font-semibold">{mod.priority}</span>
+                    </div>
+                    <div className="font-bold text-sm mt-2">{mod.title}</div>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-xs text-gray-600">{mod.desc}</p>
+                    <p className="text-[10px] text-indigo-500 font-medium mt-2 group-hover:underline flex items-center gap-1">
+                      前往學習 <ArrowRight className="w-3 h-3" />
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
 
       {/* Pipeline 階段說明 */}
       {activeSection === 'pipeline' && (
@@ -564,6 +877,18 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
                 '詳細操作見「AI API 使用教學」頁面',
               ]
             },
+            {
+              title: '🎓 學習中心',
+              icon: <GraduationCap className="w-5 h-5 text-indigo-500" />,
+              items: [
+                '30 天速成：新人顧問 5 階段系統化培訓計畫',
+                '產業地圖：10 大產業深度分析（SaaS、SI、BIM、金融、餐旅...）',
+                '角色百科：16 個角色完整攻略（技能、薪資、面試題、紅旗警示）',
+                '組織架構：5 種企業組織類型圖解',
+                '職缺分析器：輸入真實 JD → AI 拆解分析',
+                'Prompt 工具箱：20+ 組 AI 提示模板（選擇職缺/客戶自動填入變數）',
+              ]
+            },
           ].map((section, i) => (
             <div key={i} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
               <div className="flex items-center gap-2 mb-3">
@@ -613,6 +938,11 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
             <div className="mt-4 bg-amber-50 border border-amber-100 rounded-lg p-3 text-center">
               <p className="text-sm text-amber-800 font-medium">成功的獵頭會同時經營 <strong>人才 / 公司 / 市場資訊</strong>，而不是只依賴 JD</p>
             </div>
+            <button onClick={goToLearningCenter} className="mt-3 w-full flex items-center gap-2 p-3 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors group">
+              <GraduationCap className="w-4 h-4 text-indigo-600 shrink-0" />
+              <p className="text-xs text-indigo-700 text-left"><strong>延伸學習：</strong>前往學習中心「產業地圖」了解 10 大產業的市場情報，「角色百科」了解 16 個角色的人才分布</p>
+              <ArrowRight className="w-4 h-4 text-indigo-400 shrink-0 group-hover:translate-x-1 transition-transform" />
+            </button>
           </div>
 
           {/* 二、4 個賺錢漏斗 */}
@@ -825,6 +1155,11 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
                 <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full border border-slate-200">{t}</span>
               ))}
             </div>
+            <button onClick={goToLearningCenter} className="mt-4 w-full flex items-center gap-2 p-3 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors group">
+              <GraduationCap className="w-4 h-4 text-indigo-600 shrink-0" />
+              <p className="text-xs text-indigo-700 text-left"><strong>延伸學習：</strong>學習中心「角色百科」有 16 個角色的完整來源公司、薪資範圍、技能清單，「產業地圖」有各產業的關鍵招募角色分布</p>
+              <ArrowRight className="w-4 h-4 text-indigo-400 shrink-0 group-hover:translate-x-1 transition-transform" />
+            </button>
           </div>
 
           {/* 七、薪資合理性判斷 */}
@@ -859,6 +1194,11 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
                 <span key={i} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-md border border-green-200 font-medium">{s}</span>
               ))}
             </div>
+            <button onClick={goToLearningCenter} className="mt-4 w-full flex items-center gap-2 p-3 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors group">
+              <GraduationCap className="w-4 h-4 text-indigo-600 shrink-0" />
+              <p className="text-xs text-indigo-700 text-left"><strong>延伸學習：</strong>學習中心「角色百科」每個角色卡片都有初/中/高階的薪資範圍（TWD），可對照具體角色查詢市場行情</p>
+              <ArrowRight className="w-4 h-4 text-indigo-400 shrink-0 group-hover:translate-x-1 transition-transform" />
+            </button>
           </div>
 
           {/* 八、每日工作節奏 */}
@@ -961,6 +1301,43 @@ export function SOPGuidePage({ userProfile }: SOPGuidePageProps) {
               <p className="text-lg font-bold text-amber-300">核心心法</p>
               <p className="text-white/90 mt-2 text-sm leading-relaxed">每一個候選人都可能是未來的成交機會</p>
             </div>
+          </div>
+
+          {/* Playbook 底部 — 學習中心整體引導 */}
+          <div className="bg-gradient-to-r from-indigo-50 via-blue-50 to-cyan-50 rounded-xl p-6 border border-indigo-100 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <GraduationCap className="w-6 h-6 text-indigo-600" />
+              <h2 className="text-lg font-bold text-gray-900">繼續深造 — 前往學習中心</h2>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Playbook 教你思維框架，學習中心教你實戰工具。兩者搭配使用效果最好：
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { playbook: '人才地圖（Talent Map）', lc: '角色百科 — 16 個角色的來源公司清單', icon: '📚' },
+                { playbook: '薪資合理性判斷', lc: '角色百科 — 每個角色初/中/高階薪資', icon: '💰' },
+                { playbook: 'Candidate Demand', lc: 'Prompt 工具箱 — 人選評估模板', icon: '🤖' },
+                { playbook: '30 秒履歷判斷法', lc: '職缺分析器 — AI 拆解 JD 技能要求', icon: '🎯' },
+                { playbook: '4 個賺錢漏斗', lc: '產業地圖 — 各產業獵頭切入策略', icon: '🗺️' },
+                { playbook: '每日工作節奏', lc: '30 天速成 — 新人每日學習任務', icon: '⚡' },
+              ].map((pair, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs bg-white rounded-lg p-3 border border-gray-100">
+                  <span className="text-base shrink-0">{pair.icon}</span>
+                  <div>
+                    <p className="text-gray-500">Playbook「{pair.playbook}」</p>
+                    <p className="text-indigo-700 font-semibold mt-0.5">→ 學習中心「{pair.lc}」</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={goToLearningCenter}
+              className="mt-4 w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all hover:shadow-lg active:scale-[0.98]"
+            >
+              <GraduationCap className="w-5 h-5" />
+              前往學習中心開始學習
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
 
         </div>

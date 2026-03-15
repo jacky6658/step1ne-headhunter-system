@@ -89,11 +89,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
     },
     {
       key: 'learn',
-      label: '學習中心',
+      label: '學習 & 指南',
       icon: GraduationCap,
       items: [
-        { id: 'learning-center', label: '學習中心', shortLabel: '學習', icon: GraduationCap, roles: [Role.ADMIN, Role.REVIEWER] },
         { id: 'sop-guide', label: '顧問 SOP 手冊', shortLabel: 'SOP', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER] },
+        { id: 'learning-center', label: '學習中心', shortLabel: '學習', icon: GraduationCap, roles: [Role.ADMIN, Role.REVIEWER] },
         { id: 'ai-guide', label: 'AI Bot 教學', shortLabel: 'AI教學', icon: Bot, roles: [Role.ADMIN, Role.REVIEWER] },
         { id: 'help', label: '使用說明', shortLabel: '說明', icon: BookOpen, roles: [Role.ADMIN, Role.REVIEWER] },
       ],
@@ -173,7 +173,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
         ${collapsed ? 'w-[68px]' : 'w-60'} bg-slate-900 text-slate-300 flex flex-col shrink-0
         transform transition-all duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}
-        shadow-2xl sm:shadow-none
+        shadow-2xl sm:shadow-none overflow-x-hidden
       `}>
         {/* Logo */}
         <div className={`${collapsed ? 'p-3' : 'p-4 sm:p-5'} flex items-center justify-between border-b border-slate-800`}>
@@ -191,7 +191,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, profile, onL
         </div>
 
         {/* Navigation */}
-        <nav className={`flex-1 ${collapsed ? 'px-1.5' : 'px-3'} py-3 overflow-y-auto`}>
+        <nav className={`flex-1 ${collapsed ? 'px-1.5' : 'px-3'} py-3 overflow-y-auto overflow-x-hidden`}>
           {visibleGroups.map((group) => {
             const isExpanded = expandedGroups.has(group.key);
             const hasActiveItem = group.items.some(i => i.id === activeTab);

@@ -3815,16 +3815,47 @@ router.get('/clients/:id', async (req, res) => {
   }
 });
 
+// ===== 產業自動偵測（用於新增客戶時自動標記） =====
+const INDUSTRY_DETECT_MAP = [
+  { value: '軟體 / SaaS', kw: ['saas','software','軟體','雲端','cloud','crm','erp','shopline','appier','cacafly','91app','omnichat','surveycake','ocard'] },
+  { value: '系統整合（SI）', kw: ['si','系統整合','精誠','凌群','中冠','叡揚','雲育鏈','創泓','振邦','紅門','零壹','邦鼎','systex','digiwin','資通'] },
+  { value: 'BIM / 營建工程', kw: ['bim','營建','建築','工程','營造','築本','autodesk','衛武'] },
+  { value: '金融 / FinTech', kw: ['金融','fintech','銀行','保險','證券','信託','投資','支付','pay','國泰','富邦','中信','玉山','台新','永豐','星展','將來銀行'] },
+  { value: '餐旅飯店', kw: ['餐','飯店','旅','飲','食','旅遊','觀光','酒店','hotel','晶華','寒舍','雲品','王品','鼎泰豐','饗賓','雄獅','kkday','klook'] },
+  { value: '製造業', kw: ['製造','工廠','半導體','電子','光電','機械','台積電','tsmc','鴻海','聯發科','瑞昱','群創','友達','研華','delta','pcb'] },
+  { value: '電商 / 零售', kw: ['電商','零售','商城','commerce','momo','pchome','shopee','蝦皮','統一','全家','家樂福','全聯','誠品'] },
+  { value: 'AI / 數據', kw: ['ai','人工智慧','機器學習','數據','data','ml','大數據','gpt','llm','nvidia'] },
+  { value: '醫療 / 生技', kw: ['醫療','生技','醫院','藥','生物','基因','biotech','pharma','健康','health'] },
+  { value: '物流 / 運輸', kw: ['物流','運輸','快遞','貨運','倉儲','供應鏈','logistics','宅配','嘉里','新竹物流','黑貓'] },
+  { value: '顧問 / 專業服務', kw: ['顧問','會計','法律','事務所','consulting','advisory','pwc','deloitte','ey','kpmg'] },
+  { value: '媒體 / 廣告 / 行銷', kw: ['媒體','廣告','行銷','media','marketing','公關','品牌','數位行銷'] },
+  { value: '教育 / EdTech', kw: ['教育','學校','補習','培訓','edtech','學習','hahow'] },
+];
+function serverAutoDetectIndustry(companyName) {
+  if (!companyName) return '';
+  const cn = companyName.toLowerCase().replace(/[\s（）()]/g, '');
+  for (const opt of INDUSTRY_DETECT_MAP) {
+    for (const k of opt.kw) {
+      if (cn.includes(k.toLowerCase())) return opt.value;
+    }
+  }
+  return '';
+}
+
 /** POST /api/clients - 新增客戶 */
 router.post('/clients', async (req, res) => {
   try {
-    const {
+    let {
       company_name, industry, company_size, website,
       bd_status = '開發中', bd_source,
       contact_name, contact_title, contact_email, contact_phone, contact_linkedin,
       consultant, contract_type, fee_percentage, contract_start, contract_end, notes
     } = req.body;
     if (!company_name) return res.status(400).json({ success: false, error: '缺少 company_name' });
+    // 自動產業偵測：前端未填 → 後端兜底推測
+    if (!industry) {
+      industry = serverAutoDetectIndustry(company_name);
+    }
     const result = await withClient(client => client.query(
       `INSERT INTO clients
         (company_name, industry, company_size, website, bd_status, bd_source,
@@ -3836,7 +3867,13 @@ router.post('/clients', async (req, res) => {
        contact_name, contact_title, contact_email, contact_phone, contact_linkedin,
        consultant, contract_type, fee_percentage, contract_start, contract_end, notes]
     ));
-    res.json({ success: true, data: result.rows[0], message: '客戶已新增' });
+    const autoTagged = !req.body.industry && industry;
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: autoTagged ? `客戶已新增，已自動標記產業：${industry}` : '客戶已新增',
+      auto_industry: autoTagged ? industry : undefined
+    });
   } catch (error) {
     safeError(res, error, 'POST /clients');
   }

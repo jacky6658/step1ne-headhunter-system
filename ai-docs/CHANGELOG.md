@@ -4,7 +4,12 @@
 
 ---
 
-## [2026-03-15] AI 總結貼上功能 + API 欄位補齊
+## [2026-03-15] AI 總結貼上功能 + API 欄位補齊 + 全量 Migration
+
+### DB Migration
+- **新增 `server/scripts/migration-all-in-one.sql`**：合併所有 migration 的一鍵腳本（可安全重複執行）
+- **自動 Migration 機制**：`routes-api.js` 啟動時自動執行 60+ 條 `pool.query()`，確保所有欄位存在
+- 涵蓋範圍：Sprint 1 結構化欄位（Layer 1/2/3）、Talent Board、Phase 1/3 候選人欄位、AI 總結、履歷附件、語音/自傳/作品集等
 
 ### 新增
 - **AI 總結 Tab「貼上 AI 結果」功能**：使用者可手動將 ChatGPT/Claude 的 JSON 結果貼回系統

@@ -40,14 +40,11 @@ export function OnboardingTour({ storageKey, steps, active, onComplete }: Onboar
     }
   }, [storageKey]);
 
-  // External trigger (respects global toggle)
+  // External trigger — 手動點「開始導覽」時無視全域開關，強制啟動
   useEffect(() => {
     if (active) {
-      const globalOff = localStorage.getItem('step1ne-tours-disabled') === '1';
-      if (!globalOff) {
-        setCurrentStep(0);
-        setRunning(true);
-      }
+      setCurrentStep(0);
+      setRunning(true);
     }
   }, [active]);
 

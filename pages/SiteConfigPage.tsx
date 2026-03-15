@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
 import { apiGet, apiPut } from '../config/api';
-import { Save, Loader2, Eye, Plus, Trash2, ExternalLink, Upload, Palette, Layout, Type, Image } from 'lucide-react';
+import { Save, Loader2, Eye, Plus, Trash2, ExternalLink, Upload, Palette, Layout, Type, Image, X, Monitor, Tablet, Smartphone, Copy, Check, Globe } from 'lucide-react';
+import ConsultantSitePreview from '../components/ConsultantSitePreview';
 
 interface SiteConfigPageProps {
   userProfile: UserProfile;
@@ -65,6 +66,9 @@ const SiteConfigPage: React.FC<SiteConfigPageProps> = ({ userProfile }) => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [newSpecialty, setNewSpecialty] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [urlCopied, setUrlCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -153,6 +157,29 @@ const SiteConfigPage: React.FC<SiteConfigPageProps> = ({ userProfile }) => {
 
   const siteUrl = `https://site.step1ne.com/consultants/${config.slug}`;
 
+  function handleCopyUrl() {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(siteUrl).then(() => {
+        setUrlCopied(true);
+        setTimeout(() => setUrlCopied(false), 2000);
+      }).catch(() => fallbackCopy());
+    } else {
+      fallbackCopy();
+    }
+    function fallbackCopy() {
+      const ta = document.createElement('textarea');
+      ta.value = siteUrl;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setUrlCopied(true);
+      setTimeout(() => setUrlCopied(false), 2000);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -170,17 +197,13 @@ const SiteConfigPage: React.FC<SiteConfigPageProps> = ({ userProfile }) => {
           <p className="text-sm text-slate-500 mt-1">設定您的顧問個人頁面，展示職缺並接收履歷投遞</p>
         </div>
         <div className="flex items-center gap-3">
-          {config.isPublished && (
-            <a
-              href={siteUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
-            >
-              <ExternalLink size={14} />
-              預覽頁面
-            </a>
-          )}
+          <button
+            onClick={() => setShowPreview(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
+          >
+            <Eye size={14} />
+            預覽頁面
+          </button>
           <button
             onClick={handleSave}
             disabled={saving}
@@ -192,32 +215,132 @@ const SiteConfigPage: React.FC<SiteConfigPageProps> = ({ userProfile }) => {
         </div>
       </div>
 
-      {/* Published toggle */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-slate-900">頁面狀態</h3>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {config.isPublished ? '頁面已公開，求職者可以瀏覽' : '頁面未公開，僅限預覽'}
-            </p>
-          </div>
-          <button
-            onClick={() => setConfig(c => ({ ...c, isPublished: !c.isPublished }))}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              config.isPublished ? 'bg-green-500' : 'bg-slate-300'
-            }`}
-          >
-            <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-              config.isPublished ? 'translate-x-6' : 'translate-x-0.5'
-            }`} />
-          </button>
+      {/* ========== Prominent Preview Banner ========== */}
+      <div className="relative overflow-hidden rounded-2xl border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 p-6">
+        <div className="absolute top-0 right-0 w-48 h-48 opacity-10 pointer-events-none">
+          <Globe className="w-full h-full text-indigo-500" />
         </div>
-        {config.isPublished && (
-          <div className="mt-3 px-3 py-2 bg-slate-50 rounded-lg text-xs text-slate-500 font-mono break-all">
-            {siteUrl}
+        <div className="relative z-10">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <div className={`w-2.5 h-2.5 rounded-full ${config.isPublished ? 'bg-green-500 animate-pulse' : 'bg-amber-400'}`} />
+                <span className={`text-xs font-bold uppercase tracking-wider ${config.isPublished ? 'text-green-600' : 'text-amber-600'}`}>
+                  {config.isPublished ? '已公開' : '草稿'}
+                </span>
+              </div>
+              <h3 className="text-lg font-black text-slate-900 mb-1">您的對外頁面</h3>
+              <p className="text-sm text-slate-500">
+                {config.isPublished
+                  ? '頁面已上線，求職者可以透過以下網址瀏覽您的專業介紹'
+                  : '頁面尚未公開，您可以先預覽效果、調整設定後再發布'}
+              </p>
+            </div>
+            <button
+              onClick={() => setConfig(c => ({ ...c, isPublished: !c.isPublished }))}
+              className={`shrink-0 relative w-14 h-7 rounded-full transition-colors shadow-inner ${
+                config.isPublished ? 'bg-green-500' : 'bg-slate-300'
+              }`}
+            >
+              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
+                config.isPublished ? 'translate-x-7' : 'translate-x-0.5'
+              }`} />
+            </button>
           </div>
-        )}
+
+          {/* URL bar — always visible */}
+          <div className="mt-4 flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-white rounded-xl border border-indigo-100 shadow-sm">
+              <Globe size={14} className="text-indigo-400 shrink-0" />
+              <span className="text-sm font-mono text-slate-600 truncate">{siteUrl}</span>
+            </div>
+            <button
+              onClick={handleCopyUrl}
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                urlCopied
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-white text-slate-600 border border-indigo-100 hover:bg-indigo-50 hover:text-indigo-600'
+              }`}
+            >
+              {urlCopied ? <Check size={14} /> : <Copy size={14} />}
+              {urlCopied ? '已複製' : '複製'}
+            </button>
+          </div>
+
+          {/* Action buttons */}
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={() => setShowPreview(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-bold rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md shadow-indigo-200"
+            >
+              <Eye size={15} />
+              即時預覽我的頁面
+            </button>
+            <span className="text-xs text-slate-400">← 點擊即可查看您的對外頁面效果</span>
+          </div>
+        </div>
       </div>
+
+      {/* ========== Full-screen Preview Modal ========== */}
+      {showPreview && (
+        <div className="fixed inset-0 z-[9999] bg-slate-900/80 backdrop-blur-sm flex flex-col">
+          {/* Preview toolbar */}
+          <div className="flex items-center justify-between px-5 py-3 bg-slate-800 border-b border-slate-700">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-bold text-white">頁面預覽</span>
+              <div className="flex items-center bg-slate-700 rounded-lg p-0.5 gap-0.5">
+                {[
+                  { key: 'desktop' as const, icon: Monitor, label: '桌機' },
+                  { key: 'tablet' as const, icon: Tablet, label: '平板' },
+                  { key: 'mobile' as const, icon: Smartphone, label: '手機' },
+                ].map(d => (
+                  <button
+                    key={d.key}
+                    onClick={() => setPreviewDevice(d.key)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      previewDevice === d.key
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <d.icon size={13} />
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs text-slate-500 font-mono">{siteUrl}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                config.isPublished ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${config.isPublished ? 'bg-green-400' : 'bg-amber-400'}`} />
+                {config.isPublished ? '已公開' : '草稿預覽'}
+              </span>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Preview content */}
+          <div className="flex-1 overflow-auto flex items-start justify-center p-6 bg-[#2a2a2e]">
+            <div
+              className="bg-white rounded-xl shadow-2xl overflow-hidden transition-all duration-300"
+              style={{
+                width: previewDevice === 'desktop' ? '100%' : previewDevice === 'tablet' ? '768px' : '375px',
+                maxWidth: '100%',
+                minHeight: previewDevice === 'mobile' ? '812px' : previewDevice === 'tablet' ? '1024px' : '600px',
+              }}
+            >
+              <ConsultantSitePreview config={config} displayName={userProfile.displayName} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Template selection */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">

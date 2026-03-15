@@ -1417,12 +1417,18 @@ const INDUSTRY_MAP: IndustryCard[] = [
     keyDepartments: ['產品研發部', '客戶成功部（Customer Success）', '業務發展部', '行銷部', '技術支援部'],
     commonRoles: ['Backend Engineer', 'Frontend Engineer', 'Product Manager', 'Customer Success Manager', 'Sales / AE', 'Data Analyst'],
     recruitingChallenges: ['優秀工程師被大廠吸走，中小型 SaaS 難搶人', '需兼具技術與商業思維的 PM 難找', '客戶成功角色定義模糊，候選人認知差異大', '早期新創薪資難與大公司競爭'],
-    promptTemplate: `請分析以下 SaaS 公司的招募策略：
+    promptTemplate: `你是一位獵頭產業顧問。請分析以下 SaaS 公司的招募策略：
+
 公司名稱：[填入公司名稱，如 Shopline]
 產品類型：[填入產品類型，如 電商SaaS]
 目前階段：[填入公司階段，如 B輪/成長期]
 
-請提供：1. 該公司可能的組織架構 2. 關鍵招募角色 3. 人才來源建議 4. 薪資競爭力評估`,
+請輸出以下分析報告（我要用來跟客戶提案、制定搜才策略）：
+1. **組織架構推測**：這家公司目前可能的部門配置與人數規模
+2. **關鍵招募角色 Top 5**：最急需 & 最難找的 5 個職位，標註難度等級（🟢簡單/🟡中等/🔴困難）
+3. **人才來源地圖**：這些角色通常從哪些公司/產業挖？列出 Top 5 挖角目標公司
+4. **薪資競爭力評估**：跟同業相比的薪資水位（高/中/低），附建議薪資區間
+5. **獵頭切入建議**：我該用什麼話術接觸 HR/用人主管？用什麼角度提案？`,
   },
   {
     id: 'si',
@@ -1434,12 +1440,18 @@ const INDUSTRY_MAP: IndustryCard[] = [
     keyDepartments: ['專案管理部', '技術開發部', '售前顧問部', '業務部', '維運服務部'],
     commonRoles: ['專案經理', 'Java 工程師', '.NET 工程師', 'SA（系統分析師）', '售前技術顧問', '維運工程師'],
     recruitingChallenges: ['工程師偏好產品公司而非專案制 SI', '資深 SA 與架構師供不應求', '政府標案人才需了解法規與標書撰寫', '薪資天花板較低導致人才流失'],
-    promptTemplate: `請分析以下系統整合公司的人才需求：
-公司名稱：[填入公司名稱，如 Shopline]
+    promptTemplate: `你是一位獵頭產業顧問。請分析以下系統整合（SI）公司的人才需求：
+
+公司名稱：[填入公司名稱，如 精誠資訊]
 主要客戶類型：[填入客戶類型，如 政府/企業]
 技術棧：[填入技術棧，如 Java, Spring Boot]
 
-請提供：1. SI 產業人才特性 2. 與產品公司的競爭策略 3. 適合的人才畫像 4. 留才關鍵因素`,
+請輸出以下分析報告（我要用來跟客戶提案、制定搜才策略）：
+1. **SI 產業人才特性**：SI 工程師 vs 產品公司工程師的差異、偏好、轉職動機
+2. **關鍵招募角色 Top 5**：最急需的職位，標註難度等級（🟢簡單/🟡中等/🔴困難）
+3. **人才來源地圖**：適合挖角的目標公司 Top 5，含原因分析
+4. **跟產品公司的搶人策略**：SI 薪資劣勢下如何吸引人才的話術與賣點
+5. **獵頭切入建議**：如何跟 SI 的 HR/PM 提案？用什麼角度展現價值？`,
   },
   {
     id: 'bim-construction',
@@ -1451,12 +1463,18 @@ const INDUSTRY_MAP: IndustryCard[] = [
     keyDepartments: ['設計部', '工務部', 'BIM 中心', '品管部', '採購部'],
     commonRoles: ['BIM 工程師', 'BIM 經理', '建築師', '結構技師', '工地主任', '專案經理', '估算工程師'],
     recruitingChallenges: ['BIM 人才稀缺，跨領域人才更少', '傳統營建業數位轉型抗拒', '營建業工作環境較差影響招募', '需要懂建築又懂軟體的複合型人才'],
-    promptTemplate: `請分析以下營建/BIM 公司的招募需求：
-公司名稱：[填入公司名稱，如 Shopline]
+    promptTemplate: `你是一位獵頭產業顧問。請分析以下營建/BIM 公司的招募需求：
+
+公司名稱：[填入公司名稱，如 中鼎集團]
 專案類型：[填入專案類型，如 住宅/商辦]
 BIM 應用範圍：[填入BIM應用範圍，如 設計到施工]
 
-請提供：1. 營建業人才地圖 2. BIM 人才關鍵能力 3. 跨領域人才來源 4. 產業招募挑戰`,
+請輸出以下分析報告（我要用來跟客戶提案、制定搜才策略）：
+1. **營建業人才地圖**：BIM 人才主要在哪些公司？跨領域（建築+軟體）人才從哪裡來？
+2. **關鍵招募角色 Top 5**：最急需的職位，標註難度等級（🟢簡單/🟡中等/🔴困難）
+3. **BIM 人才評估要點**：面試時該問什麼？怎麼判斷 BIM 工程師的程度？
+4. **薪資行情 & 競爭分析**：BIM 人才的薪資帶、跟科技業搶人的策略
+5. **獵頭切入建議**：營建業客戶通常怎麼找人？我該用什麼角度接觸 HR/工務主管？`,
   },
   {
     id: 'finance-fintech',
@@ -1468,12 +1486,18 @@ BIM 應用範圍：[填入BIM應用範圍，如 設計到施工]
     keyDepartments: ['數位金融部', '資訊部', '風控部', '法令遵循部', '個金部', '法金部'],
     commonRoles: ['Backend Engineer', 'Data Scientist', '風控分析師', '合規專員', 'Product Manager', '資安工程師', 'DevOps Engineer'],
     recruitingChallenges: ['金融法規限制導致技術選型保守', '薪資有競爭力但文化偏傳統，年輕工程師不愛', '需要同時懂金融與技術的跨領域人才', '資安與合規人才全市場搶'],
-    promptTemplate: `請分析以下金融/FinTech 公司的招募策略：
-公司名稱：[填入公司名稱，如 Shopline]
+    promptTemplate: `你是一位獵頭產業顧問。請分析以下金融/FinTech 公司的招募策略：
+
+公司名稱：[填入公司名稱，如 國泰金控]
 業務類型：[填入業務類型，如 銀行/保險]
 數位轉型階段：[填入數位轉型階段，如 起步/進階]
 
-請提供：1. 金融業人才市場現況 2. FinTech vs 傳統金融的人才差異 3. 跨領域人才策略 4. 法規合規人才來源`,
+請輸出以下分析報告（我要用來跟客戶提案、制定搜才策略）：
+1. **金融業人才市場現況**：數位金融人才的供需狀況、搶人激烈程度
+2. **關鍵招募角色 Top 5**：最急需的職位，標註難度等級（🟢簡單/🟡中等/🔴困難）
+3. **FinTech vs 傳統金融**：兩種公司文化差異，人才偏好分析、轉職動機
+4. **人才來源地圖**：適合挖角的目標公司 Top 5，含跨產業來源建議
+5. **獵頭切入建議**：金融業 HR 的決策流程？如何用法規/合規人才稀缺性做提案？`,
   },
   {
     id: 'hospitality',
@@ -1485,12 +1509,18 @@ BIM 應用範圍：[填入BIM應用範圍，如 設計到施工]
     keyDepartments: ['客務部', '餐飲部', '業務行銷部', '人資部', '工程部', '財務部'],
     commonRoles: ['餐廳經理', '主廚', '房務主管', '訂房主任', '宴會業務', '大廳副理', '人力資源專員'],
     recruitingChallenges: ['產業薪資偏低且工時長，不易吸引人才', '基層人員流動率極高', '疫後人力缺口擴大', '外語人才需求高但供給不足'],
-    promptTemplate: `請分析以下餐旅飯店的招募需求：
-公司名稱：[填入公司名稱，如 Shopline]
+    promptTemplate: `你是一位獵頭產業顧問。請分析以下餐旅飯店的招募需求：
+
+公司名稱：[填入公司名稱，如 晶華酒店]
 飯店等級：[填入飯店等級，如 五星/精品]
 營運規模：[填入營運規模，如 200間客房]
 
-請提供：1. 餐旅業人才市場現況 2. 關鍵職缺與人才畫像 3. 降低流動率的招募策略 4. 同業挖角建議`,
+請輸出以下分析報告（我要用來跟客戶提案、制定搜才策略）：
+1. **餐旅業人才市場現況**：疫後人力缺口、各職級供需分析
+2. **關鍵招募角色 Top 5**：最急需的職位，標註難度等級（🟢簡單/🟡中等/🔴困難）
+3. **人才來源地圖**：這些角色從哪些同業/飯店集團挖？Top 5 挖角目標
+4. **降低流動率策略**：餐旅業流動率高的根因 & 獵頭能提供的解法
+5. **獵頭切入建議**：餐旅業怎麼找獵頭？我該用什麼角度跟飯店 HR/總經理提案？`,
   },
   {
     id: 'manufacturing',
@@ -1502,12 +1532,18 @@ BIM 應用範圍：[填入BIM應用範圍，如 設計到施工]
     keyDepartments: ['研發部', '製造部', '品保部', '生管部', '業務部', '資訊部'],
     commonRoles: ['製程工程師', '設備工程師', 'FAE（應用工程師）', '品質工程師', 'IE 工程師', 'IT 工程師', '採購'],
     recruitingChallenges: ['半導體業薪資極高，其他製造業難競爭', '工廠地點偏遠影響招募意願', '傳統製造業數位轉型人才缺乏', 'AI/IoT 跨領域人才需求急增'],
-    promptTemplate: `請分析以下製造業公司的招募需求：
-公司名稱：[填入公司名稱，如 Shopline]
+    promptTemplate: `你是一位獵頭產業顧問。請分析以下製造業公司的招募需求：
+
+公司名稱：[填入公司名稱，如 台積電]
 產業別：[填入產業別，如 半導體/PCB]
 製程類型：[填入製程類型，如 晶圓代工]
 
-請提供：1. 製造業人才市場特性 2. 關鍵技術人才來源 3. 與半導體業的人才競爭策略 4. 智慧製造人才需求`,
+請輸出以下分析報告（我要用來跟客戶提案、制定搜才策略）：
+1. **製造業人才市場特性**：工程師人才庫分佈、半導體 vs 其他製造業的薪資落差
+2. **關鍵招募角色 Top 5**：最急需的職位，標註難度等級（🟢簡單/🟡中等/🔴困難）
+3. **人才來源地圖**：適合挖角的目標公司 Top 5，含跨產業來源
+4. **跟半導體搶人策略**：台積電吸走大量人才，其他製造業怎麼用薪資以外的賣點搶人
+5. **獵頭切入建議**：製造業客戶的招募痛點？我該用什麼角度跟廠長/HR 主管提案？`,
   },
   {
     id: 'ecommerce',
@@ -1519,12 +1555,18 @@ BIM 應用範圍：[填入BIM應用範圍，如 設計到施工]
     keyDepartments: ['產品技術部', '營運部', '行銷部', '商品部', '物流供應鏈部', '客服部'],
     commonRoles: ['Backend Engineer', 'Frontend Engineer', 'Data Analyst', '商品企劃', '數位行銷', '物流管理', '客服主管'],
     recruitingChallenges: ['電商季節性用人需求波動大', '數據與 AI 人才被科技公司搶走', '需要同時懂技術與商業的人才', '物流與倉儲人才流動率高'],
-    promptTemplate: `請分析以下電商/零售公司的招募需求：
-公司名稱：[填入公司名稱，如 Shopline]
+    promptTemplate: `你是一位獵頭產業顧問。請分析以下電商/零售公司的招募需求：
+
+公司名稱：[填入公司名稱，如 momo]
 電商模式：[填入電商模式，如 B2C/D2C]
 年營收規模：[填入年營收規模，如 10億]
 
-請提供：1. 電商業人才市場分析 2. 技術 vs 營運角色配比 3. 季節性招募策略 4. 人才競爭力評估`,
+請輸出以下分析報告（我要用來跟客戶提案、制定搜才策略）：
+1. **電商業人才市場分析**：技術 vs 營運角色的供需現況、搶人激烈程度
+2. **關鍵招募角色 Top 5**：最急需的職位，標註難度等級（🟢簡單/🟡中等/🔴困難）
+3. **人才來源地圖**：適合挖角的目標公司 Top 5，含跨產業來源
+4. **季節性招募策略**：雙11/年貨節前的人力規劃，如何提前佈局
+5. **獵頭切入建議**：電商客戶的招募痛點？我該用什麼角度跟電商 HR/CTO 提案？`,
   },
   {
     id: 'ai-data',
@@ -1536,12 +1578,18 @@ BIM 應用範圍：[填入BIM應用範圍，如 設計到施工]
     keyDepartments: ['AI 研究部', '工程部', '資料科學部', '產品部', '業務部'],
     commonRoles: ['ML Engineer', 'Data Scientist', 'Data Engineer', 'AI Researcher', 'Backend Engineer', 'MLOps Engineer', 'Product Manager'],
     recruitingChallenges: ['頂尖 AI 人才多往海外或大廠', '學界與業界的技能落差大', '需要論文發表+工程能力的全才', 'AI 領域技術變化快，人才技能容易過時'],
-    promptTemplate: `請分析以下 AI/數據公司的招募需求：
-公司名稱：[填入公司名稱，如 Shopline]
+    promptTemplate: `你是一位獵頭產業顧問。請分析以下 AI/數據公司的招募需求：
+
+公司名稱：[填入公司名稱，如 Appier]
 AI 應用領域：[填入AI應用領域，如 NLP/CV]
 研究 vs 應用比重：[填入研究vs應用比重，如 3:7]
 
-請提供：1. AI 人才市場供需分析 2. 學界 vs 業界人才評估 3. 關鍵技術能力要求 4. 國際人才招募策略`,
+請輸出以下分析報告（我要用來跟客戶提案、制定搜才策略）：
+1. **AI 人才市場供需分析**：ML/Data 人才的供需狀況、薪資行情
+2. **關鍵招募角色 Top 5**：最急需的職位，標註難度等級（🟢簡單/🟡中等/🔴困難）
+3. **人才來源地圖**：適合挖角的目標公司/學校 Top 5（含海外歸國人才分析）
+4. **學界 vs 業界人才評估**：碩博士 vs 實戰派怎麼選？各自的面試評估重點
+5. **獵頭切入建議**：AI 公司的招募痛點？如何用人才稀缺性跟 CTO/VP 提案？`,
   },
   {
     id: 'healthcare-biotech',
@@ -1553,12 +1601,18 @@ AI 應用領域：[填入AI應用領域，如 NLP/CV]
     keyDepartments: ['研發部', '臨床事務部', '法規部（RA）', '品保部', '業務部', '醫學事務部'],
     commonRoles: ['臨床研究員（CRA）', '法規專員（RA）', '品保工程師', '醫藥業務代表', '生物資訊工程師', '軟體工程師（醫材）', '數據科學家'],
     recruitingChallenges: ['高度專業門檻，人才庫小', 'FDA/TFDA 法規人才極稀缺', '生技業薪資波動大（看 pipeline 成敗）', '軟體人才不了解醫療法規（FDA SaMD）'],
-    promptTemplate: `請分析以下醫療/生技公司的招募需求：
-公司名稱：[填入公司名稱，如 Shopline]
+    promptTemplate: `你是一位獵頭產業顧問。請分析以下醫療/生技公司的招募需求：
+
+公司名稱：[填入公司名稱，如 藥華醫藥]
 產品類別：[填入產品類別，如 醫材/藥品]
 法規市場：[填入法規市場，如 FDA/TFDA]
 
-請提供：1. 醫療/生技人才市場特性 2. 法規人才來源分析 3. 跨領域人才（技術+醫療）策略 4. 產業特有的面試重點`,
+請輸出以下分析報告（我要用來跟客戶提案、制定搜才策略）：
+1. **醫療/生技人才市場特性**：高度專業門檻下的人才庫大小、搶人激烈程度
+2. **關鍵招募角色 Top 5**：最急需的職位，標註難度等級（🟢簡單/🟡中等/🔴困難）
+3. **人才來源地圖**：RA/CRA/QA 等專業人才從哪裡來？Top 5 挖角目標公司
+4. **跨領域人才策略**：怎麼找「懂技術又懂法規」的複合型人才？評估要點
+5. **獵頭切入建議**：生技客戶的招募流程？如何用法規人才稀缺性跟客戶提案？`,
   },
   {
     id: 'logistics',
@@ -1570,12 +1624,18 @@ AI 應用領域：[填入AI應用領域，如 NLP/CV]
     keyDepartments: ['營運部', '車隊管理部', '倉儲部', '資訊系統部', '業務部', '客服部'],
     commonRoles: ['物流管理師', '倉儲主管', '車隊調度', '供應鏈分析師', '軟體工程師', '資料分析師', '客服主管'],
     recruitingChallenges: ['基層物流人員嚴重缺工', '物流科技人才需懂領域知識', '工作環境與待遇難吸引年輕族群', '數位轉型需要的 IT 人才與科技業競爭'],
-    promptTemplate: `請分析以下物流/運輸公司的招募需求：
-公司名稱：[填入公司名稱，如 Shopline]
+    promptTemplate: `你是一位獵頭產業顧問。請分析以下物流/運輸公司的招募需求：
+
+公司名稱：[填入公司名稱，如 統一速達]
 物流類型：[填入物流類型，如 倉儲/宅配]
 數位化程度：[填入數位化程度，如 初步導入]
 
-請提供：1. 物流業人才市場現況 2. 物流科技人才來源 3. 基層人力招募策略 4. 產業數位轉型人才需求`,
+請輸出以下分析報告（我要用來跟客戶提案、制定搜才策略）：
+1. **物流業人才市場現況**：基層缺工 & 中高階管理人才的供需分析
+2. **關鍵招募角色 Top 5**：最急需的職位，標註難度等級（🟢簡單/🟡中等/🔴困難）
+3. **人才來源地圖**：物流科技人才（IT/數據）從哪裡來？Top 5 挖角目標公司
+4. **數位轉型人才策略**：傳統物流公司怎麼吸引科技人才？薪資以外的賣點
+5. **獵頭切入建議**：物流客戶的招募痛點？我該用什麼角度跟營運總監/HR 提案？`,
   },
 ];
 
@@ -2703,13 +2763,28 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
   }, [jobs, sfJobSearch]);
 
   const sfFilteredClients = useMemo(() => {
-    if (!sfClientSearch) return clients.slice(0, 50);
-    const q = sfClientSearch.toLowerCase();
-    return clients.filter((c: any) =>
-      (c.company_name || '').toLowerCase().includes(q) ||
-      (c.industry || '').toLowerCase().includes(q)
-    ).slice(0, 50);
-  }, [clients, sfClientSearch]);
+    let filtered = clients;
+    // 先按產業篩選（sfIndustry 有值時只顯示同產業客戶）
+    if (sfIndustry) {
+      const indLower = sfIndustry.toLowerCase();
+      // 模糊匹配：「SaaS / 軟體服務」可匹配 industry 含 "saas" 或 "軟體" 的客戶
+      const indKeywords = indLower.split(/[\/\s、,]+/).filter(Boolean);
+      filtered = clients.filter((c: any) => {
+        const ci = (c.industry || '').toLowerCase();
+        if (!ci) return false;
+        return indKeywords.some((kw: string) => ci.includes(kw) || kw.includes(ci));
+      });
+    }
+    // 再按搜尋文字篩選
+    if (sfClientSearch) {
+      const q = sfClientSearch.toLowerCase();
+      filtered = filtered.filter((c: any) =>
+        (c.company_name || '').toLowerCase().includes(q) ||
+        (c.industry || '').toLowerCase().includes(q)
+      );
+    }
+    return filtered.slice(0, 50);
+  }, [clients, sfClientSearch, sfIndustry]);
 
   // --- Smart Fill: industry quick-pick options ---
   const INDUSTRY_QUICK_PICKS = INDUSTRY_MAP.map(ind => ind.name);
@@ -2789,6 +2864,16 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
             )}
             {sfClientOpen && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {/* 產業篩選提示 */}
+                {sfIndustry && (
+                  <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                    <span className="text-[10px] text-indigo-600">篩選：{sfIndustry} 產業客戶</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSfIndustry(''); }}
+                      className="text-[10px] text-indigo-500 hover:text-indigo-700 underline"
+                    >顯示全部</button>
+                  </div>
+                )}
                 {sfFilteredClients.length > 0 ? sfFilteredClients.map((c: any) => (
                   <div
                     key={c._id || c.id}
@@ -2805,7 +2890,8 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                   </div>
                 )) : (
                   <div className="px-3 py-3 text-sm text-gray-400 text-center">
-                    {clients.length === 0 ? '載入中...' : '找不到符合的客戶'}
+                    {clients.length === 0 ? '載入中...' :
+                     sfIndustry ? `此產業沒有客戶，請先為客戶標註產業` : '找不到符合的客戶'}
                   </div>
                 )}
               </div>
@@ -3044,11 +3130,18 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
               <h4 className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
                 <MessageSquare className="w-4 h-4" /> 如何使用產業 Prompt？
               </h4>
-              <div className="text-xs text-blue-700 space-y-1.5">
-                <p><span className="font-semibold">步驟 1</span>：用下方「智能填入」選擇職缺或客戶，系統自動替換 Prompt 變數</p>
-                <p><span className="font-semibold">步驟 2</span>：點擊「查看詳情」展開產業卡片，瀏覽商業模式、代表公司、常見職缺</p>
-                <p><span className="font-semibold">步驟 3</span>：點擊「複製 Prompt」，貼到 <span className="font-semibold">ChatGPT / Claude / 龍蝦 AI</span> 即可使用</p>
-                <p><span className="font-semibold">你會獲得</span>：AI 會產出該公司的組織架構推測、關鍵招募角色、人才來源建議、薪資競爭力評估</p>
+              <div className="text-xs text-blue-700 space-y-2">
+                <p><span className="font-semibold">步驟 1</span>：點擊下方產業卡片的「查看詳情」，系統會自動篩選該產業的客戶</p>
+                <p><span className="font-semibold">步驟 2</span>：在「智能填入」的客戶欄選擇你要分析的客戶公司（只會顯示同產業的客戶）</p>
+                <p><span className="font-semibold">步驟 3</span>：Prompt 會自動帶入客戶公司名稱，點擊「複製已填入版本」</p>
+                <p><span className="font-semibold">步驟 4</span>：貼到 <span className="font-semibold">ChatGPT / Claude / 龍蝦 AI</span> 即可獲得分析報告</p>
+                <div className="mt-1.5 pt-1.5 border-t border-blue-200">
+                  <p className="font-semibold text-blue-800">📋 AI 會幫你產出什麼？</p>
+                  <p className="mt-0.5">一份完整的<b>產業招募分析報告</b>，包含：該公司組織架構推測、關鍵招募角色 Top 5（含難度等級）、人才來源地圖（挖角目標公司）、薪資競爭力評估、獵頭切入建議。你可以直接用來<b>跟客戶提案</b>或<b>制定搜才策略</b>。</p>
+                </div>
+                <div className="mt-1 bg-blue-100/50 rounded-lg px-2.5 py-1.5">
+                  <p className="text-[11px] text-blue-600">💡 <b>小提示</b>：客戶需要在 BD 客戶管理頁面標註「產業別」，才會出現在同產業的篩選結果中。沒有標註的客戶可以點「顯示全部」查看。</p>
+                </div>
               </div>
             </div>
 
@@ -3071,8 +3164,11 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredIndustries.map(ind => {
                 // Smart Fill for industry prompts
+                // 有選客戶/職缺 → 用選的公司名（尊重使用者選擇）
+                // 沒選 → 模板自帶的 [如 國泰金控] 等範例不動
+                // 產業名 → 永遠用卡片自己的名稱（ind.name）
                 const { filled: indFilled, replacementCount: indFillCount } = hasFillData
-                  ? fillLearningPrompt(ind.promptTemplate, sfSelectedJob, sfSelectedClient, sfIndustry)
+                  ? fillLearningPrompt(ind.promptTemplate, sfSelectedJob, sfSelectedClient, ind.name)
                   : { filled: ind.promptTemplate, replacementCount: 0 };
                 const indIsFilled = hasFillData && indFillCount > 0;
 
@@ -3129,6 +3225,14 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                           ))}
                         </ul>
                       </div>
+                      {/* 用途說明 */}
+                      <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-2.5">
+                        <p className="text-[11px] font-semibold text-indigo-700 mb-1">📋 這個 Prompt 會幫你產出什麼？</p>
+                        <p className="text-[10px] text-indigo-600 leading-relaxed">
+                          AI 會產出一份完整的<b>產業招募分析報告</b>，包含：組織架構、關鍵招募角色 Top 5、人才來源地圖（挖角目標公司）、薪資競爭力評估、獵頭切入建議。
+                          你可以直接用這份報告<b>跟客戶提案</b>或<b>制定搜才策略</b>。
+                        </p>
+                      </div>
                       {/* Prompt preview with smart fill */}
                       {indIsFilled && (
                         <div className="flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full w-fit">
@@ -3161,7 +3265,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                     </div>
                   ) : (
                     <button
-                      onClick={() => setExpandedIndustry(ind.id)}
+                      onClick={() => { setExpandedIndustry(ind.id); setSfIndustry(ind.name); }}
                       className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1"
                     >
                       查看詳情 <ChevronRight className="w-3 h-3" />
