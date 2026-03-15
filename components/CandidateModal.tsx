@@ -415,34 +415,36 @@ POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
     };
   }, []);
   
-  // 重新 fetch 候選人資料以獲得最新的 aiMatchResult
+  // 重新 fetch 候選人資料以獲得最新欄位
   React.useEffect(() => {
+    let cancelled = false;
     const fetchLatest = async () => {
       try {
         const response = await fetch(getApiUrl(`/candidates/${candidate.id}`), { headers: getAuthHeaders() });
-        if (response.ok) {
+        if (response.ok && !cancelled) {
           const result = await response.json();
           const data = result.data || {};
-          // 合併後端所有欄位到 candidate（包括 aiMatchResult, aiSummary, progressTracking, notes 等）
-          setEnrichedCandidate(prev => ({
+          // 只合併關鍵欄位，避免 snake_case 汙染和空字串覆蓋
+          setEnrichedCandidate({
             ...candidate,
-            ...data,
-            // 確保關鍵欄位的 camelCase / snake_case 相容
-            aiMatchResult: data.ai_match_result || data.aiMatchResult || candidate.aiMatchResult || null,
-            aiSummary: data.ai_summary || data.aiSummary || candidate.aiSummary || null,
-            progressTracking: data.progress_tracking || data.progressTracking || candidate.progressTracking || [],
-            notes: data.notes ?? candidate.notes ?? '',
-          }));
+            aiMatchResult: data.aiMatchResult || data.ai_match_result || candidate.aiMatchResult || null,
+            aiSummary: data.aiSummary || data.ai_summary || (candidate as any).aiSummary || null,
+            progressTracking: data.progressTracking || data.progress_tracking || candidate.progressTracking || [],
+            notes: (data.notes != null && data.notes !== '') ? data.notes : (candidate.notes || ''),
+          });
           // 同步更新備註的 local state
-          const latestNotes = data.notes ?? candidate.notes ?? '';
+          const latestNotes = (data.notes != null && data.notes !== '') ? data.notes : '';
           if (latestNotes) setLocalNotes(latestNotes);
         }
       } catch (error) {
-        console.error('Fetch candidate detail failed:', error);
-        setEnrichedCandidate(candidate);
+        if (!cancelled) {
+          console.error('Fetch candidate detail failed:', error);
+          setEnrichedCandidate(candidate);
+        }
       }
     };
     fetchLatest();
+    return () => { cancelled = true; };
   }, [candidate.id, candidate]);
 
   // Sprint 2: Load taxonomy data for dropdowns
@@ -545,7 +547,8 @@ POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
         ...(newProgressNote ? { note: newProgressNote } : {})
       };
 
-      const updatedProgress = [...(candidate.progressTracking || []), newEvent];
+      const currentTracking = enrichedCandidate.progressTracking || candidate.progressTracking || [];
+      const updatedProgress = [...currentTracking, newEvent];
       const newStatus = eventToStatus[newProgressEvent] || candidate.status;
 
       // 用 PATCH 同時更新 status + progressTracking
@@ -556,7 +559,9 @@ POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
       });
 
       toast.success('進度新增成功！看板與 Pipeline 欄位已同步更新');
-      // 即時更新 UI 而非整頁重載
+      // 即時更新 enrichedCandidate 讓 UI 立刻反映
+      setEnrichedCandidate(prev => ({ ...prev, progressTracking: updatedProgress, status: newStatus }));
+      // 同步通知父元件
       onCandidateUpdate?.(candidate.id, {
         status: newStatus,
         progressTracking: updatedProgress,
@@ -652,6 +657,8 @@ Step1ne Recruitment`;
 
       setLocalNotes(merged);
       setNewNoteText('');
+      // 同步更新 enrichedCandidate
+      setEnrichedCandidate(prev => ({ ...prev, notes: merged }));
     } catch (err) {
       toast.error('儲存備註失敗，請稍後再試');
     } finally {
@@ -3695,14 +3702,15 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
             </div>
           )}
           
-          {activeTab === 'history' && (
-            <div className="space-y-4">
+          {activeTab === 'history' && (() => {
+            const trackingArr = enrichedCandidate.progressTracking || candidate.progressTracking || [];
+            return (
+            <div className="space-y-4 min-h-[300px]">
               {/* Progress Timeline */}
-              {(enrichedCandidate.progressTracking || candidate.progressTracking) && (enrichedCandidate.progressTracking || candidate.progressTracking).length > 0 ? (
+              {trackingArr.length > 0 ? (
                 <div className="space-y-3">
-                  {(enrichedCandidate.progressTracking || candidate.progressTracking).map((event: any, i: number) => {
-                    const trackingArr = enrichedCandidate.progressTracking || candidate.progressTracking;
-                    const isLast = i === trackingArr!.length - 1;
+                  {trackingArr.map((event: any, i: number) => {
+                    const isLast = i === trackingArr.length - 1;
                     const eventColors: Record<string, {bg: string, text: string, icon: string}> = {
                       '聯繫階段': {bg: 'bg-blue-100', text: 'text-blue-600', icon: '📞'},
                       '面試階段': {bg: 'bg-purple-100', text: 'text-purple-600', icon: '💼'},
@@ -3900,10 +3908,11 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                 </div>
               )}
             </div>
-          )}
-          
+            );
+          })()}
+
           {activeTab === 'notes' && (
-            <div className="space-y-4">
+            <div className="space-y-4 min-h-[300px]">
               {/* 現有備註 */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
