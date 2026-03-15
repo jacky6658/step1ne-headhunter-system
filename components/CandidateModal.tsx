@@ -3727,10 +3727,10 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                   })}
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-400">
-                  <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>尚無進度追蹤記錄</p>
-                  <p className="text-sm mt-2">開始追蹤候選人的招聘進度</p>
+                <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
+                  <Clock className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm font-medium text-gray-500">尚無進度追蹤記錄</p>
+                  <p className="text-xs text-gray-400 mt-1">請點擊下方按鈕，開始追蹤候選人的招聘進度</p>
                 </div>
               )}
               
@@ -3967,10 +3967,10 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                     })()}
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-gray-400">
-                    <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">尚無備註紀錄</p>
-                    <p className="text-xs mt-1">顧問或 AIbot 新增的備註將顯示於此</p>
+                  <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
+                    <MessageSquare className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm font-medium text-gray-500">尚無備註紀錄</p>
+                    <p className="text-xs text-gray-400 mt-1">在下方輸入備註，系統會自動附加時間戳與您的名稱</p>
                   </div>
                 )}
               </div>
@@ -4338,6 +4338,13 @@ Content-Type: application/json
               <div className="space-y-5">
 
                 {/* ━━━ AI 總結結果（AI 回寫後顯示）━━━ */}
+                {!aiSummaryData && (
+                  <div className="text-center py-6 bg-gradient-to-br from-slate-50 to-gray-50 border border-dashed border-slate-200 rounded-xl">
+                    <Sparkles className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                    <p className="text-sm font-medium text-slate-500">尚未執行 AI 總結分析</p>
+                    <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">請點擊下方「複製 AI 分析提示詞」，貼到 ChatGPT / Claude 執行後，將結果回寫至系統即可顯示</p>
+                  </div>
+                )}
                 {aiSummaryData && (
                   <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 space-y-3">
                     <div className="flex items-center justify-between">

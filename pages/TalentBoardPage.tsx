@@ -263,28 +263,28 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
         onStartTour={() => { localStorage.removeItem('step1ne-talent-board-tour'); setTourActive(true); }}
       />
 
-      {/* Almost Ready Banner */}
+      {/* Almost Ready Banner — 精簡單行 */}
       {almostReadyCount > 0 && !filterAlmostReady && (
-        <div className="mb-3 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg px-4 py-2.5">
-          <div className="flex items-center gap-2">
-            <Zap size={16} className="text-amber-500" />
-            <span className="text-sm font-medium text-amber-800">
-              有 <span className="font-bold text-amber-900">{almostReadyCount}</span> 位候選人即將達標（完整度 60-79%），只需顧問面談補齊 2-3 個欄位即可進入 Precision Pool
+        <div className="mb-2 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg px-3 py-1.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <Zap size={14} className="text-amber-500 shrink-0" />
+            <span className="text-xs font-medium text-amber-800 truncate">
+              <span className="font-bold text-amber-900">{almostReadyCount}</span> 位候選人即將達標（完整度 60-79%），補齊 2-3 欄位即可進 Precision Pool
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0 ml-3">
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
             <button
               onClick={() => { setFilterAlmostReady(true); setShowFilters(true); }}
-              className="text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-md border border-amber-300 transition-colors"
+              className="text-[11px] font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-1 rounded border border-amber-300 transition-colors"
             >
               查看名單
             </button>
             <button
               onClick={exportAlmostReadyCSV}
-              className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-white hover:bg-amber-50 px-3 py-1.5 rounded-md border border-amber-300 transition-colors"
+              className="flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-white hover:bg-amber-50 px-2 py-1 rounded border border-amber-300 transition-colors"
             >
-              <Download size={12} />
-              匯出 Excel
+              <Download size={11} />
+              匯出
             </button>
           </div>
         </div>
@@ -470,7 +470,7 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
                   </div>
 
                   {/* Cards */}
-                  <div className="flex-1 overflow-y-auto p-2 space-y-2 max-h-[calc(100vh-280px)]">
+                  <div className="flex-1 overflow-y-auto p-2 space-y-2 max-h-[calc(100vh-220px)]">
                     {items.length === 0 ? (
                       <p className="text-xs text-gray-400 text-center py-8">暫無人選</p>
                     ) : (
