@@ -40,11 +40,14 @@ export function OnboardingTour({ storageKey, steps, active, onComplete }: Onboar
     }
   }, [storageKey]);
 
-  // External trigger
+  // External trigger (respects global toggle)
   useEffect(() => {
     if (active) {
-      setCurrentStep(0);
-      setRunning(true);
+      const globalOff = localStorage.getItem('step1ne-tours-disabled') === '1';
+      if (!globalOff) {
+        setCurrentStep(0);
+        setRunning(true);
+      }
     }
   }, [active]);
 

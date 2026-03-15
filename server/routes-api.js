@@ -1054,6 +1054,25 @@ router.get('/candidates/:id', async (req, res) => {
       competingOffers: row.competing_offers || '',
       relationshipLevel: row.relationship_level || '',
 
+      // Phase 1 新增欄位（與 list API 一致）
+      consultantNote: row.consultant_note || '',
+      industry: row.industry || '',
+      languages: row.languages || '',
+      certifications: row.certifications || '',
+      currentSalary: row.current_salary || '',
+      expectedSalary: row.expected_salary || '',
+      noticePeriod: row.notice_period || '',
+      managementExperience: row.management_experience || false,
+      teamSize: row.team_size || '',
+      consultantEvaluation: row.consultant_evaluation || null,
+      // 語音評估 + 自傳 + 作品集 + AI
+      voiceAssessments: (() => { const v = row.voice_assessments; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
+      biography: row.biography || '',
+      portfolioUrl: row.portfolio_url || '',
+      aiSummary: row.ai_summary || null,
+      resumeFiles: row.resume_files || [],
+      createdBy: 'system',
+
       // 向後相容：保留 DB 字段名
       work_history: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       leaving_reason: row.leaving_reason || '',

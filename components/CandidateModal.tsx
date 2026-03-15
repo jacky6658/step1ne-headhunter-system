@@ -151,6 +151,7 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDraggingResume, setIsDraggingResume] = useState(false);
   const resumeInputRef = useRef<HTMLInputElement>(null);
+  const contentScrollRef = useRef<HTMLDivElement>(null);
   const [enrichedCandidate, setEnrichedCandidate] = useState(candidate);
 
   // 基本資料編輯
@@ -406,6 +407,13 @@ POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
 - 本地部署: Qwen2.5-72B / Llama-3.1-70B / Mistral-Large
 - Temperature: 0.3（低溫度確保穩定評級）`;
   };
+
+  // 切換 Tab 時重置滾動位置（防止從長 info tab 切換到短 tab 時看起來空白）
+  React.useEffect(() => {
+    if (contentScrollRef.current) {
+      contentScrollRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   // 禁止背景滾動
   React.useEffect(() => {
@@ -1492,7 +1500,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
         </div>
         
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div ref={contentScrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6">
           {activeTab === 'info' && (
             <div className="space-y-6">
               {/* 負責顧問 */}

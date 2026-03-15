@@ -2487,8 +2487,10 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
   const sfJobRef = useRef<HTMLDivElement>(null);
   const sfClientRef = useRef<HTMLDivElement>(null);
 
-  // --- Auto-start onboarding tour on first visit ---
+  // --- Auto-start onboarding tour on first visit (respects global toggle) ---
   useEffect(() => {
+    const globalOff = localStorage.getItem('step1ne-tours-disabled') === '1';
+    if (globalOff) return;
     const done = localStorage.getItem('learning-center-tour-done');
     if (!done) {
       const timer = setTimeout(() => setTourActive(true), 600);
