@@ -234,6 +234,9 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [sectionDealOpen, setSectionDealOpen] = useState(false);
   const [sectionSupplementOpen, setSectionSupplementOpen] = useState(false);
 
+  // 新手使用指南（必須在頂層呼叫 useState，不能放在 JSX IIFE 裡）
+  const [guideExpanded, setGuideExpanded] = useState(() => !localStorage.getItem('step1ne-candidate-modal-guide'));
+
   // Sprint 2: Taxonomy data for dropdowns
   const [roleTaxonomy, setRoleTaxonomy] = useState<Record<string, { label: string; canonicalRoles: string[] }>>({});
   const [industryTaxonomy, setIndustryTaxonomy] = useState<Array<{ tag: string; label: string }>>([]);
@@ -1759,10 +1762,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
               })()}
 
               {/* ── 新手使用指南 ── */}
-              {(() => {
-                const guideKey = 'step1ne-candidate-modal-guide';
-                const [guideExpanded, setGuideExpanded] = React.useState(() => !localStorage.getItem(guideKey));
-                return guideExpanded ? (
+              {guideExpanded ? (
                   <div className="bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -1773,11 +1773,11 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => { setGuideExpanded(false); localStorage.setItem(guideKey, '1'); localStorage.removeItem('step1ne-candidate-modal-tour'); setTourActive(true); }}
+                          onClick={() => { setGuideExpanded(false); localStorage.setItem('step1ne-candidate-modal-guide', '1'); localStorage.removeItem('step1ne-candidate-modal-tour'); setTourActive(true); }}
                           className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-indigo-600 bg-white border border-indigo-200 rounded-md hover:bg-indigo-50"
                         >🔄 互動導覽</button>
                         <button
-                          onClick={() => { setGuideExpanded(false); localStorage.setItem(guideKey, '1'); }}
+                          onClick={() => { setGuideExpanded(false); localStorage.setItem('step1ne-candidate-modal-guide', '1'); }}
                           className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-blue-600 bg-white border border-blue-200 rounded-md hover:bg-blue-50"
                         >我知道了</button>
                       </div>
@@ -1846,8 +1846,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
                       🔄 互動導覽
                     </button>
                   </div>
-                );
-              })()}
+              )}
 
               {/* ── 全域編輯控制列 ── */}
               <div className="flex items-center justify-between" data-tour="modal-candidate-data">
