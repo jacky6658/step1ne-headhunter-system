@@ -28,8 +28,10 @@ export function OnboardingTour({ storageKey, steps, active, onComplete }: Onboar
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  // Auto-start on first visit
+  // Auto-start on first visit (respects global toggle)
   useEffect(() => {
+    const globalOff = localStorage.getItem('step1ne-tours-disabled') === '1';
+    if (globalOff) return;
     const done = localStorage.getItem(storageKey);
     if (!done) {
       // Delay to let page render

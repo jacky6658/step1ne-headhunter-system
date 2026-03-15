@@ -423,11 +423,19 @@ POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
         if (response.ok) {
           const result = await response.json();
           const data = result.data || {};
-          // 合併後端資料到 candidate，確保 aiMatchResult 存在
-          setEnrichedCandidate({
+          // 合併後端所有欄位到 candidate（包括 aiMatchResult, aiSummary, progressTracking, notes 等）
+          setEnrichedCandidate(prev => ({
             ...candidate,
-            aiMatchResult: data.ai_match_result || data.aiMatchResult || candidate.aiMatchResult || null
-          });
+            ...data,
+            // 確保關鍵欄位的 camelCase / snake_case 相容
+            aiMatchResult: data.ai_match_result || data.aiMatchResult || candidate.aiMatchResult || null,
+            aiSummary: data.ai_summary || data.aiSummary || candidate.aiSummary || null,
+            progressTracking: data.progress_tracking || data.progressTracking || candidate.progressTracking || [],
+            notes: data.notes ?? candidate.notes ?? '',
+          }));
+          // 同步更新備註的 local state
+          const latestNotes = data.notes ?? candidate.notes ?? '';
+          if (latestNotes) setLocalNotes(latestNotes);
         }
       } catch (error) {
         console.error('Fetch candidate detail failed:', error);
@@ -3690,10 +3698,11 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
           {activeTab === 'history' && (
             <div className="space-y-4">
               {/* Progress Timeline */}
-              {candidate.progressTracking && candidate.progressTracking.length > 0 ? (
+              {(enrichedCandidate.progressTracking || candidate.progressTracking) && (enrichedCandidate.progressTracking || candidate.progressTracking).length > 0 ? (
                 <div className="space-y-3">
-                  {candidate.progressTracking.map((event: any, i: number) => {
-                    const isLast = i === candidate.progressTracking!.length - 1;
+                  {(enrichedCandidate.progressTracking || candidate.progressTracking).map((event: any, i: number) => {
+                    const trackingArr = enrichedCandidate.progressTracking || candidate.progressTracking;
+                    const isLast = i === trackingArr!.length - 1;
                     const eventColors: Record<string, {bg: string, text: string, icon: string}> = {
                       '聯繫階段': {bg: 'bg-blue-100', text: 'text-blue-600', icon: '📞'},
                       '面試階段': {bg: 'bg-purple-100', text: 'text-purple-600', icon: '💼'},

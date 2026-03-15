@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { updateUserProfile } from '../services/userService';
 import { apiPut, apiGet } from '../config/api';
-import { X, Upload, User, MessageSquare, Save, Loader2, Phone, Mail, Hash, Eye, EyeOff, Github, Search } from 'lucide-react';
+import { X, Upload, User, MessageSquare, Save, Loader2, Phone, Mail, Hash, Eye, EyeOff, Github, Search, Navigation, RotateCcw } from 'lucide-react';
 import { toast } from './Toast';
 
 interface ProfileSettingsModalProps {
@@ -37,6 +37,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const [showTgGroupToken, setShowTgGroupToken] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [toursEnabled, setToursEnabled] = useState(() => localStorage.getItem('step1ne-tours-disabled') !== '1');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -481,6 +482,60 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               設定後，人選指派等重要通知會同步推送到你的 TG。
               可透過 @BotFather 建立 Bot，再用 @userinfobot 取得 Chat ID。
             </p>
+          </div>
+
+          {/* 導覽設定 */}
+          <div className="space-y-3 border-t pt-4">
+            <label className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest block flex items-center gap-2">
+              <Navigation size={10} className="sm:w-3 sm:h-3" />
+              頁面導覽設定
+            </label>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-700">新手導覽功能</p>
+                <p className="text-[10px] text-slate-400">開啟後進入新頁面會自動播放互動導覽</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !toursEnabled;
+                  setToursEnabled(next);
+                  if (next) {
+                    localStorage.removeItem('step1ne-tours-disabled');
+                  } else {
+                    localStorage.setItem('step1ne-tours-disabled', '1');
+                    // 同時標記所有 tour 為已完成，避免切換回來時重播
+                    ['step1ne-talent-board-tour', 'step1ne-talent-map-tour', 'step1ne-candidate-modal-tour', 'learning-center-tour-done'].forEach(k => {
+                      localStorage.setItem(k, '1');
+                    });
+                  }
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  toursEnabled ? 'bg-indigo-600' : 'bg-slate-300'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  toursEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+            {toursEnabled && (
+              <button
+                type="button"
+                onClick={() => {
+                  ['step1ne-talent-board-tour', 'step1ne-talent-board-guide',
+                   'step1ne-talent-map-tour', 'step1ne-talent-map-guide',
+                   'step1ne-candidate-modal-tour', 'learning-center-tour-done'].forEach(k => {
+                    localStorage.removeItem(k);
+                  });
+                  toast.success('所有導覽已重置，下次進入頁面會重新播放');
+                }}
+                className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <RotateCcw size={12} />
+                重置所有導覽（重新播放）
+              </button>
+            )}
           </div>
 
           {/* 管理員：群組 TG 設定 */}
