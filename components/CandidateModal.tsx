@@ -4392,7 +4392,40 @@ Content-Type: application/json
 > - \`suggested_questions\`: 建議顧問提問，3-5 題（必填）
 > - \`next_steps\`: 行動建議一句話（必填）
 
-**分析結果寫回系統後，再將完整分析報告（含 1️⃣ 到 7️⃣ 所有內容）輸出給顧問閱讀。**`;
+## Step 5：輸出結果給顧問 ⚠️ 必做（兩件事都要做）
+
+### 5a. 呼叫 API 回寫系統（若你有 API 權限）
+如果你能呼叫 HTTP API，請直接執行上方 Step 4 的 PATCH 請求，將 ai_summary 寫入系統。
+
+### 5b. 在回覆訊息中也輸出 JSON（⚠️ 無論是否已呼叫 API 都必須做）
+在你的回覆訊息中，**必須**同時輸出以下兩個部分：
+
+**部分 1：ai_summary JSON 區塊**（用 \`\`\`json 包裹，方便顧問一鍵複製貼入系統）
+\`\`\`
+// 在回覆中輸出：
+\\\`\\\`\\\`json
+{
+  "one_liner": "你分析的一句話定位",
+  "top_matches": [...你分析的 Top 3...],
+  "strengths": [...],
+  "risks": [...],
+  "salary_risk": "...",
+  "stability_risk": "...",
+  "deep_insight": "...",
+  "suggested_questions": [...],
+  "next_steps": "...",
+  "evaluated_at": "ISO 8601 時間戳",
+  "evaluated_by": "你的模型名稱"
+}
+\\\`\\\`\\\`
+\`\`\`
+
+**部分 2：完整分析報告**（含 1️⃣ 到 7️⃣ 所有分析內容，用人類可讀的格式呈現）
+
+> 💡 這樣做的目的：
+> - 如果 AI 有 API 權限 → 自動寫入系統 + 顧問也能在對話中看到結果
+> - 如果 AI 沒有 API 權限（如 ChatGPT 網頁版）→ 顧問可以複製 JSON 區塊，貼到人選卡片的「貼上 AI 結果」按鈕手動存入系統
+> - 兩種情況都確保分析結果不會遺失`;
             };
 
             const handleCopyAiPrompt = () => {
