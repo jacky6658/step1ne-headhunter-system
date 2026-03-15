@@ -90,6 +90,11 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'notes' | 'ai_summary' | 'ai_match'>('info');
   const [promptCopied, setPromptCopied] = useState(false);
   const [matchPromptCopied, setMatchPromptCopied] = useState(false);
+  // 貼上 AI 結果
+  const [showPasteAiResult, setShowPasteAiResult] = useState(false);
+  const [pasteAiText, setPasteAiText] = useState('');
+  const [savingAiResult, setSavingAiResult] = useState(false);
+  const [pasteAiError, setPasteAiError] = useState('');
   const [showResume, setShowResume] = useState(false);
   const [addingProgress, setAddingProgress] = useState(false);
   const [newProgressEvent, setNewProgressEvent] = useState('');
@@ -1256,6 +1261,53 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}` : ''}
       setSavingEdu(false);
       setAddingEdu(false);
       setEditingEduIdx(null);
+    }
+  };
+
+  // 貼上 AI 總結結果並存入系統
+  const handlePasteAiResult = async () => {
+    setPasteAiError('');
+    const raw = pasteAiText.trim();
+    if (!raw) { setPasteAiError('請先貼上 AI 回覆的內容'); return; }
+
+    // 嘗試從文字中提取 JSON（支援 markdown 包裹的 ```json...```）
+    let jsonStr = raw;
+    const codeBlockMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim();
+
+    // 嘗試找到 ai_summary 物件或直接解析
+    let aiSummary: any;
+    try {
+      const parsed = JSON.parse(jsonStr);
+      // 支援兩種格式：完整 PATCH body { ai_summary: {...} } 或直接 ai_summary 物件
+      aiSummary = parsed.ai_summary || parsed;
+      // 基本驗證
+      if (!aiSummary.one_liner && !aiSummary.strengths && !aiSummary.top_matches) {
+        setPasteAiError('JSON 格式不正確：缺少 one_liner / strengths / top_matches 等必要欄位');
+        return;
+      }
+    } catch {
+      setPasteAiError('無法解析 JSON，請確認貼上的內容是有效的 JSON 格式');
+      return;
+    }
+
+    // 自動補上時間戳
+    if (!aiSummary.evaluated_at) aiSummary.evaluated_at = new Date().toISOString();
+    if (!aiSummary.evaluated_by) aiSummary.evaluated_by = '手動貼入';
+
+    setSavingAiResult(true);
+    try {
+      await apiPatch(`/candidates/${candidate.id}`, { ai_summary: aiSummary, actor: 'AI-summary-paste' });
+      // 更新本地狀態
+      setEnrichedCandidate(prev => ({ ...prev, aiSummary: aiSummary }));
+      onCandidateUpdate?.(candidate.id, { aiSummary: aiSummary } as any);
+      toast.success('AI 總結已儲存至系統');
+      setShowPasteAiResult(false);
+      setPasteAiText('');
+    } catch (err: any) {
+      setPasteAiError(`儲存失敗：${err.message || '請檢查網路連線'}`);
+    } finally {
+      setSavingAiResult(false);
     }
   };
 
@@ -4556,6 +4608,61 @@ Content-Type: application/json
                   <p className="text-center text-[10px] text-slate-400 mt-2">
                     提示詞包含人選完整資料 + API 端點，AI 會自動獲取職缺並進行匹配分析
                   </p>
+
+                  {/* 貼上 AI 結果按鈕 */}
+                  <button
+                    onClick={() => setShowPasteAiResult(!showPasteAiResult)}
+                    className="w-full mt-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 border-2 border-dashed border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400"
+                  >
+                    <Download className="w-4 h-4" />
+                    {showPasteAiResult ? '收起' : '貼上 AI 結果到系統'}
+                  </button>
+
+                  {/* 貼上 AI 結果展開區域 */}
+                  {showPasteAiResult && (
+                    <div className="mt-3 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Download className="w-4 h-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-emerald-700">貼上 AI 回覆的 JSON 結果</span>
+                      </div>
+                      <p className="text-[11px] text-emerald-600/80 leading-relaxed">
+                        從 ChatGPT / Claude 複製 AI 回覆中的 <code className="bg-white/70 px-1 py-0.5 rounded text-[10px] font-mono">ai_summary</code> JSON 物件，
+                        貼到下方後按「儲存」即可寫入系統。
+                      </p>
+                      <textarea
+                        value={pasteAiText}
+                        onChange={(e) => { setPasteAiText(e.target.value); setPasteAiError(''); }}
+                        placeholder={'貼上 JSON，例如：\n{\n  "one_liner": "5年 Java 後端，Fintech 經驗豐富",\n  "top_matches": [...],\n  "strengths": ["核心優勢1", ...],\n  "risks": ["風險1", ...],\n  "next_steps": "建議安排面試"\n}'}
+                        className="w-full px-3 py-2.5 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-transparent resize-none text-xs font-mono bg-white"
+                        rows={8}
+                      />
+                      {pasteAiError && (
+                        <div className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {pasteAiError}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handlePasteAiResult}
+                          disabled={savingAiResult || !pasteAiText.trim()}
+                          className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        >
+                          {savingAiResult ? (
+                            <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> 儲存中...</>
+                          ) : (
+                            <><CheckCircle2 className="w-4 h-4" /> 解析並儲存到系統</>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => { setShowPasteAiResult(false); setPasteAiText(''); setPasteAiError(''); }}
+                          className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 text-sm transition-colors"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
               </div>
