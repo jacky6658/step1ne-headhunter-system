@@ -125,6 +125,18 @@ function apiAuth(req, res, next) {
   const publicPaths = [
     '/health',
     '/webhooks/github',     // GitHub webhook 有自己的 HMAC 驗證
+    '/ai-guide',            // AI 統一入口手冊（公開，供外部 AI 學習）
+    '/guide/clients',       // AI 客戶模組手冊
+    '/guide/jobs',          // AI 職缺模組手冊
+    '/guide/candidates',    // AI 人選模組手冊
+    '/guide/talent-ops',    // AI 人才AI模組手冊
+    '/guide',               // 舊版完整手冊
+    '/scoring-guide',       // 評分指南
+    '/jobs-import-guide',   // 職缺匯入指南
+    '/resume-guide',        // 履歷分析指南
+    '/resume-import-guide', // 履歷匯入指南
+    '/github-analysis-guide', // GitHub 分析指南
+    '/consultant-sop',      // 顧問 SOP 手冊
   ];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p + '/'))) {
     return next();
