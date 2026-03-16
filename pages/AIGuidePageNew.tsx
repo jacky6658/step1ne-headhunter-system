@@ -378,6 +378,62 @@ export function AIGuidePageNew({ userProfile }: AIGuidePageNewProps) {
             </p>
           </div>
 
+          {/* AI 統一入口啟動指令 */}
+          <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-indigo-600" />
+                <h2 className="text-lg font-bold text-indigo-900">🚀 AI 統一入口啟動指令</h2>
+              </div>
+              <button
+                onClick={() => handleCopy(
+                  `請先閱讀以下統一入口，了解系統有哪些模組：\n${BASE_URL}/api/ai-guide\n\n然後依你的任務讀取對應模組手冊：\n- 客戶操作：${BASE_URL}/api/guide/clients\n- 職缺操作：${BASE_URL}/api/guide/jobs\n- 人選匯入與管理：${BASE_URL}/api/guide/candidates\n- AI 分析與進階操作：${BASE_URL}/api/guide/talent-ops\n\n讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`,
+                  'unified-entry'
+                )}
+                className={`text-xs px-4 py-2 rounded-lg font-medium flex items-center gap-1.5 transition-colors ${
+                  copiedId === 'unified-entry'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                }`}
+              >
+                {copiedId === 'unified-entry' ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedId === 'unified-entry' ? '已複製！' : '複製統一啟動詞'}
+              </button>
+            </div>
+            <p className="text-sm text-indigo-700 mb-3">
+              不確定該用哪個 Bot？直接複製以下指令貼給任何 AI，它會自動讀取所有模組手冊並依任務操作。
+            </p>
+            <div className="bg-white rounded-lg p-4 border border-indigo-100 font-mono text-xs text-gray-800 whitespace-pre-line leading-relaxed">
+{`請先閱讀以下統一入口，了解系統有哪些模組：
+${BASE_URL}/api/ai-guide
+
+然後依你的任務讀取對應模組手冊：
+- 客戶操作：${BASE_URL}/api/guide/clients
+- 職缺操作：${BASE_URL}/api/guide/jobs
+- 人選匯入與管理：${BASE_URL}/api/guide/candidates
+- AI 分析與進階操作：${BASE_URL}/api/guide/talent-ops
+
+讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a href={`${BASE_URL}/api/ai-guide`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 underline">
+                <ExternalLink className="w-3 h-3" /> 統一入口
+              </a>
+              <a href={`${BASE_URL}/api/guide/clients`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 underline">
+                <ExternalLink className="w-3 h-3" /> 客戶模組
+              </a>
+              <a href={`${BASE_URL}/api/guide/jobs`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 underline">
+                <ExternalLink className="w-3 h-3" /> 職缺模組
+              </a>
+              <a href={`${BASE_URL}/api/guide/candidates`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 underline">
+                <ExternalLink className="w-3 h-3" /> 人選模組
+              </a>
+              <a href={`${BASE_URL}/api/guide/talent-ops`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 underline">
+                <ExternalLink className="w-3 h-3" /> 人才AI模組
+              </a>
+            </div>
+          </div>
+
           {/* 每個 Bot 卡片 */}
           {BOTS.map(bot => (
             <div
