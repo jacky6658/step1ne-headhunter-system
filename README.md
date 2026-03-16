@@ -220,4 +220,34 @@ https://backendstep1ne.zeabur.app/api/guide
 
 ---
 
-*Last updated: 2026-03-15*
+## 📋 待做事項 (Roadmap)
+
+> 完整 Issue 追蹤：[GitHub Issues](https://github.com/jacky6658/step1ne-headhunter-system/issues)
+
+### 🚀 系統本地化遷移 [#1](https://github.com/jacky6658/step1ne-headhunter-system/issues/1)
+- [ ] 本地 PostgreSQL 建置 + 資料匯入（`pg_dump` → `psql`）
+- [ ] 後端本地化（`.env` 設定、CORS 調整、API 驗證）
+- [ ] 前端本地化（`VITE_API_URL` 切換、`npm run build`）
+- [ ] Docker 容器化（`Dockerfile` + `docker-compose.yml`）
+
+### 🌐 顧問對外公開頁面 [#2](https://github.com/jacky6658/step1ne-headhunter-system/issues/2)
+- [x] 設定 UI（5 模板 / 配色 / 內容 / SEO）
+- [x] 即時預覽系統（桌機 / 平板 / 手機切換）
+- [ ] 獨立 consultant-site 應用（SSR/SSG）
+- [ ] 職缺展示 + 投遞表單
+- [ ] 公開 API（`/api/public/consultants/:slug`）
+- [ ] 瀏覽統計 + 投遞通知
+
+### 🔗 網域遷移 [#3](https://github.com/jacky6658/step1ne-headhunter-system/issues/3)
+- [ ] DNS 設定（`app.step1ne.com` / `api.step1ne.com` / `site.step1ne.com`）
+- [ ] Zeabur 自訂域名綁定 + SSL
+- [ ] 程式碼 URL 全面更新（constants / CORS / guides）
+- [ ] 舊域名 301 重導向
+
+### 🧠 AI 進階功能
+- [ ] Job Matching 匹配機制 — 輸入 JD 自動計算匹配度（技能 35% / 薪資 15% / 年資 15% / 產業 10%）
+- [ ] JD 自動解析（必備技能 / 年資要求 / 產業需求）
+
+---
+
+*Last updated: 2026-03-16*
