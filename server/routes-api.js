@@ -3772,6 +3772,48 @@ router.get('/github-analysis-guide', (req, res) => {
   }
 });
 
+// ==================== AI 模組化手冊統一入口 (NEW - 2026-03-16) ====================
+
+const AI_GUIDE_FILES = {
+  'index':       'AI-GUIDE-INDEX.md',
+  'clients':     'AI-CLIENT-GUIDE.md',
+  'jobs':        'AI-JOB-GUIDE.md',
+  'candidates':  'AI-CANDIDATE-GUIDE.md',
+  'talent-ops':  'AI-TALENT-OPS-GUIDE.md',
+};
+
+// GET /api/ai-guide — 統一入口（索引頁）
+// GET /api/guide/clients — 客戶模組
+// GET /api/guide/jobs — 職缺模組
+// GET /api/guide/candidates — 人選模組
+// GET /api/guide/talent-ops — 人才AI模組
+router.get('/ai-guide', (req, res) => serveGuide('index', req, res));
+router.get('/guide/clients', (req, res) => serveGuide('clients', req, res));
+router.get('/guide/jobs', (req, res) => serveGuide('jobs', req, res));
+router.get('/guide/candidates', (req, res) => serveGuide('candidates', req, res));
+router.get('/guide/talent-ops', (req, res) => serveGuide('talent-ops', req, res));
+
+function serveGuide(key, req, res) {
+  try {
+    const filename = AI_GUIDE_FILES[key];
+    if (!filename) return res.status(404).json({ success: false, error: `Guide "${key}" not found` });
+    const guidePath = path.join(__dirname, 'guides', filename);
+    if (!fs.existsSync(guidePath)) {
+      return res.status(404).json({ success: false, error: `Guide file not found: ${filename}` });
+    }
+    const content = fs.readFileSync(guidePath, 'utf-8');
+    const accept = req.headers['accept'] || '';
+    if (accept.includes('application/json')) {
+      res.json({ success: true, guide: key, content });
+    } else {
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.send(content);
+    }
+  } catch (error) {
+    safeError(res, error, `GET /guide/${key}`);
+  }
+}
+
 // ==================== 人才智能爬蟲 API (NEW - 2026-02-26) ====================
 // 整合 step1ne-headhunter-skill 的爬蟲系統
 
