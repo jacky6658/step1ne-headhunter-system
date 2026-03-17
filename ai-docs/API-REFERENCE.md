@@ -7,7 +7,7 @@
 
 | 項目 | 值 |
 |------|-----|
-| **Production Base URL** | `https://backendstep1ne.zeabur.app` |
+| **Production Base URL** | `https://api-hr.step1ne.com` |
 | **Local Dev Base URL** | `http://localhost:3001` |
 | **Rate Limit** | 200 requests / 60s |
 | **Body Limit** | 10 MB JSON |
@@ -146,7 +146,7 @@
 
 **範例請求：**
 ```bash
-curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+curl -X PATCH https://api-hr.step1ne.com/api/candidates/123 \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{

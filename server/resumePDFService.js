@@ -6,7 +6,7 @@
  *   1. rule-based（本地，零 API 費用）
  *   2. rule-based + OpenClaw 技能增強（可選）
  *
- * Zeabur 雲端友善：全程 in-memory，不寫磁碟
+ * 全程 in-memory，不寫磁碟
  */
 
 const { PDFParse } = require('pdf-parse');

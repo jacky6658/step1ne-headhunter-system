@@ -142,7 +142,7 @@ API_BASE = 'http://localhost:3001/api'
 
 **正式環境**（Zeabur）：
 ```python
-API_BASE = 'https://backendstep1ne.zeabur.app/api'
+API_BASE = 'https://api-hr.step1ne.com/api'
 ```
 
 ### 認證（未來版本）

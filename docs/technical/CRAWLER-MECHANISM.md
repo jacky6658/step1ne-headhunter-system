@@ -215,7 +215,7 @@ playwright>=1.40.0
 ### 本機執行評分（Score Only）
 爬取由 Zeabur 執行，評分（含讀頁面）可在本機有 GUI 的環境執行（Playwright 需要 X11 或 headless）：
 ```bash
-API_BASE_URL=https://backendstep1ne.zeabur.app \
+API_BASE_URL=https://api-hr.step1ne.com \
   python3 one-bot-pipeline.py --mode score
 ```
 

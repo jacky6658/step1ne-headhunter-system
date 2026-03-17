@@ -2,7 +2,7 @@
 
 > AI 驅動的候選人管理、職缺配對、客戶開發、顧問學習一站式平台
 
-**後端 API**：`https://backendstep1ne.zeabur.app`
+**後端 API**：`https://api-hr.step1ne.com`
 **前端部署**：Zeabur 自動部署
 
 ---
@@ -126,7 +126,7 @@
 
 ```
 請先閱讀以下文件，學習完畢後立即向我自我介紹你的能力：
-https://backendstep1ne.zeabur.app/api/guide
+https://api-hr.step1ne.com/api/guide
 
 讀完後，請用 {名字}-aibot 作為操作者身份。
 ```

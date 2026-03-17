@@ -19,7 +19,7 @@ const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
-// 環境變數相容：支援 DATABASE_URL 或 POSTGRES_URI（Zeabur 自動生成）
+// 環境變數相容：支援 DATABASE_URL 或 POSTGRES_URI
 if (!process.env.DATABASE_URL && process.env.POSTGRES_URI) {
   process.env.DATABASE_URL = process.env.POSTGRES_URI;
 }
@@ -52,12 +52,14 @@ app.use('/api', limiter);
 // ==================== CORS ====================
 
 const allowedOrigins = [
-  'https://step1ne.zeabur.app',
   'https://step1ne.com',
+  'https://hrsystem.step1ne.com',
+  'https://api-hr.step1ne.com',
   // 允許本地開發代理（Vite proxy changeOrigin 仍會帶 localhost Origin）
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002',
+  'http://localhost:3003',
   'http://localhost:5173',
 ];
 
@@ -89,7 +91,7 @@ app.use(bodyParser.json({
 }));
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
-// Multer：PDF 上傳（memory storage，Zeabur 雲端友善）
+// Multer：PDF 上傳（memory storage）
 const multer = require('multer');
 const upload = multer({
   storage: multer.memoryStorage(),

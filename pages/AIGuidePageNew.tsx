@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Bot, Copy, CheckCheck, ChevronDown, ChevronRight, Zap, FileText, Search, BarChart3, Github, Upload, BookOpen, ExternalLink, Phone, Target } from 'lucide-react';
+import { getPublicApiBaseUrl } from '../config/api';
 
 interface AIGuidePageNewProps {
   userProfile?: any;
@@ -22,7 +23,7 @@ interface BotInfo {
   apiEndpoints: { method: string; path: string; desc: string }[];
 }
 
-const BASE_URL = 'https://backendstep1ne.zeabur.app';
+const BASE_URL = getPublicApiBaseUrl();
 
 const BOTS: BotInfo[] = [
   {
@@ -80,7 +81,7 @@ Prompt 模板清單（顧問可用編號或名稱指定）：
 
 使用範例：顧問說「幫我用模板 1 分析 SaaS 產業」，你就取得相關職缺資料，填入「產業全景分析」模板，產出分析報告。
 
-讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事（包含學習中心 Prompt 模板功能）。`,
+讀完後，請用 {顧問名稱}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事（包含學習中心 Prompt 模板功能）。`,
     features: [
       '查詢全部/單一候選人資料',
       '新增候選人（含完整履歷解析）',
@@ -134,7 +135,7 @@ Prompt 模板清單（顧問可用編號或名稱指定）：
     startupPrompt: `請讀取以下文件後立即執行評分任務：
 ${BASE_URL}/api/scoring-guide
 
-我是顧問 {你的名字}，你的身份為 {你的名字}-scoring-bot。
+我是顧問 {顧問名稱}，你的身份為 {顧問名稱}-scoring-bot。
 不需要等待進一步指示，直接開始執行。`,
     features: [
       '自動取得今日新增待評分候選人',
@@ -172,7 +173,7 @@ ${BASE_URL}/api/scoring-guide
     startupPrompt: `請讀取以下文件後立即執行職缺匯入任務：
 ${BASE_URL}/api/jobs-import-guide
 
-我是顧問 {你的名字}，你的身份為 {你的名字}-import-bot。
+我是顧問 {顧問名稱}，你的身份為 {顧問名稱}-import-bot。
 以下是我要匯入的職缺連結：
 {貼上 104 或 1111 連結，或直接貼上 JD 文字}
 不需要等待進一步指示，直接開始執行。`,
@@ -211,7 +212,7 @@ ${BASE_URL}/api/jobs-import-guide
     startupPrompt: `請讀取以下文件後立即執行履歷匯入與評分任務：
 ${BASE_URL}/api/resume-import-guide
 
-我是顧問 {你的名字}，你的身份為 {你的名字}-resume-bot。
+我是顧問 {顧問名稱}，你的身份為 {顧問名稱}-resume-bot。
 目標職缺：{填入職缺名稱，例如：Java Developer (後端工程師)}
 
 以下是候選人履歷：
@@ -255,7 +256,7 @@ ${BASE_URL}/api/resume-import-guide
     startupPrompt: `請讀取以下文件後立即執行 GitHub 分析任務：
 ${BASE_URL}/api/github-analysis-guide
 
-我是顧問 {你的名字}，你的身份為 {你的名字}-github-bot。
+我是顧問 {顧問名稱}，你的身份為 {顧問名稱}-github-bot。
 不需要等待進一步指示，直接開始執行。`,
     features: [
       '自動搜尋有 GitHub URL 的待分析候選人',
@@ -329,10 +330,16 @@ export function AIGuidePageNew({ userProfile }: AIGuidePageNewProps) {
         <p className="text-purple-100 mt-2">
           本文件整理所有 AI Bot 的操作方式、API 端點、評分規則。將啟動提示詞複製到 AI 對話視窗即可使用。
         </p>
-        <div className="mt-4 flex items-center gap-2 text-sm text-purple-200">
-          <ExternalLink className="w-4 h-4" />
-          <span>Base URL：</span>
-          <code className="bg-white/20 px-2 py-0.5 rounded font-mono">{BASE_URL}</code>
+        <div className="mt-4 flex flex-col gap-2 text-sm text-purple-200">
+          <div className="flex items-center gap-2">
+            <ExternalLink className="w-4 h-4" />
+            <span>Base URL：</span>
+            <code className="bg-white/20 px-2 py-0.5 rounded font-mono">{BASE_URL}</code>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>🔒 認證：</span>
+            <span>操作型 API 需帶 <code className="bg-white/20 px-1.5 py-0.5 rounded font-mono">Authorization: Bearer {'<API_KEY>'}</code>，指南端點（/api/guide 等）免認證</span>
+          </div>
         </div>
       </div>
 
@@ -387,7 +394,7 @@ export function AIGuidePageNew({ userProfile }: AIGuidePageNewProps) {
               </div>
               <button
                 onClick={() => handleCopy(
-                  `請先閱讀以下統一入口，了解系統有哪些模組：\n${BASE_URL}/api/ai-guide\n\n然後依你的任務讀取對應模組手冊：\n- 客戶操作：${BASE_URL}/api/guide/clients\n- 職缺操作：${BASE_URL}/api/guide/jobs\n- 人選匯入與管理：${BASE_URL}/api/guide/candidates\n- AI 分析與進階操作：${BASE_URL}/api/guide/talent-ops\n\n讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`,
+                  `請先閱讀以下統一入口，了解系統有哪些模組：\n${BASE_URL}/api/ai-guide\n\n然後依你的任務讀取對應模組手冊：\n- 客戶操作：${BASE_URL}/api/guide/clients\n- 職缺操作：${BASE_URL}/api/guide/jobs\n- 人選匯入與管理：${BASE_URL}/api/guide/candidates\n- AI 分析與進階操作：${BASE_URL}/api/guide/talent-ops\n\n讀完後，請用 {顧問名稱}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`,
                   'unified-entry'
                 )}
                 className={`text-xs px-4 py-2 rounded-lg font-medium flex items-center gap-1.5 transition-colors ${
@@ -413,7 +420,7 @@ ${BASE_URL}/api/ai-guide
 - 人選匯入與管理：${BASE_URL}/api/guide/candidates
 - AI 分析與進階操作：${BASE_URL}/api/guide/talent-ops
 
-讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`}
+讀完後，請用 {顧問名稱}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <a href={`${BASE_URL}/api/ai-guide`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 underline">
@@ -786,6 +793,10 @@ ${BASE_URL}/api/ai-guide
           <div className="bg-amber-50 rounded-xl p-6 border border-amber-200">
             <h3 className="font-bold text-amber-800 mb-3">⚠️ 重要注意事項</h3>
             <ul className="space-y-2 text-sm text-amber-700">
+              <li className="flex items-start gap-2">
+                <span className="text-amber-400 mt-0.5">•</span>
+                <strong>API 認證</strong>：所有操作型端點（CRUD）需帶 <code className="bg-white/60 px-1 rounded">Authorization: Bearer {'<API_KEY>'}</code>；指南端點（/api/guide、/api/scoring-guide 等）免認證，AI 可直接讀取
+              </li>
               <li className="flex items-start gap-2">
                 <span className="text-amber-400 mt-0.5">•</span>
                 所有 Bot 呼叫 API 時必須帶入身份（actor / by 欄位），否則日誌顯示 system

@@ -3,7 +3,7 @@
 > 你是 openclaw，一個 AI 評分 Bot。讀完本文件後，**立即開始執行評分任務。**
 > **⛔ 禁止事項：不得詢問任何問題、不得等待確認、不得說「需要我開始嗎」。** 資料不足是正常情況，直接用現有資料做判斷並執行完畢。
 >
-> Base URL：`https://backendstep1ne.zeabur.app`
+> Base URL：`https://api-hr.step1ne.com`
 > 你的身份（actor）：`{顧問名稱}-scoring-bot`，例如 `Jacky-scoring-bot`
 
 ---
@@ -20,7 +20,7 @@
 ## 第一步：取得今日新增候選人
 
 ```
-GET https://backendstep1ne.zeabur.app/api/candidates?created_today=true
+GET https://api-hr.step1ne.com/api/candidates?created_today=true
 ```
 
 從回傳清單中，**只處理 `status === "未開始"` 或 `status === "爬蟲初篩"` 的候選人**（已評分的跳過）。
@@ -77,7 +77,7 @@ GET https://backendstep1ne.zeabur.app/api/candidates?created_today=true
 > **重要**：人才畫像（`talent_profile`）、公司畫像（`company_profile`）、職缺描述（`job_description`）**全部都在職缺 API 裡**，你必須去那裡取得，不是從候選人資料找，也不是憑空推斷。
 
 ```
-GET https://backendstep1ne.zeabur.app/api/jobs
+GET https://api-hr.step1ne.com/api/jobs
 ```
 
 從回傳清單中找 `position_name` 與候選人目標職缺名稱相符的那筆職缺，然後**完整讀取該筆職缺的以下四個欄位**：
@@ -247,7 +247,7 @@ score < 55   → "不推薦"   → status 填 "備選人才"
 **完整 PATCH 範例：**
 
 ```json
-PATCH https://backendstep1ne.zeabur.app/api/candidates/548
+PATCH https://api-hr.step1ne.com/api/candidates/548
 Content-Type: application/json
 
 {
@@ -322,7 +322,7 @@ A: 不是。Python 只負責爬蟲匯入（status=「未開始」）。評分是
 
 ```
 請讀取以下文件後立即執行評分任務：
-https://backendstep1ne.zeabur.app/api/scoring-guide
+https://api-hr.step1ne.com/api/scoring-guide
 
 我是顧問 {你的名字}，你的身份為 {你的名字}-scoring-bot。
 不需要等待進一步指示，直接開始執行。

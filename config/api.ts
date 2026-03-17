@@ -1,8 +1,23 @@
 // API 配置 - 自動偵測開發/生產環境
 
-// API Base URL - 本地開發透過 Vite proxy，生產環境直連 Zeabur
+// API Base URL - 本地開發透過 Vite proxy，外網透過 Cloudflare Tunnel
 import { API_BASE_URL as BASE } from '../constants';
 export const API_BASE_URL = BASE ? `${BASE}/api` : '/api';
+
+/**
+ * 取得「外部可存取」的完整 API Base URL
+ * 用於 AI Prompt 模板等需要完整 URL 的場景
+ * 根據目前的 hostname 自動判斷：
+ *  - hrsystem.step1ne.com → https://api-hr.step1ne.com
+ *  - localhost             → http://localhost:3003
+ */
+export function getPublicApiBaseUrl(): string {
+  if (typeof window === 'undefined') return 'https://api-hr.step1ne.com';
+  const host = window.location.hostname;
+  if (host === 'hrsystem.step1ne.com') return 'https://api-hr.step1ne.com';
+  // 本地開發
+  return 'http://localhost:3003';
+}
 
 // 完整 URL 生成器
 export function getApiUrl(endpoint: string): string {

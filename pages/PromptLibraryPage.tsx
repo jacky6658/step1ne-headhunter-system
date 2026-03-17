@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UserProfile, Role, Prompt, PromptCategory, Candidate, Job, Client } from '../types';
-import { apiGet, apiPost, apiPatch, apiDelete } from '../config/api';
+import { apiGet, apiPost, apiPatch, apiDelete, getPublicApiBaseUrl } from '../config/api';
 import { Plus, ThumbsUp, Pin, Copy, Check, Trash2, Edit3, X, ChevronDown, ChevronUp, RefreshCw, Database, Link2, Server } from 'lucide-react';
 import { toast } from '../components/Toast';
 
@@ -1656,7 +1656,7 @@ export function PromptLibraryPage({ userProfile }: Props) {
                 </button>
                 {showEndpoints && (
                   <div className="px-3 sm:px-4 pb-3 space-y-1.5 border-t border-slate-200 pt-2">
-                    <p className="text-[10px] text-slate-400 mb-2 break-all">基底 URL: <code className="text-indigo-600">https://backendstep1ne.zeabur.app</code></p>
+                    <p className="text-[10px] text-slate-400 mb-2 break-all">基底 URL: <code className="text-indigo-600">{getPublicApiBaseUrl()}</code></p>
                     {dataSrc.endpoints.map((ep, i) => (
                       <div key={i} className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs">
                         <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] shrink-0 ${

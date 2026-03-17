@@ -236,7 +236,7 @@ EOF
 前端有兩層機制連接後端 API：
 
 1. **Vite Dev Proxy**（`vite.config.ts`）：開發時 `/api/*` 請求自動 proxy 到 `VITE_PROXY_TARGET`
-2. **直連 URL**（`constants.ts`）：`VITE_API_URL` 覆蓋預設的 `https://backendstep1ne.zeabur.app`
+2. **直連 URL**（`constants.ts`）：`VITE_API_URL` 覆蓋預設的 `https://api-hr.step1ne.com`
 
 兩者都不需改程式碼，只需設定 `.env` 即可。
 
@@ -467,8 +467,8 @@ python app.py  # 啟動在 localhost:5000
 
 | 項目 | 線上（Zeabur） | 本地 |
 |------|--------------|------|
-| 前端 URL | `https://step1ne.zeabur.app` | `http://localhost:5173` |
-| 後端 URL | `https://backendstep1ne.zeabur.app` | `http://localhost:3001` |
+| 前端 URL | `https://hrsystem.step1ne.com` | `http://localhost:5173` |
+| 後端 URL | `https://api-hr.step1ne.com` | `http://localhost:3001` |
 | DB Host | `tpe1.clusters.zeabur.com:27883` | `localhost:5432` |
 | DB Name | `zeabur` | `step1ne` |
 | 部署方式 | Git push 自動部署 | 手動 `npm start` / Docker |

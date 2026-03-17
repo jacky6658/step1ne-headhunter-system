@@ -250,9 +250,8 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
       formData.append('candidateId', candidate.id);
       formData.append('candidateName', candidate.name);
       
-      // 呼叫後端 API（TODO：實作後端）
-      const API_URL = import.meta.env.VITE_API_URL || 'https://backendstep1ne.zeabur.app';
-      const response = await fetch(`${API_URL}/candidates/${candidate.id}/upload-resume`, {
+      // 呼叫後端 API
+      const response = await fetch(`/api/candidates/${candidate.id}/upload-resume`, {
         method: 'POST',
         body: formData
       });

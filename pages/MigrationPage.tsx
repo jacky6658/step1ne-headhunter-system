@@ -163,10 +163,7 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
 
         if (liChanged || ghChanged) {
           // 2. PATCH 已有 endpoint
-          const apiBase = (window.location.hostname === 'localhost')
-            ? 'http://localhost:3001/api'
-            : 'https://backendstep1ne.zeabur.app/api';
-          await fetch(`${apiBase}/candidates/${c.id}`, {
+          await fetch(`/api/candidates/${c.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -201,7 +198,7 @@ const MigrationPage: React.FC<MigrationPageProps> = ({ userProfile }) => {
   const handleAutoMigrate = async () => {
     if (!useApiMode()) {
       setStatus('error');
-      setMessage('❌ 自動匯入需要設置 VITE_API_URL 環境變數！請在 Zeabur 前端服務中設置環境變數後重新部署。');
+      setMessage('❌ 自動匯入需要設置 VITE_API_URL 環境變數！請確認環境變數設定後重新啟動。');
       return;
     }
 

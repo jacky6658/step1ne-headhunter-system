@@ -90,7 +90,7 @@
 ```
 
 3. 推送到 GitHub（Zeabur 自動部署）
-4. 測試登入：https://step1ne.zeabur.app
+4. 測試登入：https://hrsystem.step1ne.com
 
 ---
 

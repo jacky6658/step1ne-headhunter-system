@@ -1,38 +1,41 @@
 import React, { useState } from 'react';
 import { BookOpen, Users, Briefcase, Target, FileText, Link as LinkIcon, Download, CheckCircle, XCircle, AlertCircle, Sparkles, Database, Award, Bot, Copy, CheckCheck, Zap } from 'lucide-react';
+import { getPublicApiBaseUrl } from '../config/api';
 
 interface HelpPageProps {
   userProfile?: any;
 }
 
+const API_HOST = getPublicApiBaseUrl();
+
 const AIBOT_STARTUP_PROMPT = `請先閱讀以下兩份系統文件，學習完畢後立即向我自我介紹你的能力：
 
 1. 系統操作指南（API 操作手冊）：
-https://backendstep1ne.zeabur.app/api/guide
+${API_HOST}/api/guide
 
 2. 履歷分析教學指南：
-https://backendstep1ne.zeabur.app/api/resume-guide
+${API_HOST}/api/resume-guide
 
-讀完後，請用 {你的名字}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`;
+讀完後，請用 {顧問名稱}-aibot 作為操作者身份，並告訴我你現在可以幫我做哪些事。`;
 
 const SCORING_BOT_PROMPT = `請讀取以下文件後立即執行評分任務：
-https://backendstep1ne.zeabur.app/api/scoring-guide
+${API_HOST}/api/scoring-guide
 
-我是顧問 {你的名字}，你的身份為 {你的名字}-scoring-bot。
+我是顧問 {顧問名稱}，你的身份為 {顧問名稱}-scoring-bot。
 不需要等待進一步指示，直接開始執行。`;
 
 const JOB_IMPORT_PROMPT = `請讀取以下文件後立即執行職缺匯入任務：
-https://backendstep1ne.zeabur.app/api/jobs-import-guide
+${API_HOST}/api/jobs-import-guide
 
-我是顧問 {你的名字}，你的身份為 {你的名字}-import-bot。
+我是顧問 {顧問名稱}，你的身份為 {顧問名稱}-import-bot。
 以下是我要匯入的職缺連結：
 {貼上 104 或 1111 連結，或直接貼上 JD 文字}
 不需要等待進一步指示，直接開始執行。`;
 
 const RESUME_IMPORT_PROMPT = `請讀取以下文件後立即執行履歷匯入與評分任務：
-https://backendstep1ne.zeabur.app/api/resume-import-guide
+${API_HOST}/api/resume-import-guide
 
-我是顧問 {你的名字}，你的身份為 {你的名字}-resume-bot。
+我是顧問 {顧問名稱}，你的身份為 {顧問名稱}-resume-bot。
 目標職缺：{填入職缺名稱，例如：Java Developer (後端工程師)}
 
 以下是候選人履歷：
@@ -41,9 +44,9 @@ https://backendstep1ne.zeabur.app/api/resume-import-guide
 不需要等待進一步指示，直接開始執行。`;
 
 const GITHUB_ANALYSIS_BOT_PROMPT = `請讀取以下文件後立即執行 GitHub 分析任務：
-https://backendstep1ne.zeabur.app/api/github-analysis-guide
+${API_HOST}/api/github-analysis-guide
 
-我是顧問 {你的名字}，你的身份為 {你的名字}-github-bot。
+我是顧問 {顧問名稱}，你的身份為 {顧問名稱}-github-bot。
 不需要等待進一步指示，直接開始執行。`;
 
 const HelpPage: React.FC<HelpPageProps> = () => {
@@ -143,6 +146,11 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <h3 className="font-black text-slate-900 mb-1">GitHub 分析 Bot</h3>
             <p className="text-sm text-slate-600">深度分析候選人 GitHub 技術能力</p>
           </a>
+          <a href="#客戶管理" className="p-4 bg-teal-50 rounded-xl hover:bg-teal-100 transition-colors">
+            <Sparkles className="text-teal-600 mb-2" size={24} />
+            <h3 className="font-black text-slate-900 mb-1">客戶管理</h3>
+            <p className="text-sm text-slate-600">管理客戶公司資訊與合作關係</p>
+          </a>
         </div>
       </div>
 
@@ -191,28 +199,29 @@ const HelpPage: React.FC<HelpPageProps> = () => {
           <div>
             <h3 className="font-black text-slate-900 mb-2">
               <Award className="inline mr-2 text-indigo-600" size={18} />
-              人才等級（穩定性評分）
+              人才等級（AI 綜合評分）
             </h3>
+            <p className="text-sm text-slate-600 mb-3">AI 根據五維度評分（人才畫像 40% + JD 匹配 30% + 公司適配 15% + 可觸達性 10% + 活躍信號 5%）判定等級：</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                <span className="font-black text-purple-700">S 級（85-100）</span>
-                <p className="text-xs text-slate-600 mt-1">卓越人才，極穩定</p>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <span className="font-black text-blue-700">A+ 級（75-84）</span>
-                <p className="text-xs text-slate-600 mt-1">優秀人才，穩定性佳</p>
-              </div>
-              <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                <span className="font-black text-indigo-700">A 級（65-74）</span>
-                <p className="text-xs text-slate-600 mt-1">良好人才，穩定性中上</p>
+              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <span className="font-black text-yellow-700">S 級（90-100）</span>
+                <p className="text-xs text-slate-600 mt-1">頂尖人才（稀缺），強烈推薦</p>
               </div>
               <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                <span className="font-black text-green-700">B 級（55-64）</span>
-                <p className="text-xs text-slate-600 mt-1">合格，需關注穩定性</p>
+                <span className="font-black text-green-700">A+ 級（80-89）</span>
+                <p className="text-xs text-slate-600 mt-1">優秀人才，強力推薦</p>
               </div>
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <span className="font-black text-amber-700">C 級（&lt;55）</span>
-                <p className="text-xs text-slate-600 mt-1">待觀察，穩定性偏低</p>
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <span className="font-black text-blue-700">A 級（70-79）</span>
+                <p className="text-xs text-slate-600 mt-1">合格人才，可推薦</p>
+              </div>
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <span className="font-black text-gray-700">B 級（60-69）</span>
+                <p className="text-xs text-slate-600 mt-1">基本合格，需評估後推薦</p>
+              </div>
+              <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                <span className="font-black text-red-700">C 級（&lt;60）</span>
+                <p className="text-xs text-slate-600 mt-1">需補強，謹慎推薦</p>
               </div>
             </div>
           </div>
@@ -283,6 +292,36 @@ const HelpPage: React.FC<HelpPageProps> = () => {
         </div>
       </div>
 
+      {/* 客戶管理 */}
+      <div id="客戶管理" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+          <Sparkles className="text-teal-600" size={24} />
+          客戶管理
+        </h2>
+        <div className="space-y-4 text-slate-700">
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">🏢 功能說明</h3>
+            <p className="mb-3">客戶管理頁面讓您管理所有合作客戶的公司資訊，包含聯繫人、合作狀態、開案記錄等。</p>
+          </div>
+          <div>
+            <h3 className="font-black text-slate-900 mb-2">📋 客戶資訊</h3>
+            <ul className="list-disc list-inside space-y-1 ml-4">
+              <li><strong>公司名稱</strong>：客戶公司全名</li>
+              <li><strong>產業別</strong>：例如：科技、金融、製造</li>
+              <li><strong>公司規模</strong>：員工人數</li>
+              <li><strong>合作狀態</strong>：開發中 / 合作中 / 暫停 / 結束</li>
+              <li><strong>負責顧問</strong>：此客戶的負責人</li>
+              <li><strong>開案記錄</strong>：歷次合作職缺記錄</li>
+            </ul>
+          </div>
+          <div className="p-4 bg-teal-50 rounded-lg border border-teal-200">
+            <p className="text-sm text-teal-900">
+              💡 <strong>AI Bot 整合</strong>：AIbot 可透過 <code className="bg-white px-1 rounded">GET /api/clients</code> 取得客戶資料，自動填入 Prompt 模板進行產業分析和公司研究。
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* 匿名履歷 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
@@ -338,7 +377,14 @@ const HelpPage: React.FC<HelpPageProps> = () => {
         <div className="space-y-4 text-slate-700">
           <div>
             <h3 className="font-black text-slate-900 mb-2">🔌 完整 CRUD API</h3>
-            <p className="mb-3">系統提供完整的 REST API，支援候選人和職缺的新增、修改、刪除功能。</p>
+            <p className="mb-3">系統提供完整的 REST API，支援候選人、職缺、客戶的新增、修改、刪除，以及 AI 分析與主動獵才功能。</p>
+          </div>
+
+          <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 mb-4">
+            <p className="text-sm text-amber-900">
+              🔒 <strong>API 認證</strong>：所有操作型端點需帶 <code className="bg-white px-1 rounded">Authorization: Bearer {'<API_KEY>'}</code> header。
+              指南端點（/api/guide、/api/scoring-guide 等）免認證，AI Bot 可直接讀取。
+            </p>
           </div>
 
           <div>
@@ -347,23 +393,67 @@ const HelpPage: React.FC<HelpPageProps> = () => {
               <div>
                 <p className="font-black text-slate-900 mb-1">Candidates（候選人）</p>
                 <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                  <li><code className="bg-gray-100 px-1">GET /api/candidates?limit=2000</code> - 取得所有候選人（務必帶 limit）</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/candidates?created_today=true</code> - 取得今日新增候選人</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/candidates/:id</code> - 取得單一候選人完整資料</li>
                   <li><code className="bg-gray-100 px-1">POST /api/candidates</code> - 新增候選人</li>
-                  <li><code className="bg-gray-100 px-1">GET /api/candidates</code> - 取得候選人列表</li>
-                  <li><code className="bg-gray-100 px-1">GET /api/candidates/:id</code> - 取得單一候選人</li>
-                  <li><code className="bg-gray-100 px-1">PUT /api/candidates/:id</code> - 更新候選人</li>
-                  <li><code className="bg-gray-100 px-1">DELETE /api/candidates/:id</code> - 刪除候選人（軟刪除）</li>
-                  <li><code className="bg-gray-100 px-1">PUT /api/candidates/:id/status</code> - 更新狀態</li>
-                  <li><code className="bg-gray-100 px-1">POST /api/candidates/:id/anonymous-resume</code> - 生成匿名履歷</li>
+                  <li><code className="bg-gray-100 px-1">POST /api/candidates/bulk</code> - 批量匯入候選人</li>
+                  <li><code className="bg-gray-100 px-1">PATCH /api/candidates/:id</code> - 局部更新候選人資料</li>
+                  <li><code className="bg-gray-100 px-1">PUT /api/candidates/:id/pipeline-status</code> - 更新 Pipeline 狀態（自動追加進度記錄）</li>
+                  <li><code className="bg-gray-100 px-1">PATCH /api/candidates/batch-status</code> - 批量更新狀態</li>
+                  <li><code className="bg-gray-100 px-1">DELETE /api/candidates/:id</code> - 刪除候選人</li>
+                  <li><code className="bg-gray-100 px-1">DELETE /api/candidates/batch</code> - 批量刪除候選人</li>
                 </ul>
               </div>
               <div>
                 <p className="font-black text-slate-900 mb-1">Jobs（職缺）</p>
                 <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
-                  <li><code className="bg-gray-100 px-1">POST /api/jobs</code> - 新增職缺</li>
-                  <li><code className="bg-gray-100 px-1">GET /api/jobs</code> - 取得職缺列表</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/jobs</code> - 取得所有職缺（含三份畫像）</li>
                   <li><code className="bg-gray-100 px-1">GET /api/jobs/:id</code> - 取得單一職缺</li>
+                  <li><code className="bg-gray-100 px-1">POST /api/jobs</code> - 新增職缺</li>
                   <li><code className="bg-gray-100 px-1">PUT /api/jobs/:id</code> - 更新職缺</li>
                   <li><code className="bg-gray-100 px-1">DELETE /api/jobs/:id</code> - 刪除職缺</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-black text-slate-900 mb-1">Clients（客戶）</p>
+                <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                  <li><code className="bg-gray-100 px-1">GET /api/clients</code> - 取得所有客戶</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/clients/:id</code> - 取得單一客戶</li>
+                  <li><code className="bg-gray-100 px-1">POST /api/clients</code> - 新增客戶</li>
+                  <li><code className="bg-gray-100 px-1">PATCH /api/clients/:id</code> - 更新客戶</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-black text-slate-900 mb-1">GitHub 分析 & 主動獵才</p>
+                <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                  <li><code className="bg-gray-100 px-1">GET /api/github/analyze/:username</code> - GitHub 技術分析</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/github/analyze/:username?jobId=:id</code> - GitHub 職缺匹配分析</li>
+                  <li><code className="bg-gray-100 px-1">POST /api/talent-sourcing/find-candidates</code> - 主動獵才（搜尋 GitHub + LinkedIn）</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-black text-slate-900 mb-1">顧問 & 系統</p>
+                <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                  <li><code className="bg-gray-100 px-1">GET /api/users/:name/contact</code> - 取得顧問聯絡資訊</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/system-logs</code> - 查詢操作日誌</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/health</code> - 系統健康檢查</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-black text-slate-900 mb-1">AI 指南（免認證）</p>
+                <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                  <li><code className="bg-gray-100 px-1">GET /api/guide</code> - AIbot 操作指南</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/ai-guide</code> - AI 模組統一入口</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/guide/clients</code> - 客戶模組手冊</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/guide/jobs</code> - 職缺模組手冊</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/guide/candidates</code> - 人選模組手冊</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/guide/talent-ops</code> - 人才 AI 模組手冊</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/scoring-guide</code> - 評分指南</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/jobs-import-guide</code> - 職缺匯入指南</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/resume-guide</code> - 履歷分析教學</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/resume-import-guide</code> - 履歷匯入指南</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/github-analysis-guide</code> - GitHub 分析指南</li>
                 </ul>
               </div>
             </div>
@@ -371,7 +461,7 @@ const HelpPage: React.FC<HelpPageProps> = () => {
 
           <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
             <p className="text-sm text-slate-700">
-              📚 <strong>詳細 API 文檔</strong>：請參閱 <code className="bg-gray-100 px-1">docs/api/API.md</code>
+              📚 <strong>詳細 API 文檔</strong>：透過 <code className="bg-gray-100 px-1">GET {API_HOST}/api/guide</code> 取得完整操作手冊（Markdown 格式）
             </p>
           </div>
         </div>
@@ -543,13 +633,13 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">系統操作指南 URL</p>
               <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-indigo-700 break-all">
-                https://backendstep1ne.zeabur.app/api/guide
+                {API_HOST}/api/guide
               </code>
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">履歷分析教學 URL</p>
               <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-indigo-700 break-all">
-                https://backendstep1ne.zeabur.app/api/resume-guide
+                {API_HOST}/api/resume-guide
               </code>
             </div>
           </div>
@@ -619,13 +709,13 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">系統操作指南 URL</p>
               <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-indigo-700 break-all">
-                https://backendstep1ne.zeabur.app/api/guide
+                {API_HOST}/api/guide
               </code>
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">評分執行指南 URL</p>
               <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-amber-700 break-all">
-                https://backendstep1ne.zeabur.app/api/scoring-guide
+                {API_HOST}/api/scoring-guide
               </code>
             </div>
           </div>
@@ -698,13 +788,13 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">職缺匯入指南 URL</p>
               <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-green-700 break-all">
-                https://backendstep1ne.zeabur.app/api/jobs-import-guide
+                {API_HOST}/api/jobs-import-guide
               </code>
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">職缺新增 API</p>
               <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-green-700 break-all">
-                POST https://backendstep1ne.zeabur.app/api/jobs
+                POST {API_HOST}/api/jobs
               </code>
             </div>
           </div>
@@ -748,7 +838,7 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <h3 className="font-black text-slate-900 mb-2">🚀 顧問操作步驟</h3>
             <ol className="list-decimal list-inside space-y-2 ml-4 text-sm">
               <li>開啟你的 AI 助理（Claude / ChatGPT 等）</li>
-              <li>複製下方「啟動指令」，把 <code className="bg-gray-100 px-1">{'{你的名字}'}</code>、職缺名稱、履歷文字填入</li>
+              <li>複製下方「啟動指令」，把 <code className="bg-gray-100 px-1">{'{顧問名稱}'}</code>、職缺名稱、履歷文字填入</li>
               <li>貼到對話框送出，等待 Bot 完成所有步驟</li>
               <li>Bot 完成後會回報候選人 ID、穩定性評分、五維度得分及建議探詢問題</li>
               <li>前往系統「候選人總表」即可看到完整評分結果</li>
@@ -842,13 +932,13 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">履歷匯入指南 URL</p>
               <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-rose-700 break-all">
-                https://backendstep1ne.zeabur.app/api/resume-import-guide
+                {API_HOST}/api/resume-import-guide
               </code>
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">候選人新增 / 更新 API</p>
               <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-rose-700 break-all">
-                POST / PATCH https://backendstep1ne.zeabur.app/api/candidates
+                POST / PATCH {API_HOST}/api/candidates
               </code>
             </div>
           </div>
@@ -949,7 +1039,7 @@ const HelpPage: React.FC<HelpPageProps> = () => {
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">GitHub 分析指南 URL</p>
               <code className="block bg-gray-100 rounded-lg px-3 py-2 text-xs text-cyan-700 break-all">
-                https://backendstep1ne.zeabur.app/api/github-analysis-guide
+                {API_HOST}/api/github-analysis-guide
               </code>
             </div>
             <div>

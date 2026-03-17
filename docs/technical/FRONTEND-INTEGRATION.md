@@ -228,7 +228,7 @@ REACT_APP_API_URL=http://localhost:3001/api
 
 ### `.env.production`（生產環境 - Zeabur）
 ```
-REACT_APP_API_URL=https://backendstep1ne.zeabur.app/api
+REACT_APP_API_URL=https://api-hr.step1ne.com/api
 ```
 
 ---

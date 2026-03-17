@@ -237,12 +237,12 @@ git commit -m "本地測試完成，準備部署"
 git push
 
 # 2. Zeabur 會自動部署
-# 前端：https://step1ne.zeabur.app
-# 後端：https://backendstep1ne.zeabur.app
+# 前端：https://hrsystem.step1ne.com
+# 後端：https://api-hr.step1ne.com
 ```
 
 **環境變數設定**（Zeabur）：
-- 前端：`VITE_API_URL=https://backendstep1ne.zeabur.app`
+- 前端：`VITE_API_URL=https://api-hr.step1ne.com`
 - 後端：同本地設定
 
 ---

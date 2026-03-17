@@ -8,7 +8,9 @@
 
 ## 基本資訊
 
-- **Base URL**：`https://backendstep1ne.zeabur.app`（生產）/ `http://localhost:3001`（本地）
+- **Base URL**：依環境選擇（詳見主手冊 `GET /api/guide/index`）
+  - 🏢 公司內網：`http://localhost:3003`
+  - 🌐 外部存取：`https://api-hr.step1ne.com`
 - **Content-Type**：`application/json`
 
 ---

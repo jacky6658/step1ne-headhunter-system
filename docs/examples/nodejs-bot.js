@@ -12,7 +12,7 @@ const axios = require('axios');
 // ========================================
 
 const API_BASE = 'http://localhost:3001/api';  // 開發環境
-// const API_BASE = 'https://backendstep1ne.zeabur.app/api';  // 正式環境
+// const API_BASE = 'https://api-hr.step1ne.com/api';  // 正式環境
 
 // 未來版本需要 API Key
 // const API_KEY = 'your_api_key_here';

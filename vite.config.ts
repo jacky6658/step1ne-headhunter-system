@@ -9,11 +9,12 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig({
   server: {
-    port: 3000,
+    port: 3002,
     host: '0.0.0.0',
+    allowedHosts: ['hrsystem.step1ne.com', 'localhost'],
     proxy: {
       '/api': {
-        target: process.env.VITE_PROXY_TARGET || 'https://backendstep1ne.zeabur.app',
+        target: 'http://localhost:3003',
         changeOrigin: true,
         secure: false,
         // 移除 Origin header，避免生產 CORS 白名單拒絕 localhost

@@ -80,7 +80,7 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id 51 --exe
 
 📚 必讀文檔：
 1. /Users/user/clawd/hr-tools/TALENT_SOURCING_SYSTEM.md（完整說明）
-2. https://backendstep1ne.zeabur.app/api/guide（API 操作指南）
+2. https://api-hr.step1ne.com/api/guide（API 操作指南）
 
 🎯 你的職責：
 1. 分析職缺需求
@@ -176,7 +176,7 @@ python3 /Users/user/clawd/hr-tools/talent_sourcing_pipeline.py --job-id 51 --dry
 
 - 完整系統文檔：`/Users/user/clawd/hr-tools/TALENT_SOURCING_SYSTEM.md`
 - 前端使用說明：Web UI 的「幫助」→「AI 智能配對」區塊
-- API 文檔：`https://backendstep1ne.zeabur.app/api/guide`
+- API 文檔：`https://api-hr.step1ne.com/api/guide`
 
 ---
 

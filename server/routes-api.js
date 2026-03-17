@@ -15,6 +15,39 @@ const { pool, withClient } = require('./db'); // 共享連線池 + 安全 helper
 const { safeError } = require('./safeError');
 
 /**
+ * 根據請求的 Host header 動態替換 guide 文件中的 API base URL
+ * 讓同一份 guide 在外網 (Cloudflare Tunnel) 和本機 (localhost) 都能正確運作
+ */
+function replaceGuideBaseUrl(content, req) {
+  const host = req.hostname || req.headers.host || '';
+  let baseUrl;
+  if (host.includes('api-hr.step1ne.com')) {
+    baseUrl = 'https://api-hr.step1ne.com';
+  } else {
+    // localhost 或其他本地環境
+    const port = process.env.PORT || 3003;
+    baseUrl = `http://localhost:${port}`;
+  }
+  return content.replace(/https:\/\/backendstep1ne\.zeabur\.app/g, baseUrl);
+}
+
+/**
+ * 正規化 progressTracking 陣列：
+ * - 確保每筆都有 date 欄位（從 at 取年月日，或用今天日期）
+ * - 防止 AI Bot 傳入 "at" 卻沒有 "date" 造成前端欄位錯亂
+ */
+function normalizeProgressTracking(pt) {
+  if (!Array.isArray(pt)) return pt;
+  return pt.map(entry => {
+    if (entry.date) return entry;  // 已有 date，不動
+    if (entry.at) {
+      return { ...entry, date: entry.at.split('T')[0] };  // 從 at 取 YYYY-MM-DD
+    }
+    return { ...entry, date: new Date().toISOString().split('T')[0] };  // fallback 今天
+  });
+}
+
+/**
  * 清洗 URL param 中的 id：移除 AI Bot 可能帶來的多餘 JSON 引號
  * e.g. '"184"' → '184'，'\"184\"' → '184'
  * 使用 router.param() 讓所有路由自動套用，無需逐一修改。
@@ -809,6 +842,7 @@ router.get('/candidates', async (req, res) => {
         c.education_level, c.current_salary_min, c.current_salary_max,
         c.expected_salary_min, c.expected_salary_max, c.salary_currency, c.salary_period,
         c.notice_period_enum, c.job_search_status_enum,
+        c.ai_score, c.ai_grade, c.ai_report, c.ai_recommendation,
         c.auto_derived, c.data_quality, c.precision_eligible, c.grade_level, c.source_tier, c.heat_level,
         (SELECT COALESCE(jsonb_agg(
           jsonb_build_object(
@@ -859,6 +893,15 @@ router.get('/candidates', async (req, res) => {
       educationJson: (() => { const v = row.education_details; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       discProfile: row.personality_type || '',
       progressTracking: row.progress_tracking || [],
+      // OpenClaw AI 評分欄位
+      aiScore: row.ai_score != null ? row.ai_score : null,
+      aiGrade: row.ai_grade || '',
+      aiReport: row.ai_report || '',
+      aiRecommendation: row.ai_recommendation || '',
+      ai_score: row.ai_score != null ? row.ai_score : null,
+      ai_grade: row.ai_grade || '',
+      ai_report: row.ai_report || '',
+      ai_recommendation: row.ai_recommendation || '',
       aiMatchResult: row.ai_match_result ? (() => {
         // 支援新舊格式，直接傳遞完整的 ai_match_result 物件
         const am = row.ai_match_result;
@@ -883,9 +926,13 @@ router.get('/candidates', async (req, res) => {
         };
       })() : null,
       
-      // 向後相容：保留 DB 字段名
+      // 向後相容：保留 DB 字段名（snake_case，供 AIbot 讀取）
       contact_link: row.contact_link || '',
       current_position: row.current_position || '',
+      current_title: row.current_title || '',
+      current_company: row.current_company || '',
+      linkedin_url: row.linkedin_url || '',
+      github_url: row.github_url || '',
       years_experience: row.years_experience || '',
       job_changes: row.job_changes || '',
       avg_tenure_months: row.avg_tenure_months || '',
@@ -1046,6 +1093,15 @@ router.get('/candidates/:id', async (req, res) => {
       progressTracking: row.progress_tracking || [],
       talentLevel: row.talent_level || '',
       interviewRound: row.interview_round || null,
+      // OpenClaw AI 評分欄位
+      aiScore: row.ai_score != null ? row.ai_score : null,
+      aiGrade: row.ai_grade || '',
+      aiReport: row.ai_report || '',
+      aiRecommendation: row.ai_recommendation || '',
+      ai_score: row.ai_score != null ? row.ai_score : null,
+      ai_grade: row.ai_grade || '',
+      ai_report: row.ai_report || '',
+      ai_recommendation: row.ai_recommendation || '',
       // Phase 3 動機與交易條件
       jobSearchStatus: row.job_search_status || '',
       reasonForChange: row.reason_for_change || '',
@@ -1073,7 +1129,12 @@ router.get('/candidates/:id', async (req, res) => {
       resumeFiles: row.resume_files || [],
       createdBy: 'system',
 
-      // 向後相容：保留 DB 字段名
+      // 向後相容：保留 DB 字段名（snake_case，供 AIbot 讀取）
+      current_position: row.current_position || '',
+      current_title: row.current_title || '',
+      current_company: row.current_company || '',
+      linkedin_url: row.linkedin_url || '',
+      github_url: row.github_url || '',
       work_history: (() => { const v = row.work_history; if (!v) return []; if (Array.isArray(v)) return v; if (typeof v === 'string') { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} } return []; })(),
       leaving_reason: row.leaving_reason || '',
       stability_score: row.stability_score || '',
@@ -1252,11 +1313,11 @@ router.put('/candidates/:id', async (req, res) => {
            RETURNING *`,
       hasStatus
         ? [status, notes || '', consultant || '',
-           JSON.stringify(progressTracking || []),
+           JSON.stringify(normalizeProgressTracking(progressTracking || [])),
            matchResult ? JSON.stringify(matchResult) : null,
            id]
         : [notes || '', consultant || '',
-           JSON.stringify(progressTracking || []),
+           JSON.stringify(normalizeProgressTracking(progressTracking || [])),
            matchResult ? JSON.stringify(matchResult) : null,
            id]
     );
@@ -1432,6 +1493,11 @@ router.patch('/candidates/:id', async (req, res) => {
     const portfolio_url = req.body.portfolio_url !== undefined ? req.body.portfolio_url : req.body.portfolioUrl;
     // AI 總結結果
     const ai_summary = req.body.ai_summary !== undefined ? req.body.ai_summary : req.body.aiSummary;
+    // OpenClaw AI 評分欄位
+    const ai_score = req.body.ai_score !== undefined ? req.body.ai_score : req.body.aiScore;
+    const ai_grade = req.body.ai_grade !== undefined ? req.body.ai_grade : req.body.aiGrade;
+    const ai_report = req.body.ai_report !== undefined ? req.body.ai_report : req.body.aiReport;
+    const ai_recommendation = req.body.ai_recommendation !== undefined ? req.body.ai_recommendation : req.body.aiRecommendation;
     // Sprint 1: Structured fields (Layer 1 Match Core)
     const current_title = req.body.current_title !== undefined ? req.body.current_title : req.body.currentTitle;
     const current_company = req.body.current_company !== undefined ? req.body.current_company : req.body.currentCompany;
@@ -1487,7 +1553,7 @@ router.patch('/candidates/:id', async (req, res) => {
     }
     if (progressTracking !== undefined) {
       setClauses.push(`progress_tracking = $${idx++}`);
-      values.push(JSON.stringify(progressTracking));
+      values.push(JSON.stringify(normalizeProgressTracking(progressTracking)));
     }
     if (recruiter !== undefined) {
       setClauses.push(`recruiter = $${idx++}`);
@@ -1635,6 +1701,11 @@ router.patch('/candidates/:id', async (req, res) => {
     if (portfolio_url !== undefined) { setClauses.push(`portfolio_url = $${idx++}`); values.push(portfolio_url); }
     // AI 總結結果
     if (ai_summary !== undefined) { setClauses.push(`ai_summary = $${idx++}`); values.push(JSON.stringify(ai_summary)); }
+    // OpenClaw AI 評分欄位
+    if (ai_score !== undefined) { setClauses.push(`ai_score = $${idx++}`); values.push(ai_score === null ? null : Number(ai_score)); }
+    if (ai_grade !== undefined) { setClauses.push(`ai_grade = $${idx++}`); values.push(ai_grade); }
+    if (ai_report !== undefined) { setClauses.push(`ai_report = $${idx++}`); values.push(ai_report); }
+    if (ai_recommendation !== undefined) { setClauses.push(`ai_recommendation = $${idx++}`); values.push(ai_recommendation); }
     // Sprint 1: Structured fields
     if (current_title !== undefined) { setClauses.push(`current_title = $${idx++}`); values.push(current_title); }
     if (current_company !== undefined) { setClauses.push(`current_company = $${idx++}`); values.push(current_company); }
@@ -1880,6 +1951,22 @@ router.patch('/candidates/:id', async (req, res) => {
       client.release();
     }
   } catch (error) {
+    // LinkedIn URL 重複衝突 → 409 + 告知衝突的人選
+    if (error.code === '23505' && error.constraint && error.constraint.includes('linkedin')) {
+      try {
+        const linkedin_url = req.body.linkedin_url || req.body.linkedinUrl || '';
+        const dup = await pool.query(
+          `SELECT id, name FROM candidates_pipeline WHERE LOWER(TRIM(linkedin_url)) = LOWER(TRIM($1)) AND id != $2 LIMIT 1`,
+          [linkedin_url, req.params.id]
+        );
+        const dupInfo = dup.rows[0] ? ` 與 #${dup.rows[0].id} ${dup.rows[0].name} 重複` : '';
+        return res.status(409).json({
+          success: false,
+          error: `LinkedIn URL 已被其他人選使用${dupInfo}`,
+          conflictWith: dup.rows[0] || null
+        });
+      } catch (_) { /* fall through */ }
+    }
     safeError(res, error, 'PATCH /candidates/:id');
   }
 });
@@ -3099,7 +3186,7 @@ router.get('/health', async (req, res) => {
   } catch (error) {
     dbStatus = 'unavailable';
   }
-  // 始終回 200，讓 Zeabur startup probe 通過；DB 狀態在 body 中說明
+  // 始終回 200；DB 狀態在 body 中說明
   res.json({
     success: true,
     status: 'ok',
@@ -3329,7 +3416,7 @@ router.get('/guide', (req, res) => {
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Guide file not found' });
     }
-    const content = fs.readFileSync(guidePath, 'utf-8');
+    const content = replaceGuideBaseUrl(fs.readFileSync(guidePath, 'utf-8'), req);
     // 根據 Accept 標頭決定回傳格式
     const accept = req.headers['accept'] || '';
     if (accept.includes('application/json')) {
@@ -3352,7 +3439,7 @@ router.get('/consultant-sop', (req, res) => {
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Consultant SOP guide not found' });
     }
-    const content = fs.readFileSync(guidePath, 'utf-8');
+    const content = replaceGuideBaseUrl(fs.readFileSync(guidePath, 'utf-8'), req);
     const accept = req.headers['accept'] || '';
     if (accept.includes('application/json')) {
       res.json({ success: true, content });
@@ -3372,7 +3459,7 @@ router.get('/scoring-guide', (req, res) => {
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Scoring guide not found' });
     }
-    const content = fs.readFileSync(guidePath, 'utf-8');
+    const content = replaceGuideBaseUrl(fs.readFileSync(guidePath, 'utf-8'), req);
     const accept = req.headers['accept'] || '';
     if (accept.includes('application/json')) {
       res.json({ success: true, content });
@@ -3392,7 +3479,7 @@ router.get('/jobs-import-guide', (req, res) => {
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Job import guide not found' });
     }
-    const content = fs.readFileSync(guidePath, 'utf-8');
+    const content = replaceGuideBaseUrl(fs.readFileSync(guidePath, 'utf-8'), req);
     const accept = req.headers['accept'] || '';
     if (accept.includes('application/json')) {
       res.json({ success: true, content });
@@ -3412,7 +3499,7 @@ router.get('/resume-guide', (req, res) => {
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Resume analysis guide not found' });
     }
-    const content = fs.readFileSync(guidePath, 'utf-8');
+    const content = replaceGuideBaseUrl(fs.readFileSync(guidePath, 'utf-8'), req);
     const accept = req.headers['accept'] || '';
     if (accept.includes('application/json')) {
       res.json({ success: true, content });
@@ -3432,7 +3519,7 @@ router.get('/resume-import-guide', (req, res) => {
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'Resume import guide not found' });
     }
-    const content = fs.readFileSync(guidePath, 'utf-8');
+    const content = replaceGuideBaseUrl(fs.readFileSync(guidePath, 'utf-8'), req);
     const accept = req.headers['accept'] || '';
     if (accept.includes('application/json')) {
       res.json({ success: true, content });
@@ -3452,7 +3539,7 @@ router.get('/github-analysis-guide', (req, res) => {
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: 'GitHub analysis guide not found' });
     }
-    const content = fs.readFileSync(guidePath, 'utf-8');
+    const content = replaceGuideBaseUrl(fs.readFileSync(guidePath, 'utf-8'), req);
     const accept = req.headers['accept'] || '';
     if (accept.includes('application/json')) {
       res.json({ success: true, content });
@@ -3473,6 +3560,7 @@ const AI_GUIDE_FILES = {
   'jobs':        'AI-JOB-GUIDE.md',
   'candidates':  'AI-CANDIDATE-GUIDE.md',
   'talent-ops':  'AI-TALENT-OPS-GUIDE.md',
+  'resume-sop':  'RESUME-PROCESSING-SOP.md',
 };
 
 // GET /api/ai-guide — 統一入口（索引頁）
@@ -3481,10 +3569,12 @@ const AI_GUIDE_FILES = {
 // GET /api/guide/candidates — 人選模組
 // GET /api/guide/talent-ops — 人才AI模組
 router.get('/ai-guide', (req, res) => serveGuide('index', req, res));
+router.get('/guide/index', (req, res) => serveGuide('index', req, res));
 router.get('/guide/clients', (req, res) => serveGuide('clients', req, res));
 router.get('/guide/jobs', (req, res) => serveGuide('jobs', req, res));
 router.get('/guide/candidates', (req, res) => serveGuide('candidates', req, res));
 router.get('/guide/talent-ops', (req, res) => serveGuide('talent-ops', req, res));
+router.get('/guide/resume-sop', (req, res) => serveGuide('resume-sop', req, res));
 
 function serveGuide(key, req, res) {
   try {
@@ -3494,7 +3584,7 @@ function serveGuide(key, req, res) {
     if (!fs.existsSync(guidePath)) {
       return res.status(404).json({ success: false, error: `Guide file not found: ${filename}` });
     }
-    const content = fs.readFileSync(guidePath, 'utf-8');
+    const content = replaceGuideBaseUrl(fs.readFileSync(guidePath, 'utf-8'), req);
     const accept = req.headers['accept'] || '';
     if (accept.includes('application/json')) {
       res.json({ success: true, guide: key, content });
@@ -5586,7 +5676,7 @@ router.patch('/notifications/read-all', async (req, res) => {
 /**
  * POST /api/webhooks/github
  * GitHub Webhook — 接收 push event，自動產生站內通知
- * GitHub repo Settings → Webhooks → Payload URL: https://backendstep1ne.zeabur.app/api/webhooks/github
+ * GitHub repo Settings → Webhooks → Payload URL: https://api-hr.step1ne.com/api/webhooks/github
  * Content type: application/json, Events: Just the push event
  */
 router.post('/webhooks/github', async (req, res) => {

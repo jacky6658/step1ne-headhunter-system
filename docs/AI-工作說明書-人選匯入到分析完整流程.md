@@ -4,7 +4,7 @@
 > **目標讀者**：AI Agent（AIbot）
 > **最後更新**：2026-03-06
 > **系統**：Step1ne Headhunter System v1.0
-> **後端 API**：`https://backendstep1ne.zeabur.app/api`（正式環境）
+> **後端 API**：`https://api-hr.step1ne.com/api`（正式環境）
 
 ---
 

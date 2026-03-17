@@ -2,7 +2,7 @@
 
 **版本**: 3.1.0（2026-03-13 新增 API 認證 + 安全強化）
 **Base URL**: `http://localhost:3001/api`（開發環境）
-**Production URL**: `https://backendstep1ne.zeabur.app/api`
+**Production URL**: `https://api-hr.step1ne.com/api`
 
 ---
 
@@ -34,7 +34,7 @@
 
 ```bash
 curl -H "Authorization: Bearer <API_SECRET_KEY>" \
-  https://backendstep1ne.zeabur.app/api/candidates
+  https://api-hr.step1ne.com/api/candidates
 ```
 
 | Header | 值 | 說明 |
@@ -55,7 +55,7 @@ OpenClaw 端點使用獨立的認證方式：
 
 ```bash
 curl -H "X-OpenClaw-Key: <OPENCLAW_API_KEY>" \
-  https://backendstep1ne.zeabur.app/api/openclaw/pending
+  https://api-hr.step1ne.com/api/openclaw/pending
 ```
 
 ### 認證失敗回應

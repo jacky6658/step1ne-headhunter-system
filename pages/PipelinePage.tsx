@@ -159,17 +159,22 @@ function stageToEvent(stage: PipelineStageKey): string {
   }
 }
 
+function getProgressDate(p: ProgressEvent): string {
+  // 相容兩種日期欄位：標準 date 或舊格式 at
+  return p.date || (p as any).at || '';
+}
+
 function getLatestProgress(progress?: ProgressEvent[]): ProgressEvent | undefined {
   if (!progress || progress.length === 0) return undefined;
 
-  // 找最大日期
+  // 找最大日期（相容 date / at 兩種欄位）
   const maxTime = progress.reduce((max, p) => {
-    const t = new Date(p.date).getTime();
-    return t > max ? t : max;
+    const t = new Date(getProgressDate(p)).getTime();
+    return (t && t > max) ? t : max;
   }, 0);
 
   // 同一天有多筆時，取陣列最後一筆（最新加入的）
-  const sameDay = progress.filter(p => new Date(p.date).getTime() === maxTime);
+  const sameDay = progress.filter(p => new Date(getProgressDate(p)).getTime() === maxTime);
   return sameDay[sameDay.length - 1];
 }
 
@@ -297,7 +302,8 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
         (baseStage === 'not_started' && isTodayTaiwan(candidate.createdAt))
           ? 'today_new'
           : baseStage;
-      const idleDays = latestProgress?.date ? getIdleDays(latestProgress.date, now) : getIdleDays(candidate.updatedAt, now);
+      const progressDate = latestProgress ? getProgressDate(latestProgress) : '';
+      const idleDays = progressDate ? getIdleDays(progressDate, now) : getIdleDays(candidate.updatedAt, now);
       const targetJob = parseTargetJob(candidate);
       const allTargetJobs = parseAllTargetJobs(candidate);
       return { candidate, stage, latestProgress, idleDays, targetJob, allTargetJobs };

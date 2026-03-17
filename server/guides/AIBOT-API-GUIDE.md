@@ -1,9 +1,28 @@
 # Step1ne 獵頭系統 — AIbot 操作 API 指南
 
-> **Base URL（生產環境）**：`https://backendstep1ne.zeabur.app`
-> **Base URL（本地開發）**：`http://localhost:3001`
 > **所有請求 Content-Type**：`application/json`
-> **認證**：目前無需 Token，所有端點公開存取
+
+## ⚠️ 系統架構（2026-03 更新）
+
+Step1ne 獵頭系統目前 **架設在公司本地 Mac**，同時保留雲端部署。
+
+### API Base URL（三選一，依你的環境選擇）
+
+| 環境 | API Base URL | 適用場景 |
+|------|-------------|---------|
+| 🏢 **公司內網** | `http://localhost:3003` | 本地直連（最快） |
+| 🌐 **外部存取** | `https://api-hr.step1ne.com` | 外部 AI Agent / 手機 / 遠端存取 |
+
+### 認證方式
+
+> **⚠️ 所有 API 端點都需要認證**（除了 `/api/health` 和 `/api/guide*`）
+
+```
+Authorization: Bearer {API_SECRET_KEY}
+Content-Type: application/json
+```
+
+每次 API 呼叫都必須帶上 `Authorization` header，否則會收到 `401 Unauthorized`。
 
 ---
 
@@ -13,8 +32,14 @@
 
 ### 步驟一：確認系統正常
 
+依序嘗試以下 URL，用第一個成功的作為 Base URL：
+
 ```bash
-curl https://backendstep1ne.zeabur.app/api/health
+# 優先：公司內網
+curl http://localhost:3003/api/health
+
+# 備選：外部存取
+curl https://api-hr.step1ne.com/api/health
 ```
 
 若回傳 `"status": "ok"` 表示系統正常，繼續執行步驟二。
@@ -222,7 +247,7 @@ curl https://backendstep1ne.zeabur.app/api/health
 
 ```bash
 # 新增候選人（含完整解析資料）
-curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
+curl -X POST https://api-hr.step1ne.com/api/candidates \
   -H "Content-Type: application/json" \
   -d '{
     "name": "陳宥樺",
@@ -395,7 +420,7 @@ from datetime import datetime
 all_cands = []
 offset = 0
 while True:
-    resp = requests.get(f'https://backendstep1ne.zeabur.app/api/candidates?limit=2000&offset={offset}')
+    resp = requests.get(f'https://api-hr.step1ne.com/api/candidates?limit=2000&offset={offset}')
     result = resp.json()
     all_cands.extend(result['data'])
     if not result.get('pagination', {}).get('hasMore', False):
@@ -594,10 +619,10 @@ PUT /api/candidates/:id/pipeline-status
 
 ```bash
 # 1. 先 GET 取得現有的 progressTracking
-curl https://backendstep1ne.zeabur.app/api/candidates/148
+curl https://api-hr.step1ne.com/api/candidates/148
 
 # 2. 使用 PATCH 更新（包含完整 progressTracking 陣列）
-curl -X PATCH "https://backendstep1ne.zeabur.app/api/candidates/148" \
+curl -X PATCH "https://api-hr.step1ne.com/api/candidates/148" \
   -H "Content-Type: application/json" \
   -d '{
     "status": "備選人才",
@@ -689,7 +714,7 @@ PATCH /api/candidates/batch-status
 
 AIbot 呼叫：
 ```bash
-curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/batch-status \
+curl -X PATCH https://api-hr.step1ne.com/api/candidates/batch-status \
   -H "Content-Type: application/json" \
   -d '{
     "ids": [123, 124, 125],
@@ -733,7 +758,7 @@ DELETE /api/candidates/:id
 
 **AIbot 呼叫：**
 ```bash
-curl -X DELETE https://backendstep1ne.zeabur.app/api/candidates/123 \
+curl -X DELETE https://api-hr.step1ne.com/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{ "actor": "Jacky-aibot" }'
 ```
@@ -779,7 +804,7 @@ DELETE /api/candidates/batch
 
 **AIbot 呼叫：**
 ```bash
-curl -X DELETE https://backendstep1ne.zeabur.app/api/candidates/batch \
+curl -X DELETE https://api-hr.step1ne.com/api/candidates/batch \
   -H "Content-Type: application/json" \
   -d '{
     "ids": [123, 124, 125],
@@ -1219,7 +1244,7 @@ PATCH /api/candidates/:id
 ### 呼叫範例（分析完成後回寫系統）
 
 ```bash
-curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+curl -X PATCH https://api-hr.step1ne.com/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{
     "stability_score": 82,
@@ -1293,7 +1318,7 @@ PATCH /api/candidates/:id
 ### 呼叫範例
 
 ```bash
-curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+curl -X PATCH https://api-hr.step1ne.com/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{
     "ai_match_result": {
@@ -1383,7 +1408,7 @@ GET /api/health
 
 ```bash
 # 先取得顧問聯絡資訊（含 GitHub Token 與 Brave API Key）
-curl https://backendstep1ne.zeabur.app/api/users/{顧問名稱}/contact
+curl https://api-hr.step1ne.com/api/users/{顧問名稱}/contact
 ```
 
 回應中：
@@ -1540,7 +1565,7 @@ AIbot 回覆：
 ### 情境一：候選人已完成面試，AIbot 更新狀態
 
 ```bash
-curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status \
+curl -X PUT https://api-hr.step1ne.com/api/candidates/123/pipeline-status \
   -H "Content-Type: application/json" \
   -d '{
     "status": "面試階段",
@@ -1553,7 +1578,7 @@ curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status
 ### 情境二：將候選人指派給顧問 Phoebe
 
 ```bash
-curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+curl -X PATCH https://api-hr.step1ne.com/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{
     "recruiter": "Phoebe",
@@ -1567,7 +1592,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
 
 ```bash
 # 使用 notes
-curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+curl -X PATCH https://api-hr.step1ne.com/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{
     "notes": "候選人 CTO 背景，主動找尋 100-150 萬機會，可立即上班",
@@ -1576,7 +1601,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
   }'
 
 # 使用 remarks（效果完全相同）
-curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+curl -X PATCH https://api-hr.step1ne.com/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{
     "remarks": "候選人 CTO 背景，主動找尋 100-150 萬機會，可立即上班",
@@ -1591,7 +1616,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
 
 ```bash
 # 1. 取得候選人（支援分頁，每頁最多 2000 筆）
-curl "https://backendstep1ne.zeabur.app/api/candidates?limit=2000&offset=0"
+curl "https://api-hr.step1ne.com/api/candidates?limit=2000&offset=0"
 # 若 pagination.hasMore=true，繼續 offset=2000, 4000... 直到 hasMore=false
 
 # 2. AIbot 在本地過濾：
@@ -1605,7 +1630,7 @@ curl "https://backendstep1ne.zeabur.app/api/candidates?limit=2000&offset=0"
 ### 情境五：候選人收到 Offer，更新狀態
 
 ```bash
-curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status \
+curl -X PUT https://api-hr.step1ne.com/api/candidates/123/pipeline-status \
   -H "Content-Type: application/json" \
   -d '{
     "status": "Offer",
@@ -1619,7 +1644,7 @@ curl -X PUT https://backendstep1ne.zeabur.app/api/candidates/123/pipeline-status
 
 ```bash
 # 取得 Phoebe 的聯絡方式，作為信件寄件人簽名
-curl https://backendstep1ne.zeabur.app/api/users/Phoebe/contact
+curl https://api-hr.step1ne.com/api/users/Phoebe/contact
 ```
 
 ---
@@ -1630,8 +1655,8 @@ curl https://backendstep1ne.zeabur.app/api/users/Phoebe/contact
 
 ```
 對話開始時，依序執行：
-1. curl https://backendstep1ne.zeabur.app/api/guide
-2. curl https://backendstep1ne.zeabur.app/api/resume-guide
+1. curl https://api-hr.step1ne.com/api/guide
+2. curl https://api-hr.step1ne.com/api/resume-guide
 閱讀完整指南後，依照 api/guide 開頭「啟動流程」的三個步驟初始化，
 然後主動向顧問報告你的能力清單。
 actor 身份格式必須為 {顧問名稱}-aibot（例如：Jacky-aibot、Phoebe-aibot）
@@ -1641,10 +1666,10 @@ actor 身份格式必須為 {顧問名稱}-aibot（例如：Jacky-aibot、Phoebe
 
 ```bash
 # 1. 系統操作指南（必讀）
-curl https://backendstep1ne.zeabur.app/api/guide
+curl https://api-hr.step1ne.com/api/guide
 
 # 2. 履歷分析教學指南（必讀）
-curl https://backendstep1ne.zeabur.app/api/resume-guide
+curl https://api-hr.step1ne.com/api/resume-guide
 ```
 
 完成後 AIbot 將：
@@ -1660,11 +1685,11 @@ curl https://backendstep1ne.zeabur.app/api/resume-guide
 
 ```bash
 # 步驟 1：確認系統中是否有此候選人（用名字搜尋）
-curl "https://backendstep1ne.zeabur.app/api/candidates" | \
+curl "https://api-hr.step1ne.com/api/candidates" | \
   jq '.data[] | select(.name == "陳宥樺")'
 
 # 步驟 2：分析履歷後，一次寫入所有評分結果
-curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
+curl -X PATCH https://api-hr.step1ne.com/api/candidates/123 \
   -H "Content-Type: application/json" \
   -d '{
     "stability_score": 82,
@@ -1684,7 +1709,7 @@ curl -X PATCH https://backendstep1ne.zeabur.app/api/candidates/123 \
 ### 情境九：批量匯入候選人（附完整欄位）
 
 ```bash
-curl -X POST https://backendstep1ne.zeabur.app/api/candidates/bulk \
+curl -X POST https://api-hr.step1ne.com/api/candidates/bulk \
   -H "Content-Type: application/json" \
   -d '{
     "candidates": [
@@ -1725,12 +1750,12 @@ curl -X POST https://backendstep1ne.zeabur.app/api/candidates/bulk \
 
 ```bash
 # 步驟 1：取得顧問的 API Keys（GitHub Token + Brave API Key）
-curl https://backendstep1ne.zeabur.app/api/users/Jacky/contact
+curl https://api-hr.step1ne.com/api/users/Jacky/contact
 # → 取得 data.githubToken（GitHub PAT）
 # → 取得 data.braveApiKey（Brave Search API Key，若顧問有設定）
 
 # 步驟 2：觸發獵才流程（帶入兩個 Key，提升搜尋效果）
-curl -X POST https://backendstep1ne.zeabur.app/api/talent-sourcing/find-candidates \
+curl -X POST https://api-hr.step1ne.com/api/talent-sourcing/find-candidates \
   -H "Content-Type: application/json" \
   -d '{
     "company": "一通數位",

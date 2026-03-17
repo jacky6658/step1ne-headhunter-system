@@ -3,7 +3,7 @@
 > 你是 openclaw，一個 GitHub 人選分析 Bot。讀完本文件後，**立即開始執行分析任務。**
 > **禁止事項：不得詢問任何問題、不得等待確認。** 資料不足直接用現有資料做判斷。
 >
-> Base URL：`https://backendstep1ne.zeabur.app`
+> Base URL：`https://api-hr.step1ne.com`
 > 你的身份（actor）：`{顧問名稱}-github-bot`，例如 `Jacky-github-bot`
 
 ---
@@ -20,7 +20,7 @@
 ## 第一步：取得待分析候選人
 
 ```
-GET https://backendstep1ne.zeabur.app/api/candidates?limit=2000&offset=0
+GET https://api-hr.step1ne.com/api/candidates?limit=2000&offset=0
 ```
 
 > 💡 **分頁機制**：每頁最多 2000 筆。回應的 `pagination.hasMore` 為 `true` 時，需用 `offset` 繼續取下一頁（offset=2000, 4000...），直到 `hasMore=false`。
@@ -38,7 +38,7 @@ GET https://backendstep1ne.zeabur.app/api/candidates?limit=2000&offset=0
 ### 2a. 取得職缺 ID
 
 ```
-GET https://backendstep1ne.zeabur.app/api/jobs
+GET https://api-hr.step1ne.com/api/jobs
 ```
 
 從回傳清單中找 `position_name` 與候選人目標職缺名稱相符的那筆，記下 `id` 作為 `jobId`。
@@ -46,7 +46,7 @@ GET https://backendstep1ne.zeabur.app/api/jobs
 ### 2b. 呼叫 GitHub v2 分析 API
 
 ```
-GET https://backendstep1ne.zeabur.app/api/github/analyze/{username}?jobId={jobId}
+GET https://api-hr.step1ne.com/api/github/analyze/{username}?jobId={jobId}
 ```
 
 > 把候選人的 `github_url` 中的 username 提取出來。例如 `https://github.com/octocat` → username 為 `octocat`
@@ -199,7 +199,7 @@ GET https://backendstep1ne.zeabur.app/api/github/analyze/{username}?jobId={jobId
 ### 評完一個立刻寫回系統
 
 ```json
-PATCH https://backendstep1ne.zeabur.app/api/candidates/{id}
+PATCH https://api-hr.step1ne.com/api/candidates/{id}
 Content-Type: application/json
 
 {
@@ -281,7 +281,7 @@ A: 跳過該候選人，在摘要中標註「GitHub API 無法存取」，繼續
 
 ```
 請讀取以下文件後立即執行 GitHub 分析任務：
-https://backendstep1ne.zeabur.app/api/github-analysis-guide
+https://api-hr.step1ne.com/api/github-analysis-guide
 
 我是顧問 {你的名字}，你的身份為 {你的名字}-github-bot。
 不需要等待進一步指示，直接開始執行。

@@ -45,7 +45,7 @@
 ### API 查詢現有候選人
 
 ```bash
-curl "https://backendstep1ne.zeabur.app/api/candidates?limit=1000" \
+curl "https://api-hr.step1ne.com/api/candidates?limit=1000" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   | jq '.data[] | {id, name, status, skills}'
 ```
@@ -180,7 +180,7 @@ def generate_probing_questions(position, candidate_skills):
 #### ❌ 錯誤做法（會清空 status）
 
 ```bash
-curl -X PUT "https://backendstep1ne.zeabur.app/api/candidates/540" \
+curl -X PUT "https://api-hr.step1ne.com/api/candidates/540" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{"aiMatchResult": {...}}'
@@ -189,7 +189,7 @@ curl -X PUT "https://backendstep1ne.zeabur.app/api/candidates/540" \
 #### ✅ 正確做法（保留 status）
 
 ```bash
-curl -X PUT "https://backendstep1ne.zeabur.app/api/candidates/540" \
+curl -X PUT "https://api-hr.step1ne.com/api/candidates/540" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{"status": "AI推薦", "aiMatchResult": {...}}'
@@ -242,7 +242,7 @@ def batch_update_candidates(candidate_ids, ai_match_results):
 
     for cid, ai_match in zip(candidate_ids, ai_match_results):
         try:
-            url = f"https://backendstep1ne.zeabur.app/api/candidates/{cid}"
+            url = f"https://api-hr.step1ne.com/api/candidates/{cid}"
             
             # ⚠️ 務必包含 status！
             payload = {
@@ -274,7 +274,7 @@ def batch_update_candidates(candidate_ids, ai_match_results):
 ### 查詢單一候選人評分
 
 ```bash
-curl -s "https://backendstep1ne.zeabur.app/api/candidates/540" \
+curl -s "https://api-hr.step1ne.com/api/candidates/540" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   | jq '.data.aiMatchResult'
 ```
@@ -379,7 +379,7 @@ batch_update_candidates(
 
 ```bash
 # 查詢評分結果
-curl -s "https://backendstep1ne.zeabur.app/api/candidates?limit=100" \
+curl -s "https://api-hr.step1ne.com/api/candidates?limit=100" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   | jq '.data[] | select(.status == "AI推薦") | {id, name, score: .aiMatchResult.score}'
 ```
@@ -398,7 +398,7 @@ curl -s "https://backendstep1ne.zeabur.app/api/candidates?limit=100" \
 ### GET /api/candidates
 
 ```bash
-curl -s "https://backendstep1ne.zeabur.app/api/candidates?limit=50&offset=0" \
+curl -s "https://api-hr.step1ne.com/api/candidates?limit=50&offset=0" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   | jq '.data | length'
 ```
@@ -406,7 +406,7 @@ curl -s "https://backendstep1ne.zeabur.app/api/candidates?limit=50&offset=0" \
 ### PUT /api/candidates/:id
 
 ```bash
-curl -X PUT "https://backendstep1ne.zeabur.app/api/candidates/540" \
+curl -X PUT "https://api-hr.step1ne.com/api/candidates/540" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
@@ -426,8 +426,8 @@ curl -X PUT "https://backendstep1ne.zeabur.app/api/candidates/540" \
 - 📁 爬蟲腳本：`/hr-tools/github-talent-search.py`
 - 📁 評分系統：`/hr-tools/candidate-scoring-system-v2.py`
 - 📁 API 文檔：`./API.md`
-- 🌐 前端頁面：https://step1ne.zeabur.app (需 Jacky 帳號登入)
-- 🔌 後端 API：https://backendstep1ne.zeabur.app/api
+- 🌐 前端頁面：https://hrsystem.step1ne.com (需 Jacky 帳號登入)
+- 🔌 後端 API：https://api-hr.step1ne.com/api
 
 ---
 

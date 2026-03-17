@@ -98,11 +98,11 @@ Phoebe: [上傳 resume_王小明.pdf]
 ### 步驟 3：呼叫後端 API
 
 **執行者**: @HRyuqi_bot  
-**端點**: `POST https://backendstep1ne.zeabur.app/api/candidates`
+**端點**: `POST https://api-hr.step1ne.com/api/candidates`
 
 **請求範例**:
 ```bash
-curl -X POST https://backendstep1ne.zeabur.app/api/candidates \
+curl -X POST https://api-hr.step1ne.com/api/candidates \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
@@ -265,7 +265,7 @@ V: 綜合評級分數 (0-100)
 ⭐ 綜合評級：A 級（74.5 分）
 
 📋 已匯入履歷池（第 250 筆）
-🔗 查看詳情：https://step1ne.zeabur.app
+🔗 查看詳情：https://hrsystem.step1ne.com
 ```
 
 ---

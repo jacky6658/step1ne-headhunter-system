@@ -14,10 +14,10 @@
 ### 認證
 ```bash
 # 一般 API（Bearer Token）
-curl -H "Authorization: Bearer YOUR_API_KEY" https://backendstep1ne.zeabur.app/api/candidates
+curl -H "Authorization: Bearer YOUR_API_KEY" https://api-hr.step1ne.com/api/candidates
 
 # OpenClaw API（X-OpenClaw-Key）
-curl -H "X-OpenClaw-Key: YOUR_OPENCLAW_KEY" https://backendstep1ne.zeabur.app/api/openclaw/pending
+curl -H "X-OpenClaw-Key: YOUR_OPENCLAW_KEY" https://api-hr.step1ne.com/api/openclaw/pending
 ```
 
 ### 最常用端點

@@ -17,7 +17,7 @@
 
 **步驟 2**：訪問以下網址
 ```
-https://step1ne.zeabur.app
+https://hrsystem.step1ne.com
 ```
 
 **步驟 3**：選擇帳號登入
@@ -61,7 +61,7 @@ https://step1ne.zeabur.app
 ## Step1ne 獵頭系統 API
 
 ### API Endpoint
-- **Production**: https://backendstep1ne.zeabur.app/api
+- **Production**: https://api-hr.step1ne.com/api
 - **Local**: http://localhost:3001/api
 
 ### 認證（必須）
@@ -92,23 +92,23 @@ PUT /api/candidates/:id/pipeline-status
 
 # 取得所有候選人（⚠️ 必須帶 Authorization header）
 curl -H "Authorization: Bearer YOUR_API_KEY" \
-  'https://backendstep1ne.zeabur.app/api/candidates?limit=2000'
+  'https://api-hr.step1ne.com/api/candidates?limit=2000'
 
 # 新增候選人
 curl -X POST -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name":"王小明","position":"Frontend","email":"wang@test.com","actor":"Jacky-aibot"}' \
-  https://backendstep1ne.zeabur.app/api/candidates
+  https://api-hr.step1ne.com/api/candidates
 ```
 
 **步驟 2**：AI 可以直接呼叫 API
 
 ```bash
 # 方式 A：使用 exec tool（⚠️ 記得帶 -H "Authorization: Bearer KEY"）
-openclaw exec 'curl -H "Authorization: Bearer YOUR_API_KEY" https://backendstep1ne.zeabur.app/api/candidates?limit=2000'
+openclaw exec 'curl -H "Authorization: Bearer YOUR_API_KEY" https://api-hr.step1ne.com/api/candidates?limit=2000'
 
 # 方式 B：使用 fetch (如果有 web_fetch tool)
-# web_fetch("https://backendstep1ne.zeabur.app/api/candidates?limit=2000", headers={"Authorization": "Bearer YOUR_API_KEY"})
+# web_fetch("https://api-hr.step1ne.com/api/candidates?limit=2000", headers={"Authorization": "Bearer YOUR_API_KEY"})
 ```
 
 **步驟 3**：解析 JSON 並使用資料
@@ -268,24 +268,24 @@ Authorization: Bearer <API_SECRET_KEY>
 
 ### 查詢候選人
 curl -H "Authorization: Bearer YOUR_API_KEY" \
-  'https://backendstep1ne.zeabur.app/api/candidates?limit=2000'
+  'https://api-hr.step1ne.com/api/candidates?limit=2000'
 
 ### 篩選範例
 # 找 Python 工程師
 curl -H "Authorization: Bearer YOUR_API_KEY" \
-  'https://backendstep1ne.zeabur.app/api/candidates?limit=2000' \
+  'https://api-hr.step1ne.com/api/candidates?limit=2000' \
   | jq '.data[] | select(.skills | contains("Python"))'
 
 # 找 S 級候選人
 curl -H "Authorization: Bearer YOUR_API_KEY" \
-  'https://backendstep1ne.zeabur.app/api/candidates?limit=2000' \
+  'https://api-hr.step1ne.com/api/candidates?limit=2000' \
   | jq '.data[] | select(.talentGrade == "S")'
 ```
 
 **步驟 2**：Bot 自動呼叫
 
 當用戶問「有沒有 Python 工程師」時，Bot 會：
-1. 執行 `curl -H "Authorization: Bearer KEY" 'https://backendstep1ne.zeabur.app/api/candidates?limit=2000'`
+1. 執行 `curl -H "Authorization: Bearer KEY" 'https://api-hr.step1ne.com/api/candidates?limit=2000'`
 2. 解析 JSON
 3. 篩選 `skills` 欄位包含 "Python"
 4. 返回候選人名單
@@ -296,7 +296,7 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \
 
 ### 方式 A：分享連結（唯讀）
 
-直接分享 https://step1ne.zeabur.app
+直接分享 https://hrsystem.step1ne.com
 
 **適合**：
 - 客戶查看候選人
@@ -321,7 +321,7 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \
 ### Q1: Phoebe 如何開始使用？
 
 **A**: 最簡單方式：
-1. 開啟 https://step1ne.zeabur.app
+1. 開啟 https://hrsystem.step1ne.com
 2. 點擊「Phoebe」帳號
 3. 立刻可以看到 Phoebe 負責的候選人
 
@@ -330,7 +330,7 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \
 **A**: 在 AI 的工具配置中加入（⚠️ 必須帶認證 Header）：
 ```bash
 curl -H "Authorization: Bearer YOUR_API_KEY" \
-  'https://backendstep1ne.zeabur.app/api/candidates?limit=2000'
+  'https://api-hr.step1ne.com/api/candidates?limit=2000'
 ```
 
 AI 可以用 `exec` tool 呼叫，解析 JSON 後回答用戶問題。

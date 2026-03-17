@@ -27,7 +27,7 @@
 
 **前端環境變數**：
 ```
-VITE_API_URL=https://backendstep1ne.zeabur.app/api
+VITE_API_URL=https://api-hr.step1ne.com/api
 ```
 
 **後端環境變數**：
@@ -53,10 +53,10 @@ PORT=3001
 ```bash
 # 檢查後端
 # health 不需認證
-curl https://backendstep1ne.zeabur.app/api/health
+curl https://api-hr.step1ne.com/api/health
 
 # 檢查前端
-open https://step1ne.zeabur.app
+open https://hrsystem.step1ne.com
 ```
 
 **應該看到**：
@@ -77,7 +77,7 @@ const isDevelopment = import.meta.env.DEV || window.location.hostname === 'local
 
 export const API_BASE_URL = isDevelopment
   ? 'http://localhost:3001/api'        // 本地開發
-  : 'https://backendstep1ne.zeabur.app/api';  // 生產環境
+  : 'https://api-hr.step1ne.com/api';  // 生產環境
 ```
 
 但在 Zeabur 中，`import.meta.env.DEV` 會被設為 `false`，所以需要確保 `VITE_API_URL` 被正確設置。
@@ -108,7 +108,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || (isDevelopment ? ...
 ### 後端部署
 - [ ] NODE_ENV=production
 - [ ] Google Sheets 連接正常（API 回應 235 位候選人）
-- [ ] CORS 已正確配置（允許 https://step1ne.zeabur.app）
+- [ ] CORS 已正確配置（允許 https://hrsystem.step1ne.com）
 
 ### 整體系統
 - [ ] 雲端域名可訪問
@@ -136,7 +136,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || (isDevelopment ? ...
 **解決**（在 server.js 添加）：
 ```javascript
 app.use(cors({
-  origin: ['https://step1ne.zeabur.app', 'http://localhost:3000'],
+  origin: ['https://hrsystem.step1ne.com', 'http://localhost:3000'],
   credentials: true
 }));
 ```
@@ -167,9 +167,9 @@ open http://localhost:3000
 ```
 
 ### 生產環境（Zeabur）
-- 前端：https://step1ne.zeabur.app
-- 後端 API：https://backendstep1ne.zeabur.app/api
-- 健康檢查：https://backendstep1ne.zeabur.app/api/health
+- 前端：https://hrsystem.step1ne.com
+- 後端 API：https://api-hr.step1ne.com/api
+- 健康檢查：https://api-hr.step1ne.com/api/health
 
 ### 環境檢測（config/api.ts）
 ```typescript
@@ -187,7 +187,7 @@ open http://localhost:3000
 1. **檢查後端日誌**：
    ```bash
    # health 不需認證
-   curl https://backendstep1ne.zeabur.app/api/health
+   curl https://api-hr.step1ne.com/api/health
    ```
 
 2. **檢查前端控制台**（F12）：

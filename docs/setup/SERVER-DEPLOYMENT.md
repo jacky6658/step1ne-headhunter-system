@@ -119,7 +119,7 @@ curl http://localhost:3001/api/health
 REACT_APP_API_URL=http://localhost:3001/api
 
 # .env.production（Zeabur）
-REACT_APP_API_URL=https://backendstep1ne.zeabur.app/api
+REACT_APP_API_URL=https://api-hr.step1ne.com/api
 ```
 
 ---
@@ -152,7 +152,7 @@ git push
 
 ```bash
 # health 不需認證
-curl https://backendstep1ne.zeabur.app/api/health
+curl https://api-hr.step1ne.com/api/health
 
 # 應該返回：
 # {"success":true,"status":"ok","database":"ok"}
@@ -161,9 +161,9 @@ curl https://backendstep1ne.zeabur.app/api/health
 ### 步驟 4：前端部署
 
 1. Zeabur Dashboard → 找到前端服務
-2. 確認 `REACT_APP_API_URL=https://backendstep1ne.zeabur.app/api`
+2. 確認 `REACT_APP_API_URL=https://api-hr.step1ne.com/api`
 3. 點擊「Redeploy」
-4. 驗證：打開 https://step1ne.zeabur.app，改狀態測試
+4. 驗證：打開 https://hrsystem.step1ne.com，改狀態測試
 
 ---
 

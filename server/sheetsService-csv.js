@@ -1,4 +1,4 @@
-// Sheets Service CSV - 使用公開 CSV export（Zeabur 相容）
+// Sheets Service CSV - 使用公開 CSV export
 import https from 'https';
 
 const SHEET_ID = '1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SEtxRk6Q';
