@@ -6,6 +6,7 @@
 
 // 爬蟲匯入的候選人統一標記來源為「爬蟲匯入」，
 // 方便顧問在候選人總表透過來源篩選快速辨識
+const { isForeignName } = require('./foreignNameFilter');
 const CRAWLER_SOURCE = '爬蟲匯入';
 
 /**
@@ -244,7 +245,7 @@ async function processBulkImport(pool, candidates, actor) {
               c.skills || '',
               c.education || '',
               c.source || CRAWLER_SOURCE,
-              c.status || '爬蟲初篩',
+              isForeignName(c.name) ? '外籍已過濾' : (c.status || '爬蟲初篩'),
               '待指派',
               c.notes || '',
               String(c.stability_score || '0'),

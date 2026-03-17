@@ -46,6 +46,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
   '聯繫階段': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
   '人才庫':   { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
   '婉拒':     { bg: 'bg-gray-50', text: 'text-gray-500', dot: 'bg-gray-400' },
+  '外籍已過濾': { bg: 'bg-gray-50', text: 'text-gray-400', dot: 'bg-gray-300' },
 };
 
 function parseMatchTags(candidate: Candidate): MatchTags {
@@ -152,7 +153,7 @@ export const AIProgressPage: React.FC<Props> = ({ userProfile }) => {
   const jobs = Array.from(jobSet.entries()).map(([id, label]) => ({ id, label }));
 
   // 顯示順序的狀態列表
-  const STATUS_ORDER = ['爬蟲初篩', '未開始', 'AI推薦', '備選人才', '人才庫', '聯繫階段', '不推薦', '婉拒'];
+  const STATUS_ORDER = ['爬蟲初篩', '未開始', 'AI推薦', '備選人才', '人才庫', '聯繫階段', '不推薦', '婉拒', '外籍已過濾'];
   const availableStatuses = STATUS_ORDER.filter(s => statusGroups[s]?.length > 0);
   // 加入不在預設列表中的狀態
   Object.keys(statusGroups).forEach(s => {

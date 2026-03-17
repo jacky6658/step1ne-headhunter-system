@@ -280,7 +280,8 @@ export enum CandidateStatus {
   ONBOARDED = 'on board',
   REJECTED = '婉拒',
   OTHER = '備選人才',
-  CRAWLER_SCREENED = '爬蟲初篩'
+  CRAWLER_SCREENED = '爬蟲初篩',
+  FOREIGN_FILTERED = '外籍已過濾'
 }
 
 // 候選人來源

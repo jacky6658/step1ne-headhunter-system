@@ -13,6 +13,7 @@ const { enrichCandidate, saveEnrichment } = require('./perplexityService');
 const crypto = require('crypto');
 const { pool, withClient } = require('./db'); // 共享連線池 + 安全 helper
 const { safeError } = require('./safeError');
+const { isForeignName } = require('./foreignNameFilter');
 
 /**
  * 根據請求的 Host header 動態替換 guide 文件中的 API base URL
@@ -1986,7 +1987,7 @@ router.put('/candidates/:id/pipeline-status', async (req, res) => {
     const { id } = req.params;
     const { status, by } = req.body;
 
-    const validStatuses = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才', '其他', '爬蟲初篩'];
+    const validStatuses = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才', '其他', '爬蟲初篩', '外籍已過濾'];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -2065,7 +2066,7 @@ router.patch('/candidates/batch-status', async (req, res) => {
   try {
     const { ids, status, actor, note } = req.body;
 
-    const validStatuses = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才', '其他', '爬蟲初篩'];
+    const validStatuses = ['未開始', 'AI推薦', '聯繫階段', '面試階段', 'Offer', 'on board', '婉拒', '備選人才', '其他', '爬蟲初篩', '外籍已過濾'];
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ success: false, error: '缺少 ids 陣列' });
@@ -2401,6 +2402,9 @@ router.post('/candidates', async (req, res) => {
     } else {
       // 新人選 → 建立
       action = 'created';
+      // 外國人名字篩選（第一層：後端自動判斷）
+      const foreignFiltered = isForeignName(c.name);
+      const assignedStatus = foreignFiltered ? '外籍已過濾' : (c.status || '未開始');
       result = await client.query(
         `INSERT INTO candidates_pipeline
          (name, phone, email, linkedin_url, github_url, contact_link,
@@ -2417,7 +2421,7 @@ router.post('/candidates', async (req, res) => {
           c.linkedin_url || '', c.github_url || '', c.contact_link || '',
           (c.location || '').slice(0, 255), (c.current_position || '').slice(0, 255), String(c.years_experience || '0'),
           c.skills || '', (c.education || '').slice(0, 255), (c.source || 'GitHub').slice(0, 255),
-          c.status || '未開始', (c.recruiter || '待指派').slice(0, 255), c.notes || '',
+          assignedStatus, (c.recruiter || '待指派').slice(0, 255), c.notes || '',
           String(c.stability_score || '0'), (c.personality_type || '').slice(0, 255),
           String(c.job_changes || '0'), String(c.avg_tenure_months || '0'),
           String(c.recent_gap_months || '0'),
@@ -2450,13 +2454,17 @@ router.post('/candidates', async (req, res) => {
       detail: { source: c.source, position: c.current_position }
     });
 
+    const foreignFiltered = result.rows[0].status === '外籍已過濾';
     res.status(action === 'created' ? 201 : 200).json({
       success: true,
       action,
       matchMethod,
+      foreignFiltered,
       data: result.rows[0],
       message: action === 'created'
-        ? `新增候選人：${c.name}`
+        ? (foreignFiltered
+          ? `新增候選人：${c.name}（外籍名字已自動過濾）`
+          : `新增候選人：${c.name}`)
         : `已存在（透過 ${matchMethod} 比對），已補充 ${c.name} 的空白欄位`
     });
   } catch (error) {

@@ -98,6 +98,13 @@ export const CANDIDATE_STATUS_CONFIG = {
     bgColor: 'bg-cyan-100',
     textColor: 'text-cyan-700',
     borderColor: 'border-cyan-300'
+  },
+  [CandidateStatus.FOREIGN_FILTERED]: {
+    label: '外籍已過濾',
+    color: 'gray',
+    bgColor: 'bg-gray-100',
+    textColor: 'text-gray-500',
+    borderColor: 'border-gray-300'
   }
 };
 
