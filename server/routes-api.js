@@ -979,8 +979,8 @@ router.get('/candidates', async (req, res) => {
       portfolioUrl: row.portfolio_url || '',
       aiSummary: row.ai_summary || null,
       resumeFiles: row.resume_files || [],
-      // Sprint 1: Structured fields
-      currentTitle: row.current_title || '',
+      // Sprint 1: Structured fields（currentTitle fallback 到 current_position）
+      currentTitle: row.current_title || row.current_position || '',
       currentCompany: row.current_company || '',
       roleFamily: row.role_family || '',
       canonicalRole: row.canonical_role || '',
@@ -1131,8 +1131,9 @@ router.get('/candidates/:id', async (req, res) => {
       createdBy: 'system',
 
       // 向後相容：保留 DB 字段名（snake_case，供 AIbot 讀取）
+      recruiter: row.recruiter || '',
       current_position: row.current_position || '',
-      current_title: row.current_title || '',
+      current_title: row.current_title || row.current_position || '',
       current_company: row.current_company || '',
       linkedin_url: row.linkedin_url || '',
       github_url: row.github_url || '',
@@ -2710,7 +2711,8 @@ router.get('/jobs', async (req, res) => {
       salary_max: row.salary_max,
       rejection_criteria: row.rejection_criteria,
       created_at: row.created_at,
-      lastUpdated: row.updated_at
+      lastUpdated: row.updated_at,
+      updatedAt: row.updated_at
     }));
 
     res.json({

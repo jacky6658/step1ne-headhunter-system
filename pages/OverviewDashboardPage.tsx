@@ -100,7 +100,7 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
     const interviewing = all.filter(c => c.status === '面試階段').length;
     const offer = all.filter(c => c.status === 'Offer').length;
     const onboard = all.filter(c => c.status === 'on board').length;
-    const activeJobs = jobs.filter(j => j.job_status === '招募中' || j.job_status === '面試中').length;
+    const activeJobs = jobs.filter(j => j.job_status === '招募中' || j.job_status === '開放中').length;
 
     return { total: all.length, active: active.length, contacted, interviewing, offer, onboard, activeJobs };
   }, [candidates, jobs]);
@@ -169,7 +169,7 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
 
   // ── 職缺維度 ──
   const jobStats = useMemo(() => {
-    const activeJobs = jobs.filter(j => j.job_status === '招募中' || j.job_status === '面試中');
+    const activeJobs = jobs.filter(j => j.job_status === '招募中' || j.job_status === '開放中');
     return activeJobs.map(job => {
       const matched = candidates.filter(c => c.targetJobLabel?.includes(job.position_name) || c.targetJobLabel?.includes(job.client_company));
       const byStatus: Record<string, number> = {};
