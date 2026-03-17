@@ -54,7 +54,7 @@
 
 ```
 GET /api/candidates
-GET /api/candidates?status=追蹤中&limit=50&offset=0
+GET /api/candidates?status=聯繫階段&limit=50&offset=0
 GET /api/candidates?source=GitHub&created_today=true
 ```
 
@@ -124,7 +124,7 @@ POST /api/candidates
   "skills": "Node.js, Python, PostgreSQL, Docker, K8s",
   "education": "台灣大學 資訊工程所 碩士",
   "source": "LinkedIn",
-  "status": "追蹤中",
+  "status": "聯繫階段",
   "recruiter": "Jacky",
   "notes": "對 AI 相關職缺有興趣",
   "talent_level": "A+",
@@ -386,9 +386,9 @@ PATCH /api/candidates/batch-status
 ```json
 {
   "ids": [1, 2, 3, 4, 5],
-  "status": "追蹤中",
+  "status": "聯繫階段",
   "actor": "jacky-aibot",
-  "note": "批次標記為追蹤中"
+  "note": "批次標記為聯繫階段"
 }
 ```
 
@@ -479,15 +479,16 @@ DELETE /interactions/:interactionId
 | 狀態 | 說明 |
 |------|------|
 | `未開始` | 剛匯入，尚未處理 |
-| `追蹤中` | 主動追蹤中 |
-| `聯繫中` | 已開始聯繫 |
-| `面試中` | 進入面試流程 |
-| `已錄取` | 收到 offer |
-| `已報到` | 到職 |
-| `已拒絕` | 候選人拒絕 |
-| `不適合` | 不符合需求 |
-| `暫緩` | 暫時擱置 |
+| `爬蟲初篩` | 爬蟲自動匯入的初篩候選人 |
+| `AI推薦` | AI 評分後推薦的候選人 |
+| `聯繫階段` | 已初步聯繫候選人 |
+| `面試階段` | 進入面試流程 |
+| `Offer` | 已發出 Offer |
+| `on board` | 候選人已到職 |
+| `婉拒` | 候選人或客戶婉拒 |
+| `備選人才` | 備選庫，暫不進一步處理 |
 | `外籍已過濾` | 系統自動判斷為外國人名字，不進一步處理 |
+| `其他` | 其他情況 |
 
 ---
 

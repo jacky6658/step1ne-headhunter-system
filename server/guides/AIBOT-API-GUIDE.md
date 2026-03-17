@@ -1906,6 +1906,8 @@ PUT /api/candidates/:id/pipeline-status
 
 4. **notes 與 remarks 欄位**：`PATCH /candidates/:id` 同時接受 `notes` 和 `remarks`，兩者效果完全相同，寫其中一個即可
 
-5. **並發注意**：目前無鎖定機制，多個 AIbot 同時操作同一候選人可能造成進度記錄順序混亂，建議序列化操作
+5. **recruiter 與 consultant 欄位**：兩者指的是同一個欄位（負責顧問）。API 同時接受 `recruiter` 和 `consultant`，寫哪個都會存到同一個 DB 欄位。API 回傳統一使用 `consultant`
 
-6. **AIbot 身份判斷規則**：`by` 或 `actor` 欄位符合 `/aibot/i` 正則（包含 "aibot" 字串，大小寫不限）即視為 AIBOT；否則視為 HUMAN
+6. **並發注意**：目前無鎖定機制，多個 AIbot 同時操作同一候選人可能造成進度記錄順序混亂，建議序列化操作
+
+7. **AIbot 身份判斷規則**：`by` 或 `actor` 欄位符合 `/aibot/i` 正則（包含 "aibot" 字串，大小寫不限）即視為 AIBOT；否則視為 HUMAN

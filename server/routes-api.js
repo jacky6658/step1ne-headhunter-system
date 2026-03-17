@@ -1287,7 +1287,9 @@ router.put('/candidates/:id', async (req, res) => {
     if (!/^\d+$/.test(id)) {
       return res.status(404).json({ success: false, error: 'Candidate not found' });
     }
-    const { status, notes, consultant, name, progressTracking, aiMatchResult } = req.body;
+    const { status, notes, name, progressTracking, aiMatchResult } = req.body;
+    // 支援 consultant 和 recruiter 兩種欄位名稱（統一寫入 DB 的 recruiter 欄位）
+    const consultant = req.body.consultant !== undefined ? req.body.consultant : req.body.recruiter;
 
     // 支援 aiMatchResult 或 ai_match_result
     const matchResult = aiMatchResult || req.body.ai_match_result || null;
@@ -1346,9 +1348,12 @@ router.put('/candidates/:id', async (req, res) => {
     // 清除該候選人的職缺匹配快取
     pool.query('DELETE FROM candidate_job_rankings_cache WHERE candidate_id = $1', [id]).catch(() => {});
 
+    // 回傳時加入 consultant 欄位（= recruiter 的別名）
+    const putRow = result.rows[0];
+    if (putRow && !putRow.consultant) putRow.consultant = putRow.recruiter || '待指派';
     res.json({
       success: true,
-      data: result.rows[0],
+      data: putRow,
       message: 'Candidate updated successfully'
     });
   } catch (error) {
@@ -1446,8 +1451,10 @@ router.patch('/candidates/:id', async (req, res) => {
     if (!/^\d+$/.test(id)) {
       return res.status(404).json({ success: false, error: 'Candidate not found' });
     }
-    const { status, progressTracking, recruiter, talent_level, name,
+    const { status, progressTracking, talent_level, name,
             stability_score, ai_match_result } = req.body;
+    // 支援 recruiter 和 consultant 兩種欄位名稱（統一寫入 DB 的 recruiter 欄位）
+    const recruiter = req.body.recruiter !== undefined ? req.body.recruiter : req.body.consultant;
     // 支援 notes 與 remarks 兩種欄位名稱（AIbot 相容性）
     const notes = req.body.notes !== undefined ? req.body.notes : req.body.remarks;
     // 支援 snake_case 與 camelCase 兩種格式（AIbot 相容性）
@@ -1947,7 +1954,10 @@ router.patch('/candidates/:id', async (req, res) => {
     // 清除該候選人的職缺匹配快取
     pool.query('DELETE FROM candidate_job_rankings_cache WHERE candidate_id = $1', [id]).catch(() => {});
 
-    res.json({ success: true, data: result.rows[0], message: 'Candidate patched successfully' });
+    // 回傳時加入 consultant 欄位（= recruiter 的別名，確保前端一致性）
+    const row = result.rows[0];
+    if (row && !row.consultant) row.consultant = row.recruiter || '待指派';
+    res.json({ success: true, data: row, message: 'Candidate patched successfully' });
     } finally {
       client.release();
     }

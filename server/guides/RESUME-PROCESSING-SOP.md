@@ -116,7 +116,7 @@ curl -s -X POST "https://api-hr.step1ne.com/api/candidates" \
     "education": "碩士",
     "stability_score": 80,
     "recruiter": "Jacky",
-    "status": "追蹤中",
+    "status": "聯繫階段",
     "work_history": [
       {"company":"ABC Corp","position":"Senior Backend Engineer","startDate":"2022-03","endDate":"現在","description":"後端API開發、GCP部署"}
     ]
