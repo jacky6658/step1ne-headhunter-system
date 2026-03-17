@@ -2305,14 +2305,49 @@ router.post('/candidates', async (req, res) => {
     const client = await pool.connect();
     let result;
     let action;
+    let matchMethod = null;
     try {
     const nameKey = c.name.trim().toLowerCase();
 
-    // 檢查是否已存在
-    const existing = await client.query(
-      'SELECT id FROM candidates_pipeline WHERE LOWER(TRIM(name)) = $1 LIMIT 1',
-      [nameKey]
-    );
+    // 3 層去重：LinkedIn URL > Email > Name（與 bulk import 一致）
+    let existing = { rows: [] };
+
+    // 第 1 層：LinkedIn URL（最高優先）
+    if (c.linkedin_url && c.linkedin_url.trim()) {
+      const normalizedLi = c.linkedin_url.trim().toLowerCase()
+        .replace('://www.', '://').replace(/\/+$/, '');
+      if (normalizedLi.includes('linkedin.com')) {
+        existing = await client.query(
+          `SELECT id FROM candidates_pipeline
+           WHERE LOWER(TRIM(REPLACE(REGEXP_REPLACE(linkedin_url, '/+$', ''), '://www.', '://')))
+                 = $1 AND linkedin_url IS NOT NULL AND linkedin_url <> ''
+           LIMIT 1`,
+          [normalizedLi]
+        );
+        if (existing.rows.length > 0) matchMethod = 'linkedin_url';
+      }
+    }
+
+    // 第 2 層：Email
+    if (existing.rows.length === 0 && c.email && c.email.trim() && c.email.includes('@')) {
+      const normalizedEmail = c.email.trim().toLowerCase();
+      existing = await client.query(
+        `SELECT id FROM candidates_pipeline
+         WHERE LOWER(TRIM(email)) = $1 AND email IS NOT NULL AND email != ''
+         LIMIT 1`,
+        [normalizedEmail]
+      );
+      if (existing.rows.length > 0) matchMethod = 'email';
+    }
+
+    // 第 3 層：Name（原有邏輯）
+    if (existing.rows.length === 0) {
+      existing = await client.query(
+        'SELECT id FROM candidates_pipeline WHERE LOWER(TRIM(name)) = $1 LIMIT 1',
+        [nameKey]
+      );
+      if (existing.rows.length > 0) matchMethod = 'name';
+    }
 
     if (existing.rows.length > 0) {
       // 既有人選 → 只補充空欄位
@@ -2418,10 +2453,11 @@ router.post('/candidates', async (req, res) => {
     res.status(action === 'created' ? 201 : 200).json({
       success: true,
       action,
+      matchMethod,
       data: result.rows[0],
       message: action === 'created'
         ? `新增候選人：${c.name}`
-        : `已存在，已補充 ${c.name} 的空白欄位`
+        : `已存在（透過 ${matchMethod} 比對），已補充 ${c.name} 的空白欄位`
     });
   } catch (error) {
     safeError(res, error, 'POST /candidates');
