@@ -692,6 +692,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm text-slate-900 truncate flex items-center gap-1">
+                    <span className="text-xs text-slate-400 font-mono">#{job.id}</span>
                     {job.position_name}
                     {jobHasMissingFields(job) && <AlertTriangle size={12} className="text-amber-500 shrink-0" />}
                   </div>
@@ -718,6 +719,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider w-12">編號</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">職位名稱</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">客戶公司</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[80px]">優先級</th>
@@ -735,6 +737,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
                     className="hover:bg-slate-50 transition-colors cursor-pointer"
                     onClick={() => handleJobClick(job)}
                   >
+                    <td className="px-4 py-3 text-sm text-slate-400 font-mono">#{job.id}</td>
                     <td className="px-4 py-3">
                       <div className="font-semibold text-slate-900 flex items-center gap-1.5">
                         {job.position_name}
@@ -824,7 +827,10 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
                       placeholder="職位名稱（必填）"
                     />
                   ) : (
-                    <h2 className="text-base sm:text-xl font-bold text-slate-900 leading-tight">{selectedJob.position_name}</h2>
+                    <h2 className="text-base sm:text-xl font-bold text-slate-900 leading-tight">
+                      <span className="text-sm text-slate-400 font-mono mr-1.5">#{selectedJob.id}</span>
+                      {selectedJob.position_name}
+                    </h2>
                   )}
                   {editingBasic ? (
                     <input
