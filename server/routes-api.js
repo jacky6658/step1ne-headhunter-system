@@ -127,6 +127,39 @@ pool.query(`
   )
 `).catch(err => console.warn('user_contacts migration:', err.message));
 
+// 確保 users 資料表存在（多裝置用戶同步）
+pool.query(`
+  CREATE TABLE IF NOT EXISTS users (
+    uid VARCHAR(100) PRIMARY KEY,
+    display_name VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(255) DEFAULT '',
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(20) DEFAULT 'REVIEWER',
+    is_active BOOLEAN DEFAULT true,
+    avatar TEXT DEFAULT '',
+    status VARCHAR(50) DEFAULT '',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )
+`).then(() => {
+  // Seed 預設用戶（ON CONFLICT DO NOTHING 防重複）
+  const defaultUsers = [
+    ['admin', 'Admin', 'admin@caseflow.internal', 'admin123', 'ADMIN'],
+    ['phoebe', 'Phoebe', 'phoebe@caseflow.internal', 'phoebe123', 'REVIEWER'],
+    ['jacky', 'Jacky', 'jacky@caseflow.internal', 'jacky123', 'REVIEWER'],
+    ['jim', 'Jim', 'jim@caseflow.internal', 'jim123', 'REVIEWER'],
+  ];
+  for (const [uid, displayName, email, password, role] of defaultUsers) {
+    pool.query(
+      `INSERT INTO users (uid, display_name, email, password, role, is_active)
+       VALUES ($1, $2, $3, $4, $5, true)
+       ON CONFLICT (uid) DO NOTHING`,
+      [uid, displayName, email, password, role]
+    ).catch(() => {});
+  }
+  console.log('✅ users 表已就緒（含預設用戶）');
+}).catch(err => console.warn('users migration:', err.message));
+
 // 確保 TG 通知欄位存在（telegram_bot_token + telegram_chat_id）
 pool.query(`
   ALTER TABLE user_contacts
@@ -799,7 +832,7 @@ router.get('/candidates', async (req, res) => {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // 分頁參數
-    const parsedLimit = rawLimit ? Math.min(Math.max(1, parseInt(rawLimit)), 2000) : 500;
+    const parsedLimit = rawLimit ? Math.min(Math.max(1, parseInt(rawLimit)), 100) : 100;
     let parsedOffset = 0;
     if (rawOffset) {
       parsedOffset = Math.max(0, parseInt(rawOffset) || 0);
@@ -1565,8 +1598,13 @@ router.patch('/candidates/:id', async (req, res) => {
       values.push(JSON.stringify(normalizeProgressTracking(progressTracking)));
     }
     if (recruiter !== undefined) {
+      // Recruiter 白名單驗證：只接受系統內 active 用戶或 '待指派'
+      const validUsersRes = await client.query("SELECT display_name FROM users WHERE is_active = true");
+      const validRecruiters = new Set(validUsersRes.rows.map(r => r.display_name));
+      validRecruiters.add('待指派');
+      const checkedRecruiter = validRecruiters.has(recruiter) ? recruiter : '待指派';
       setClauses.push(`recruiter = $${idx++}`);
-      values.push(recruiter);
+      values.push(checkedRecruiter);
     }
     if (notes !== undefined) {
       setClauses.push(`notes = $${idx++}`);
@@ -2416,6 +2454,10 @@ router.post('/candidates', async (req, res) => {
       // 外國人名字篩選（第一層：後端自動判斷）
       const foreignFiltered = isForeignName(c.name);
       const assignedStatus = foreignFiltered ? '外籍已過濾' : (c.status || '未開始');
+      // Recruiter 白名單驗證：只接受系統內 active 用戶
+      const validUsersResult = await client.query("SELECT display_name FROM users WHERE is_active = true");
+      const validNames = new Set(validUsersResult.rows.map(r => r.display_name));
+      const validatedRecruiter = (c.recruiter && validNames.has(c.recruiter)) ? c.recruiter : '待指派';
       result = await client.query(
         `INSERT INTO candidates_pipeline
          (name, phone, email, linkedin_url, github_url, contact_link,
@@ -2432,7 +2474,7 @@ router.post('/candidates', async (req, res) => {
           c.linkedin_url || '', c.github_url || '', c.contact_link || '',
           (c.location || '').slice(0, 255), (c.current_position || '').slice(0, 255), String(c.years_experience || '0'),
           c.skills || '', (c.education || '').slice(0, 255), (c.source || 'GitHub').slice(0, 255),
-          assignedStatus, (c.recruiter || '待指派').slice(0, 255), c.notes || '',
+          assignedStatus, validatedRecruiter.slice(0, 255), c.notes || '',
           String(c.stability_score || '0'), (c.personality_type || '').slice(0, 255),
           String(c.job_changes || '0'), String(c.avg_tenure_months || '0'),
           String(c.recent_gap_months || '0'),
@@ -3252,6 +3294,232 @@ router.get('/health', async (req, res) => {
 });
 
 // ==================== 顧問聯絡資訊 API ====================
+
+// ==================== 用戶管理 CRUD API（多裝置同步） ====================
+
+/**
+ * GET /api/users/all — 取得所有用戶（含 role, isActive，供 LoginPage / MembersPage 使用）
+ */
+router.get('/users/all', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT uid, display_name, email, role, is_active, avatar, status, created_at, updated_at
+       FROM users ORDER BY created_at`
+    );
+    const users = result.rows.map(r => ({
+      uid: r.uid,
+      displayName: r.display_name,
+      email: r.email,
+      role: r.role,
+      isActive: r.is_active,
+      avatar: r.avatar || '',
+      status: r.status || '',
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+    res.json({ success: true, data: users });
+  } catch (error) {
+    safeError(res, error, 'GET /users/all');
+  }
+});
+
+/**
+ * POST /api/users/login — 用戶登入驗證
+ * body: { displayName, password }
+ */
+router.post('/users/login', async (req, res) => {
+  try {
+    const { displayName, password } = req.body;
+    if (!displayName || !password) {
+      return res.status(400).json({ success: false, error: 'displayName 和 password 必填' });
+    }
+    const result = await pool.query(
+      `SELECT u.*, uc.contact_phone, uc.contact_email AS work_email,
+              uc.line_id, uc.telegram_handle, uc.github_token, uc.brave_api_key
+       FROM users u
+       LEFT JOIN user_contacts uc ON u.display_name = uc.display_name
+       WHERE LOWER(u.display_name) = LOWER($1) AND u.is_active = true`,
+      [displayName]
+    );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, error: '用戶不存在或已停用' });
+    }
+    const user = result.rows[0];
+    if (user.password !== password) {
+      return res.status(401).json({ success: false, error: '密碼錯誤' });
+    }
+    // 更新 updated_at
+    pool.query('UPDATE users SET updated_at = NOW() WHERE uid = $1', [user.uid]).catch(() => {});
+    // 同步 user_contacts（確保登入過的用戶有聯絡資訊記錄）
+    pool.query(
+      `INSERT INTO user_contacts (display_name, updated_at) VALUES ($1, NOW())
+       ON CONFLICT (display_name) DO UPDATE SET updated_at = NOW()`,
+      [user.display_name]
+    ).catch(() => {});
+
+    res.json({
+      success: true,
+      data: {
+        uid: user.uid,
+        displayName: user.display_name,
+        email: user.email,
+        role: user.role,
+        isActive: user.is_active,
+        avatar: user.avatar || '',
+        status: user.status || '',
+        createdAt: user.created_at,
+        contactPhone: user.contact_phone || '',
+        lineId: user.line_id || '',
+        telegramHandle: user.telegram_handle || '',
+      }
+    });
+  } catch (error) {
+    safeError(res, error, 'POST /users/login');
+  }
+});
+
+/**
+ * POST /api/users/create — 新增用戶（Admin 操作）
+ * body: { uid?, displayName, email?, password, role? }
+ */
+router.post('/users/create', async (req, res) => {
+  try {
+    const { displayName, email, password, role } = req.body;
+    if (!displayName || !password) {
+      return res.status(400).json({ success: false, error: 'displayName 和 password 必填' });
+    }
+    // 自動生成 uid：displayName 小寫 + 去空格
+    const uid = req.body.uid || displayName.toLowerCase().replace(/\s+/g, '_');
+    const userRole = role || 'REVIEWER';
+    const userEmail = email || `${uid}@caseflow.internal`;
+
+    const result = await pool.query(
+      `INSERT INTO users (uid, display_name, email, password, role, is_active, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
+       RETURNING uid, display_name, email, role, is_active, created_at`,
+      [uid, displayName, userEmail, password, userRole]
+    );
+    // 同步建立 user_contacts 記錄
+    pool.query(
+      `INSERT INTO user_contacts (display_name, contact_email, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (display_name) DO NOTHING`,
+      [displayName, userEmail]
+    ).catch(() => {});
+
+    const r = result.rows[0];
+    res.status(201).json({
+      success: true,
+      data: {
+        uid: r.uid,
+        displayName: r.display_name,
+        email: r.email,
+        role: r.role,
+        isActive: r.is_active,
+        createdAt: r.created_at,
+      },
+      message: `用戶 ${displayName} 已建立`
+    });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ success: false, error: '用戶名稱已存在' });
+    }
+    safeError(res, error, 'POST /users/create');
+  }
+});
+
+/**
+ * PUT /api/users/:uid — 更新用戶資訊
+ * body: { displayName?, email?, role?, password?, isActive?, avatar?, status? }
+ */
+router.put('/users/:uid', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const { displayName, email, role, password, isActive, avatar, status } = req.body;
+
+    const setClauses = [];
+    const values = [];
+    let idx = 1;
+
+    if (displayName !== undefined) { setClauses.push(`display_name = $${idx++}`); values.push(displayName); }
+    if (email !== undefined) { setClauses.push(`email = $${idx++}`); values.push(email); }
+    if (role !== undefined) { setClauses.push(`role = $${idx++}`); values.push(role); }
+    if (password !== undefined && password !== '') { setClauses.push(`password = $${idx++}`); values.push(password); }
+    if (isActive !== undefined) { setClauses.push(`is_active = $${idx++}`); values.push(isActive); }
+    if (avatar !== undefined) { setClauses.push(`avatar = $${idx++}`); values.push(avatar); }
+    if (status !== undefined) { setClauses.push(`status = $${idx++}`); values.push(status); }
+
+    if (setClauses.length === 0) {
+      return res.status(400).json({ success: false, error: '沒有要更新的欄位' });
+    }
+    setClauses.push(`updated_at = NOW()`);
+    values.push(uid);
+
+    const result = await pool.query(
+      `UPDATE users SET ${setClauses.join(', ')} WHERE uid = $${idx} RETURNING uid, display_name, email, role, is_active, avatar, status, created_at, updated_at`,
+      values
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '用戶不存在' });
+    }
+    const r = result.rows[0];
+    res.json({
+      success: true,
+      data: {
+        uid: r.uid,
+        displayName: r.display_name,
+        email: r.email,
+        role: r.role,
+        isActive: r.is_active,
+        avatar: r.avatar || '',
+        status: r.status || '',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      },
+      message: `用戶 ${r.display_name} 已更新`
+    });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ success: false, error: '用戶名稱已存在' });
+    }
+    safeError(res, error, 'PUT /users/:uid');
+  }
+});
+
+/**
+ * DELETE /api/users/:uid — 停用用戶（軟刪除，is_active = false）
+ */
+router.delete('/users/:uid', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    if (uid === 'admin') {
+      return res.status(403).json({ success: false, error: '無法停用 admin 用戶' });
+    }
+    const result = await pool.query(
+      `UPDATE users SET is_active = false, updated_at = NOW() WHERE uid = $1 RETURNING uid, display_name`,
+      [uid]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '用戶不存在' });
+    }
+    res.json({ success: true, message: `用戶 ${result.rows[0].display_name} 已停用` });
+  } catch (error) {
+    safeError(res, error, 'DELETE /users/:uid');
+  }
+});
+
+/**
+ * GET /api/users/names — 取得所有 active 用戶 displayName（供 recruiter 白名單驗證）
+ */
+router.get('/users/names', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT display_name FROM users WHERE is_active = true ORDER BY display_name`
+    );
+    res.json({ success: true, data: result.rows.map(r => r.display_name) });
+  } catch (error) {
+    safeError(res, error, 'GET /users/names');
+  }
+});
 
 /**
  * GET /api/users — 取得所有顧問名單（從 user_contacts + candidates recruiter 合併去重）

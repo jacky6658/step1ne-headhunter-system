@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { auth, signInAnonymously } from '../mockBackend';
-import { createUserProfile, getAllUsers, getUserProfile, verifyPassword } from '../services/userService';
+import { getAllUsers, verifyPassword } from '../services/userService';
 import { setUserOnline } from '../services/onlineService';
 import { Role, UserProfile } from '../types';
 import { ArrowRight, AlertCircle, Loader2, User, Shield, ArrowLeft, Lock } from 'lucide-react';
@@ -34,22 +34,11 @@ const LoginPage: React.FC = () => {
 
   const loadUsers = async () => {
     try {
-      let allUsers = await getAllUsers();
-
-      // 如果沒有用戶，嘗試初始化預設用戶
-      if (allUsers.length === 0) {
-        console.log('未找到用戶，初始化預設用戶...');
-        // 創建預設用戶
-        await createUserProfile('admin', 'admin@aijob.internal', Role.ADMIN, 'Admin', 'admin123');
-        await createUserProfile('phoebe', 'phoebe@aijob.internal', Role.REVIEWER, 'Phoebe', 'phoebe123');
-        await createUserProfile('jacky', 'jacky@aijob.internal', Role.REVIEWER, 'Jacky', 'jacky123');
-        await createUserProfile('jim', 'jim@aijob.internal', Role.REVIEWER, 'Jim', 'jim123');
-
-        // 重新獲取用戶列表
-        allUsers = await getAllUsers();
-      }
-
+      const allUsers = await getAllUsers();
       setUsers(allUsers);
+      if (allUsers.length === 0) {
+        setError('無法載入用戶清單，請確認後端服務是否正常運行');
+      }
     } catch (error) {
       console.error('載入用戶失敗:', error);
       setError('載入用戶資料失敗，請重新整理頁面');
@@ -80,31 +69,19 @@ const LoginPage: React.FC = () => {
     setError('');
 
     try {
-      // 驗證密碼
-      const isValid = await verifyPassword(selectedUser.displayName, password);
-      if (!isValid) {
+      // 驗證密碼（API 呼叫，成功回傳 UserProfile）
+      const profile = await verifyPassword(selectedUser.displayName, password);
+      if (!profile) {
         setError('密碼錯誤，請重新輸入');
         setLoading(false);
         return;
       }
 
       // 密碼正確，執行登入
-      const virtualEmail = `${(selectedUser.displayName || 'user').toLowerCase()}@caseflow.internal`;
-      const loginUid = selectedUser.uid;
-
-      let profile = await getUserProfile(loginUid);
-      if (!profile) {
-        profile = await createUserProfile(loginUid, virtualEmail, selectedUser.role, selectedUser.displayName);
-      } else {
-        localStorage.setItem('caseflow_profile', JSON.stringify(profile));
-      }
-
-      const userCredential = await signInAnonymously(auth, loginUid);
-
-      if (profile) {
-        localStorage.setItem('caseflow_profile', JSON.stringify(profile));
-        await setUserOnline(loginUid);
-      }
+      const loginUid = profile.uid;
+      localStorage.setItem('caseflow_profile', JSON.stringify(profile));
+      await signInAnonymously(auth, loginUid);
+      await setUserOnline(loginUid);
     } catch (err: any) {
       console.error("Auth Error:", err);
       setError('登入處理失敗，請稍後再試。');

@@ -31,6 +31,10 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Cloudflare Tunnel / Reverse Proxy：信任 proxy 的 X-Forwarded-For header
+// 讓 rate-limit 能正確辨識真實用戶 IP
+app.set('trust proxy', 1);
+
 // ==================== 安全中間件 ====================
 
 // Security headers（CSP 由前端 SPA 自行處理）
@@ -39,13 +43,13 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// Rate limiting：每分鐘 200 次（內部工具 5 人使用，含 batch 操作）
+// Rate limiting：每分鐘 60 次（防止並發爆量撈資料打爆 DB）
 const limiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 200,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: '請求過於頻繁，請稍後再試' },
+  message: { success: false, error: '請求過於頻繁，請稍後再試（每分鐘上限 60 次）' },
 });
 app.use('/api', limiter);
 
@@ -139,6 +143,7 @@ function apiAuth(req, res, next) {
     '/resume-import-guide', // 履歷匯入指南
     '/github-analysis-guide', // GitHub 分析指南
     '/consultant-sop',      // 顧問 SOP 手冊
+    '/users',               // 用戶相關操作（登入、清單、更新個人資料、在線狀態）
   ];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p + '/'))) {
     return next();

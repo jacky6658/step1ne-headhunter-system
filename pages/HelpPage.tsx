@@ -393,7 +393,7 @@ const HelpPage: React.FC<HelpPageProps> = () => {
               <div>
                 <p className="font-black text-slate-900 mb-1">Candidates（候選人）</p>
                 <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
-                  <li><code className="bg-gray-100 px-1">GET /api/candidates?limit=2000</code> - 取得所有候選人（務必帶 limit）</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/candidates?limit=100&page=1</code> - 取得所有候選人（務必帶 limit）</li>
                   <li><code className="bg-gray-100 px-1">GET /api/candidates?created_today=true</code> - 取得今日新增候選人</li>
                   <li><code className="bg-gray-100 px-1">GET /api/candidates/:id</code> - 取得單一候選人完整資料</li>
                   <li><code className="bg-gray-100 px-1">POST /api/candidates</code> - 新增候選人</li>
@@ -965,7 +965,7 @@ const HelpPage: React.FC<HelpPageProps> = () => {
           <div>
             <h3 className="font-black text-slate-900 mb-2">🔄 分析 Bot 執行流程</h3>
             <ol className="list-decimal list-inside space-y-2 ml-4 text-sm">
-              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/candidates?limit=2000</code> 取得有 GitHub URL 的候選人</li>
+              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/candidates?limit=100&page=1</code> 取得有 GitHub URL 的候選人</li>
               <li>呼叫 <code className="bg-gray-100 px-1">GET /api/github/analyze/{'{username}'}?jobId={'{id}'}</code> 取得結構化分析資料</li>
               <li>AI 深度判斷四維度分數 → 撰寫分析報告</li>
               <li>每分析完一位立刻 <code className="bg-gray-100 px-1">PATCH /api/candidates/{'{id}'}</code> 寫回系統</li>

@@ -1,230 +1,164 @@
 
 import { UserProfile, Role } from '../types';
+import { API_BASE_URL } from '../constants';
 
-const STORAGE_KEY = 'caseflow_users_db';
 const PROFILE_KEY = 'caseflow_profile';
-const INITIALIZED_KEY = 'caseflow_users_initialized';
 
-// localStorage 操作
-const getDb = (): Record<string, UserProfile> => JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-const saveDb = (db: Record<string, UserProfile>) => localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+// ==================== API 呼叫（多裝置同步） ====================
 
-// 初始化預設用戶
-const initializeDefaultUsers = () => {
-  if (localStorage.getItem(INITIALIZED_KEY)) return;
-  
-  const now = new Date().toISOString();
-  const defaultUsers: Record<string, UserProfile> = {
-    'admin': {
-      uid: 'admin',
-      email: 'admin@caseflow.internal',
-      role: Role.ADMIN,
-      displayName: 'Admin',
-      password: 'admin123', // 預設密碼
-      isActive: true,
-      createdAt: now
-    },
-    'phoebe': {
-      uid: 'phoebe',
-      email: 'phoebe@caseflow.internal',
-      role: Role.REVIEWER,
-      displayName: 'Phoebe',
-      password: 'phoebe123',
-      isActive: true,
-      createdAt: now
-    },
-    'jacky': {
-      uid: 'jacky',
-      email: 'jacky@caseflow.internal',
-      role: Role.REVIEWER,
-      displayName: 'Jacky',
-      password: 'jacky123',
-      isActive: true,
-      createdAt: now
-    },
-    'jim': {
-      uid: 'jim',
-      email: 'jim@caseflow.internal',
-      role: Role.REVIEWER,
-      displayName: 'Jim',
-      password: 'jim123',
-      isActive: true,
-      createdAt: now
-    }
-  };
-  
-  saveDb(defaultUsers);
-  localStorage.setItem(INITIALIZED_KEY, 'true');
-};
-
-// 初始化
-initializeDefaultUsers();
-
-// 清理重複用戶（在初始化後執行一次）
-if (typeof window !== 'undefined') {
-  setTimeout(() => {
-    cleanupDuplicateUsers().then(count => {
-      if (count > 0) {
-        console.log(`已清理 ${count} 個重複用戶`);
-      }
-    });
-  }, 100);
-}
+const apiBase = API_BASE_URL || '';
 
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
-  // 🔧 強制使用 localStorage（用戶管理不使用後端 API）
-  // 原因：Step1ne 是 B2B SaaS，用戶管理由前端處理
-  
-  // localStorage 模式
-  const db = getDb();
-  return db[uid] || JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
+  // 先從快取中找
+  const cached = localStorage.getItem(PROFILE_KEY);
+  if (cached) {
+    const profile = JSON.parse(cached) as UserProfile;
+    if (profile.uid === uid) return profile;
+  }
+  // 從後端取所有用戶找到對應的
+  const users = await getAllUsers();
+  return users.find(u => u.uid === uid) || null;
 };
 
 export const getUserByDisplayName = async (displayName: string): Promise<UserProfile | null> => {
-  const db = getDb();
-  const user = Object.values(db).find(u => 
-    u.displayName && u.displayName.toLowerCase() === displayName.toLowerCase()
-  );
-  return user || null;
+  const users = await getAllUsers();
+  return users.find(u => u.displayName?.toLowerCase() === displayName.toLowerCase()) || null;
 };
 
 export const getAllUsers = async (): Promise<UserProfile[]> => {
-  // 🔧 強制使用 localStorage（用戶管理不使用後端 API）
-  
-  // localStorage 模式
-  const db = getDb();
-  const users = Object.values(db).filter(u => u.isActive !== false);
-  
-  // 如果 localStorage 也沒有用戶，確保初始化預設用戶
-  if (users.length === 0) {
-    initializeDefaultUsers();
-    return Object.values(getDb()).filter(u => u.isActive !== false);
-  }
-  
-  // 去重：如果有多個相同 displayName 的用戶，只保留第一個（根據 uid 排序）
-  const seen = new Map<string, UserProfile>();
-  const duplicatesToDelete: string[] = [];
-  
-  for (const user of users) {
-    if (!user.displayName) continue; // 跳過沒有 displayName 的用戶
-    const key = user.displayName.toLowerCase();
-    if (!seen.has(key)) {
-      seen.set(key, user);
-    } else {
-      // 比較 uid，保留較小的（較早創建的）
-      const existing = seen.get(key)!;
-      if (user.uid < existing.uid) {
-        duplicatesToDelete.push(existing.uid);
-        seen.set(key, user);
-      } else {
-        duplicatesToDelete.push(user.uid);
-      }
+  try {
+    const res = await fetch(`${apiBase}/api/users/all`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.success && Array.isArray(json.data)) {
+      return json.data.map((u: any) => ({
+        uid: u.uid,
+        displayName: u.displayName,
+        email: u.email,
+        role: u.role as Role,
+        isActive: u.isActive,
+        avatar: u.avatar || '',
+        status: u.status || '',
+        createdAt: u.createdAt,
+      }));
     }
+    return [];
+  } catch (err) {
+    console.warn('getAllUsers API 失敗，嘗試 localStorage fallback:', err);
+    // Fallback: 如果後端不可用，嘗試從 localStorage 讀取
+    return getAllUsersFromLocalStorage();
   }
-  
-  // 刪除重複的用戶
-  if (duplicatesToDelete.length > 0) {
-    for (const uid of duplicatesToDelete) {
-      await deleteUser(uid);
-    }
-  }
-  
-  return Array.from(seen.values());
 };
 
-// 清理重複用戶的函數
-export const cleanupDuplicateUsers = async () => {
-  const db = getDb();
-  const users = Object.values(db);
-  const nameMap = new Map<string, UserProfile[]>();
-  
-  // 按 displayName 分組
-  users.forEach(user => {
-    if (!user.displayName) return; // 跳過沒有 displayName 的用戶
-    const key = user.displayName.toLowerCase();
-    if (!nameMap.has(key)) {
-      nameMap.set(key, []);
+export const verifyPassword = async (displayName: string, password: string): Promise<UserProfile | false> => {
+  try {
+    const res = await fetch(`${apiBase}/api/users/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName, password }),
+    });
+    if (!res.ok) return false;
+    const json = await res.json();
+    if (json.success && json.data) {
+      const profile: UserProfile = {
+        uid: json.data.uid,
+        displayName: json.data.displayName,
+        email: json.data.email,
+        role: json.data.role as Role,
+        isActive: json.data.isActive,
+        avatar: json.data.avatar || '',
+        status: json.data.status || '',
+        createdAt: json.data.createdAt,
+        contactPhone: json.data.contactPhone || '',
+        lineId: json.data.lineId || '',
+        telegramHandle: json.data.telegramHandle || '',
+      };
+      // 存到 localStorage 做本機 session 快取
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+      return profile;
     }
-    nameMap.get(key)!.push(user);
+    return false;
+  } catch (err) {
+    console.warn('verifyPassword API 失敗:', err);
+    return false;
+  }
+};
+
+export const createUserProfile = async (
+  uid: string, email: string, role: Role, displayName: string, password?: string
+): Promise<UserProfile> => {
+  const res = await fetch(`${apiBase}/api/users/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid, displayName, email, password, role }),
   });
-  
-  // 刪除重複的用戶（保留第一個）
-  let deletedCount = 0;
-  for (const [name, duplicates] of nameMap.entries()) {
-    if (duplicates.length > 1) {
-      // 按 uid 排序，保留第一個
-      duplicates.sort((a, b) => a.uid.localeCompare(b.uid));
-      // 刪除除了第一個之外的所有重複用戶
-      for (let i = 1; i < duplicates.length; i++) {
-        await deleteUser(duplicates[i].uid);
-        deletedCount++;
-      }
-    }
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || '建立用戶失敗');
   }
-  
-  return deletedCount;
-};
-
-export const verifyPassword = async (displayName: string, password: string): Promise<boolean> => {
-  const user = await getUserByDisplayName(displayName);
-  if (!user || !user.password) return false;
-  return user.password === password;
-};
-
-export const createUserProfile = async (uid: string, email: string, role: Role, displayName: string, password?: string) => {
-  const profile: UserProfile = { 
-    uid, 
-    email, 
-    role, 
-    displayName,
-    password,
-    isActive: true,
-    createdAt: new Date().toISOString()
+  return {
+    uid: json.data.uid,
+    displayName: json.data.displayName,
+    email: json.data.email,
+    role: json.data.role as Role,
+    isActive: json.data.isActive,
+    createdAt: json.data.createdAt,
   };
-  
-  // 🔧 強制使用 localStorage（用戶管理不使用後端 API）
-  const db = getDb();
-  db[uid] = profile;
-  saveDb(db);
-  // 只在登入時設置當前用戶的 profile
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+};
+
+export const updateUserProfile = async (uid: string, updates: Partial<UserProfile>): Promise<UserProfile | null> => {
+  const res = await fetch(`${apiBase}/api/users/${uid}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || '更新用戶失敗');
+  }
+  const profile: UserProfile = {
+    uid: json.data.uid,
+    displayName: json.data.displayName,
+    email: json.data.email,
+    role: json.data.role as Role,
+    isActive: json.data.isActive,
+    avatar: json.data.avatar || '',
+    status: json.data.status || '',
+    createdAt: json.data.createdAt,
+  };
+  // 如果更新的是當前登入用戶，同步更新 localStorage session
+  const currentProfile = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
+  if (currentProfile && currentProfile.uid === uid) {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  }
   return profile;
 };
 
-export const updateUserProfile = async (uid: string, updates: Partial<UserProfile>) => {
-  // 🔧 強制使用 localStorage（用戶管理不使用後端 API）
-  
-  // localStorage 模式
-  const db = getDb();
-  if (db[uid]) {
-    db[uid] = { ...db[uid], ...updates };
-    saveDb(db);
-    
-    // 如果更新的是當前用戶，同步更新 localStorage
-    const currentProfile = JSON.parse(localStorage.getItem('caseflow_profile') || 'null');
-    if (currentProfile && currentProfile.uid === uid) {
-      localStorage.setItem('caseflow_profile', JSON.stringify(db[uid]));
-    }
-    
-    return db[uid];
-  }
-  return null;
+export const deleteUser = async (uid: string): Promise<boolean> => {
+  const res = await fetch(`${apiBase}/api/users/${uid}`, {
+    method: 'DELETE',
+  });
+  const json = await res.json();
+  return json.success === true;
 };
 
-export const deleteUser = async (uid: string) => {
-  const db = getDb();
-  if (db[uid]) {
-    delete db[uid];
-    saveDb(db);
-    return true;
-  }
-  return false;
+export const setUserRole = async (uid: string, role: Role): Promise<void> => {
+  await updateUserProfile(uid, { role });
 };
 
-export const setUserRole = async (uid: string, role: Role) => {
-  const db = getDb();
-  if (db[uid]) {
-    db[uid].role = role;
-    saveDb(db);
+// ==================== localStorage Fallback（後端不可用時） ====================
+
+const STORAGE_KEY = 'caseflow_users_db';
+
+const getAllUsersFromLocalStorage = (): UserProfile[] => {
+  try {
+    const db: Record<string, UserProfile> = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    return Object.values(db).filter(u => u.isActive !== false);
+  } catch {
+    return [];
   }
 };
+
+// ==================== 不再需要的函數（保留空實現避免 import 報錯） ====================
+
+export const cleanupDuplicateUsers = async (): Promise<number> => 0;

@@ -30,8 +30,8 @@ if (!DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  max: 30,                        // 單一 Pool 最大連線數
-  min: 3,                         // 最小閒置連線
+  max: 20,                        // 單一 Pool 最大連線數（防止並發打爆 postmaster）
+  min: 2,                         // 最小閒置連線
   idleTimeoutMillis: 30000,       // 閒置 30 秒後釋放
   connectionTimeoutMillis: 10000, // 等超過 10 秒就報錯
   allowExitOnIdle: true,

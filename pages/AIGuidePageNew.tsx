@@ -108,7 +108,7 @@ Prompt 模板清單（顧問可用編號或名稱指定）：
       '6. Bot 執行填入後的 Prompt → 產出完整分析報告',
     ],
     apiEndpoints: [
-      { method: 'GET', path: '/api/candidates?limit=2000', desc: '取得所有候選人' },
+      { method: 'GET', path: '/api/candidates?limit=100&page=1', desc: '取得所有候選人' },
       { method: 'GET', path: '/api/candidates/:id', desc: '取得單一候選人' },
       { method: 'POST', path: '/api/candidates', desc: '新增候選人' },
       { method: 'POST', path: '/api/candidates/bulk', desc: '批量匯入候選人' },
@@ -267,7 +267,7 @@ ${BASE_URL}/api/github-analysis-guide
       '評完一個立刻 PATCH，不等全部完成',
     ],
     workflow: [
-      '1. GET /api/candidates?limit=2000 篩選有 github_url 的候選人',
+      '1. GET /api/candidates?limit=100&page=1 篩選有 github_url 的候選人',
       '2. GET /api/jobs 找到對應職缺',
       '3. GET /api/github/analyze/{username}?jobId={id} 取得分析資料',
       '4. AI 深度判斷 + 撰寫分析報告',
@@ -275,7 +275,7 @@ ${BASE_URL}/api/github-analysis-guide
       '6. 回報分析摘要',
     ],
     apiEndpoints: [
-      { method: 'GET', path: '/api/candidates?limit=2000', desc: '取得所有候選人' },
+      { method: 'GET', path: '/api/candidates?limit=100&page=1', desc: '取得所有候選人' },
       { method: 'GET', path: '/api/jobs', desc: '取得職缺資料' },
       { method: 'GET', path: '/api/github/analyze/:username?jobId=:id', desc: 'GitHub v2 分析 API' },
       { method: 'PATCH', path: '/api/candidates/:id', desc: '寫回分析結果' },
@@ -701,7 +701,7 @@ ${BASE_URL}/api/ai-guide
             {
               category: '📋 候選人管理',
               endpoints: [
-                { method: 'GET', path: '/api/candidates?limit=2000', desc: '取得所有候選人（務必帶 limit=2000）' },
+                { method: 'GET', path: '/api/candidates?limit=100&page=1', desc: '取得所有候選人（務必帶 limit=2000）' },
                 { method: 'GET', path: '/api/candidates?created_today=true', desc: '取得今日新增候選人' },
                 { method: 'GET', path: '/api/candidates/:id', desc: '取得單一候選人完整資料' },
                 { method: 'POST', path: '/api/candidates', desc: '新增單一候選人' },

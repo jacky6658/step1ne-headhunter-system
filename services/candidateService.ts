@@ -28,10 +28,10 @@ export function filterCandidatesByPermission(
 
 /**
  * 從 API 取得候選人（自動分頁，一次載入全部）
- * 後端每頁最多 2000 筆，前端自動翻頁直到 hasMore=false
+ * 後端每頁最多 100 筆，前端自動翻頁直到 hasMore=false
  */
 export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
-  const PAGE_SIZE = 2000;
+  const PAGE_SIZE = 100;
   let allCandidates: Candidate[] = [];
   let offset = 0;
   let hasMore = true;

@@ -1908,6 +1908,13 @@ PUT /api/candidates/:id/pipeline-status
 
 5. **recruiter 與 consultant 欄位**：兩者指的是同一個欄位（負責顧問）。API 同時接受 `recruiter` 和 `consultant`，寫哪個都會存到同一個 DB 欄位。API 回傳統一使用 `consultant`
 
-6. **並發注意**：目前無鎖定機制，多個 AIbot 同時操作同一候選人可能造成進度記錄順序混亂，建議序列化操作
+6. **recruiter 白名單驗證**：系統會自動驗證 recruiter 欄位值是否為系統內有效用戶。無效的 recruiter 值會被自動重設為 `'待指派'`。AIbot 在指派 recruiter 前，建議先呼叫 `GET /api/users/names` 取得合法顧問名單：
+   ```
+   GET /api/users/names
+   回傳: { "success": true, "data": ["Admin", "Phoebe", "Jacky", "Jim"] }
+   ```
+   只使用回傳的名單中的名稱作為 recruiter 值，避免被系統重設。
 
-7. **AIbot 身份判斷規則**：`by` 或 `actor` 欄位符合 `/aibot/i` 正則（包含 "aibot" 字串，大小寫不限）即視為 AIBOT；否則視為 HUMAN
+7. **並發注意**：目前無鎖定機制，多個 AIbot 同時操作同一候選人可能造成進度記錄順序混亂，建議序列化操作
+
+8. **AIbot 身份判斷規則**：`by` 或 `actor` 欄位符合 `/aibot/i` 正則（包含 "aibot" 字串，大小寫不限）即視為 AIBOT；否則視為 HUMAN

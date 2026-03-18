@@ -77,27 +77,35 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
   const [tourActive, setTourActive] = useState(false);
 
   const guideSteps = [
-    { icon: <LayoutGrid size={14} className="text-blue-600" />, title: '四種看板模式', desc: 'Grade / Source / Heat / Pipeline 切換不同分類維度查看人選' },
-    { icon: <Search size={14} className="text-blue-600" />, title: '搜尋與篩選', desc: '搜尋姓名、職位、技能，用篩選器縮小範圍' },
-    { icon: <MousePointerClick size={14} className="text-blue-600" />, title: '點擊卡片', desc: '點擊人選卡片查看詳細資料並編輯核心欄位' },
-    { icon: <Shield size={14} className="text-blue-600" />, title: '權限說明', desc: '非管理員只能看到自己負責的人選' },
+    { icon: <LayoutGrid size={14} className="text-emerald-600" />, title: 'Grade — 人選質量分級', desc: '按 A/B/C/D 級分類人選。收到職缺需求時，優先從 A 級人選開始推薦，快速產出 shortlist' },
+    { icon: <Building2 size={14} className="text-violet-600" />, title: 'Source — 公司背景分層', desc: '按候選人來源公司分為 T1（大廠）/ T2（知名企業）/ T3（一般企業），幫助判斷人選市場價值與客戶匹配度' },
+    { icon: <Flame size={14} className="text-red-500" />, title: 'Heat — 求職意願熱度', desc: '熱門 = 積極求職可快速推進；溫和 = 近期有互動可培養；冷門 = 長期未聯繫需重新破冰' },
+    { icon: <GitBranch size={14} className="text-indigo-600" />, title: 'Pipeline — 招募進度追蹤', desc: '追蹤每位人選從「未開始」到「On Board」的招募流程，掌握各階段人數與瓶頸' },
   ];
 
   const tourSteps: TourStep[] = [
-    { target: 'board-mode-switcher', title: '看板模式切換', content: '切換 Grade / Source / Heat / Pipeline 四種看板視角，從不同維度管理人選', placement: 'bottom' },
-    { target: 'board-search', title: '快速搜尋', content: '輸入姓名、職位、技能或公司名快速找到目標人選', placement: 'bottom' },
-    { target: 'board-filter', title: '進階篩選', content: '按等級、熱度、負責顧問篩選，快速縮小範圍', placement: 'bottom' },
-    { target: 'board-columns', title: '看板欄位', content: '人選按分類排列在各欄位中，點擊卡片可查看詳情並編輯', placement: 'top' },
-    { target: 'board-count', title: '人選統計', content: '顯示目前篩選條件下的人選總數', placement: 'bottom' },
+    { target: 'board-mode-switcher', title: '看板模式切換', content: '四種看板視角各有用途：Grade 用於產出推薦名單、Source 評估人選背景、Heat 決定聯繫優先順序、Pipeline 追蹤招募進度', placement: 'bottom' },
+    { target: 'board-search', title: '快速搜尋', content: '輸入姓名、職位、技能或公司名快速找到目標人選，例如搜「React」找所有前端工程師', placement: 'bottom' },
+    { target: 'board-filter', title: '進階篩選', content: '組合篩選條件精準定位，例如：Grade=A + Heat=熱門 → 找出最值得優先推薦的人選', placement: 'bottom' },
+    { target: 'board-columns', title: '看板欄位', content: '人選按分類排列在各欄位中，點擊卡片查看詳情、編輯等級與備註', placement: 'top' },
+    { target: 'board-count', title: '人選統計', content: '顯示各欄位人數，快速掌握人才庫結構。例如 A 級偏少表示需要加強 sourcing', placement: 'bottom' },
   ];
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(getApiUrl('/candidates?limit=2000'), { headers: getAuthHeaders() });
-      const json = await res.json();
-      const arr = json.data || json.candidates || json;
-      setCandidates(Array.isArray(arr) ? arr : []);
+      let allCandidates: any[] = [];
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const res = await fetch(getApiUrl(`/candidates?limit=100&offset=${offset}`), { headers: getAuthHeaders() });
+        const json = await res.json();
+        const page = json.data || json.candidates || [];
+        allCandidates = allCandidates.concat(page);
+        hasMore = json.pagination?.hasMore ?? (page.length === 100);
+        offset += 100;
+      }
+      setCandidates(allCandidates);
     } catch (e) {
       console.error('TalentBoard fetch error:', e);
     }
@@ -258,7 +266,7 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
       {/* Page Guide */}
       <PageGuide
         storageKey="step1ne-talent-board-guide"
-        title="如何使用人才看板"
+        title="人才看板 — 四種維度管理你的人選庫"
         steps={guideSteps}
         onStartTour={() => { localStorage.removeItem('step1ne-talent-board-tour'); setTourActive(true); }}
       />

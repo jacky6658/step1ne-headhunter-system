@@ -60,9 +60,9 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
       await loadUsers();
       setShowCreateModal(false);
       resetForm();
-    } catch (err) {
+    } catch (err: any) {
       console.error('創建用戶失敗', err);
-      toast.error('創建用戶失敗');
+      toast.error(err.message || '創建用戶失敗');
     }
   };
 
@@ -129,32 +129,25 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
     });
   };
 
-  // 備份所有資料到本地
-  const handleBackupData = () => {
+  // 備份所有資料到本地（從後端 API 取得用戶清單）
+  const handleBackupData = async () => {
     try {
-      // 讀取所有 localStorage 資料
-      const users = JSON.parse(localStorage.getItem('caseflow_users_db') || '{}');
-      const onlineUsers = JSON.parse(localStorage.getItem('caseflow_online_users') || '[]');
+      const allUsers = await getAllUsers();
 
-      // 組織備份資料
       const backupData = {
-        version: '1.0',
+        version: '2.0',
         exportDate: new Date().toISOString(),
         exportedBy: userProfile.displayName,
+        source: 'backend-db',
         data: {
-          users: users,
-          onlineUsers: onlineUsers
+          users: allUsers,
         },
         statistics: {
-          userCount: Object.keys(users).length,
-          onlineUserCount: onlineUsers.length
+          userCount: allUsers.length,
         }
       };
 
-      // 轉換為 JSON 字串並格式化
       const jsonString = JSON.stringify(backupData, null, 2);
-      
-      // 創建 Blob 並下載
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -165,7 +158,6 @@ const MembersPage: React.FC<MembersPageProps> = ({ userProfile }) => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      // 顯示成功訊息
       toast.success(`備份成功！使用者：${backupData.statistics.userCount} 個，檔案已下載到您的下載資料夾。`);
     } catch (error) {
       console.error('備份失敗', error);

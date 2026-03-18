@@ -62,13 +62,20 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [candidatesRes, jobsRes] = await Promise.all([
-        fetch(getApiUrl('/api/candidates?limit=2000'), { headers: getAuthHeaders() }),
-        fetch(getApiUrl('/api/jobs'), { headers: getAuthHeaders() }),
-      ]);
-      const candidatesData = await candidatesRes.json();
+      // 自動分頁撈取全部候選人（每頁 100 筆）
+      const allCandidates: Candidate[] = [];
+      let page = 1;
+      let hasMore = true;
+      const jobsRes = await fetch(getApiUrl('/api/jobs'), { headers: getAuthHeaders() });
+      while (hasMore) {
+        const res = await fetch(getApiUrl(`/api/candidates?limit=100&page=${page}`), { headers: getAuthHeaders() });
+        const d = await res.json();
+        allCandidates.push(...(d.data || []));
+        hasMore = d.pagination?.hasMore ?? ((d.data || []).length === 100);
+        page++;
+      }
       const jobsData = await jobsRes.json();
-      setCandidates(candidatesData.data || []);
+      setCandidates(allCandidates);
       setJobs(jobsData.data || []);
     } catch (e) {
       console.error('Failed to fetch dashboard data:', e);

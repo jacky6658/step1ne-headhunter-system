@@ -104,14 +104,21 @@ export async function getCandidates(): Promise<Candidate[]> {
     // 或直接在前端執行（需要 OAuth）
     // 這裡假設有後端 API endpoint
     const { getAuthHeaders } = await import('../config/api');
-    const response = await fetch(`/api/candidates`, { headers: getAuthHeaders() });
-    
-    if (!response.ok) {
-      throw new Error('無法讀取候選人資料');
+
+    // 自動分頁撈取全部候選人（每頁 100 筆，防止一次撈太多打爆 DB）
+    let allCandidates: Candidate[] = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const response = await fetch(`/api/candidates?limit=100&page=${page}`, { headers: getAuthHeaders() });
+      if (!response.ok) throw new Error('無法讀取候選人資料');
+      const data = await response.json();
+      const candidates = (data.data || data.candidates || []) as Candidate[];
+      allCandidates = allCandidates.concat(candidates);
+      hasMore = data.pagination?.hasMore ?? (candidates.length === 100);
+      page++;
     }
-    
-    const data = await response.json();
-    const candidates = data.candidates as Candidate[];
+    const candidates = allCandidates;
     
     // 更新快取
     localStorage.setItem(STORAGE_KEYS.CANDIDATES_CACHE, JSON.stringify(candidates));
