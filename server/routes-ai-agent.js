@@ -375,6 +375,22 @@ router.put('/candidates/:id/ai-analysis', async (req, res) => {
       return res.status(400).json({ success: false, error: '缺少 ai_analysis 欄位' });
     }
 
+    // ── 硬性要求：必須有履歷附件才能寫入分析 ──
+    const resumeCheck = await pool.query(
+      'SELECT resume_files FROM candidates_pipeline WHERE id = $1', [id]
+    );
+    if (resumeCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '找不到此候選人' });
+    }
+    const resumeFiles = resumeCheck.rows[0].resume_files || [];
+    if (!Array.isArray(resumeFiles) || resumeFiles.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '此人選尚未上傳履歷 PDF，請先上傳履歷附件後再執行 AI 分析',
+        hint: 'POST /api/candidates/:id/resume 上傳履歷'
+      });
+    }
+
     // ── JSON Schema 驗證 ──
     const errors = [];
 
