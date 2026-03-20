@@ -222,6 +222,232 @@ pool.query(`
   pool.query(`CREATE INDEX IF NOT EXISTS idx_prompt_lib_pinned ON prompt_library(is_pinned)`).catch(() => {});
 }).catch(err => console.warn('prompt_library migration:', err.message));
 
+// Seed: AI 顧問分析提示詞（idempotent）
+pool.query(`
+  INSERT INTO prompt_library (category, title, content, author, is_pinned)
+  SELECT '人選評估', 'AI 顧問分析 v1', $1, 'system', true
+  WHERE NOT EXISTS (
+    SELECT 1 FROM prompt_library WHERE category = '人選評估' AND title LIKE 'AI 顧問分析%' AND is_pinned = true
+  )
+`, [`你現在是專屬獵頭顧問助理，請依照以下流程運作：
+
+═══════════════════════════════════════
+STEP 0｜人選評估報告（收到履歷後自動完成）
+═══════════════════════════════════════
+
+【人選評估報告】
+
+1. 職涯曲線分析
+   - 每段經歷：公司性質、產業、職級、年資
+   - 整體曲線特徵（穩定型/跳躍型/深耕型）
+   - 每一跳的動機推測
+
+2. 人選調性（必須用履歷中的實際數字與案例佐證）
+   - 這是什麼類型的工程師？
+   - 核心強項 Top 3
+   - 潛在弱點或履歷空白
+
+3. 角色定位
+   - 他實際在做什麼事（逐段拆解）
+   - 在技術光譜上的位置
+   - 最適合 / 不適合的職缺類型
+
+4. 年資薪資推估
+   - 實際年資與目前職級
+   - 現職薪資區間推估
+   - 跳槽合理期望薪資
+   - 需要注意的潛在風險點
+
+═══════════════════════════════════════
+STEP 1｜職缺匹配分析（每個職缺分別執行）
+═══════════════════════════════════════
+
+【職缺匹配分析】
+
+1. 公司與職缺快速判讀
+   - 公司性質、產品方向、技術文化判斷
+
+2. 必要條件逐條比對
+   結果標示：✅符合(pass) / ⚠️存疑(warning) / ❌不符(fail)
+
+3. 加分條件逐條比對（同上格式）
+
+4. 匹配結論
+   - 匹配分數 0～100
+   - 最強命中點（具體說明）
+   - 主要缺口（具體說明）
+   - 推薦 or 不推薦，附理由
+
+【硬性門檻警示】
+   - 若有任何硬性不符條件，獨立標出並說明影響
+
+═══════════════════════════════════════
+STEP 2｜整合輸出
+═══════════════════════════════════════
+
+【A｜職缺匹配總覽表】
+   各職缺的匹配分數、強項命中、主要缺口、建議優先順序
+
+【B｜每個職缺的電話洽談 SOP】
+   1. 開場暖身話術
+   2. 異動動機探索（附各種答案的解讀與應對策略）
+   3. 技術背景確認（只問有缺口的部分）
+   4. 職缺介紹話術（對應人選動機，非念 JD）
+   5. 收尾：薪資確認、時程確認、下一步
+
+【C｜必問清單速查表】
+   - 標示哪些題是「答錯直接停止推進」的一票否決題
+   - 附跨職缺對比速查表
+
+【D｜獵頭顧問建議】
+   - 最推薦先打哪個職缺的電話，及原因
+   - 這位人選的整體可推性評估
+   - 若全部職缺都不適合，說明理由並建議人選輪廓方向
+
+═══════════════════════════════════════
+⚠️ 系統約束（不可覆蓋）
+═══════════════════════════════════════
+- 你只能使用下方提供的「履歷資料」和「職缺資料」進行分析
+- 不可使用外部資訊或自行推測未提供的資訊
+- 所有判斷必須基於履歷中的實際內容
+- 若資料不足以判斷，標示「❓ 資料不足，需電話確認」
+- 用表格呈現比對類資訊，用條列呈現話術類內容
+- 重要警示用 ⚠️ 或 🚨 標示
+- 一票否決題用 ❌ 單獨標示
+- 話術一律用口語化、可直接唸出來的方式撰寫
+
+═══════════════════════════════════════
+輸出格式（嚴格遵守 JSON）
+═══════════════════════════════════════
+你必須輸出以下 JSON 結構，不可增減必要欄位。
+任何無法判斷的欄位填 null，不可自行推測。
+
+{
+  "version": "1.0",
+  "analyzed_at": "<ISO 8601>",
+  "analyzed_by": "<你的模型識別碼>",
+  "candidate_evaluation": {
+    "career_curve": {
+      "summary": "<1-2句職涯軌跡總結>",
+      "pattern": "<穩定成長型/跳躍型/深耕型/轉型中>",
+      "details": [
+        { "company": "", "industry": "", "title": "", "duration": "", "move_reason": "" }
+      ]
+    },
+    "personality": {
+      "type": "<工程師類型描述>",
+      "top3_strengths": ["", "", ""],
+      "weaknesses": [""],
+      "evidence": "<用履歷實際案例佐證>"
+    },
+    "role_positioning": {
+      "actual_role": "<實際在做什麼>",
+      "spectrum_position": "<技術光譜位置>",
+      "best_fit": ["<適合的職缺類型>"],
+      "not_fit": ["<不適合的職缺類型>"]
+    },
+    "salary_estimate": {
+      "actual_years": 0,
+      "current_level": "<目前職級>",
+      "current_estimate": "<現職估薪>",
+      "expected_range": "<跳槽合理期望>",
+      "risks": ["<風險點>"]
+    }
+  },
+  "job_matchings": [
+    {
+      "job_id": 0,
+      "job_title": "",
+      "company": "",
+      "match_score": 0,
+      "verdict": "<建議送出/條件式/不推薦>",
+      "company_analysis": "<公司快速判讀>",
+      "must_have": [
+        { "condition": "", "actual": "", "result": "pass|warning|fail" }
+      ],
+      "nice_to_have": [
+        { "condition": "", "actual": "", "result": "pass|warning|fail" }
+      ],
+      "strongest_match": "",
+      "main_gap": "",
+      "hard_block": null,
+      "salary_fit": ""
+    }
+  ],
+  "phone_scripts": [
+    {
+      "job_id": 0,
+      "opening": "<開場話術>",
+      "motivation_probes": [
+        { "answer_type": "", "interpretation": "", "strategy": "" }
+      ],
+      "technical_checks": ["<只問有缺口的技術>"],
+      "job_pitch": "<對應人選動機的職缺介紹>",
+      "closing": "<收尾話術>",
+      "must_ask": [
+        { "number": 1, "question": "", "meaning": "", "is_veto": false }
+      ]
+    }
+  ],
+  "recommendation": {
+    "summary_table": [
+      { "job_id": 0, "job_title": "", "company": "", "score": 0, "verdict": "", "priority": 1 }
+    ],
+    "first_call_job_id": 0,
+    "first_call_reason": "",
+    "overall_pushability": "<高/中高/中/中低/低>",
+    "pushability_detail": "",
+    "fallback_note": ""
+  }
+}`]).catch(err => console.warn('seed matching prompt:', err.message));
+
+// Seed: 開發信提示詞（idempotent）
+pool.query(`
+  INSERT INTO prompt_library (category, title, content, author, is_pinned)
+  SELECT '陌生開發（開發信）', 'AI 開發信產生器 v1', $1, 'system', true
+  WHERE NOT EXISTS (
+    SELECT 1 FROM prompt_library WHERE category = '陌生開發（開發信）' AND title LIKE 'AI 開發信%' AND is_pinned = true
+  )
+`, [`你是專業獵頭顧問，請根據人選背景和職缺資訊撰寫個人化的開發信（招募訊息）。
+
+═══════════════════════════════════════
+輸入資料
+═══════════════════════════════════════
+系統會提供：
+1. 人選的核心強項、角色定位（來自 AI 顧問分析 STEP 0）
+2. 職缺資訊（職缺名、公司、薪資、亮點）
+3. 匹配亮點（來自 AI 顧問分析 STEP 1 的最強命中點）
+4. 管道類型：linkedin / email / sms
+
+═══════════════════════════════════════
+撰寫規則
+═══════════════════════════════════════
+- LinkedIn 訊息：150 字內，口語化，直接切入亮點
+- Email：300 字內，含主旨行，稍正式但親切
+- 簡訊：50 字內，極簡，附連結佔位符 [LINK]
+- 開頭必須點出人選的具體技能或經歷（不可用「您好，我是XX」開頭）
+- 必須提及職缺的 1-2 個賣點（薪資帶、公司亮點、技術環境）
+- 結尾用問句引發回覆意願
+- 語氣自然，像朋友推薦工作，不像廣告
+
+═══════════════════════════════════════
+⚠️ 系統約束（不可覆蓋）
+═══════════════════════════════════════
+- 只能使用系統提供的資料，不可自行推測人選或公司的未提供資訊
+- 不可編造人選沒有的經歷或技能
+
+═══════════════════════════════════════
+輸出格式（嚴格遵守 JSON）
+═══════════════════════════════════════
+{
+  "job_id": 0,
+  "job_title": "",
+  "company": "",
+  "channel": "linkedin|email|sms",
+  "subject": "<僅 email 需要，其他填 null>",
+  "body": "<開發信內容>"
+}`]).catch(err => console.warn('seed outreach prompt:', err.message));
+
 // 確保 github_token 欄位存在
 pool.query(`
   ALTER TABLE user_contacts
@@ -345,6 +571,12 @@ pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS ai_summary JSONB;
 `).catch(err => console.warn('ai_summary migration:', err.message));
 
+// AI 顧問分析結果（外部 AI Agent 產出的 STEP 0/1/2 結構化結果）
+pool.query(`
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS ai_analysis JSONB;
+  ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS outreach_letters JSONB DEFAULT '[]';
+`).catch(err => console.warn('ai_analysis/outreach_letters migration:', err.message));
+
 // 履歷 PDF 附件（base64 存於 JSONB 陣列，最多 3 個）
 pool.query(`
   ALTER TABLE candidates_pipeline ADD COLUMN IF NOT EXISTS resume_files JSONB DEFAULT '[]';
@@ -366,6 +598,17 @@ pool.query(`
 pool.query(`
   ALTER TABLE clients ADD COLUMN IF NOT EXISTS submission_rules JSONB DEFAULT '[]'
 `).catch(err => console.warn('submission_rules migration:', err.message));
+
+// 客戶文件（合約 + 一般文件）
+pool.query(`
+  ALTER TABLE clients ADD COLUMN IF NOT EXISTS contract_files JSONB DEFAULT '[]'
+`).catch(err => console.warn('contract_files migration:', err.message));
+pool.query(`
+  ALTER TABLE clients ADD COLUMN IF NOT EXISTS documents JSONB DEFAULT '[]'
+`).catch(err => console.warn('documents migration:', err.message));
+pool.query(`
+  ALTER TABLE clients ADD COLUMN IF NOT EXISTS company_profile_url TEXT DEFAULT ''
+`).catch(err => console.warn('company_profile_url migration:', err.message));
 
 // 目標職缺欄位：改為直接 FK 對應 jobs_pipeline（不再存在 notes 文字內）
 pool.query(`
@@ -832,7 +1075,7 @@ router.get('/candidates', async (req, res) => {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // 分頁參數
-    const parsedLimit = rawLimit ? Math.min(Math.max(1, parseInt(rawLimit)), 100) : 100;
+    const parsedLimit = rawLimit ? Math.min(Math.max(1, parseInt(rawLimit)), 500) : 500;
     let parsedOffset = 0;
     if (rawOffset) {
       parsedOffset = Math.max(0, parseInt(rawOffset) || 0);
@@ -877,6 +1120,7 @@ router.get('/candidates', async (req, res) => {
         c.expected_salary_min, c.expected_salary_max, c.salary_currency, c.salary_period,
         c.notice_period_enum, c.job_search_status_enum,
         c.ai_score, c.ai_grade, c.ai_report, c.ai_recommendation,
+        c.ai_analysis, c.outreach_letters,
         c.auto_derived, c.data_quality, c.precision_eligible, c.grade_level, c.source_tier, c.heat_level,
         (SELECT COALESCE(jsonb_agg(
           jsonb_build_object(
@@ -1011,6 +1255,8 @@ router.get('/candidates', async (req, res) => {
       biography: row.biography || '',
       portfolioUrl: row.portfolio_url || '',
       aiSummary: row.ai_summary || null,
+      aiAnalysis: row.ai_analysis || null,
+      outreachLetters: row.outreach_letters || [],
       resumeFiles: row.resume_files || [],
       // Sprint 1: Structured fields（currentTitle fallback 到 current_position）
       currentTitle: row.current_title || row.current_position || '',
@@ -1160,6 +1406,8 @@ router.get('/candidates/:id', async (req, res) => {
       biography: row.biography || '',
       portfolioUrl: row.portfolio_url || '',
       aiSummary: row.ai_summary || null,
+      aiAnalysis: row.ai_analysis || null,
+      outreachLetters: row.outreach_letters || [],
       resumeFiles: row.resume_files || [],
       createdBy: 'system',
 
@@ -1535,6 +1783,9 @@ router.patch('/candidates/:id', async (req, res) => {
     const portfolio_url = req.body.portfolio_url !== undefined ? req.body.portfolio_url : req.body.portfolioUrl;
     // AI 總結結果
     const ai_summary = req.body.ai_summary !== undefined ? req.body.ai_summary : req.body.aiSummary;
+    // AI 顧問分析（外部 AI Agent 產出）
+    const ai_analysis = req.body.ai_analysis !== undefined ? req.body.ai_analysis : req.body.aiAnalysis;
+    const outreach_letters = req.body.outreach_letters !== undefined ? req.body.outreach_letters : req.body.outreachLetters;
     // OpenClaw AI 評分欄位
     const ai_score = req.body.ai_score !== undefined ? req.body.ai_score : req.body.aiScore;
     const ai_grade = req.body.ai_grade !== undefined ? req.body.ai_grade : req.body.aiGrade;
@@ -1748,6 +1999,9 @@ router.patch('/candidates/:id', async (req, res) => {
     if (portfolio_url !== undefined) { setClauses.push(`portfolio_url = $${idx++}`); values.push(portfolio_url); }
     // AI 總結結果
     if (ai_summary !== undefined) { setClauses.push(`ai_summary = $${idx++}`); values.push(JSON.stringify(ai_summary)); }
+    // AI 顧問分析
+    if (ai_analysis !== undefined) { setClauses.push(`ai_analysis = $${idx++}`); values.push(JSON.stringify(ai_analysis)); }
+    if (outreach_letters !== undefined) { setClauses.push(`outreach_letters = $${idx++}`); values.push(JSON.stringify(outreach_letters)); }
     // OpenClaw AI 評分欄位
     if (ai_score !== undefined) { setClauses.push(`ai_score = $${idx++}`); values.push(ai_score === null ? null : Number(ai_score)); }
     if (ai_grade !== undefined) { setClauses.push(`ai_grade = $${idx++}`); values.push(ai_grade); }
@@ -1996,6 +2250,13 @@ router.patch('/candidates/:id', async (req, res) => {
     // 回傳時加入 consultant 欄位（= recruiter 的別名，確保前端一致性）
     const row = result.rows[0];
     if (row && !row.consultant) row.consultant = row.recruiter || '待指派';
+
+    // Socket.IO 即時推播：通知所有前端更新此候選人
+    const io = req.app.locals.io;
+    if (io) {
+      io.emit('candidate:updated', { id: parseInt(id), data: row });
+    }
+
     res.json({ success: true, data: row, message: 'Candidate patched successfully' });
     } finally {
       client.release();
@@ -2194,6 +2455,12 @@ router.patch('/candidates/batch-status', async (req, res) => {
       client.release();
     }
 
+    // Socket.IO 即時推播：批量更新通知前端重新載入
+    const io = req.app.locals.io;
+    if (io && succeeded.length > 0) {
+      io.emit('candidate:batch-updated', { ids: succeeded.map(s => s.id), status });
+    }
+
     res.json({
       success: true,
       status,
@@ -2324,6 +2591,12 @@ router.delete('/candidates/:id', async (req, res) => {
       candidateName: result.rows[0].name,
       detail: { batch: false }
     });
+
+    // Socket.IO 即時推播
+    const io = req.app.locals.io;
+    if (io) {
+      io.emit('candidate:deleted', { id: parseInt(id) });
+    }
 
     res.json({
       success: true,
@@ -2508,6 +2781,16 @@ router.post('/candidates', async (req, res) => {
     });
 
     const foreignFiltered = result.rows[0].status === '外籍已過濾';
+
+    // Socket.IO 即時推播
+    const io = req.app.locals.io;
+    if (io) {
+      io.emit(action === 'created' ? 'candidate:created' : 'candidate:updated', {
+        id: result.rows[0].id,
+        data: result.rows[0]
+      });
+    }
+
     res.status(action === 'created' ? 201 : 200).json({
       success: true,
       action,
@@ -3947,7 +4230,13 @@ router.get('/clients', async (req, res) => {
     if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
     query += ' GROUP BY c.id ORDER BY c.created_at DESC';
     const result = await withClient(client => client.query(query, params));
-    res.json({ success: true, data: result.rows });
+    // 去除 base64 data，只回傳 metadata
+    const rows = result.rows.map(r => {
+      if (r.contract_files) r.contract_files = (r.contract_files || []).map(({ data, ...m }) => m);
+      if (r.documents) r.documents = (r.documents || []).map(({ data, ...m }) => m);
+      return r;
+    });
+    res.json({ success: true, data: rows });
   } catch (error) {
     safeError(res, error, 'GET /clients');
   }
@@ -3958,7 +4247,10 @@ router.get('/clients/:id', async (req, res) => {
   try {
     const result = await withClient(client => client.query('SELECT * FROM clients WHERE id = $1', [req.params.id]));
     if (!result.rows.length) return res.status(404).json({ success: false, error: 'Client not found' });
-    res.json({ success: true, data: result.rows[0] });
+    const row = result.rows[0];
+    if (row.contract_files) row.contract_files = (row.contract_files || []).map(({ data, ...m }) => m);
+    if (row.documents) row.documents = (row.documents || []).map(({ data, ...m }) => m);
+    res.json({ success: true, data: row });
   } catch (error) {
     safeError(res, error, 'GET /clients/:id');
   }
@@ -4035,7 +4327,7 @@ router.patch('/clients/:id', async (req, res) => {
     const fields = ['company_name','industry','company_size','website','bd_status','bd_source',
       'contact_name','contact_title','contact_email','contact_phone','contact_linkedin',
       'consultant','contract_type','fee_percentage','contract_start','contract_end','notes',
-      'url_104','url_1111','submission_rules'];
+      'url_104','url_1111','submission_rules','company_profile_url'];
     const result = await withClient(async (db) => {
       const cur = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
       if (!cur.rows.length) { res.status(404).json({ success: false, error: 'Client not found' }); return null; }
@@ -4194,6 +4486,115 @@ router.put('/clients/:id/submission-rules', async (req, res) => {
     safeError(res, error, 'PUT /clients/:id/submission-rules');
   }
 });
+
+// ==================== 客戶文件上傳（合約 + 一般文件）====================
+
+// 通用：上傳文件到 JSONB 欄位
+async function uploadClientFile(req, res, column, maxFiles) {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+    if (!file) return res.status(400).json({ success: false, error: '未上傳檔案' });
+
+    const result = await withClient(client => client.query(`SELECT ${column} FROM clients WHERE id = $1`, [id]));
+    if (!result.rows.length) return res.status(404).json({ success: false, error: '客戶不存在' });
+
+    const existing = result.rows[0][column] || [];
+    if (existing.length >= maxFiles) {
+      return res.status(400).json({ success: false, error: `最多只能上傳 ${maxFiles} 個檔案` });
+    }
+
+    const docObj = {
+      id: `doc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      filename: file.originalname,
+      data: file.buffer.toString('base64'),
+      mimetype: file.mimetype,
+      size: file.size,
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: req.body.uploaded_by || 'system',
+    };
+
+    const updated = [...existing, docObj];
+    await withClient(client => client.query(
+      `UPDATE clients SET ${column} = $1, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(updated), id]
+    ));
+
+    const { data: _, ...meta } = docObj;
+    res.json({ success: true, data: meta, count: updated.length });
+  } catch (error) {
+    safeError(res, error, `POST /clients/:id/${column}`);
+  }
+}
+
+// 通用：取得檔案內容
+async function getClientFile(req, res, column) {
+  try {
+    const { id, docId } = req.params;
+    const result = await withClient(client => client.query(`SELECT ${column} FROM clients WHERE id = $1`, [id]));
+    if (!result.rows.length) return res.status(404).json({ success: false, error: '客戶不存在' });
+
+    const files = result.rows[0][column] || [];
+    const file = files.find(f => f.id === docId);
+    if (!file) return res.status(404).json({ success: false, error: '檔案不存在' });
+
+    const buffer = Buffer.from(file.data, 'base64');
+    res.set('Content-Type', file.mimetype);
+    res.set('Content-Disposition', `${req.query.download === 'true' ? 'attachment' : 'inline'}; filename="${encodeURIComponent(file.filename)}"`);
+    res.send(buffer);
+  } catch (error) {
+    safeError(res, error, `GET /clients/:id/${column}/:docId`);
+  }
+}
+
+// 通用：刪除檔案
+async function deleteClientFile(req, res, column) {
+  try {
+    const { id, docId } = req.params;
+    const result = await withClient(client => client.query(`SELECT ${column} FROM clients WHERE id = $1`, [id]));
+    if (!result.rows.length) return res.status(404).json({ success: false, error: '客戶不存在' });
+
+    const files = result.rows[0][column] || [];
+    const updated = files.filter(f => f.id !== docId);
+    if (updated.length === files.length) return res.status(404).json({ success: false, error: '檔案不存在' });
+
+    await withClient(client => client.query(
+      `UPDATE clients SET ${column} = $1, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(updated), id]
+    ));
+    res.json({ success: true, count: updated.length });
+  } catch (error) {
+    safeError(res, error, `DELETE /clients/:id/${column}/:docId`);
+  }
+}
+
+/** POST /api/clients/:id/documents - 上傳一般文件 */
+router.post('/clients/:id/documents', (req, res, next) => {
+  req.app.locals.uploadDoc.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, error: err.message });
+    next();
+  });
+}, (req, res) => uploadClientFile(req, res, 'documents', 10));
+
+/** GET /api/clients/:id/documents/:docId - 下載/預覽一般文件 */
+router.get('/clients/:id/documents/:docId', (req, res) => getClientFile(req, res, 'documents'));
+
+/** DELETE /api/clients/:id/documents/:docId - 刪除一般文件 */
+router.delete('/clients/:id/documents/:docId', (req, res) => deleteClientFile(req, res, 'documents'));
+
+/** POST /api/clients/:id/contract-files - 上傳合約文件 */
+router.post('/clients/:id/contract-files', (req, res, next) => {
+  req.app.locals.uploadDoc.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, error: err.message });
+    next();
+  });
+}, (req, res) => uploadClientFile(req, res, 'contract_files', 5));
+
+/** GET /api/clients/:id/contract-files/:docId - 下載/預覽合約文件 */
+router.get('/clients/:id/contract-files/:docId', (req, res) => getClientFile(req, res, 'contract_files'));
+
+/** DELETE /api/clients/:id/contract-files/:docId - 刪除合約文件 */
+router.delete('/clients/:id/contract-files/:docId', (req, res) => deleteClientFile(req, res, 'contract_files'));
 
 /** POST /api/candidates/:candidateId/check-submission-rules - 候選人送件規範檢查 */
 router.post('/candidates/:id/check-submission-rules', async (req, res) => {
@@ -5335,6 +5736,136 @@ router.delete('/candidates/:id/resume/:fileId', async (req, res) => {
   } catch (e) {
     safeError(res, e, 'DELETE /candidates/:id/resume/:fileId');
   }
+});
+
+/**
+ * POST /api/candidates/:id/resume-parse
+ * 一步到位：上傳 PDF → 解析 → 更新人選欄位 → 附加 PDF 檔案
+ * Body: multipart/form-data  file=<PDF>  format=auto|linkedin|104|generic  uploaded_by=<string>
+ *
+ * 回傳解析結果 + 更新後的欄位
+ */
+router.post('/candidates/:id/resume-parse', async (req, res) => {
+  const upload = req.app.locals.upload;
+  if (!upload) return res.status(500).json({ success: false, error: 'multer 未初始化' });
+
+  upload.single('file')(req, res, async (err) => {
+    if (err) return res.status(400).json({ success: false, error: err.message });
+    if (!req.file) return res.status(400).json({ success: false, error: '請上傳 PDF 檔案（欄位名稱：file）' });
+
+    try {
+      const { id } = req.params;
+      const format = req.body.format || 'auto';
+      const uploadedBy = req.body.uploaded_by || 'AI-AutoLoop';
+
+      // 1. 確認人選存在（同時取得 name/current_position 用於判斷是否覆蓋）
+      const existing = await pool.query(
+        'SELECT id, name, current_position, current_company, resume_files FROM candidates_pipeline WHERE id = $1', [id]
+      );
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ success: false, error: '找不到此候選人' });
+      }
+      const existingRow = existing.rows[0];
+
+      // 2. 解析 PDF
+      const parsed = await parseResumePDF(req.file.buffer, false, format);
+      console.log('[resume-parse] id:', id, 'format:', format, 'source:', parsed.source,
+        'workHistory:', parsed.workHistory?.length, 'education:', parsed.educationJson?.length);
+
+      // 3. 用解析結果更新人選欄位
+      const setClauses = [];
+      const values = [id]; // $1 = id
+      let idx = 2;
+
+      // name / current_position / current_company 只在原欄位為空時才用解析結果覆蓋
+      // 避免 LinkedIn PDF 解析不準確時把正確資料蓋掉
+      const fieldMap = {
+        name:              (!existingRow.name || existingRow.name.trim() === '') ? (parsed.name || null) : null,
+        current_position:  (!existingRow.current_position || existingRow.current_position.trim() === '') ? (parsed.position || null) : null,
+        current_company:   (!existingRow.current_company || existingRow.current_company.trim() === '') ? (parsed.currentCompany || null) : null,
+        location:          parsed.location || null,
+        skills:            Array.isArray(parsed.skills) ? parsed.skills.join('、') : (parsed.skills || null),
+        education:         parsed.education || null,
+        years_experience:  parsed.years != null ? Math.round(parsed.years) : null,
+        job_changes:       parsed.jobChanges != null ? Math.round(parsed.jobChanges) : null,
+        avg_tenure_months: parsed.avgTenure != null ? Math.round(parsed.avgTenure) : null,
+        work_history:      parsed.workHistory?.length > 0 ? JSON.stringify(parsed.workHistory) : null,
+        education_details: parsed.educationJson?.length > 0 ? JSON.stringify(parsed.educationJson) : null,
+        languages:         parsed.languages || null,
+      };
+
+      for (const [col, val] of Object.entries(fieldMap)) {
+        if (val !== null && val !== undefined) {
+          if (col === 'work_history' || col === 'education_details') {
+            setClauses.push(`${col} = $${idx}::jsonb`);
+          } else if (col === 'years_experience' || col === 'job_changes' || col === 'avg_tenure_months') {
+            setClauses.push(`${col} = $${idx}::int`);
+          } else {
+            setClauses.push(`${col} = $${idx}`);
+          }
+          values.push(val);
+          idx++;
+        }
+      }
+
+      // 只更新有值的欄位（不覆蓋已有資料除非解析出新值）
+      if (setClauses.length > 0) {
+        setClauses.push('updated_at = NOW()');
+        await pool.query(
+          `UPDATE candidates_pipeline SET ${setClauses.join(', ')} WHERE id = $1`,
+          values
+        );
+      }
+
+      // 4. 附加 PDF 檔案到 resume_files
+      const files = existing.rows[0].resume_files || [];
+      let fileMetadata = null;
+      if (files.length < 3) {
+        const newFile = {
+          id: `rf_${Date.now()}`,
+          filename: req.file.originalname || `LinkedIn_${parsed.name || id}.pdf`,
+          data: req.file.buffer.toString('base64'),
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: uploadedBy,
+        };
+        const updated = [...files, newFile];
+        await pool.query(
+          'UPDATE candidates_pipeline SET resume_files = $1, updated_at = NOW() WHERE id = $2',
+          [JSON.stringify(updated), id]
+        );
+        const { data: _d, ...meta } = newFile;
+        fileMetadata = meta;
+      }
+
+      // 5. 回傳結果
+      res.json({
+        success: true,
+        candidateId: Number(id),
+        parsed: {
+          name: parsed.name,
+          position: parsed.position,
+          currentCompany: parsed.currentCompany,
+          location: parsed.location,
+          skills: parsed.skills,
+          education: parsed.education,
+          years: parsed.years,
+          jobChanges: parsed.jobChanges,
+          avgTenure: parsed.avgTenure,
+          workHistory: parsed.workHistory,
+          educationJson: parsed.educationJson,
+          languages: parsed.languages,
+          source: parsed.source,
+          _meta: parsed._meta,
+        },
+        fieldsUpdated: Object.keys(fieldMap).filter(k => fieldMap[k] !== null),
+        resumeFile: fileMetadata,
+      });
+    } catch (e) {
+      safeError(res, e, 'POST /candidates/:id/resume-parse');
+    }
+  });
 });
 
 // ═══════════════════════════════════════════════════

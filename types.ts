@@ -24,10 +24,23 @@ export interface Client {
   notes?: string;
   url_104?: string;
   url_1111?: string;
+  company_profile_url?: string;
   job_count?: number;
   created_at: string;
   submission_rules?: SubmissionRule[];
+  contract_files?: ClientDocument[];
+  documents?: ClientDocument[];
   updated_at: string;
+}
+
+// 客戶文件（合約 / 一般文件）
+export interface ClientDocument {
+  id: string;
+  filename: string;
+  mimetype: string;
+  size: number;
+  uploaded_at: string;
+  uploaded_by: string;
 }
 
 // 客戶送件規範
@@ -533,6 +546,86 @@ export interface Candidate {
   createdBy: string;
   lastContactAt?: string;
   _sheetRow?: number;
+  // ── AI 顧問分析（外部 AI Agent 產出）──
+  aiAnalysis?: AiConsultantAnalysis | null;
+  outreachLetters?: OutreachLetter[];
+}
+
+// ── AI 顧問分析結果（STEP 0 + STEP 1 + STEP 2 結構化輸出）──
+
+export interface AiConsultantAnalysis {
+  version: '1.0';
+  analyzed_at: string;
+  analyzed_by: string;
+  candidate_evaluation: {
+    career_curve: {
+      summary: string;
+      pattern: string;
+      details: Array<{ company: string; industry: string; title: string; duration: string; move_reason: string; }>;
+    };
+    personality: {
+      type: string;
+      top3_strengths: string[];
+      weaknesses: string[];
+      evidence: string;
+    };
+    role_positioning: {
+      actual_role: string;
+      spectrum_position: string;
+      best_fit: string[];
+      not_fit: string[];
+    };
+    salary_estimate: {
+      actual_years: number;
+      current_level: string;
+      current_estimate: string;
+      expected_range: string;
+      risks: string[];
+    };
+  };
+  job_matchings: Array<{
+    job_id: number;
+    job_title: string;
+    company: string;
+    match_score: number;
+    verdict: string;
+    company_analysis: string;
+    must_have: Array<{ condition: string; actual: string; result: 'pass' | 'warning' | 'fail'; }>;
+    nice_to_have: Array<{ condition: string; actual: string; result: 'pass' | 'warning' | 'fail'; }>;
+    strongest_match: string;
+    main_gap: string;
+    hard_block: string | null;
+    salary_fit: string;
+  }>;
+  phone_scripts: Array<{
+    job_id: number;
+    opening: string;
+    motivation_probes: Array<{ answer_type: string; interpretation: string; strategy: string; }>;
+    technical_checks: string[];
+    job_pitch: string;
+    closing: string;
+    must_ask: Array<{ number: number; question: string; meaning: string; is_veto: boolean; }>;
+  }>;
+  recommendation: {
+    summary_table: Array<{ job_id: number; job_title: string; company: string; score: number; verdict: string; priority: number; }>;
+    first_call_job_id: number;
+    first_call_reason: string;
+    overall_pushability: string;
+    pushability_detail: string;
+    fallback_note: string;
+  };
+}
+
+export interface OutreachLetter {
+  id: string;
+  job_id: number;
+  job_title: string;
+  company: string;
+  channel: 'linkedin' | 'email' | 'sms';
+  subject?: string;
+  body: string;
+  generated_at: string;
+  generated_by: string;
 }
 
 // ── Sprint 1: 新增型別 ──

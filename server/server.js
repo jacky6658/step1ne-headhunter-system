@@ -14,10 +14,12 @@
 require('dotenv').config();
 
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { Server: SocketIOServer } = require('socket.io');
 
 // 環境變數相容：支援 DATABASE_URL 或 POSTGRES_URI
 if (!process.env.DATABASE_URL && process.env.POSTGRES_URI) {
@@ -28,8 +30,26 @@ const apiRouter = require('./routes-api');
 const { pool } = require('./db'); // 共享連線池
 
 const app = express();
+const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 const isProduction = process.env.NODE_ENV === 'production';
+
+// ==================== Socket.IO 即時推播 ====================
+const io = new SocketIOServer(httpServer, {
+  cors: { origin: '*', methods: ['GET', 'POST'] },
+  path: '/socket.io',
+  transports: ['websocket', 'polling'],
+});
+
+io.on('connection', (socket) => {
+  console.log(`🔌 Socket 連線: ${socket.id}`);
+  socket.on('disconnect', () => {
+    console.log(`🔌 Socket 斷線: ${socket.id}`);
+  });
+});
+
+// 掛到 app.locals 讓 routes 可以取用
+app.locals.io = io;
 
 // Cloudflare Tunnel / Reverse Proxy：信任 proxy 的 X-Forwarded-For header
 // 讓 rate-limit 能正確辨識真實用戶 IP
@@ -43,13 +63,13 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// Rate limiting：每分鐘 60 次（防止並發爆量撈資料打爆 DB）
+// Rate limiting：每分鐘 200 次（防止惡意爆量，正常使用不受影響）
 const limiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60,
+  max: 200,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: '請求過於頻繁，請稍後再試（每分鐘上限 60 次）' },
+  message: { success: false, error: '請求過於頻繁，請稍後再試（每分鐘上限 200 次）' },
 });
 app.use('/api', limiter);
 
@@ -89,11 +109,17 @@ app.use(cors({
 // ==================== Body Parser ====================
 
 // 保留 rawBody 供 GitHub Webhook HMAC 簽名驗證使用
-app.use(bodyParser.json({
-  limit: '10mb',
-  verify: (req, _res, buf) => { req.rawBody = buf; }
-}));
-app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
+// 跳過 multipart 請求的 body parsing（讓 multer 處理）
+app.use((req, res, next) => {
+  const ct = req.headers['content-type'] || '';
+  if (ct.startsWith('multipart/')) return next();
+  bodyParser.json({ limit: '10mb', verify: (req, _res, buf) => { req.rawBody = buf; } })(req, res, next);
+});
+app.use((req, res, next) => {
+  const ct = req.headers['content-type'] || '';
+  if (ct.startsWith('multipart/')) return next();
+  bodyParser.urlencoded({ limit: '10mb', extended: true })(req, res, next);
+});
 
 // Multer：PDF 上傳（memory storage）
 const multer = require('multer');
@@ -106,6 +132,25 @@ const upload = multer({
   },
 });
 app.locals.upload = upload; // 掛載到 app.locals 讓 router 取用
+
+// 文件上傳（PDF/DOC/DOCX/XLS/XLSX/PNG/JPG）
+const ALLOWED_DOC_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/png', 'image/jpeg',
+];
+const uploadDoc = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_DOC_TYPES.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('不支援的檔案格式'), false);
+  },
+});
+app.locals.uploadDoc = uploadDoc;
 
 // 請求日誌中間件
 app.use((req, res, next) => {
@@ -154,9 +199,9 @@ function apiAuth(req, res, next) {
     return next();
   }
 
-  // 檢查 Bearer token
+  // 檢查 Bearer token（header 或 query param ?token=xxx，用於 window.open 下載）
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : (req.query.token || null);
 
   if (!token || token !== API_SECRET_KEY) {
     return res.status(401).json({
@@ -182,6 +227,10 @@ app.use('/api/crawler', crawlerRouter);
 // OpenClaw 批量 API 路由（本地 AI 工具讀寫候選人）
 const openclawRouter = require('./routes-openclaw');
 app.use('/api/openclaw', openclawRouter);
+
+// AI Agent API 路由（外部 AI 取提示詞 + 人選 + 職缺 → 寫回分析結果）
+const aiAgentRouter = require('./routes-ai-agent');
+app.use('/api/ai-agent', aiAgentRouter);
 
 // 根路由
 app.get('/', (req, res) => {
@@ -238,8 +287,8 @@ async function startServer() {
     }
   }
 
-  // 2. 啟動 Express 服務器（不論 DB 是否正常）
-  const server = app.listen(PORT, () => {
+  // 2. 啟動 HTTP + Socket.IO 服務器（不論 DB 是否正常）
+  const server = httpServer.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════╗
 ║  🚀 Step1ne Backend Started            ║
@@ -247,6 +296,7 @@ async function startServer() {
 ║  🗄️  PostgreSQL: ${dbConnected ? 'Connected  ' : 'UNAVAILABLE'}        ║
 ║  📊 Mode: ${dbConnected ? 'SQL + Google Sheets' : 'DEGRADED (no DB)  '}   ║
 ║  🔒 Security: helmet + rate-limit      ║
+║  🔌 WebSocket: Socket.IO enabled       ║
 ╚═══════════════════════════════════════╝
     `);
   });
