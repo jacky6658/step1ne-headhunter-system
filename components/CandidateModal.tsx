@@ -7,7 +7,7 @@ import { SkillTagInput } from './SkillTagInput';
 import { SalaryRangeInput, SalaryRangeDisplay } from './SalaryRangeInput';
 import { CANDIDATE_STATUS_CONFIG, GRADE_CONFIG, TIER_CONFIG, computeAutoGradeTier } from '../constants';
 import { OnboardingTour, TourStep } from './OnboardingTour';
-import { apiPatch, apiGet, getApiUrl, getAuthHeaders, getPublicApiBaseUrl } from '../config/api';
+import { apiPatch, apiGet, getApiUrl, getAuthHeaders, getApiToken, getPublicApiBaseUrl } from '../config/api';
 import { toast } from './Toast';
 import {
   X, User, Mail, Phone, MapPin, Briefcase, Calendar,
@@ -1037,10 +1037,10 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}\n  → 注意！�
   };
 
   const handlePreviewResume = (fileId: string) => {
-    window.open(getApiUrl(`/api/candidates/${candidate.id}/resume/${fileId}`), '_blank');
+    window.open(getApiUrl(`/api/candidates/${candidate.id}/resume/${fileId}?token=${getApiToken()}`), '_blank');
   };
   const handleDownloadResume = (fileId: string) => {
-    window.open(getApiUrl(`/api/candidates/${candidate.id}/resume/${fileId}?download=true`), '_blank');
+    window.open(getApiUrl(`/api/candidates/${candidate.id}/resume/${fileId}?download=true&token=${getApiToken()}`), '_blank');
   };
   const handleDeleteResume = async (fileId: string) => {
     if (!confirm('確定要刪除此履歷檔案嗎？')) return;
