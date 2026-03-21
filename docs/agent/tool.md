@@ -1,6 +1,6 @@
 # API 工具完整參考
 
-> 版本：v2.0（對應 commit 495b933）
+> 版本：v2.1（對應 commit 2918502）
 > 最後更新：2026-03-21
 
 ---
@@ -245,6 +245,12 @@
 
 > 以下 API 需要主人明確開啟爬蟲權限才可使用
 
+**呼叫方式有兩種**：
+1. **透過獵頭系統轉發**（推薦）：`https://api-hr.step1ne.com/api/crawler/...`
+2. **直接呼叫爬蟲系統**：`https://crawler.step1ne.com/api/...`（閉環提示詞使用此方式）
+
+兩者功能相同，差異在於路徑前綴。下方端點以方式 1 為準。
+
 ### 任務管理
 
 | 方法 | 端點 | 說明 |
@@ -311,7 +317,7 @@
 | 欄位 | 類型 | 說明 |
 |------|------|------|
 | `name` | string | 姓名（必填） |
-| `current_title` | string | 現職職稱（必填） |
+| `current_title` | string | 現職職稱（必填）。API 別名：`position`、`current_position` 皆可 |
 | `current_company` | string | 現職公司（必填） |
 | `skills` | string | 技能，逗號分隔（必填） |
 | `years_experience` | string | 年資（必填） |
@@ -349,6 +355,16 @@
 | `heat_level` | string | 熱度等級 |
 | `precision_eligible` | boolean | 是否符合精準配對資格 |
 | `data_quality` | JSON | 資料品質評分 |
+
+### 職稱欄位對照
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `current_position` | string | 現職職稱（舊欄位，DB 原始欄位名） |
+| `current_title` | string | 標準化職稱（新欄位，履歷解析後自動填入） |
+| `position` | — | API 別名，寫入時對應 `current_position` |
+
+> 三者互通。查詢時以 `current_title` 優先，若為空則回退到 `current_position`。
 
 ### 聯繫與個人資訊
 

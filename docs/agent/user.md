@@ -19,6 +19,8 @@
 
 根據用戶回答，比對下方帳號表，確定主人身份。
 
+**驗證流程**：確認身份後，呼叫 `GET /api/users/all` 確認該用戶存在於系統中。若用戶不存在，提示「系統中沒有找到此帳號，請確認用戶名稱或聯繫管理員」。
+
 一旦確認主人，**整個對話期間不再變更**。
 
 ### Step 2：設定資料範圍
@@ -42,13 +44,14 @@
 
 ## 系統帳號
 
-| 顯示名稱 | Username | 密碼 | 角色 | 說明 |
-|---------|----------|------|------|------|
-| Admin | admin | admin123 | ADMIN | 系統管理員，可查看全部資料 |
-| Jacky | jacky | jacky123 | REVIEWER | 資深獵頭顧問 / 系統開發者 |
-| Phoebe | phoebe | phoebe123 | REVIEWER | 獵頭顧問 |
-| Jim | jim | jim123 | REVIEWER | 獵頭顧問 |
-| testuser | testuser | test123 | REVIEWER | 測試帳號 |
+| 顯示名稱 | Username | 角色 | 說明 |
+|---------|----------|------|------|
+| Admin | admin | ADMIN | 系統管理員，可查看全部資料 |
+| Jacky | jacky | REVIEWER | 資深獵頭顧問 / Step1ne 創辦人 |
+| Phoebe | phoebe | REVIEWER | 獵頭顧問 |
+| Jim | jim | REVIEWER | 獵頭顧問 |
+
+> **密碼由系統管理員另行提供，禁止寫入任何文件或提示詞中。**
 
 ---
 
