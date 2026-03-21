@@ -37,6 +37,11 @@ export function getApiUrl(endpoint: string): string {
 // API 認證 Key（從環境變數注入，build 時寫入 bundle）
 const API_KEY = import.meta.env.VITE_API_KEY || '';
 
+// 取得 API Token（用於 URL query string 認證，如履歷下載）
+export function getApiToken(): string {
+  return API_KEY;
+}
+
 // 取得含認證的 headers
 export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {

@@ -14,7 +14,7 @@ export default defineConfig({
     allowedHosts: ['hrsystem.step1ne.com', 'localhost'],
     proxy: {
       '/api': {
-        target: 'http://localhost:3003',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
         // 移除 Origin header，避免生產 CORS 白名單拒絕 localhost

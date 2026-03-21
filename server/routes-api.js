@@ -2987,6 +2987,9 @@ router.get('/jobs', async (req, res) => {
         salary_min,
         salary_max,
         rejection_criteria,
+        target_companies,
+        title_variants,
+        exclusion_keywords,
         created_at,
         updated_at
       FROM jobs_pipeline
@@ -3035,6 +3038,9 @@ router.get('/jobs', async (req, res) => {
       salary_min: row.salary_min,
       salary_max: row.salary_max,
       rejection_criteria: row.rejection_criteria,
+      target_companies: row.target_companies,
+      title_variants: row.title_variants,
+      exclusion_keywords: row.exclusion_keywords,
       created_at: row.created_at,
       lastUpdated: row.updated_at,
       updatedAt: row.updated_at
@@ -3717,7 +3723,7 @@ router.post('/users/create', async (req, res) => {
 router.put('/users/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
-    const { displayName, email, role, password, isActive, avatar, status } = req.body;
+    const { displayName, email, role, password, isActive, avatar, status, isOnline, lastSeen } = req.body;
 
     const setClauses = [];
     const values = [];
@@ -3730,6 +3736,8 @@ router.put('/users/:uid', async (req, res) => {
     if (isActive !== undefined) { setClauses.push(`is_active = $${idx++}`); values.push(isActive); }
     if (avatar !== undefined) { setClauses.push(`avatar = $${idx++}`); values.push(avatar); }
     if (status !== undefined) { setClauses.push(`status = $${idx++}`); values.push(status); }
+    if (isOnline !== undefined) { setClauses.push(`is_online = $${idx++}`); values.push(isOnline); }
+    if (lastSeen !== undefined) { setClauses.push(`last_seen = $${idx++}`); values.push(lastSeen || null); }
 
     if (setClauses.length === 0) {
       return res.status(400).json({ success: false, error: '沒有要更新的欄位' });

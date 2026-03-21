@@ -98,7 +98,6 @@ export function CandidateModal({ candidate, onClose, onUpdateStatus, currentUser
   const [pasteAiText, setPasteAiText] = useState('');
   const [savingAiResult, setSavingAiResult] = useState(false);
   const [pasteAiError, setPasteAiError] = useState('');
-  const [showResume, setShowResume] = useState(false);
   const [addingProgress, setAddingProgress] = useState(false);
   const [newProgressEvent, setNewProgressEvent] = useState('');
   const [newProgressNote, setNewProgressNote] = useState('');
@@ -1508,9 +1507,18 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}\n  → 注意！�
                   {currentStatus.label}
                 </div>
               </div>
+
+              {/* 匿名履歷產生 */}
+              <button
+                onClick={() => setShowResumeGen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors mt-2"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                產生匿名履歷
+              </button>
             </div>
-            
-            <button 
+
+            <button
               onClick={onClose}
               className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 sm:p-2 rounded-lg transition-all shrink-0"
             >
@@ -1931,6 +1939,164 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}\n  → 注意！�
                     </button>
                   </div>
               )}
+
+              {/* ── 外部連結 & 履歷附件（候選人資料上方） ── */}
+              <div className="space-y-3">
+                {/* LinkedIn */}
+                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <svg className="w-5 h-5 text-blue-600 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs text-gray-500 mb-1">LinkedIn</div>
+                    {editingLinkedin ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={linkedinInput}
+                          onChange={e => setLinkedinInput(e.target.value)}
+                          placeholder="https://linkedin.com/in/username"
+                          className="flex-1 border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          autoFocus
+                        />
+                        <button onClick={handleSaveLinkedin} disabled={savingLinkedin} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">儲存</button>
+                        <button onClick={() => { setEditingLinkedin(false); setLinkedinInput((candidate as any).linkedinUrl || ''); }} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
+                      </div>
+                    ) : linkedinInput ? (
+                      <div className="flex items-center gap-2">
+                        <a href={linkedinInput} target="_blank" rel="noopener noreferrer"
+                          className="text-sm font-medium text-blue-600 hover:underline truncate flex-1">
+                          {linkedinInput}
+                        </a>
+                        <button onClick={() => setEditingLinkedin(true)} className="text-xs px-2 py-0.5 border border-blue-200 rounded text-blue-600 hover:bg-blue-100 shrink-0">編輯</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-400 italic flex-1">未設定</span>
+                        <button onClick={() => setEditingLinkedin(true)} className="text-xs px-2 py-0.5 border border-blue-200 rounded text-blue-600 hover:bg-blue-100 shrink-0">+ 新增</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* GitHub */}
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <svg className="w-5 h-5 text-gray-700 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs text-gray-500 mb-1">GitHub</div>
+                    {editingGithub ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={githubInput}
+                          onChange={e => setGithubInput(e.target.value)}
+                          placeholder="https://github.com/username"
+                          className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-500"
+                          autoFocus
+                        />
+                        <button onClick={handleSaveGithub} disabled={savingGithub} className="text-xs px-2 py-1 bg-gray-700 text-white rounded hover:bg-gray-800 disabled:opacity-60">儲存</button>
+                        <button onClick={() => { setEditingGithub(false); setGithubInput((candidate as any).githubUrl || ''); }} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
+                      </div>
+                    ) : githubInput ? (
+                      <div className="flex items-center gap-2">
+                        <a href={githubInput} target="_blank" rel="noopener noreferrer"
+                          className="text-sm font-medium text-gray-700 hover:underline truncate flex-1">
+                          {githubInput}
+                        </a>
+                        <button onClick={() => setEditingGithub(true)} className="text-xs px-2 py-0.5 border border-gray-200 rounded text-gray-600 hover:bg-gray-100 shrink-0">編輯</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-400 italic flex-1">未設定</span>
+                        <button onClick={() => setEditingGithub(true)} className="text-xs px-2 py-0.5 border border-gray-200 rounded text-gray-600 hover:bg-gray-100 shrink-0">+ 新增</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 📄 履歷 PDF 附件 */}
+                <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-3 sm:p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-rose-500" />
+                      <h3 className="text-xs sm:text-sm font-bold text-rose-800">履歷附件</h3>
+                      <span className="text-[10px] text-rose-400 font-normal">PDF，最多 3 份</span>
+                    </div>
+                    <span className="text-[10px] text-rose-400 font-medium">{resumeFiles.length}/3</span>
+                  </div>
+
+                  {/* 拖放 / 選擇上傳區域 */}
+                  {resumeFiles.length < 3 && (
+                    <div
+                      onDragOver={handleResumeDragOver}
+                      onDragLeave={handleResumeDragLeave}
+                      onDrop={handleResumeDrop}
+                      onClick={() => !uploadingResume && resumeInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-lg p-3 sm:p-4 text-center cursor-pointer transition-colors ${
+                        isDraggingResume
+                          ? 'border-rose-400 bg-rose-100/50'
+                          : 'border-rose-200 hover:border-rose-300 hover:bg-rose-100/30'
+                      }`}
+                    >
+                      {uploadingResume ? (
+                        <div className="space-y-2">
+                          <div className="text-xs sm:text-sm text-rose-600 font-medium">上傳中... {uploadProgress}%</div>
+                          <div className="w-full bg-rose-200 rounded-full h-1.5">
+                            <div className="bg-rose-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-rose-300 mx-auto mb-1" />
+                          <div className="text-[10px] sm:text-xs text-gray-500">
+                            拖放 PDF 至此，或<span className="text-rose-500 font-medium">點擊選擇</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 mt-0.5">最大 10MB</div>
+                        </>
+                      )}
+                      <input
+                        ref={resumeInputRef}
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleResumeUpload(file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* 已上傳檔案列表 */}
+                  {resumeFiles.length > 0 && (
+                    <div className="space-y-1.5">
+                      {resumeFiles.map((rf) => (
+                        <div key={rf.id} className="flex items-center gap-2 p-2 sm:p-2.5 bg-white/80 rounded-lg border border-rose-200">
+                          <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs sm:text-sm text-gray-800 truncate" title={rf.filename}>{rf.filename}</div>
+                            <div className="text-[10px] text-gray-400">
+                              {(rf.size / 1024).toFixed(0)} KB · {rf.uploaded_by} · {new Date(rf.uploaded_at).toLocaleDateString('zh-TW')}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                            <button onClick={() => handlePreviewResume(rf.id)} title="預覽" className="p-1 sm:p-1.5 text-rose-500 hover:bg-rose-100 rounded transition-colors">
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDownloadResume(rf.id)} title="下載" className="p-1 sm:p-1.5 text-rose-500 hover:bg-rose-100 rounded transition-colors">
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteResume(rf.id)} title="刪除" className="p-1 sm:p-1.5 text-red-400 hover:bg-red-100 rounded transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* ── 全域編輯控制列 ── */}
               <div className="flex items-center justify-between" data-tour="modal-candidate-data">
@@ -2660,7 +2826,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}\n  → 注意！�
                 >
                   <FileText className="w-4 h-4 text-gray-500" />
                   <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">補充資料</span>
-                  <span className="text-[10px] text-gray-400 ml-1">學歷 / 語言 / 證照 / 連結 / 履歷附件</span>
+                  <span className="text-[10px] text-gray-400 ml-1">學歷 / 語言 / 證照 / Google Drive / 作品集</span>
                   <ChevronDown className={`w-4 h-4 text-gray-400 ml-auto transition-transform ${sectionSupplementOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {sectionSupplementOpen && (
@@ -2763,81 +2929,9 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}\n  → 注意！�
                     </div>
                   )}
 
-              {/* 外部連結：LinkedIn / GitHub / Google Drive */}
+              {/* 外部連結：Google Drive / 作品集 */}
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">外部連結</h3>
-
-                {/* LinkedIn */}
-                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <svg className="w-5 h-5 text-blue-600 shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-                  </svg>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs text-gray-500 mb-1">LinkedIn</div>
-                    {editingLinkedin ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          value={linkedinInput}
-                          onChange={e => setLinkedinInput(e.target.value)}
-                          placeholder="https://linkedin.com/in/username"
-                          className="flex-1 border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          autoFocus
-                        />
-                        <button onClick={handleSaveLinkedin} disabled={savingLinkedin} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">儲存</button>
-                        <button onClick={() => { setEditingLinkedin(false); setLinkedinInput((candidate as any).linkedinUrl || ''); }} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
-                      </div>
-                    ) : linkedinInput ? (
-                      <div className="flex items-center gap-2">
-                        <a href={linkedinInput} target="_blank" rel="noopener noreferrer"
-                          className="text-sm font-medium text-blue-600 hover:underline truncate flex-1">
-                          {linkedinInput}
-                        </a>
-                        <button onClick={() => setEditingLinkedin(true)} className="text-xs px-2 py-0.5 border border-blue-200 rounded text-blue-600 hover:bg-blue-100 shrink-0">編輯</button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-400 italic flex-1">未設定</span>
-                        <button onClick={() => setEditingLinkedin(true)} className="text-xs px-2 py-0.5 border border-blue-200 rounded text-blue-600 hover:bg-blue-100 shrink-0">+ 新增</button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* GitHub */}
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <svg className="w-5 h-5 text-gray-700 shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                  </svg>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs text-gray-500 mb-1">GitHub</div>
-                    {editingGithub ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          value={githubInput}
-                          onChange={e => setGithubInput(e.target.value)}
-                          placeholder="https://github.com/username"
-                          className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-500"
-                          autoFocus
-                        />
-                        <button onClick={handleSaveGithub} disabled={savingGithub} className="text-xs px-2 py-1 bg-gray-700 text-white rounded hover:bg-gray-800 disabled:opacity-60">儲存</button>
-                        <button onClick={() => { setEditingGithub(false); setGithubInput((candidate as any).githubUrl || ''); }} className="text-xs px-2 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50">取消</button>
-                      </div>
-                    ) : githubInput ? (
-                      <div className="flex items-center gap-2">
-                        <a href={githubInput} target="_blank" rel="noopener noreferrer"
-                          className="text-sm font-medium text-gray-700 hover:underline truncate flex-1">
-                          {githubInput}
-                        </a>
-                        <button onClick={() => setEditingGithub(true)} className="text-xs px-2 py-0.5 border border-gray-200 rounded text-gray-600 hover:bg-gray-100 shrink-0">編輯</button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-400 italic flex-1">未設定</span>
-                        <button onClick={() => setEditingGithub(true)} className="text-xs px-2 py-0.5 border border-gray-200 rounded text-gray-600 hover:bg-gray-100 shrink-0">+ 新增</button>
-                      </div>
-                    )}
-                  </div>
-                </div>
 
                 {/* Google Drive 履歷 */}
                 {candidate.resumeLink && (
@@ -2888,89 +2982,6 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}\n  → 注意！�
                     )}
                   </div>
                 </div>
-              </div>
-
-              {/* 📄 履歷 PDF 附件 */}
-              <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-3 sm:p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Upload className="w-4 h-4 text-rose-500" />
-                    <h3 className="text-xs sm:text-sm font-bold text-rose-800">履歷附件</h3>
-                    <span className="text-[10px] text-rose-400 font-normal">PDF，最多 3 份</span>
-                  </div>
-                  <span className="text-[10px] text-rose-400 font-medium">{resumeFiles.length}/3</span>
-                </div>
-
-                {/* 拖放 / 選擇上傳區域 */}
-                {resumeFiles.length < 3 && (
-                  <div
-                    onDragOver={handleResumeDragOver}
-                    onDragLeave={handleResumeDragLeave}
-                    onDrop={handleResumeDrop}
-                    onClick={() => !uploadingResume && resumeInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-lg p-3 sm:p-4 text-center cursor-pointer transition-colors ${
-                      isDraggingResume
-                        ? 'border-rose-400 bg-rose-100/50'
-                        : 'border-rose-200 hover:border-rose-300 hover:bg-rose-100/30'
-                    }`}
-                  >
-                    {uploadingResume ? (
-                      <div className="space-y-2">
-                        <div className="text-xs sm:text-sm text-rose-600 font-medium">上傳中... {uploadProgress}%</div>
-                        <div className="w-full bg-rose-200 rounded-full h-1.5">
-                          <div className="bg-rose-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-rose-300 mx-auto mb-1" />
-                        <div className="text-[10px] sm:text-xs text-gray-500">
-                          拖放 PDF 至此，或<span className="text-rose-500 font-medium">點擊選擇</span>
-                        </div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">最大 10MB</div>
-                      </>
-                    )}
-                    <input
-                      ref={resumeInputRef}
-                      type="file"
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleResumeUpload(file);
-                        e.target.value = '';
-                      }}
-                    />
-                  </div>
-                )}
-
-                {/* 已上傳檔案列表 */}
-                {resumeFiles.length > 0 && (
-                  <div className="space-y-1.5">
-                    {resumeFiles.map((rf) => (
-                      <div key={rf.id} className="flex items-center gap-2 p-2 sm:p-2.5 bg-white/80 rounded-lg border border-rose-200">
-                        <FileText className="w-4 h-4 text-rose-500 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs sm:text-sm text-gray-800 truncate" title={rf.filename}>{rf.filename}</div>
-                          <div className="text-[10px] text-gray-400">
-                            {(rf.size / 1024).toFixed(0)} KB · {rf.uploaded_by} · {new Date(rf.uploaded_at).toLocaleDateString('zh-TW')}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-                          <button onClick={() => handlePreviewResume(rf.id)} title="預覽" className="p-1 sm:p-1.5 text-rose-500 hover:bg-rose-100 rounded transition-colors">
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => handleDownloadResume(rf.id)} title="下載" className="p-1 sm:p-1.5 text-rose-500 hover:bg-rose-100 rounded transition-colors">
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => handleDeleteResume(rf.id)} title="刪除" className="p-1 sm:p-1.5 text-red-400 hover:bg-red-100 rounded transition-colors">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* 自傳 */}
@@ -3667,17 +3678,6 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}\n  → 注意！�
               
               {/* Action Buttons */}
               <div className="flex gap-3">
-                {/* Resume Link */}
-                {candidate.resumeLink && (
-                  <button
-                    onClick={() => setShowResume(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-                  >
-                    <FileText className="w-4 h-4" />
-                    📄 查看完整履歷
-                  </button>
-                )}
-                
                 {/* GitHub Invite Message (Task A) */}
                 {candidate.source === 'GitHub' && (
                   <button
@@ -3688,51 +3688,7 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}\n  → 注意！�
                     💌 生成邀請訊息
                   </button>
                 )}
-
-                {/* 匿名履歷產生 */}
-                <button
-                  onClick={() => setShowResumeGen(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  <FileText className="w-4 h-4" />
-                  產生匿名履歷
-                </button>
               </div>
-              
-              {/* Resume Preview Modal */}
-              {showResume && candidate.resumeLink && (
-                <div
-                  className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-                  onClick={() => setShowResume(false)}
-                >
-                  <div
-                    className="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[95vh] sm:h-[90vh] flex flex-col"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Resume Modal Header */}
-                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-t-xl flex items-center justify-between">
-                      <h3 className="text-lg font-semibold">
-                        {candidate.name} - 完整履歷
-                      </h3>
-                      <button
-                        onClick={() => setShowResume(false)}
-                        className="text-white/80 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                    
-                    {/* Resume iframe */}
-                    <div className="flex-1 overflow-hidden">
-                      <iframe
-                        src={candidate.resumeLink}
-                        className="w-full h-full border-0"
-                        title={`${candidate.name} 履歷`}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
               
               {/* GitHub Invite Message Modal (Task A) */}
               {showInviteMessage && (

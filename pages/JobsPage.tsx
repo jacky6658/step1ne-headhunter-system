@@ -141,8 +141,12 @@ export const JobsPage: React.FC<JobsPageProps> = ({ userProfile }) => {
     }
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
+      const isIdSearch = /^\d+$/.test(query.trim());
       result = result.filter(job => {
         try {
+          if (isIdSearch) {
+            return String(job.id) === query.trim();
+          }
           return (
             (job.position_name && job.position_name.toLowerCase().includes(query)) ||
             (job.client_company && job.client_company.toLowerCase().includes(query)) ||
