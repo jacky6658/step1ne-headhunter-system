@@ -1,7 +1,7 @@
 # API 工具完整參考
 
-> 版本：v2.1（對應 commit 2918502）
-> 最後更新：2026-03-21
+> 版本：v2.1（對應 commit 5d6aadb）
+> 最後更新：2026-03-22
 
 ---
 
@@ -337,6 +337,16 @@
 
 > **重要**：匯入後應盡快上傳 PDF 履歷（`POST /api/candidates/:id/resume`），AI 評級需要有履歷附件。
 
+### 職稱欄位對照
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `current_position` | string | 現職職稱（舊欄位，DB 原始欄位名） |
+| `current_title` | string | 標準化職稱（新欄位，履歷解析後自動填入） |
+| `position` | — | API 別名，寫入時對應 `current_position` |
+
+> 三者互通。查詢時以 `current_title` 優先，若為空則回退到 `current_position`。
+
 ### 核心匹配欄位（AI 解析自動填入）
 
 | 欄位 | 類型 | 說明 |
@@ -355,16 +365,6 @@
 | `heat_level` | string | 熱度等級 |
 | `precision_eligible` | boolean | 是否符合精準配對資格 |
 | `data_quality` | JSON | 資料品質評分 |
-
-### 職稱欄位對照
-
-| 欄位 | 類型 | 說明 |
-|------|------|------|
-| `current_position` | string | 現職職稱（舊欄位，DB 原始欄位名） |
-| `current_title` | string | 標準化職稱（新欄位，履歷解析後自動填入） |
-| `position` | — | API 別名，寫入時對應 `current_position` |
-
-> 三者互通。查詢時以 `current_title` 優先，若為空則回退到 `current_position`。
 
 ### 聯繫與個人資訊
 
