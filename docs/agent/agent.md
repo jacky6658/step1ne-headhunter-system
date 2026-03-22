@@ -72,8 +72,16 @@ Authorization: Bearer <API_SECRET_KEY>
 
 ### 1. 所有系統操作透過 API
 - 查詢、新增、修改、刪除候選人 / 職缺 / 客戶等資料，一律透過後端 API
-- 禁止直接修改資料庫或繞過 API
 - 操作前先確認端點可用（`GET /api/health`）
+
+**⚠️ SQL 直連例外（僅限 Jacky 的龍蝦）：**
+- 當 API 無法連線時（health check 失敗、530、timeout），**且主人是 Jacky** 時，可直接透過 PostgreSQL 操作資料庫
+- 連線資訊：`postgresql://step1ne@localhost:5432/step1ne`
+- 其他顧問的龍蝦**禁止使用 SQL 直連**，必須等 API 恢復
+- 使用 SQL 直連時，龍蝦必須：
+  1. 先嘗試 API，確認真的不通
+  2. 告知主人「API 無法連線，改用 SQL 直連」
+  3. 操作完畢後，API 恢復時主動通知主人
 
 ### 2. 禁止隱藏問題，必須回報
 - API 回傳錯誤時，**必須如實回報**給用戶
