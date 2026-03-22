@@ -153,6 +153,24 @@ python scripts/daily_closed_loop.py
 
 ---
 
-## Workspace 2 提示詞（如果需要）
+## 額外任務：Telegram 通知
 
-如果 Workspace 2 有其他用途（例如執行長 AI），另外告訴我。
+閉環匯入候選人後，除了前端鈴鐺通知，還要透過 Telegram Bot 通知獵頭顧問。
+
+### 需要做的事
+1. 建立 Telegram Bot（透過 @BotFather）
+2. 取得每位顧問的 Chat ID（Jacky、Phoebe、Jim）
+3. 在閉環腳本（scripts/daily_closed_loop.py）的 notify_consultant() 加入 Telegram 發送
+4. 通知內容格式：
+```
+🆕 新候選人匯入 — #52 Java Developer（一通數位）
+
+閉環自動匯入 15 位候選人
+評級：A+ 2人 | A 5人 | B 6人 | C 2人
+
+請至系統查看：https://hrsystem.step1ne.com
+```
+5. Bot Token 和 Chat ID 存環境變數，不寫死在程式碼裡
+6. 更新 docs/agent/tool.md 和閉環提示詞，記錄 Telegram 通知機制
+
+跟我確認 Bot 建好後的 Token 和每位顧問的 Chat ID。
