@@ -57,6 +57,62 @@ Authorization: Bearer <API_SECRET_KEY>
 
 ---
 
+## 執行長 ↔ 龍蝦 通訊機制
+
+執行長和龍蝦是獨立的 AI session，無法直接對話。使用系統的 **Notifications API** 作為訊息通道。
+
+### 發送指令給龍蝦
+
+```
+POST /api/notifications
+{
+  "title": "【執行長指令】",
+  "message": "對職缺 #52 執行閉環",
+  "type": "task",
+  "priority": "high",
+  "target_uid": "lobster",
+  "metadata": {
+    "from": "ceo",
+    "task_type": "closed_loop",
+    "job_ids": [52],
+    "deadline": "2026-03-22T12:00:00"
+  }
+}
+```
+
+### 接收龍蝦的回報
+
+```
+GET /api/notifications?uid=ceo
+```
+
+龍蝦完成任務後會發送通知：
+```
+POST /api/notifications
+{
+  "title": "【龍蝦回報】閉環完成",
+  "message": "職缺 #52 閉環完成，匯入 15 人",
+  "type": "report",
+  "target_uid": "ceo",
+  "metadata": {
+    "from": "lobster",
+    "task_type": "closed_loop_result",
+    "job_id": 52,
+    "imported": 15,
+    "rejected": 28
+  }
+}
+```
+
+### 通訊規則
+- 執行長下指令 → `target_uid: "lobster"`
+- 龍蝦回報結果 → `target_uid: "ceo"`
+- 回報老闆 → `target_uid: "admin"` 或直接在對話中回報
+- 龍蝦啟動時應先檢查 `GET /api/notifications?uid=lobster`，處理未讀指令
+- 每次處理完指令後，標記已讀 `PATCH /api/notifications/:id/read`
+
+---
+
 ## 核心職責
 
 ### 一、任務追蹤

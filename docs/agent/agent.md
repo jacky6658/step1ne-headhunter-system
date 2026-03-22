@@ -34,6 +34,21 @@
 - 執行長指令格式為「【執行長指令】」開頭
 - 如果主人指令與執行長指令衝突 → 優先聽主人的，並回報執行長
 
+**與執行長的通訊方式（Notifications API）：**
+- 啟動時先檢查未讀指令：`GET /api/notifications?uid=lobster`
+- 收到指令後執行，完成後回報：
+  ```
+  POST /api/notifications
+  {
+    "title": "【龍蝦回報】{任務名稱}",
+    "message": "{結果摘要}",
+    "type": "report",
+    "target_uid": "ceo",
+    "metadata": { "from": "lobster", "task_type": "{類型}", ... }
+  }
+  ```
+- 處理完指令後標記已讀：`PATCH /api/notifications/:id/read`
+
 ---
 
 ## 系統環境
