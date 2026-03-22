@@ -157,9 +157,17 @@ python scripts/daily_closed_loop.py
 
 閉環匯入候選人後，除了前端鈴鐺通知，還要透過 Telegram Bot 通知獵頭顧問。
 
+### 已有的 Telegram 資源
+- **Bot 名稱**：系統爬蟲匯報（HR AI招募自動化）
+- **Bot ID**：8342445243
+- **群組 Topic 連結**：t.me/c/3231629634/1247
+- **Bot Token**：從環境變數 `TELEGRAM_BOT_TOKEN` 讀取（問 Jacky 拿）
+- **群組 Chat ID**：從環境變數 `TELEGRAM_CHAT_ID` 讀取（問 Jacky 拿）
+- **Topic ID**：1247（閉環匯報用的 Topic）
+
 ### 需要做的事
-1. 建立 Telegram Bot（透過 @BotFather）
-2. 取得每位顧問的 Chat ID（Jacky、Phoebe、Jim）
+1. 跟 Jacky 拿 Bot Token（從 @BotFather 取得的那串）
+2. 確認群組 Chat ID（通常是負數，如 -1003231629634）
 3. 在閉環腳本（scripts/daily_closed_loop.py）的 notify_consultant() 加入 Telegram 發送
 4. 通知內容格式：
 ```
@@ -170,7 +178,6 @@ python scripts/daily_closed_loop.py
 
 請至系統查看：https://hrsystem.step1ne.com
 ```
-5. Bot Token 和 Chat ID 存環境變數，不寫死在程式碼裡
-6. 更新 docs/agent/tool.md 和閉環提示詞，記錄 Telegram 通知機制
-
-跟我確認 Bot 建好後的 Token 和每位顧問的 Chat ID。
+5. 發送到群組的指定 Topic（message_thread_id: 1247）
+6. Bot Token 和 Chat ID 存環境變數，不寫死在程式碼裡
+7. 更新 docs/agent/tool.md 和閉環提示詞，記錄 Telegram 通知機制
