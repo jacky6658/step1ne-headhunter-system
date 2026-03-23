@@ -6854,11 +6854,15 @@ ${educationSummary || '  無學歷資料'}
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+    const OPENCLAW_API_KEY = process.env.OPENCLAW_API_KEY || '';
     let llmResponse;
     try {
       llmResponse = await fetch(OPENCLAW_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(OPENCLAW_API_KEY ? { 'Authorization': `Bearer ${OPENCLAW_API_KEY}` } : {}),
+        },
         body: JSON.stringify({
           model: OPENCLAW_MODEL,
           messages: [
