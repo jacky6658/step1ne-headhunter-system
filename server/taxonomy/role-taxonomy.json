@@ -87,6 +87,10 @@
     "label": "翻譯/語言",
     "canonicalRoles": ["翻譯人員", "口譯人員", "在地化專員", "Localization Manager", "印度文翻譯", "馬來文翻譯", "日文翻譯"]
   },
+  "Consulting": {
+    "label": "顧問 / 諮詢",
+    "canonicalRoles": ["Management Consultant", "Strategy Consultant", "ESG Consultant", "Sustainability Consultant", "IT Consultant", "Business Consultant", "Advisory Manager"]
+  },
   "Other": {
     "label": "其他",
     "canonicalRoles": ["Other"]

@@ -27,6 +27,7 @@
     { "tag": "Startup", "label": "新創", "aliases": ["startup", "新創", "start-up", "early stage"] },
     { "tag": "Automotive", "label": "汽車 / 車用", "aliases": ["automotive", "汽車", "車用", "ev", "electric vehicle", "電動車"] },
     { "tag": "Energy", "label": "能源", "aliases": ["energy", "能源", "renewable", "再生能源", "solar", "wind"] },
+    { "tag": "ESG", "label": "ESG / 永續", "aliases": ["esg", "sustainability", "永續", "永續發展", "social impact", "csr", "碳中和", "carbon neutral"] },
     { "tag": "Other", "label": "其他", "aliases": [] }
   ]
 }

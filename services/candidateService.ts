@@ -27,38 +27,44 @@ export function filterCandidatesByPermission(
 }
 
 /**
- * 從 API 取得候選人（自動分頁，一次載入全部）
- * 後端每頁最多 100 筆，前端自動翻頁直到 hasMore=false
+ * 從 API 取得候選人（並行分頁，快速載入全部）
+ * 第一頁取得 total 後，剩餘頁 Promise.all 並行撈取
  */
 export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
-  const PAGE_SIZE = 100;
-  let allCandidates: Candidate[] = [];
-  let offset = 0;
-  let hasMore = true;
+  const PAGE_SIZE = 500;
 
-  while (hasMore) {
-    const result = await apiGet<{
-      success: boolean;
-      data: any[];
-      total: number;
-      pagination?: { limit: number; offset: number; hasMore: boolean };
-    }>(`/candidates?limit=${PAGE_SIZE}&offset=${offset}`);
+  // 第一頁：取得資料 + total 數量
+  const firstResult = await apiGet<{
+    success: boolean;
+    data: any[];
+    total: number;
+    pagination?: { limit: number; offset: number; hasMore: boolean };
+  }>(`/candidates?limit=${PAGE_SIZE}&offset=0`);
 
-    const page = (result.data || []).map((c: any) => ({
-      ...c,
-      aiMatchResult: c.ai_match_result || c.aiMatchResult || null
-    }));
+  const mapPage = (data: any[]) => (data || []).map((c: any) => ({
+    ...c,
+    aiMatchResult: c.ai_match_result || c.aiMatchResult || null
+  }));
 
-    allCandidates = allCandidates.concat(page);
+  const allCandidates = mapPage(firstResult.data);
+  const total = firstResult.total || allCandidates.length;
 
-    // 判斷是否還有下一頁
-    if (result.pagination) {
-      hasMore = result.pagination.hasMore;
-    } else {
-      // 向後相容：舊版後端沒有 pagination 欄位
-      hasMore = false;
-    }
-    offset += PAGE_SIZE;
+  // 如果第一頁就撈完了，直接回傳
+  if (allCandidates.length >= total) {
+    return allCandidates;
+  }
+
+  // 剩餘頁並行撈取
+  const remainingPages: Promise<any>[] = [];
+  for (let offset = PAGE_SIZE; offset < total; offset += PAGE_SIZE) {
+    remainingPages.push(
+      apiGet<{ data: any[] }>(`/candidates?limit=${PAGE_SIZE}&offset=${offset}`)
+    );
+  }
+
+  const results = await Promise.all(remainingPages);
+  for (const result of results) {
+    allCandidates.push(...mapPage(result.data));
   }
 
   return allCandidates;

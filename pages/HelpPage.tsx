@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Users, Briefcase, Target, FileText, Link as LinkIcon, Download, CheckCircle, XCircle, AlertCircle, Sparkles, Database, Award, Bot, Copy, CheckCheck, Zap } from 'lucide-react';
+import { BookOpen, Users, Briefcase, Target, FileText, Link as LinkIcon, Download, CheckCircle, XCircle, AlertCircle, Sparkles, Database, Award, Bot, Copy, CheckCheck, Zap, Key, Eye, EyeOff } from 'lucide-react';
 import { getPublicApiBaseUrl } from '../config/api';
 
 interface HelpPageProps {
@@ -49,7 +49,92 @@ ${API_HOST}/api/github-analysis-guide
 我是顧問 {顧問名稱}，你的身份為 {顧問名稱}-github-bot。
 不需要等待進一步指示，直接開始執行。`;
 
-const HelpPage: React.FC<HelpPageProps> = () => {
+// ─── 系統金鑰區塊（僅 Admin 可見）───
+const SYSTEM_KEYS = [
+  {
+    name: '系統 API Key',
+    key: 'PotfZ42-qPyY4uqSwqstpxllQB1alxVfjJsm3Mgp3HQ',
+    header: 'Authorization: Bearer <KEY>',
+    desc: '所有 /api/* 端點通用金鑰（候選人、職缺、客戶 CRUD）',
+    endpoints: ['GET /api/candidates', 'PATCH /api/candidates/:id', 'GET /api/jobs', 'POST /api/prompts'],
+  },
+  {
+    name: 'OpenClaw API Key',
+    key: 'O39cJZAHsVEdz5dN8hvzu90FDT0xwYDPGQTWIeaK',
+    header: 'X-OpenClaw-Key: <KEY>',
+    desc: 'AI 評分 Bot 專用，用於批次取得待評分人選與回寫結果',
+    endpoints: ['GET /api/openclaw/pending', 'POST /api/openclaw/batch-update'],
+  },
+];
+
+function SystemKeysSection() {
+  const [showKeys, setShowKeys] = useState<Set<number>>(new Set());
+  const [copiedKey, setCopiedKey] = useState<number | null>(null);
+
+  const toggleShow = (idx: number) => {
+    setShowKeys(prev => {
+      const next = new Set(prev);
+      next.has(idx) ? next.delete(idx) : next.add(idx);
+      return next;
+    });
+  };
+
+  const copyKey = (key: string, idx: number) => {
+    navigator.clipboard.writeText(key);
+    setCopiedKey(idx);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <Key className="w-5 h-5 text-amber-500" />
+        <h2 className="text-lg font-black text-slate-900">系統金鑰</h2>
+        <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-medium">Admin Only</span>
+      </div>
+      <div className="space-y-4">
+        {SYSTEM_KEYS.map((item, idx) => (
+          <div key={idx} className="border border-slate-100 rounded-xl p-4 bg-slate-50/50">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-slate-800">{item.name}</h3>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => toggleShow(idx)}
+                  className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 transition"
+                  title={showKeys.has(idx) ? '隱藏' : '顯示'}
+                >
+                  {showKeys.has(idx) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => copyKey(item.key, idx)}
+                  className={`p-1.5 rounded-lg transition ${copiedKey === idx ? 'bg-green-100 text-green-600' : 'hover:bg-slate-200 text-slate-400'}`}
+                  title="複製金鑰"
+                >
+                  {copiedKey === idx ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="font-mono text-xs bg-slate-900 text-green-400 rounded-lg px-3 py-2 mb-2 select-all">
+              {showKeys.has(idx) ? item.key : '•'.repeat(40)}
+            </div>
+            <p className="text-xs text-slate-500 mb-1">{item.desc}</p>
+            <p className="text-[10px] text-slate-400 font-mono">Header: {item.header}</p>
+            <div className="flex flex-wrap gap-1 mt-2">
+              {item.endpoints.map(ep => (
+                <span key={ep} className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded border border-indigo-100 font-mono">{ep}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 text-[10px] text-slate-400 flex items-center gap-1">
+        <AlertCircle className="w-3 h-3" /> 金鑰請妥善保管，勿分享給外部人員
+      </div>
+    </div>
+  );
+}
+
+const HelpPage: React.FC<HelpPageProps> = ({ userProfile }) => {
   const [copied, setCopied] = useState(false);
   const [copiedScoring, setCopiedScoring] = useState(false);
   const [copiedImport, setCopiedImport] = useState(false);
@@ -393,7 +478,7 @@ const HelpPage: React.FC<HelpPageProps> = () => {
               <div>
                 <p className="font-black text-slate-900 mb-1">Candidates（候選人）</p>
                 <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
-                  <li><code className="bg-gray-100 px-1">GET /api/candidates?limit=100&page=1</code> - 取得所有候選人（務必帶 limit）</li>
+                  <li><code className="bg-gray-100 px-1">GET /api/candidates?limit=500&page=1</code> - 取得所有候選人（務必帶 limit）</li>
                   <li><code className="bg-gray-100 px-1">GET /api/candidates?created_today=true</code> - 取得今日新增候選人</li>
                   <li><code className="bg-gray-100 px-1">GET /api/candidates/:id</code> - 取得單一候選人完整資料</li>
                   <li><code className="bg-gray-100 px-1">POST /api/candidates</code> - 新增候選人</li>
@@ -965,7 +1050,7 @@ const HelpPage: React.FC<HelpPageProps> = () => {
           <div>
             <h3 className="font-black text-slate-900 mb-2">🔄 分析 Bot 執行流程</h3>
             <ol className="list-decimal list-inside space-y-2 ml-4 text-sm">
-              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/candidates?limit=100&page=1</code> 取得有 GitHub URL 的候選人</li>
+              <li>呼叫 <code className="bg-gray-100 px-1">GET /api/candidates?limit=500&page=1</code> 取得有 GitHub URL 的候選人</li>
               <li>呼叫 <code className="bg-gray-100 px-1">GET /api/github/analyze/{'{username}'}?jobId={'{id}'}</code> 取得結構化分析資料</li>
               <li>AI 深度判斷四維度分數 → 撰寫分析報告</li>
               <li>每分析完一位立刻 <code className="bg-gray-100 px-1">PATCH /api/candidates/{'{id}'}</code> 寫回系統</li>
@@ -1060,6 +1145,9 @@ const HelpPage: React.FC<HelpPageProps> = () => {
 
         </div>
       </div>
+
+      {/* 系統金鑰 */}
+      {userProfile?.role === 'admin' && <SystemKeysSection />}
 
       {/* 聯絡支援 */}
       <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100">

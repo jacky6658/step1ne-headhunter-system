@@ -62,17 +62,26 @@ export function OverviewDashboardPage({ userProfile }: OverviewDashboardPageProp
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 自動分頁撈取全部候選人（每頁 100 筆）
-      const allCandidates: Candidate[] = [];
-      let page = 1;
-      let hasMore = true;
-      const jobsRes = await fetch(getApiUrl('/api/jobs'), { headers: getAuthHeaders() });
-      while (hasMore) {
-        const res = await fetch(getApiUrl(`/api/candidates?limit=100&page=${page}`), { headers: getAuthHeaders() });
-        const d = await res.json();
-        allCandidates.push(...(d.data || []));
-        hasMore = d.pagination?.hasMore ?? ((d.data || []).length === 100);
-        page++;
+      // 並行分頁撈取全部候選人（每頁 500 筆）
+      const PAGE_SIZE = 500;
+      const [firstRes, jobsRes] = await Promise.all([
+        fetch(getApiUrl(`/api/candidates?limit=${PAGE_SIZE}&offset=0`), { headers: getAuthHeaders() }),
+        fetch(getApiUrl('/api/jobs'), { headers: getAuthHeaders() })
+      ]);
+      const firstData = await firstRes.json();
+      const allCandidates: Candidate[] = firstData.data || [];
+      const total = firstData.total || allCandidates.length;
+
+      if (allCandidates.length < total) {
+        const fetches: Promise<Response>[] = [];
+        for (let offset = PAGE_SIZE; offset < total; offset += PAGE_SIZE) {
+          fetches.push(fetch(getApiUrl(`/api/candidates?limit=${PAGE_SIZE}&offset=${offset}`), { headers: getAuthHeaders() }));
+        }
+        const responses = await Promise.all(fetches);
+        const jsons = await Promise.all(responses.map(r => r.json()));
+        for (const d of jsons) {
+          allCandidates.push(...(d.data || []));
+        }
       }
       const jobsData = await jobsRes.json();
       setCandidates(allCandidates);

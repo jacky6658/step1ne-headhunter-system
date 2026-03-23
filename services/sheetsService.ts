@@ -105,18 +105,24 @@ export async function getCandidates(): Promise<Candidate[]> {
     // 這裡假設有後端 API endpoint
     const { getAuthHeaders } = await import('../config/api');
 
-    // 自動分頁撈取全部候選人（每頁 100 筆，防止一次撈太多打爆 DB）
-    let allCandidates: Candidate[] = [];
-    let page = 1;
-    let hasMore = true;
-    while (hasMore) {
-      const response = await fetch(`/api/candidates?limit=100&page=${page}`, { headers: getAuthHeaders() });
-      if (!response.ok) throw new Error('無法讀取候選人資料');
-      const data = await response.json();
-      const candidates = (data.data || data.candidates || []) as Candidate[];
-      allCandidates = allCandidates.concat(candidates);
-      hasMore = data.pagination?.hasMore ?? (candidates.length === 100);
-      page++;
+    // 並行分頁撈取全部候選人（每頁 500 筆）
+    const PAGE_SIZE = 500;
+    const firstRes = await fetch(`/api/candidates?limit=${PAGE_SIZE}&offset=0`, { headers: getAuthHeaders() });
+    if (!firstRes.ok) throw new Error('無法讀取候選人資料');
+    const firstData = await firstRes.json();
+    const allCandidates: Candidate[] = (firstData.data || firstData.candidates || []) as Candidate[];
+    const total = firstData.total || allCandidates.length;
+
+    if (allCandidates.length < total) {
+      const fetches: Promise<Response>[] = [];
+      for (let offset = PAGE_SIZE; offset < total; offset += PAGE_SIZE) {
+        fetches.push(fetch(`/api/candidates?limit=${PAGE_SIZE}&offset=${offset}`, { headers: getAuthHeaders() }));
+      }
+      const responses = await Promise.all(fetches);
+      const jsons = await Promise.all(responses.map(r => r.json()));
+      for (const d of jsons) {
+        allCandidates.push(...(d.data || d.candidates || []));
+      }
     }
     const candidates = allCandidates;
     

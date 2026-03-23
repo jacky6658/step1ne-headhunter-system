@@ -1,8 +1,8 @@
 // Step1ne 獵頭系統 - BD 客戶開發頁面
 import React, { useState, useEffect, useMemo } from 'react';
-import { Client, BDContact, BDStatus, BD_STATUS_CONFIG, UserProfile, SubmissionRule } from '../types';
-import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../config/api';
-import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3, Trash2, Pencil, Check, ClipboardCheck, Sparkles } from 'lucide-react';
+import { Client, BDContact, BDStatus, BD_STATUS_CONFIG, UserProfile, SubmissionRule, ClientDocument } from '../types';
+import { apiGet, apiPost, apiPatch, apiDelete, apiPut, getApiUrl, getAuthHeaders, getApiToken, getPublicApiBaseUrl } from '../config/api';
+import { Target, Plus, X, Phone, Mail, Globe, Building2, Users, Briefcase, ChevronRight, RefreshCw, FileText, Clock, Edit3, Trash2, Pencil, Check, ClipboardCheck, Sparkles, Paperclip, Upload, Eye, Download } from 'lucide-react';
 import { SubmissionRulesEditor } from '../components/SubmissionRulesEditor';
 import { toast } from '../components/Toast';
 
@@ -52,14 +52,122 @@ const emptyForm = {
   url_104: '', url_1111: '',
 };
 
+// ===== 文件上傳區塊元件 =====
+function FileUploadZone({ files, clientId, endpoint, maxFiles, progress, onUpload, onDelete }: {
+  files: ClientDocument[];
+  clientId: string;
+  endpoint: string;
+  maxFiles: number;
+  progress: number;
+  onUpload: (file: File) => void;
+  onDelete: (docId: string) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFiles = (fileList: FileList | null) => {
+    if (!fileList?.length) return;
+    onUpload(fileList[0]);
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getFileIcon = (mimetype: string) => {
+    if (mimetype === 'application/pdf') return '📄';
+    if (mimetype?.includes('word') || mimetype?.includes('document')) return '📝';
+    if (mimetype?.includes('sheet') || mimetype?.includes('excel')) return '📊';
+    if (mimetype?.includes('image')) return '🖼️';
+    return '📎';
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* 上傳區 */}
+      {files.length < maxFiles && (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
+          onClick={() => inputRef.current?.click()}
+          className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
+            dragOver ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+          }`}
+        >
+          <input ref={inputRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" onChange={(e) => handleFiles(e.target.files)} />
+          <Upload className="w-5 h-5 mx-auto text-slate-400 mb-1" />
+          <p className="text-xs text-slate-500">拖放檔案或點擊上傳</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">PDF、DOC、XLS、PNG、JPG（最大 10MB）</p>
+        </div>
+      )}
+
+      {/* 上傳進度 */}
+      {progress >= 0 && (
+        <div className="bg-indigo-50 rounded-lg p-2">
+          <div className="flex items-center justify-between text-xs text-indigo-600 mb-1">
+            <span>上傳中...</span><span>{progress}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-indigo-100 rounded-full overflow-hidden">
+            <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
+
+      {/* 檔案列表 */}
+      {files.length > 0 && (
+        <div className="space-y-1.5">
+          {files.map(f => (
+            <div key={f.id} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100 group">
+              <span className="text-sm">{getFileIcon(f.mimetype)}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-slate-800 truncate">{f.filename}</p>
+                <p className="text-[10px] text-slate-400">{formatSize(f.size)} · {f.uploaded_by} · {new Date(f.uploaded_at).toLocaleDateString('zh-TW')}</p>
+              </div>
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button
+                  onClick={(e) => { e.stopPropagation(); const t = getApiToken(); window.open(`${getPublicApiBaseUrl()}/api/clients/${clientId}/${endpoint}/${f.id}${t ? `?token=${t}` : ''}`, '_blank'); }}
+                  className="p-1 text-slate-400 hover:text-indigo-600" title="預覽"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); const t = getApiToken(); window.open(`${getPublicApiBaseUrl()}/api/clients/${clientId}/${endpoint}/${f.id}?download=true${t ? `&token=${t}` : ''}`, '_blank'); }}
+                  className="p-1 text-slate-400 hover:text-green-600" title="下載"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(f.id); }}
+                  className="p-1 text-slate-400 hover:text-red-500" title="刪除"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {files.length === 0 && progress < 0 && (
+        <p className="text-xs text-slate-400 text-center py-1">尚無檔案</p>
+      )}
+    </div>
+  );
+}
+
 export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPageProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'contacts' | 'jobs' | 'rules'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'contacts' | 'jobs' | 'rules' | 'docs'>('info');
   const [contacts, setContacts] = useState<BDContact[]>([]);
   const [clientJobs, setClientJobs] = useState<any[]>([]);
   const [submissionRules, setSubmissionRules] = useState<SubmissionRule[]>([]);
+  const [contractUploadProgress, setContractUploadProgress] = useState(-1);
+  const [docUploadProgress, setDocUploadProgress] = useState(-1);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [addForm, setAddForm] = useState(emptyForm);
@@ -126,8 +234,57 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
   const loadSubmissionRules = async (clientId: string) => {
     try {
       const data = await apiGet<{ success: boolean; data: SubmissionRule[] }>(`/clients/${clientId}/submission-rules`);
-      if (data.success) setSubmissionRules(data.data);
+      if (data.success) setSubmissionRules(Array.isArray(data.data) ? data.data : []);
     } catch (e) { setSubmissionRules([]); }
+  };
+
+  // ===== 文件上傳/刪除 helpers =====
+  const handleFileUpload = (file: File, endpoint: string, setProgress: (n: number) => void) => {
+    if (!selectedClient) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('uploaded_by', userProfile.displayName);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${getPublicApiBaseUrl()}/api/clients/${selectedClient.id}/${endpoint}`);
+    const headers = getAuthHeaders();
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      setProgress(-1);
+      if (xhr.status === 200) {
+        toast.success('上傳成功');
+        // 重新載入 client 資料
+        reloadSelectedClient();
+      } else {
+        const err = JSON.parse(xhr.responseText);
+        toast.error(err.error || '上傳失敗');
+      }
+    };
+    xhr.onerror = () => { setProgress(-1); toast.error('上傳失敗'); };
+    setProgress(0);
+    xhr.send(formData);
+  };
+
+  const handleFileDelete = async (endpoint: string, docId: string) => {
+    if (!selectedClient) return;
+    try {
+      await apiDelete<any>(`/clients/${selectedClient.id}/${endpoint}/${docId}`);
+      toast.success('已刪除');
+      reloadSelectedClient();
+    } catch { toast.error('刪除失敗'); }
+  };
+
+  const reloadSelectedClient = async () => {
+    if (!selectedClient) return;
+    try {
+      const data = await apiGet<{ success: boolean; data: Client }>(`/clients/${selectedClient.id}`);
+      if (data.success) {
+        setSelectedClient(data.data);
+        setClients(prev => prev.map(c => c.id === data.data.id ? { ...c, ...data.data } : c));
+      }
+    } catch {}
   };
 
   const handleStatusChange = async (client: Client, newStatus: BDStatus) => {
@@ -190,6 +347,7 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
       notes: selectedClient.notes || '',
       url_104: selectedClient.url_104 || '',
       url_1111: selectedClient.url_1111 || '',
+      company_profile_url: selectedClient.company_profile_url || '',
     });
     setEditingInfo(true);
   };
@@ -445,7 +603,8 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
                   { key: 'info', label: '基本資料', icon: <FileText className="w-4 h-4" /> },
                   { key: 'contacts', label: `聯絡記錄 (${contacts.length})`, icon: <Clock className="w-4 h-4" /> },
                   { key: 'jobs', label: `關聯職缺 (${clientJobs.length})`, icon: <Briefcase className="w-4 h-4" /> },
-                  { key: 'rules', label: `送件規範 (${submissionRules.filter(r => r.enabled).length})`, icon: <ClipboardCheck className="w-4 h-4" /> },
+                  { key: 'rules', label: `送件規範 (${(submissionRules || []).filter(r => r.enabled).length})`, icon: <ClipboardCheck className="w-4 h-4" /> },
+                  { key: 'docs', label: `文件 (${(selectedClient.documents || []).length})`, icon: <Paperclip className="w-4 h-4" /> },
                 ] as const).map(tab => (
                   <button
                     key={tab.key}
@@ -464,6 +623,30 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               {activeTab === 'info' && (
                 <div className="space-y-5">
+                  {/* 公司簡介連結 */}
+                  {editingInfo ? (
+                    <div className="flex items-center gap-2 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                      <FileText className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                      <input
+                        value={editForm.company_profile_url ?? ''}
+                        onChange={e => setEditForm(p => ({ ...p, company_profile_url: e.target.value }))}
+                        className="flex-1 text-sm border border-indigo-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="貼上公司簡介連結（Google Doc / Notion / 網頁）"
+                      />
+                    </div>
+                  ) : selectedClient.company_profile_url ? (
+                    <a
+                      href={selectedClient.company_profile_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-3 bg-indigo-50 rounded-xl border border-indigo-100 hover:bg-indigo-100 transition group"
+                    >
+                      <FileText className="w-4 h-4 text-indigo-500" />
+                      <span className="text-sm font-medium text-indigo-700 group-hover:underline">查看公司簡介</span>
+                      <Globe className="w-3.5 h-3.5 text-indigo-400 ml-auto" />
+                    </a>
+                  ) : null}
+
                   {/* 編輯按鈕列 */}
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-slate-700">基本資料</h3>
@@ -645,6 +828,20 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
                     </div>
                   </div>
 
+                  {/* 合約文件 */}
+                  <div>
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">合約文件</p>
+                    <FileUploadZone
+                      files={selectedClient.contract_files || []}
+                      clientId={selectedClient.id}
+                      endpoint="contract-files"
+                      maxFiles={5}
+                      progress={contractUploadProgress}
+                      onUpload={(f) => handleFileUpload(f, 'contract-files', setContractUploadProgress)}
+                      onDelete={(docId) => handleFileDelete('contract-files', docId)}
+                    />
+                  </div>
+
                   {/* 備註 */}
                   <div>
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">備註</p>
@@ -748,6 +945,21 @@ export function BDClientsPage({ userProfile, onNavigateToJobs }: BDClientsPagePr
                     setSubmissionRules(rules);
                   }}
                 />
+              )}
+
+              {activeTab === 'docs' && (
+                <div>
+                  <p className="text-sm font-semibold text-slate-700 mb-3">一般文件（提案、報告、簡報等）</p>
+                  <FileUploadZone
+                    files={selectedClient.documents || []}
+                    clientId={selectedClient.id}
+                    endpoint="documents"
+                    maxFiles={10}
+                    progress={docUploadProgress}
+                    onUpload={(f) => handleFileUpload(f, 'documents', setDocUploadProgress)}
+                    onDelete={(docId) => handleFileDelete('documents', docId)}
+                  />
+                </div>
               )}
             </div>
           </div>

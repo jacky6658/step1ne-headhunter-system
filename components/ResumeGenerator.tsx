@@ -1363,8 +1363,8 @@ function buildResumeHTML(candidate: Candidate, candidateLabel: string, customSum
       color-adjust: exact !important;
     }
 
-    /* 防止區塊被頁面切斷 */
-    .header, .summary-card, .consultant-note-card, .cert-item, .work-item, .edu-item, .deal-item, .section {
+    /* 防止小區塊被頁面切斷（但允許大 section 跨頁流動） */
+    .header, .summary-card, .consultant-note-card, .cert-item, .work-item, .edu-item, .deal-item, .radar-section {
       page-break-inside: avoid;
       break-inside: avoid;
     }

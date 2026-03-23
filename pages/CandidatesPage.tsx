@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Candidate, CandidateStatus, CandidateSource, UserProfile } from '../types';
 import { getCandidates, searchCandidates, updateCandidateStatus, filterCandidatesByPermission, clearCache } from '../services/candidateService';
+import { onCandidateChange, onReconnect } from '../services/socketService';
 import { Users, Search, Filter, Plus, Download, Upload, Shield, RefreshCw, Sparkles, X } from 'lucide-react';
 import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
 import { CandidateModal } from '../components/CandidateModal';
@@ -61,20 +62,46 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
     applyFilters();
   }, [candidates, searchQuery, statusFilter, sourceFilter, consultantFilter, jobFilter, todayOnly]);
   
-  // 自動重新整理（每 30 秒）- 雙向同步模式
+  // Socket.IO 即時更新：其他用戶修改候選人時自動更新畫面
   useEffect(() => {
-    const interval = setInterval(async () => {
-      if (!loading && !refreshing) {
-        console.log('🔄 自動重新整理候選人資料...');
-        clearCache();
-        const allCandidates = await getCandidates(userProfile);
-        setCandidates(allCandidates);
+    const unsubscribe = onCandidateChange((event) => {
+      switch (event.type) {
+        case 'updated':
+          setCandidates(prev => prev.map(c =>
+            String(c.id) === String(event.id) ? { ...c, ...event.data, consultant: event.data.recruiter || event.data.consultant || c.consultant } : c
+          ));
+          break;
+        case 'created':
+          // 新候選人加入列表頂部
+          setCandidates(prev => {
+            if (prev.some(c => String(c.id) === String(event.id))) return prev;
+            return [{ ...event.data, consultant: event.data.recruiter || '待指派' }, ...prev];
+          });
+          break;
+        case 'deleted':
+          setCandidates(prev => prev.filter(c => String(c.id) !== String(event.id)));
+          break;
+        case 'batch-updated':
+          setCandidates(prev => prev.map(c =>
+            event.ids.includes(Number(c.id)) ? { ...c, status: event.status } : c
+          ));
+          break;
       }
-    }, 30000); // 30 秒
-    
-    return () => clearInterval(interval);
-  }, [userProfile, loading, refreshing]);
-  
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 斷線重連後自動重新載入全部資料
+  useEffect(() => {
+    const unsubReconnect = onReconnect(async () => {
+      console.log('🔄 Socket 重連，重新載入候選人資料...');
+      clearCache();
+      const allCandidates = await getCandidates(userProfile);
+      setCandidates(allCandidates);
+    });
+    return () => unsubReconnect();
+  }, [userProfile]);
+
   const loadCandidates = async () => {
     setLoading(true);
     try {
