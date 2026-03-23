@@ -51,7 +51,13 @@ GET /api/notifications?uid=lobster
 1. `GET /api/jobs` → 篩選 `job_status = "招募中"` 的職缺
 2. 按 `priority` 排序：high → medium → low → 未設定
 3. 逐一對每個職缺執行閉環提示詞（讀取 workspace 內的 `閉環執行提示詞.md`）
-4. **匯入必填欄位（缺任何一個都不准匯入）**：
+4. **匯入前必須防重複**：
+   - 用 `linkedin_url` 查系統裡有沒有同一個人（`GET /api/candidates?linkedin_url=xxx`）
+   - 已存在 → **跳過，不匯入**
+   - 同一個人對不同職缺 → 也跳過，不要重複建卡
+   - 不存在 → 匯入
+
+5. **匯入必填欄位（缺任何一個都不准匯入）**：
    - `linkedin_url`（沒有 LinkedIn URL 的候選人直接跳過，不匯入）
    - `name`
    - `current_title` 或 `current_position`
