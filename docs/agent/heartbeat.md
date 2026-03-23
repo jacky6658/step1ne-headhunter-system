@@ -67,25 +67,65 @@ GET /api/notifications?uid=lobster
 8. 對每位匯入的候選人執行 AI 分析：
    a. 取得完整資料：`GET /api/ai-agent/candidates/:id/full-profile`
    b. 取得履歷文字：`GET /api/ai-agent/candidates/:id/resume-text`
-   c. 取得配對提示詞：`GET /api/ai-agent/prompts/matching`
-   d. 用 AI 分析候選人與職缺的匹配度，產出：
-      - 綜合評分（S/A+/A/B+/B/C/D）
-      - 技能匹配分析
-      - 經歷匹配分析
-      - 優勢與風險
-      - 顧問建議（該不該推、怎麼跟客戶說）
-   e. 把分析結果寫回系統：`PUT /api/ai-agent/candidates/:id/ai-analysis`
-      ```json
-      {
-        "grade": "A",
-        "summary": "5年 SRE 經驗，技術棧完全匹配...",
-        "skills_match": { "matched": [...], "missing": [...] },
-        "experience_match": "...",
-        "strengths": ["..."],
-        "risks": ["..."],
-        "consultant_recommendation": "強推，建議 48 小時內聯繫"
-      }
-      ```
+   c. 你自己分析候選人與職缺的匹配度（你就是 AI，不需要 Ollama）
+   d. 把分析結果寫回系統：`PUT /api/ai-agent/candidates/:id/ai-analysis`
+
+   **⚠️ 格式非常重要，用錯格式會被 API 拒絕。必須嚴格按以下格式：**
+   ```json
+   {
+     "ai_analysis": {
+       "version": "1.0",
+       "analyzed_at": "2026-03-23T12:00:00Z",
+       "analyzed_by": "lobster-ai",
+       "candidate_evaluation": {
+         "overall_grade": "A",
+         "summary": "5年 SRE 經驗，技術棧完全匹配，曾在大型企業負責 Kubernetes 維運",
+         "strengths": ["5年 SRE 經驗", "熟悉 K8s/Docker", "大型企業背景"],
+         "risks": ["缺少 Go 語言經驗", "薪資可能偏高"],
+         "skills_match": {
+           "matched": ["Kubernetes", "Docker", "Linux", "AWS"],
+           "missing": ["Go", "Terraform"]
+         },
+         "career_curve": "穩定上升，從 DevOps → Senior SRE → Lead",
+         "personality": "技術導向，偏好自主工作環境",
+         "role_positioning": "Senior SRE，可勝任 Team Lead",
+         "salary_estimate": "年薪 120-150 萬 TWD（依經驗）"
+       },
+       "job_matchings": [
+         {
+           "job_title": "SRE 工程師",
+           "client": "仁大資訊",
+           "match_rate": 75,
+           "fit_summary": "技術棧高度匹配，經驗充足，但缺 Go 語言"
+         }
+       ],
+       "recommendation": {
+         "action": "recommend",
+         "priority": "high",
+         "note": "強推，建議 48 小時內聯繫。技術面試重點：確認 Go 語言學習意願"
+       }
+     }
+   }
+   ```
+
+   **必填欄位清單（缺任何一個都會被 API 拒絕）：**
+   - `version`: 固定 `"1.0"`
+   - `analyzed_at`: ISO 時間戳
+   - `analyzed_by`: `"lobster-ai"`
+   - `candidate_evaluation.overall_grade`: S/A+/A/B+/B/C/D
+   - `candidate_evaluation.summary`: 一段話摘要
+   - `candidate_evaluation.strengths`: 陣列
+   - `candidate_evaluation.risks`: 陣列
+   - `candidate_evaluation.skills_match`: `{matched:[], missing:[]}`
+   - `candidate_evaluation.career_curve`: 職涯軌跡描述
+   - `candidate_evaluation.personality`: 人格特質評估
+   - `candidate_evaluation.role_positioning`: 角色定位
+   - `candidate_evaluation.salary_estimate`: 薪資預估
+   - `job_matchings`: 陣列（至少空陣列 `[]`）
+   - `recommendation.action`: recommend/phone_screen/review/reject
+   - `recommendation.priority`: urgent/high/medium/low
+   - `recommendation.note`: 顧問行動建議
+
 9. **每個人都要做，不能跳過。沒有 AI 分析的候選人等於沒用。**
 
 #### Phase 4：零結果職缺自動診斷（Phase 1 有零結果時才做）
