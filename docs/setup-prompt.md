@@ -50,11 +50,12 @@
 
 | 項目 | 值 |
 |------|-----|
-| 後端 API | http://localhost:3001 |
-| 爬蟲系統 | http://localhost:5050 |
+| 後端 API | https://api-hr.step1ne.com |
+| 前端 | https://hrsystem.step1ne.com |
+| 爬蟲系統 | https://crawler.step1ne.com |
 | PostgreSQL | postgresql://step1ne@localhost:5432/step1ne |
 | API Key | PotfZ42-qPyY4uqSwqstpxllQB1alxVfjJsm3Mgp3HQ |
 | Chrome CDP | localhost:9222 |
-| Telegram Bot ID | 8342445243 |
+| Telegram Bot Token | 8375770979:AAFuC3emSd05sjRxSyxpP6kTmd7LyKpA2cg |
 | Telegram Topic ID | 1247 |
 | 主人 | Jacky |
