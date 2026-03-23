@@ -447,6 +447,8 @@ POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
             ...candidate,
             aiMatchResult: data.aiMatchResult || data.ai_match_result || candidate.aiMatchResult || null,
             aiSummary: data.aiSummary || data.ai_summary || (candidate as any).aiSummary || null,
+            aiAnalysis: data.aiAnalysis || data.ai_analysis || (candidate as any).aiAnalysis || null,
+            outreachLetters: data.outreachLetters || data.outreach_letters || (candidate as any).outreachLetters || [],
             progressTracking: data.progressTracking || data.progress_tracking || candidate.progressTracking || [],
             notes: (data.notes != null && data.notes !== '') ? data.notes : (candidate.notes || ''),
           });
