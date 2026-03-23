@@ -9,6 +9,8 @@
 - **爬蟲系統**：`https://crawler.step1ne.com`
 - **認證**：`Authorization: Bearer PotfZ42-qPyY4uqSwqstpxllQB1alxVfjJsm3Mgp3HQ`
 - **Chrome CDP**：`http://localhost:9222`（LinkedIn PDF 下載用）
+- **禁止使用本地 DB** — 不准連 localhost:5432，不准用 psql，所有資料操作都走遠端 API
+- **禁止存資料到本地** — 不要在本機建 DB、不要在本機跑後端/前端
 
 ## 每次 Heartbeat 執行
 
@@ -36,7 +38,7 @@ GET /api/notifications?uid=lobster
 
 ---
 
-#### Phase 1：搜尋 + 篩選 + 匯入
+#### Phase 1：搜尋 + 篩選（不匯入，先篩完再說）
 
 **1.1** `GET /api/jobs` → 篩選 `job_status = "招募中"` 的職缺，按 priority 排序
 
@@ -48,13 +50,29 @@ GET /api/notifications?uid=lobster
 - 只有明確不相關的才淘汰（例：職缺要 SRE，候選人是廚師 → 淘汰）
 - **不要因為缺少某項技能就淘汰**，B/C 層再細篩
 
-**1.4 匯入前防重複**：
-- 用候選人的 `linkedin_url` 在爬蟲的 dedup cache 檢查（`GET /api/dedup/stats`）
-- 或用候選人姓名 + 公司比對系統已有資料
-- 已存在 → 跳過不匯入
+**1.4 防重複**：
+- 用候選人姓名 + 公司比對系統已有資料
+- 已存在 → 跳過
 - 同一個人不同職缺 → 跳過不重複建卡
 
-**1.5 匯入必填欄位（缺任何一個都不准匯入）**：
+---
+
+#### Phase 2：PDF 履歷下載（篩選通過的人，匯入之前先下載）
+
+**2.1** 對 A 層通過的候選人，用 Chrome CDP（localhost:9222）下載 LinkedIn PDF
+- 開啟候選人的 linkedin_url
+- 一度連結 → 用 LinkedIn「Save to PDF」功能下載真正的履歷 PDF
+- 非一度 → 用 `page.pdf()` 列印頁面備援
+- **不是截圖，是真正的 PDF 履歷**
+- 每人間隔 45-90 秒
+
+---
+
+#### Phase 3：匯入 + AI 分析（有 PDF 之後才匯入）
+
+**⚠️ 順序：先下載 PDF → 再匯入系統 → 解析履歷 → AI 分析。不准沒有 PDF 就匯入。**
+
+**3.1 匯入必填欄位（缺任何一個都不准匯入）**：
 | 欄位 | 說明 |
 |------|------|
 | `linkedin_url` | 沒有的直接跳過 |
@@ -65,29 +83,19 @@ GET /api/notifications?uid=lobster
 | `status` | 固定設「未開始」 |
 | `recruiter` | 根據職缺的 recruiter 欄位指派 |
 
-**1.6** 匯入端點：`POST https://api-hr.step1ne.com/api/candidates`
+**3.2** 匯入：`POST https://api-hr.step1ne.com/api/candidates`
+
+**3.3** 上傳 PDF：`POST https://api-hr.step1ne.com/api/candidates/:id/resume`（multipart, field = file）
+
+**3.4** 解析履歷：`POST https://api-hr.step1ne.com/api/candidates/:id/resume-parse`
 
 ---
 
-#### Phase 2：PDF 履歷下載（Phase 1 完就接著做）
-
-**2.1** 對 Phase 1 匯入的所有候選人，用 Chrome CDP（localhost:9222）下載 LinkedIn PDF
-- 開啟候選人的 linkedin_url
-- 一度連結 → 用 LinkedIn「Save to PDF」功能下載真正的履歷 PDF
-- 非一度 → 用 `page.pdf()` 列印頁面備援
-- **不是截圖，是真正的 PDF 履歷**
-- 每人間隔 45-90 秒
-
-**2.2** 上傳到遠端系統：`POST https://api-hr.step1ne.com/api/candidates/:id/resume`
-- Body: multipart/form-data, field name = `file`
-
-**2.3** 解析履歷：`POST https://api-hr.step1ne.com/api/candidates/:id/resume-parse`
-
 ---
 
-#### Phase 3：AI 顧問分析（每個匯入的候選人都必須做）
+**3.5** AI 顧問分析（每個匯入的候選人都必須做）：
 
-**3.1** 取得分析所需資料：
+取得分析所需資料：
 - `GET /api/ai-agent/candidates/:id/full-profile`（含 target_job 職缺資訊）
 - `GET /api/ai-agent/candidates/:id/resume-text`（取得 PDF 內容）
 - `GET /api/ai-agent/prompts/matching`（取得分析提示詞）
@@ -152,7 +160,7 @@ recommendation.priority, recommendation.note
 
 ---
 
-#### Phase 4：零結果職缺自動診斷
+#### Phase 4：零結果職缺自動診斷（Phase 1 有零結果時才做）
 
 **4.1** 對 A 層通過 0 人的職缺分析原因：
 - 關鍵字太窄 → 自動換關鍵字重跑（最多 3 次）
