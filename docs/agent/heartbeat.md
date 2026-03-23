@@ -51,7 +51,8 @@ GET /api/notifications?uid=lobster
 1. `GET /api/jobs` → 篩選 `job_status = "招募中"` 的職缺
 2. 按 `priority` 排序：high → medium → low → 未設定
 3. 逐一對每個職缺執行閉環提示詞（讀取 workspace 內的 `閉環執行提示詞.md`）
-4. 每個職缺完成後記錄結果
+4. **匯入時 status 必須設為「未開始」**，recruiter 根據職缺的 recruiter 欄位指派
+5. 每個職缺完成後記錄結果
 
 #### Phase 2：PDF 履歷下載（閉環完就接著做，不要等下次 heartbeat）
 5. 對 Phase 1 匯入的所有候選人，逐一下載 LinkedIn PDF 履歷
@@ -62,10 +63,30 @@ GET /api/notifications?uid=lobster
 6. 下載後上傳：`POST /api/candidates/:id/resume`
 7. 解析履歷：`POST /api/candidates/:id/resume-parse`
 
-#### Phase 3：有履歷後重新評級（解析完就接著做）
-8. 對有 PDF 履歷的候選人重跑三層篩選
-9. 根據履歷內容更新評級（不要全部都給 B+，要精準評 S/A+/A/B/C/D）
-10. 更新候選人的 ai_grade、ai_match_result 欄位
+#### Phase 3：AI 顧問分析（每個匯入的候選人都必須做）
+8. 對每位匯入的候選人執行 AI 分析：
+   a. 取得完整資料：`GET /api/ai-agent/candidates/:id/full-profile`
+   b. 取得履歷文字：`GET /api/ai-agent/candidates/:id/resume-text`
+   c. 取得配對提示詞：`GET /api/ai-agent/prompts/matching`
+   d. 用 AI 分析候選人與職缺的匹配度，產出：
+      - 綜合評分（S/A+/A/B+/B/C/D）
+      - 技能匹配分析
+      - 經歷匹配分析
+      - 優勢與風險
+      - 顧問建議（該不該推、怎麼跟客戶說）
+   e. 把分析結果寫回系統：`PUT /api/ai-agent/candidates/:id/ai-analysis`
+      ```json
+      {
+        "grade": "A",
+        "summary": "5年 SRE 經驗，技術棧完全匹配...",
+        "skills_match": { "matched": [...], "missing": [...] },
+        "experience_match": "...",
+        "strengths": ["..."],
+        "risks": ["..."],
+        "consultant_recommendation": "強推，建議 48 小時內聯繫"
+      }
+      ```
+9. **每個人都要做，不能跳過。沒有 AI 分析的候選人等於沒用。**
 
 #### Phase 4：零結果職缺自動診斷（Phase 1 有零結果時才做）
 11. 對零結果的職缺分析原因：
