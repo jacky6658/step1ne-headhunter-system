@@ -15,7 +15,7 @@ AI Agent 工作流程：
 2. 取人選資料   GET /api/ai-agent/candidates/:id/full-profile
 3. 取履歷 PDF   GET /api/ai-agent/candidates/:id/resume-text
 4. 取匹配職缺   GET /api/ai-agent/jobs/match-candidates?candidateId=X
-5. 用提示詞 + 資料產出分析（AI 自行執行）
+5. 將「提示詞 + 履歷解析文字 + 人選資料 + 職缺 JD」組合後執行分析，依照提示詞規定的 JSON schema 產出結構化分析結果
 6. 寫回結果     PUT /api/ai-agent/candidates/:id/ai-analysis
 
 Bonus: 開發信產出
@@ -184,19 +184,19 @@ GET /api/ai-agent/jobs/match-candidates?candidateId=2991&limit=3
 
 ---
 
-## Step 5：AI 執行分析
+## Step 5：執行分析
 
-使用 Step 1 的提示詞 + Step 2~4 的資料，產出結構化 JSON。
+將 Step 1 的提示詞 + Step 2~4 的資料組合後執行分析，依照提示詞規定的 JSON schema 產出結構化分析結果。
 
-**提示詞組裝範例：**
+**組合方式：**
 ```
-[系統提示詞（Step 1 取得的 content）]
+[提示詞（Step 1 取得的 content）]
 
 ═══ 履歷資料 ═══
-[Step 2 的 full-profile JSON]
+[Step 2 的 full-profile JSON — 人選結構化資料]
 
-═══ 履歷原文（PDF）═══
-[Step 3 的 PDF 文字內容，若有的話]
+═══ 履歷 PDF 解析文字 ═══
+[Step 3 的 PDF 解析後文字內容]
 
 ═══ 職缺 JD #1 ═══
 [Step 4 的 matched_jobs[0] JSON]
@@ -207,8 +207,14 @@ GET /api/ai-agent/jobs/match-candidates?candidateId=2991&limit=3
 ═══ 職缺 JD #3 ═══
 [Step 4 的 matched_jobs[2] JSON]
 
-職缺已全部提供，請產出完整 JSON 結果。
+以上資料已全部提供，請依照提示詞規定的 JSON schema 產出完整分析結果。
 ```
+
+**執行重點：**
+- 履歷 PDF 必須先解析為文字，分析基於解析後的文字內容
+- 分析結果必須嚴格遵守提示詞規定的 JSON 結構
+- 所有判斷必須基於履歷中的實際內容，資料不足標示「❓ 資料不足，需電話確認」
+- match_score 0~100、result 只能是 pass/warning/fail、verdict 只能是 建議送出/勉強送出/不建議
 
 ---
 

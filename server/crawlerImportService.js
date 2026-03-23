@@ -34,7 +34,7 @@ function mapCrawlerCandidate(raw) {
     talent_level: raw.grade || '',
     source: CRAWLER_SOURCE,
     notes: notesParts.join('\n'),
-    status: raw.status || '爬蟲初篩',
+    status: raw.status || '未開始',
   };
 
   // 爬蟲任務的 step1ne_job_id 或 target_job_id → 系統的 target_job_id
@@ -273,8 +273,8 @@ async function processBulkImport(pool, candidates, actor) {
               c.skills || '',
               c.education || '',
               c.source || CRAWLER_SOURCE,
-              isForeignName(c.name) ? '外籍已過濾' : (c.status || '爬蟲初篩'),
-              '待指派',
+              isForeignName(c.name) ? '外籍已過濾' : (c.status || '未開始'),
+              'Phoebe',
               c.notes || '',
               String(c.stability_score || '0'),
               c.personality_type || '',

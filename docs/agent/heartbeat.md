@@ -1,216 +1,238 @@
-# HEARTBEAT.md — 龍蝦（獵頭顧問 AI）自動工作任務
+# HEARTBEAT.md — 智能定期任務監控
 
-> 你是龍蝦，Step1ne 獵頭顧問 AI。詳見 AGENTS.md。
-> **核心原則：全程自主，不問人類。所有決策自己做，做完回報結果就好。**
+## 系統健康監控（每次heartbeat）
 
-## 環境資訊
+### Context & Session 管理
+- 檢查 session token 使用量，超過 80% 時警告 Jacky
+- **自動記憶歸檔**：每日執行 `memory-archiver.py archive 1`，將重要內容存入 MEMORY.md
+- **緊急歸檔**：token 使用率超過 90% 時立即執行歸檔，然後建議 `/new`
+- 每週日執行記憶清理，保持 MEMORY.md 精簡
 
-- **後端 API**：`https://api-hr.step1ne.com`（固定使用遠端）
-- **爬蟲系統**：`https://crawler.step1ne.com`（固定使用遠端）
-- **認證**：`Authorization: Bearer PotfZ42-qPyY4uqSwqstpxllQB1alxVfjJsm3Mgp3HQ`
-- **Chrome CDP**：`http://localhost:9222`（LinkedIn PDF 下載用）
-- **DB 直連**（僅 Jacky 的龍蝦，API 掛時）：`postgresql://step1ne@localhost:5432/step1ne`
+### 狀態追蹤檔案
+- 檢查並更新 `memory/heartbeat-state.json`
+- 記錄上次各項檢查的時間戳，避免重複操作
+- 追蹤錯誤次數，連續失敗3次時停止該項檢查
 
-## 每次 Heartbeat 執行
+## 輪流檢查任務（避免每次都做全部）
 
-### 1. 健康檢查
-```bash
-curl -s https://api-hr.step1ne.com/api/health
-curl -s https://crawler.step1ne.com/api/health
-curl -s http://localhost:9222/json/version
-```
-- 後端不通 → 閉環暫停，通知老闆
-- 爬蟲不通 → 閉環暫停，記錄原因
-- Chrome CDP 不通 → PDF 下載暫停，其他照跑
+### 每日早報（工作日早上 9:00-10:00）
+1. **人選狀態總覽**（週一、週三、週五）
+   - 呼叫候選人 API，統計各狀態人數
+   - 標記「未開始」超過 3 天的候選人
+   - 識別高價值候選人（S/A+ 級）待跟進狀況
 
-### 2. 檢查執行長指令
-```
-GET /api/notifications?uid=lobster
-```
-- 有未讀指令 → **立即執行**（執行長指令等同老闆指令）
-- 執行完畢後回報：
-  ```
-  POST /api/notifications
-  {
-    "title": "【龍蝦回報】{任務名稱}",
-    "message": "{結果摘要}",
-    "type": "report",
-    "target_uid": "ceo",
-    "metadata": { "from": "lobster", "task_type": "{類型}" }
-  }
-  ```
-- 標記已讀：`PATCH /api/notifications/:id/read`
+2. **新進候選人追蹤**（每日）
+   - 檢查昨日新增候選人
+   - 確認 AI 評分完成狀況
+   - 提醒未分配顧問的優質候選人
 
-### 3. 每日閉環（核心任務 — 全自動，不問人）
+3. **職缺匹配監控**（週二、週四）
+   - 檢查招募中職缺的候選人匹配狀況
+   - 標記超過 7 天無新匹配的職缺
+   - 追蹤仁大資訊等緊急職缺進度
 
-**觸發條件**：每天第一次 heartbeat 且今天還沒跑過閉環
+### 🤖 AI 顧問閉環（每 4-6 小時輪流）
 
-**完整自動流程（一條龍，全部自己做完）**：
+**核心閉環任務 — 三步驟：下載履歷 → AI 深度分析 → 通知顧問**
 
-#### Phase 1：搜尋 + 篩選 + 匯入
-1. `GET /api/jobs` → 篩選 `job_status = "招募中"` 的職缺
-2. 按 `priority` 排序：high → medium → low → 未設定
-3. 逐一對每個職缺執行閉環提示詞（讀取 workspace 內的 `閉環執行提示詞.md`）
-4. **匯入時 status 必須設為「未開始」**，recruiter 根據職缺的 recruiter 欄位指派
-5. 每個職缺完成後記錄結果
+#### 前置條件
+- 獵頭系統 API 健康（`GET http://localhost:3003/api/candidates?limit=1` 回 200）
+- Chrome CDP 可連（`http://localhost:9222`）— 下載 LinkedIn PDF 需要
+- LinkedIn 已登入（Chrome 有 session）
 
-#### Phase 2：PDF 履歷下載（閉環完就接著做，不要等下次 heartbeat）
-5. 對 Phase 1 匯入的所有候選人，逐一下載 LinkedIn PDF 履歷
-   - 透過 Chrome CDP（localhost:9222）
-   - 每人間隔 45-90 秒
-   - 一度連結 → 原生「存為 PDF」
-   - 非一度 → page.pdf() 列印備援
-6. 下載後上傳：`POST /api/candidates/:id/resume`
-7. 解析履歷：`POST /api/candidates/:id/resume-parse`
+#### STEP A：下載 LinkedIn 履歷 PDF
 
-#### Phase 3：AI 顧問分析（每個匯入的候選人都必須做）
-8. 對每位匯入的候選人執行 AI 分析：
-   a. 取得完整資料：`GET /api/ai-agent/candidates/:id/full-profile`
-   b. 取得履歷文字：`GET /api/ai-agent/candidates/:id/resume-text`
-   c. 你自己分析候選人與職缺的匹配度（你就是 AI，不需要 Ollama）
-   d. 把分析結果寫回系統：`PUT /api/ai-agent/candidates/:id/ai-analysis`
+**掃描缺履歷的人選，自動去 LinkedIn 下載 Save to PDF，上傳到系統**
 
-   **⚠️ 格式非常重要，用錯格式會被 API 拒絕。必須嚴格按以下格式：**
-   ```json
-   {
-     "ai_analysis": {
-       "version": "1.0",
-       "analyzed_at": "2026-03-23T12:00:00Z",
-       "analyzed_by": "lobster-ai",
-       "candidate_evaluation": {
-         "overall_grade": "A",
-         "summary": "5年 SRE 經驗，技術棧完全匹配，曾在大型企業負責 Kubernetes 維運",
-         "strengths": ["5年 SRE 經驗", "熟悉 K8s/Docker", "大型企業背景"],
-         "risks": ["缺少 Go 語言經驗", "薪資可能偏高"],
-         "skills_match": {
-           "matched": ["Kubernetes", "Docker", "Linux", "AWS"],
-           "missing": ["Go", "Terraform"]
-         },
-         "career_curve": "穩定上升，從 DevOps → Senior SRE → Lead",
-         "personality": "技術導向，偏好自主工作環境",
-         "role_positioning": "Senior SRE，可勝任 Team Lead",
-         "salary_estimate": "年薪 120-150 萬 TWD（依經驗）"
-       },
-       "job_matchings": [
-         {
-           "job_title": "SRE 工程師",
-           "client": "仁大資訊",
-           "match_rate": 75,
-           "fit_summary": "技術棧高度匹配，經驗充足，但缺 Go 語言"
-         }
-       ],
-       "recommendation": {
-         "action": "recommend",
-         "priority": "high",
-         "note": "強推，建議 48 小時內聯繫。技術面試重點：確認 Go 語言學習意願"
-       }
-     }
-   }
+1. **找出缺履歷的人選**：
+   ```
+   GET http://localhost:3003/api/candidates?limit=500
+   Authorization: Bearer <API_SECRET_KEY from TOOLS.md>
+   ```
+   篩選條件：有 `linkedinUrl`（或 `contact_link` 含 linkedin.com/in/）+ `resumeFiles` 為空 + 狀態為「未開始」
+
+2. **用 Playwright CDP 逐一下載**（每批最多 5 人，批次間休息 5-10 分鐘）：
+   ```python
+   from playwright.async_api import async_playwright
+   browser = await p.chromium.connect_over_cdp("http://localhost:9222")
+   ```
+   a. 前往人選的 LinkedIn profile URL
+   b. 模擬人類行為：隨機滾動 3-6 次，停留 2-4 秒
+   c. 點擊「More / 更多」按鈕 → 點「Save to PDF / 存為 PDF」
+   d. 等待下載完成，儲存 PDF
+   e. 如果 Save to PDF 不可用（非連結的 profile），用 `page.pdf()` 備援列印
+   f. 每次操作間隨機等待 3-8 秒，**不要連續快速操作避免被 LinkedIn 封鎖**
+
+3. **上傳 PDF 到系統**：
+   ```
+   POST http://localhost:3003/api/candidates/{id}/resume
+   Content-Type: multipart/form-data
+   Authorization: Bearer <API_SECRET_KEY>
+   file: <PDF 檔案>
+   uploaded_by: 龍蝦-heartbeat
    ```
 
-   **必填欄位清單（缺任何一個都會被 API 拒絕）：**
-   - `version`: 固定 `"1.0"`
-   - `analyzed_at`: ISO 時間戳
-   - `analyzed_by`: `"lobster-ai"`
-   - `candidate_evaluation.overall_grade`: S/A+/A/B+/B/C/D
-   - `candidate_evaluation.summary`: 一段話摘要
-   - `candidate_evaluation.strengths`: 陣列
-   - `candidate_evaluation.risks`: 陣列
-   - `candidate_evaluation.skills_match`: `{matched:[], missing:[]}`
-   - `candidate_evaluation.career_curve`: 職涯軌跡描述
-   - `candidate_evaluation.personality`: 人格特質評估
-   - `candidate_evaluation.role_positioning`: 角色定位
-   - `candidate_evaluation.salary_estimate`: 薪資預估
-   - `job_matchings`: 陣列（至少空陣列 `[]`）
-   - `recommendation.action`: recommend/phone_screen/review/reject
-   - `recommendation.priority`: urgent/high/medium/low
-   - `recommendation.note`: 顧問行動建議
+4. **安全限制**：
+   - 每次 heartbeat 最多處理 **10 人**（避免 LinkedIn 偵測）
+   - 批次間休息 5-10 分鐘
+   - 如果連續 3 次下載失敗 → 停止本輪，回報 Jacky（可能 LinkedIn session 過期）
+   - 深夜（23:00-08:00）不執行下載
 
-9. **每個人都要做，不能跳過。沒有 AI 分析的候選人等於沒用。**
+#### STEP B：AI 深度分析
 
-#### Phase 4：零結果職缺自動診斷（Phase 1 有零結果時才做）
-11. 對零結果的職缺分析原因：
-    - 關鍵字太窄？→ 自動調整關鍵字重跑（最多 3 次）
-    - 淘汰條件太嚴？→ 記錄建議，回報執行長
-    - 目標市場太小？→ 記錄，回報執行長
-12. 能自己解決的（換關鍵字）自己解決，不能的才回報
+**對有履歷的人選執行 AI 顧問分析（STEP A 完成後自動接續）**
 
-#### Phase 5：回報（執行長 + 群組通知顧問）
+1. **掃描待分析人選**：
+   篩選條件：有 `targetJobId` + 有 `resumeFiles`（不為空）+ 沒有 `aiAnalysis`（尚未分析過的）
 
-**5a. 向執行長回報**（Notifications API）：
-13. 向執行長回報完整摘要：
-    - 搜尋人數 / A 層通過 / 匯入數
-    - PDF 下載成功/失敗數
-    - 評級分佈（S/A+/A/B/C/D 各幾人）
-    - 零結果職缺的診斷結果
-    - 異常和建議
+2. **對每個待分析人選，依序執行**：
+   a. `GET /api/ai-agent/prompts/matching` → 取匹配提示詞
+   b. `GET /api/ai-agent/candidates/:id/full-profile` → 取人選完整資料
+   c. `GET /api/ai-agent/candidates/:id/resume-text` → 取履歷 PDF base64
+   d. `GET /api/ai-agent/jobs/match-candidates?candidateId=:id&limit=3` → 取最匹配的 3 個職缺
+   e. **將「提示詞 + 履歷 PDF 解析文字 + 人選資料 + 職缺 JD」組合後執行分析**，依照提示詞規定的 JSON schema 產出結構化分析結果：
+      - STEP 0: 人選評估（職涯曲線、人格特質、角色定位、薪資估算）
+      - STEP 1: 職缺匹配（最多 3 個職缺，含 must-have / nice-to-have 比對）
+      - STEP 2: 電話 SOP + 必問清單 + 顧問建議
+   f. `PUT /api/ai-agent/candidates/:id/ai-analysis` → 寫回分析結果
 
-**5b. 在 Telegram 群組通知顧問**（HR AI招募自動化群組 -1003231629634）：
-14. 閉環跑完後，發群組訊息通知負責顧問有新人選要聯繫：
+3. **寫入規則**：
+   - `version`: "1.0"
+   - `analyzed_by`: "龍蝦-heartbeat"
+   - `match_score`: 0-100 整數
+   - `must_have` / `nice_to_have` 的 `result` 只能是 `pass` / `warning` / `fail`
+   - `verdict` 只能是 `建議送出` / `勉強送出` / `不建議`
 
-格式範例：
+#### STEP C：通知顧問
+
+**閉環完成後發 Telegram 通知**
+
 ```
-📋【閉環結果通知】2026-03-22
-
-🆕 今日新增候選人：64 人
-
-👤 Jacky 負責（32 人）：
-  ⭐ A+ #3021 王小明 — Senior Java Developer @ ABC Corp
-  ⭐ A  #3025 李大華 — Backend Engineer @ XYZ Ltd
-  📌 B+ #3030 張小美 — SRE @ DEF Inc（建議電話確認技術深度）
-  ...完整清單見系統
-
-👤 Phoebe 負責（20 人）：
-  ⭐ A  #3040 陳志偉 — UI/UX Designer @ GHI Corp
-  ...完整清單見系統
-
-👤 待指派（12 人）：
-  #3050 林小芳 — DBA @ JKL Ltd
-  ...請顧問認領
-
-⚠️ 需要顧問行動：
-  1. A/A+ 候選人請 48 小時內聯繫
-  2. B+ 候選人請電話確認後再決定推進
-  3. 12 人待指派，請認領
-
-📊 零結果職缺（17 個）：
-  #228 SRE（仁大資訊）— 建議調整關鍵字
-  ...詳見系統
+POST https://api.telegram.org/bot<BOT_TOKEN from TOOLS.md>/sendMessage
+{
+  "chat_id": "<CHAT_ID from TOOLS.md>",
+  "message_thread_id": <THREAD_ID from TOOLS.md>,
+  "parse_mode": "Markdown",
+  "text": "🤖 *AI 閉環分析完成*\n\n⏰ {時間}\n📎 履歷下載：成功 X / 失敗 Y / 跳過 Z\n📊 AI 分析：成功 X / 跳過 Y\n\n👉 請到系統「今日新增」+「未開始」查看"
+}
 ```
 
-通知規則：
-- **A+ / S 級候選人**：立即通知，標記緊急
-- **A / B+ 級**：閉環完統一通知
-- **按 recruiter 分組**，每位顧問只看自己的人
-- **待指派的候選人**：列出請顧問認領
-- 沒有新人時不發群組訊息
+#### 閉環追蹤
+- 在 `memory/heartbeat-state.json` 記錄 `lastChecks.ai_analysis_loop` 時間戳
+- 記錄 `lastAlert.ai_analysis_results`：履歷下載 + AI 分析的成功/跳過/失敗數量
+- 如果連續 3 次全部跳過（無新人選）→ 降低檢查頻率到每日 2 次
+- 如果 LinkedIn 下載連續失敗 → 停止下載，只跑已有履歷的 AI 分析
 
-**安全規則**：
-- 同一職缺一天最多跑一次閉環
-- LinkedIn 操作間隔 ≥ 30 秒
-- 帳號達月度 PDF 下載上限 → 改用 page.pdf()
-- 連續 3 次 API 錯誤 → 暫停該職缺，繼續下一個
+### 本地爬蟲巡檢（每 4-6 小時輪流）
+- **爬蟲健康檢查**：`GET https://crawler.step1ne.com/api/health`，如果無回應 → 提醒 Jacky 爬蟲掛了
+- **任務執行狀態**：`GET https://crawler.step1ne.com/api/tasks`，檢查各任務最後執行時間
+  - 任務超過 24 小時未執行 → 提醒
+  - 任務狀態為 failed → 提醒並附上錯誤原因
+- **爬蟲產出統計**：`GET https://crawler.step1ne.com/api/dashboard/stats`，檢查產出量
+- **去重監控**：`GET https://crawler.step1ne.com/api/dedup/stats`，重複率 > 40% → 建議調整策略
+- **爬蟲品質審計**：對比爬蟲匯入的候選人 vs 獵頭系統的 AI 評分結果，分析品質趨勢
 
-### 4. LinkedIn PDF 待上傳檢查
-檢查 `/Users/user/hr-yuqi-workspace/resumes/pending_upload/` 是否有待上傳的 PDF：
-- 有 → 逐一上傳 + 解析
-- 成功後移出 pending 資料夾
+### 異常監控（每 4-6 小時輪流）
+- **API 健康檢查**：測試本地 API 端點回應（`http://localhost:3003`）
+- **資料異常偵測**：找出明顯錯誤的評分或狀態
+- **處理時間警示**：候選人卡在同狀態過久
+- **系統錯誤追蹤**：監控評分失敗、匯入錯誤等
+- **爬蟲新候選人監控**：執行 `scripts/crawler-monitor.py` 檢查新人選、去重、匯出CSV並通知 @hryuqi_bot
 
-### 5. 候選人狀態提醒
+### 週期性維護
+- **每日**：執行 `memory-archiver.py archive 1` 自動歸檔重要對話
+- **週日晚**：執行 `memory-archiver.py cleanup` 清理過舊記憶，保持 MEMORY.md 精簡
+- **週一早**：系統改善建議與上週績效分析
+- **月初**：歸檔舊資料，清理過時的狀態檔案
+
+## 智能判斷邏輯
+
+### 何時主動回報
+- 發現 S/A+ 級候選人超過 24 小時無人跟進
+- API 連續失敗 3 次以上
+- 緊急職缺出現高匹配候選人
+- Session token 使用率超過 80%
+- 系統錯誤率異常升高
+- **本地爬蟲掛掉**（health check 無回應）
+- **爬蟲任務失敗**（status = failed）
+- **爬蟲重複率飆高**（dedup stats > 40%）
+- **爬蟲產出品質下降**（C/D 級佔比 > 40%）
+- **AI 閉環分析完成**（每次跑完都要通知）
+- **AI 閉環分析失敗**（寫入被拒絕、API 錯誤等）
+
+### 何時保持安靜（HEARTBEAT_OK）
+- 所有檢查項目正常
+- 非工作時間（23:00-08:00）且無緊急狀況
+- 上次回報後不到 30 分鐘且無新的重要事件
+- Jacky 正在處理事務（如會議時間）
+
+## 回報格式優化
+
+### 正常狀況簡報
 ```
-GET /api/candidates?limit=2000
+🦞 系統狀態：正常 | 新候選人：X人 | 待跟進：Y人 | API健康度：✅
 ```
-篩選需要跟進的候選人（recruiter = 主人名稱）：
-- 「聯繫階段」> 14 天 → 提醒主人跟進
-- 「面試階段」> 7 天 → 提醒追蹤客戶回饋
 
-### 6. 系統用量監控
-- ⚠️ Context > 150k → 精簡回覆
-- 🔴 Context > 190k → 停止，通知主人
+### 異常狀況詳報
+```
+⚠️ 需要關注 — {時間}
 
-## 回報原則
-- **不要問人，做就對了**
-- 有工作成果或異常才報，正常安靜（HEARTBEAT_OK）
-- 閉環結果必須向執行長回報（包含 PDF 下載和評級結果）
-- 工作記錄存入 `memory/YYYY-MM-DD.md`
-- 遇到問題先自己解決，解決不了才回報
+🔥 緊急事項
+- 高價值候選人待跟進：{名單}
+- API異常：{問題描述}
+- Session使用率：{百分比}% (建議/new)
+
+📊 狀態摘要
+- 新進候選人：X人（Y人已評分）
+- 異常案例：{具體問題}
+
+💡 建議行動
+{具體可執行的建議}
+```
+
+### AI 閉環分析回報
+```
+🤖 AI 閉環分析完成 — {時間}
+
+📋 本次分析範圍：{職缺名稱列表}
+✅ 成功分析：{人選 #ID 姓名 → 最高匹配分數}
+⏭️ 跳過（缺履歷）：{人選 #ID 姓名}
+❌ 失敗：{人選 #ID 姓名 → 原因}
+
+🏆 最佳匹配：#ID 姓名 → 職缺名稱 (XX分)
+👉 請到系統人選卡片 AI 顧問分析 Tab 驗證結果
+```
+
+## 狀態檔案結構
+```json
+{
+  "lastChecks": {
+    "candidates_overview": 1703275200,
+    "new_candidates": 1703260800,
+    "job_matching": 1703250000,
+    "api_health": 1703240000,
+    "ai_analysis_loop": null
+  },
+  "errorCounts": {
+    "api_candidates": 0,
+    "api_jobs": 0,
+    "evaluation_failures": 0,
+    "ai_analysis_failures": 0
+  },
+  "sessionStats": {
+    "lastTokenWarning": null,
+    "lastMemoryArchive": null
+  },
+  "lastAlert": {
+    "high_value_candidates": [],
+    "urgent_jobs": [],
+    "system_errors": [],
+    "ai_analysis_results": {
+      "success": 0,
+      "skipped": 0,
+      "failed": 0,
+      "last_run": null
+    }
+  }
+}
+```

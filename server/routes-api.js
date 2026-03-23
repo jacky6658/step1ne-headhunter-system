@@ -6740,6 +6740,14 @@ router.delete('/interactions/:id', async (req, res) => {
  * 回傳格式: { suggestedGrade, suggestedTier, confidence, reasons[], detailedAnalysis }
  */
 router.post('/candidates/:id/ai-grade-suggest', async (req, res) => {
+  // 已停用：評分由龍蝦閉環（AI 顧問分析）統一處理，不再由後端呼叫 LLM
+  return res.json({
+    success: true,
+    disabled: true,
+    message: '評分由 AI 顧問閉環統一處理，請查看人選卡片的 AI 顧問分析 Tab'
+  });
+
+  /* === 以下為舊邏輯，已停用 === */
   const OPENCLAW_URL = process.env.OPENCLAW_URL || 'http://127.0.0.1:18789/v1/chat/completions';
   const OPENCLAW_MODEL = process.env.OPENCLAW_MODEL || 'openclaw';
   const TIMEOUT_MS = 30000; // 30 秒上限
