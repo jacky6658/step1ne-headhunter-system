@@ -18,21 +18,22 @@ export function TalentCard({ candidate, onClick }: TalentCardProps) {
   const tierConf = tier ? TIER_CONFIG[tier] : null;
   const heatConf = HEAT_CONFIG[heat] || HEAT_CONFIG.Cold;
 
-  // Skills: prefer normalized_skills, fallback to skills string
-  const skills: string[] = Array.isArray(c.normalized_skills)
-    ? c.normalized_skills
+  // Skills: prefer normalizedSkills/normalized_skills, fallback to skills string
+  const rawSkills = c.normalizedSkills || c.normalized_skills;
+  const skills: string[] = Array.isArray(rawSkills)
+    ? rawSkills
     : typeof c.skills === 'string'
       ? c.skills.split(/[,，、|]+/).map((s: string) => s.trim()).filter(Boolean)
       : [];
   const topSkills = skills.slice(0, 3);
 
-  // Salary display
+  // Salary display (支援 camelCase + snake_case)
   const salaryText = (() => {
-    const min = c.expected_salary_min || c.current_salary_min;
-    const max = c.expected_salary_max || c.current_salary_max;
+    const min = c.expectedSalaryMin || c.expected_salary_min || c.currentSalaryMin || c.current_salary_min;
+    const max = c.expectedSalaryMax || c.expected_salary_max || c.currentSalaryMax || c.current_salary_max;
     if (!min && !max) return null;
-    const cur = c.salary_currency || 'TWD';
-    const per = c.salary_period === 'annual' ? '/Y' : '/M';
+    const cur = c.salaryCurrency || c.salary_currency || 'TWD';
+    const per = (c.salaryPeriod || c.salary_period) === 'annual' ? '/Y' : '/M';
     const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 1000)}K` : String(v);
     return `${min ? fmt(min) : '?'}~${max ? fmt(max) : '?'} ${cur}${per}`;
   })();

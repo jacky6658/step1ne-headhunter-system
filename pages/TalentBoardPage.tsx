@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, Candidate } from '../types';
 import { getApiUrl, getAuthHeaders } from '../config/api';
+import { onCandidateChange, onReconnect } from '../services/socketService';
 import { GRADE_CONFIG, TIER_CONFIG, HEAT_CONFIG, computeHeatLevel, CANDIDATE_STATUS_CONFIG } from '../constants';
 import { TalentCard } from '../components/TalentCard';
 import { CandidateModal } from '../components/CandidateModal';
@@ -94,16 +95,22 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      let allCandidates: any[] = [];
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const res = await fetch(getApiUrl(`/candidates?limit=100&offset=${offset}`), { headers: getAuthHeaders() });
-        const json = await res.json();
-        const page = json.data || json.candidates || [];
-        allCandidates = allCandidates.concat(page);
-        hasMore = json.pagination?.hasMore ?? (page.length === 100);
-        offset += 100;
+      const PAGE_SIZE = 500;
+      const firstRes = await fetch(getApiUrl(`/candidates?limit=${PAGE_SIZE}&offset=0`), { headers: getAuthHeaders() });
+      const firstJson = await firstRes.json();
+      let allCandidates: any[] = firstJson.data || firstJson.candidates || [];
+      const total = firstJson.total || allCandidates.length;
+
+      if (allCandidates.length < total) {
+        const fetches: Promise<Response>[] = [];
+        for (let off = PAGE_SIZE; off < total; off += PAGE_SIZE) {
+          fetches.push(fetch(getApiUrl(`/candidates?limit=${PAGE_SIZE}&offset=${off}`), { headers: getAuthHeaders() }));
+        }
+        const responses = await Promise.all(fetches);
+        const jsons = await Promise.all(responses.map(r => r.json()));
+        for (const d of jsons) {
+          allCandidates.push(...(d.data || d.candidates || []));
+        }
       }
       setCandidates(allCandidates);
     } catch (e) {
@@ -113,6 +120,43 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Socket.IO 即時更新
+  useEffect(() => {
+    const unsubscribe = onCandidateChange((event) => {
+      switch (event.type) {
+        case 'updated':
+          setCandidates(prev => prev.map(c =>
+            String(c.id) === String(event.id) ? { ...c, ...event.data, consultant: event.data.recruiter || event.data.consultant || c.consultant } : c
+          ));
+          break;
+        case 'created':
+          setCandidates(prev => {
+            if (prev.some(c => String(c.id) === String(event.id))) return prev;
+            return [{ ...event.data, consultant: event.data.recruiter || '待指派' }, ...prev];
+          });
+          break;
+        case 'deleted':
+          setCandidates(prev => prev.filter(c => String(c.id) !== String(event.id)));
+          break;
+        case 'batch-updated':
+          setCandidates(prev => prev.map(c =>
+            event.ids.includes(Number(c.id)) ? { ...c, status: event.status } : c
+          ));
+          break;
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 斷線重連後自動重新載入
+  useEffect(() => {
+    const unsub = onReconnect(() => {
+      console.log('🔄 Socket 重連，重新載入人才看板...');
+      fetchData();
+    });
+    return () => unsub();
+  }, []);
 
   // Get unique consultants for filter
   const consultants = useMemo(() => {
@@ -139,7 +183,7 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
           (ca.current_title || '').toLowerCase().includes(q) ||
           (ca.current_company || '').toLowerCase().includes(q) ||
           (typeof c.skills === 'string' && c.skills.toLowerCase().includes(q)) ||
-          (Array.isArray(ca.normalized_skills) && ca.normalized_skills.some((s: string) => s.toLowerCase().includes(q)));
+          (Array.isArray(ca.normalizedSkills || ca.normalized_skills) && (ca.normalizedSkills || ca.normalized_skills).some((s: string) => s.toLowerCase().includes(q)));
       });
     }
     if (filterGrade) list = list.filter(c => { const ca = c as any; return (ca.gradeLevel || ca.grade_level) === filterGrade; });

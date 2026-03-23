@@ -178,14 +178,20 @@ export const HEAT_CONFIG: Record<string, { label: string; color: string; bg: str
 };
 
 // Heat 自動推算邏輯
+// 注意：API 回傳 camelCase (jobSearchStatusEnum, heatLevel)，
+//       但部分場景可能使用 snake_case，因此兩種都支援
 export function computeHeatLevel(candidate: {
   job_search_status_enum?: string | null;
+  jobSearchStatusEnum?: string | null;
   lastContactAt?: string | null;
   heat_level?: string | null;
+  heatLevel?: string | null;
 }): string {
-  // 顧問手動覆寫優先
-  if (candidate.heat_level) return candidate.heat_level;
-  const status = candidate.job_search_status_enum;
+  // 顧問手動覆寫優先（支援 camelCase + snake_case）
+  const manualHeat = candidate.heat_level || candidate.heatLevel;
+  if (manualHeat) return manualHeat;
+  // 自動推算：依 job_search_status_enum
+  const status = candidate.job_search_status_enum || candidate.jobSearchStatusEnum;
   if (status === 'active') return 'Hot';
   if (status === 'not_open') return 'Cold';
   // passive: 看最後聯絡日期

@@ -37,9 +37,9 @@ function mapCrawlerCandidate(raw) {
     status: raw.status || '爬蟲初篩',
   };
 
-  // 爬蟲任務的 step1ne_job_id → 系統的 target_job_id
-  if (raw.step1ne_job_id) {
-    mapped.target_job_id = Number(raw.step1ne_job_id);
+  // 爬蟲任務的 step1ne_job_id 或 target_job_id → 系統的 target_job_id
+  if (raw.step1ne_job_id || raw.target_job_id) {
+    mapped.target_job_id = Number(raw.step1ne_job_id || raw.target_job_id);
   }
 
   // ── 深度分析充實資料 (Perplexity/Jina enrichment) ──
@@ -66,6 +66,34 @@ function mapCrawlerCandidate(raw) {
   // AI 分析報告 → 附加到 notes
   if (raw.ai_report) {
     mapped.notes = (mapped.notes ? mapped.notes + '\n\n' : '') + raw.ai_report;
+  }
+
+  // ── 閉環審核欄位 ──
+  // match_grade (A+/A/B/C) → talent_level
+  if (raw.match_grade) mapped.talent_level = raw.match_grade;
+  // current_title / current_company → current_position
+  if (raw.current_title) mapped.current_position = raw.current_title;
+  if (raw.current_company && !raw.company) {
+    notesParts.push(`公司: ${raw.current_company}`);
+    mapped.notes = notesParts.join('\n');
+  }
+  // experience_years
+  if (raw.experience_years) mapped.years_experience = String(raw.experience_years);
+  // match_summary → ai_match_result (需要是 JSON 物件，因為 DB 欄位是 jsonb)
+  if (raw.match_summary) {
+    mapped.ai_match_result = JSON.stringify({ summary: raw.match_summary, grade: raw.match_grade || '' });
+  }
+  // consultant_note → 附加到 notes
+  if (raw.consultant_note) {
+    mapped.notes = (mapped.notes ? mapped.notes + '\n\n' : '') + `【AI 審核備註】\n${raw.consultant_note}`;
+  }
+  // work_experience → work_history
+  if (Array.isArray(raw.work_experience) && raw.work_experience.length > 0) {
+    mapped.work_history = raw.work_experience;
+  }
+  // education_background → education_details
+  if (Array.isArray(raw.education_background) && raw.education_background.length > 0) {
+    mapped.education_details = raw.education_background;
   }
 
   return mapped;
@@ -187,7 +215,7 @@ async function processBulkImport(pool, candidates, actor) {
               email = COALESCE(NULLIF(email, ''), $19),
               linkedin_url = COALESCE(NULLIF(linkedin_url, ''), $20),
               github_url = COALESCE(NULLIF(github_url, ''), $21),
-              target_job_id = COALESCE(target_job_id, $23),
+              target_job_id = CASE WHEN $23::int IS NOT NULL THEN $23 ELSE target_job_id END,
               ai_match_result = CASE WHEN $24::jsonb IS NOT NULL THEN $24::jsonb ELSE ai_match_result END,
               updated_at = NOW()
             WHERE id = $22

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { apiGet } from '../config/api';
+import { apiGet, apiPost, apiDelete } from '../config/api';
+import { Prompt } from '../types';
 import { OnboardingTour, TourStep } from '../components/OnboardingTour';
 import {
   GraduationCap, BookOpen, Map as MapIcon, Layers, Building2, Target, Bot,
@@ -21,7 +22,7 @@ interface LearningCenterProps {
   userProfile: any;
 }
 
-type LearningTab = 'quick-start' | 'industry-map' | 'role-encyclopedia' | 'org-chart' | 'job-analyzer' | 'prompt-toolbox';
+type LearningTab = 'quick-start' | 'industry-map' | 'role-encyclopedia' | 'org-chart' | 'job-analyzer' | 'prompt-toolbox' | 'prompt-collection';
 
 interface RoleCard {
   id: string;
@@ -2547,6 +2548,50 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
   const sfJobRef = useRef<HTMLDivElement>(null);
   const sfClientRef = useRef<HTMLDivElement>(null);
 
+  // --- Prompt 收集區 state ---
+  const [collectionPrompts, setCollectionPrompts] = useState<Prompt[]>([]);
+  const [collectionLoading, setCollectionLoading] = useState(false);
+  const [collectionFilter, setCollectionFilter] = useState<string>('all');
+  const [collectionCopied, setCollectionCopied] = useState<number | null>(null);
+  const [collectionSearch, setCollectionSearch] = useState('');
+
+  const PROMPT_CATEGORIES = [
+    '客戶需求理解', '職缺分析', '人才市場 Mapping', '人才搜尋',
+    '陌生開發（開發信）', '人選訪談', '人選評估', '客戶推薦', '面試與 Offer 管理',
+  ];
+
+  const loadCollectionPrompts = useCallback(async () => {
+    setCollectionLoading(true);
+    try {
+      const params = collectionFilter !== 'all' ? `?category=${encodeURIComponent(collectionFilter)}` : '';
+      const data = await apiGet<{ success: boolean; data: Prompt[] }>(`/prompts${params}`);
+      if (data.success) setCollectionPrompts(data.data || []);
+    } catch { setCollectionPrompts([]); }
+    finally { setCollectionLoading(false); }
+  }, [collectionFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'prompt-collection') loadCollectionPrompts();
+  }, [activeTab, loadCollectionPrompts]);
+
+  const handleUpvote = async (promptId: number) => {
+    try {
+      const data = await apiPost<{ success: boolean; data: Prompt }>(`/prompts/${promptId}/upvote`, { voter: userProfile.displayName });
+      if (data.success && data.data) {
+        setCollectionPrompts(prev => prev.map(p => p.id === promptId
+          ? { ...p, upvote_count: data.data.upvote_count, has_voted: data.data.has_voted }
+          : p
+        ));
+      }
+    } catch {}
+  };
+
+  const handleCopyCollection = (content: string, id: number) => {
+    navigator.clipboard.writeText(content);
+    setCollectionCopied(id);
+    setTimeout(() => setCollectionCopied(null), 2000);
+  };
+
   // --- Auto-start onboarding tour on first visit (respects global toggle) ---
   useEffect(() => {
     const globalOff = localStorage.getItem('step1ne-tours-disabled') === '1';
@@ -2960,6 +3005,7 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
     { id: 'org-chart', label: '組織架構', shortLabel: '組織', icon: <Layers className="w-4 h-4" /> },
     { id: 'job-analyzer', label: '職缺分析', shortLabel: '分析', icon: <Target className="w-4 h-4" /> },
     { id: 'prompt-toolbox', label: 'Prompt 工具箱', shortLabel: 'Prompt', icon: <Bot className="w-4 h-4" /> },
+    { id: 'prompt-collection', label: 'Prompt 收集區', shortLabel: '收集區', icon: <MessageSquare className="w-4 h-4" /> },
   ];
 
   // ============================================================
@@ -4069,6 +4115,107 @@ export default function LearningCenterPage({ userProfile }: LearningCenterProps)
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* ===== Prompt 收集區 Tab ===== */}
+        {activeTab === 'prompt-collection' && (
+          <div className="space-y-4">
+            {/* 說明 */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <h4 className="text-sm font-semibold text-amber-800 mb-1">Prompt 收集區</h4>
+              <p className="text-xs text-amber-700">顧問團隊透過實戰累積的 Prompt，可以直接複製使用。AI 也會透過 API 自動存入新的 Prompt。</p>
+            </div>
+
+            {/* 篩選列 */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setCollectionFilter('all')}
+                className={`px-3 py-1.5 text-xs rounded-full border transition ${collectionFilter === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}
+              >全部</button>
+              {PROMPT_CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setCollectionFilter(cat)}
+                  className={`px-3 py-1.5 text-xs rounded-full border transition ${collectionFilter === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}
+                >{cat}</button>
+              ))}
+            </div>
+
+            {/* 搜尋 */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                value={collectionSearch}
+                onChange={e => setCollectionSearch(e.target.value)}
+                placeholder="搜尋 Prompt 標題或內容..."
+                className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* 列表 */}
+            {collectionLoading ? (
+              <div className="text-center py-10 text-slate-400 text-sm">載入中...</div>
+            ) : (
+              <div className="space-y-3">
+                {collectionPrompts
+                  .filter(p => {
+                    if (!collectionSearch) return true;
+                    const q = collectionSearch.toLowerCase();
+                    return p.title.toLowerCase().includes(q) || p.content.toLowerCase().includes(q);
+                  })
+                  .map(p => (
+                  <div key={p.id} className={`border rounded-xl overflow-hidden transition ${p.is_pinned ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200 bg-white'}`}>
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {p.is_pinned && <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">置頂</span>}
+                            <span className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100">{p.category}</span>
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-900 mt-1">{p.title}</h4>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => handleCopyCollection(p.content, p.id)}
+                            className={`p-1.5 rounded-lg transition ${collectionCopied === p.id ? 'bg-green-100 text-green-600' : 'hover:bg-slate-100 text-slate-400'}`}
+                            title="複製 Prompt"
+                          >
+                            {collectionCopied === p.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                          <button
+                            onClick={() => handleUpvote(p.id)}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition ${p.has_voted ? 'bg-indigo-100 text-indigo-600' : 'hover:bg-slate-100 text-slate-500'}`}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${p.has_voted ? 'fill-indigo-500' : ''}`} />
+                            {p.upvote_count || 0}
+                          </button>
+                        </div>
+                      </div>
+                      <pre className="text-xs text-slate-600 whitespace-pre-wrap font-sans leading-relaxed max-h-40 overflow-y-auto bg-slate-50 rounded-lg p-3 border border-slate-100">
+                        {p.content}
+                      </pre>
+                      <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-400">
+                        <span>by {p.author}</span>
+                        <span>{new Date(p.created_at).toLocaleDateString('zh-TW')}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {collectionPrompts.filter(p => {
+                  if (!collectionSearch) return true;
+                  const q = collectionSearch.toLowerCase();
+                  return p.title.toLowerCase().includes(q) || p.content.toLowerCase().includes(q);
+                }).length === 0 && !collectionLoading && (
+                  <div className="text-center py-10">
+                    <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                    <p className="text-slate-400 text-sm">
+                      {collectionPrompts.length === 0 ? '尚無 Prompt，AI 或顧問可透過 API 新增' : '無符合搜尋條件的 Prompt'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
