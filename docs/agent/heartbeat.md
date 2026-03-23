@@ -55,6 +55,7 @@ GET /api/notifications?uid=lobster
    - `linkedin_url`（沒有 LinkedIn URL 的候選人直接跳過，不匯入）
    - `name`
    - `current_title` 或 `current_position`
+   - `target_job_id`（必須綁定從哪個職缺搜出來的，AI 分析要用）
    - `status` 必須設為「未開始」
    - `recruiter` 根據職缺的 recruiter 欄位指派
 5. 每個職缺完成後記錄結果
