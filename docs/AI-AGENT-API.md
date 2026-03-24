@@ -2,7 +2,7 @@
 
 > **對象**：任何能讀懂此文檔的 AI Agent（TG Bot、Claude Code、GPT 等）
 > **用途**：自動執行人選匹配分析 + 開發信產生
-> **版本**：v1.0 | 2026-03-20
+> **版本**：v1.1 | 2026-03-24
 
 ---
 
@@ -11,11 +11,17 @@
 ```
 AI Agent 工作流程：
 
+【方式 A：一次到位（推薦）】
+1. 搜尋+下載 PDF+AI 分析
+2. 一次匯入  POST /api/ai-agent/candidates/import-complete
+   → 建檔 + PDF上傳 + AI分析，一個 API 搞定，失敗自動 rollback
+
+【方式 B：分步驟（舊流程，仍可用）】
 1. 取提示詞     GET /api/ai-agent/prompts/matching
 2. 取人選資料   GET /api/ai-agent/candidates/:id/full-profile
 3. 取履歷 PDF   GET /api/ai-agent/candidates/:id/resume-text
 4. 取匹配職缺   GET /api/ai-agent/jobs/match-candidates?candidateId=X
-5. 將「提示詞 + 履歷解析文字 + 人選資料 + 職缺 JD」組合後執行分析，依照提示詞規定的 JSON schema 產出結構化分析結果
+5. AI 分析
 6. 寫回結果     PUT /api/ai-agent/candidates/:id/ai-analysis
 
 Bonus: 開發信產出
@@ -33,6 +39,78 @@ B3. 寫回結果   PUT /api/ai-agent/candidates/:id/outreach-letter
 ```
 Authorization: Bearer <API_SECRET_KEY>
 ```
+
+---
+
+## 🆕 一次到位匯入（推薦）
+
+```
+POST /api/ai-agent/candidates/import-complete
+Content-Type: application/json
+```
+
+**一個 API 完成：建檔 + PDF 上傳 + AI 分析寫入。失敗會 rollback，不留半成品。**
+
+**Request Body:**
+```json
+{
+  "candidate": {
+    "name": "王小明",
+    "email": "wang@example.com",
+    "linkedin_url": "https://linkedin.com/in/wang",
+    "current_position": "Senior Engineer",
+    "current_company": "Google",
+    "skills": "Python、Node.js",
+    "years_experience": "5",
+    "location": "Taipei",
+    "target_job_id": 42,
+    "talent_level": "A",
+    "work_history": [{"company":"Google","title":"Sr Eng","from":"2020","to":"now"}],
+    "education_details": [{"school":"NTU","degree":"MS","major":"CS"}],
+    "ai_match_result": {"summary":"...","grade":"A"},
+    "status": "未開始"
+  },
+  "resume_pdf": {
+    "base64": "<PDF 的 base64 編碼>",
+    "filename": "LinkedIn_王小明.pdf",
+    "format": "auto"
+  },
+  "ai_analysis": {
+    "version": "1.0",
+    "analyzed_at": "2026-03-24T10:00:00Z",
+    "analyzed_by": "Lobster",
+    "candidate_evaluation": { "..." },
+    "job_matchings": [{ "..." }],
+    "recommendation": { "..." }
+  },
+  "actor": "Lobster",
+  "require_complete": true
+}
+```
+
+**重要規則：**
+- `require_complete: true` → 缺 PDF、target_job_id 或 talent_level 會直接拒絕，不建檔
+- 失敗時 DB 完全沒動（`candidate_written: false`），不用清理
+- 去重：LinkedIn URL > Email > Name，已存在會 UPDATE 不會重複
+- `resume_pdf.base64` → PDF 直接 base64 編碼放 JSON 裡
+- `ai_analysis` 選填但建議一起送
+- ai_analysis 格式同 Step 6（見下方）
+
+---
+
+## 欄位名稱對照（重要）
+
+GET `/api/ai-agent/candidates/:id/full-profile` 回傳的欄位名稱：
+
+| 資料 | 欄位名（camelCase） |
+|------|---------------------|
+| AI 深度分析 | `aiAnalysis` |
+| AI 快速評分 | `aiMatchResult` |
+| 履歷附件 | `resumeFiles` |
+| 工作經歷 | `workHistory` |
+| 教育背景 | `educationDetails` |
+
+**讀取時請用上述 camelCase 欄位名。**
 
 ---
 
@@ -325,7 +403,14 @@ Content-Type: application/json
         "must_ask": [
           { "number": 1, "question": "你目前有在看機會嗎？", "meaning": "主動=好/被動=需追蹤", "is_veto": false },
           { "number": 2, "question": "期望薪資大概在什麼範圍？", "meaning": ">80K = 超預算", "is_veto": true },
-          { "number": 3, "question": "有考慮轉 Java 嗎？", "meaning": "無意願 = 直接停止", "is_veto": true }
+          { "number": 3, "question": "有考慮轉 Java 嗎？", "meaning": "無意願 = 直接停止", "is_veto": true },
+          { "number": 4, "question": "什麼時候可以到職？", "meaning": "時間匹配", "is_veto": false },
+          { "number": 5, "question": "離職原因是什麼？", "meaning": "了解動機，避免短暫離職後再跳", "is_veto": false },
+          { "number": 6, "question": "最近有沒有在面試其他公司？有 offer 在考慮嗎？", "meaning": "了解競爭狀況", "is_veto": false },
+          { "number": 7, "question": "對現在工作最不滿意的是什麼？", "meaning": "確認職缺能解決的痛點", "is_veto": false },
+          { "number": 8, "question": "理想的工作環境是什麼？偏好什麼樣的團隊規模？", "meaning": "文化適配確認", "is_veto": false },
+          { "number": 9, "question": "Docker 和 K8s 有沒有實際使用經驗？", "meaning": "技術缺口驗證", "is_veto": false },
+          { "number": 10, "question": "未來 3 年的職涯目標是什麼？", "meaning": "確認長期動機，避免快速離職", "is_veto": false }
         ]
       }
     ],
@@ -354,13 +439,22 @@ Content-Type: application/json
 - `must_have[].result` 不是 `pass` / `warning` / `fail`
 - 缺少 `recommendation`
 
+**must_ask 強制規則：**
+- `must_ask` 必須至少 **10 題**（不足 10 題不可輸出）
+- 至少 **1 題** `is_veto: true`（一票否決題）
+- 題目構成：薪資確認（必有）+ B 層缺口確認 + 穩定性（離職原因/短暫工作）+ 到職時間 + 其他 offer + 文化適配 + 技術缺口驗證
+- 寫入前自我檢查：「must_ask 共 N 題，is_veto 共 M 題」，N < 10 則重新補齊
+
+**成功 Response 新增 write_verified:**
+
 **成功 Response:**
 ```json
 {
   "success": true,
   "message": "AI 分析結果已儲存",
   "candidate_id": "2991",
-  "candidate_name": "Hansheng Huang"
+  "candidate_name": "Hansheng Huang",
+  "write_verified": true
 }
 ```
 
@@ -446,6 +540,7 @@ Content-Type: application/json
 
 | Method | Path | 用途 |
 |--------|------|------|
+| **POST** | **`/api/ai-agent/candidates/import-complete`** | **🆕 一次到位匯入（推薦）** |
 | GET | `/api/ai-agent/prompts/matching` | 取匹配提示詞 |
 | GET | `/api/ai-agent/prompts/outreach` | 取開發信提示詞 |
 | GET | `/api/ai-agent/candidates/:id/full-profile` | 取人選完整資料 |
@@ -453,9 +548,20 @@ Content-Type: application/json
 | GET | `/api/ai-agent/jobs/match-candidates?candidateId=X&limit=3` | 取匹配職缺 |
 | PUT | `/api/ai-agent/candidates/:id/ai-analysis` | 寫入分析結果 |
 | PUT | `/api/ai-agent/candidates/:id/outreach-letter` | 寫入開發信 |
+| PUT | `/api/system-config/crawl_lock_{job_id}` | 爬蟲鎖定（防重複執行） |
 
-**Base URL:** `https://你的域名` 或 `http://localhost:3003`
+**Base URL:** `https://api-hr.step1ne.com` 或 `http://localhost:3003`
 
 ---
 
-*文檔版本：v1.0 | 建立日期：2026-03-20*
+## 已知問題與修復紀錄
+
+| 日期 | 問題 | 修復 |
+|------|------|------|
+| 2026-03-24 | `crawl_lock_*` 被白名單擋（400） | ✅ 已加例外 |
+| 2026-03-24 | PUT ai-analysis 靜默失敗（寫入成功但讀取欄位名不一致） | ✅ 統一用 `aiAnalysis` 讀取 + `write_verified` 回傳 |
+| 2026-03-24 | ai-grade-suggest 回傳 `disabled: true` | 正常行為，評分已改由 AI 顧問閉環統一處理 |
+
+---
+
+*文檔版本：v1.1 | 更新日期：2026-03-24*
