@@ -275,7 +275,64 @@
 
 ## 4. 作業流程一：匯入人選
 
-### 4.1 單筆建立
+### ⭐ 4.0 一次到位匯入（推薦！2026-03-24 新增）
+
+> **從今天起，新匯入一律用此端點。** 一次完成建檔 + PDF上傳 + AI分析寫入，失敗 rollback 不留半成品。
+
+```
+POST /api/ai-agent/candidates/import-complete
+Authorization: Bearer <API_KEY>
+Content-Type: application/json
+
+{
+  "candidate": {
+    "name": "王小明",
+    "email": "wang@example.com",
+    "linkedin_url": "https://linkedin.com/in/wang",
+    "current_position": "Senior Engineer",
+    "current_company": "Google",
+    "skills": "Python、Node.js",
+    "years_experience": "5",
+    "location": "Taipei",
+    "target_job_id": 42,
+    "talent_level": "A",
+    "work_history": [{"company":"Google","title":"Sr Eng","from":"2020","to":"now"}],
+    "education_details": [{"school":"NTU","degree":"MS","major":"CS"}],
+    "ai_match_result": {"summary":"...","grade":"A"},
+    "status": "未開始"
+  },
+  "resume_pdf": {
+    "base64": "<PDF base64 編碼>",
+    "filename": "LinkedIn_王小明.pdf",
+    "format": "auto"
+  },
+  "ai_analysis": {
+    "version": "1.0",
+    "analyzed_at": "2026-03-24T10:00:00Z",
+    "analyzed_by": "Lobster",
+    "candidate_evaluation": { ... },
+    "job_matchings": [{ ... }],
+    "recommendation": { ... }
+  },
+  "actor": "Lobster",
+  "require_complete": true
+}
+```
+
+**重要規則：**
+| 規則 | 說明 |
+|---|---|
+| `require_complete: true` | 缺 PDF、target_job_id 或 talent_level 會拒絕，不建檔 |
+| 失敗時 | `candidate_written: false`，DB 完全沒動，不用清理 |
+| 去重 | LinkedIn URL > Email > Name，已存在會 UPDATE |
+| `resume_pdf.base64` | PDF base64 編碼放 JSON（不是 multipart） |
+| `ai_analysis` | 選填，但建議一起送 |
+
+> 完整 ai_analysis 格式見 `/Users/user/.openclaw/workspace-main/HR-API-SOP.md`
+
+---
+
+### 4.1 單筆建立（舊版，仍可用）
 
 ```
 POST /api/candidates
@@ -507,13 +564,27 @@ PATCH /api/candidates/batch-status
 
 ## 8. API 端點速查表
 
+### ⭐ 一次到位 API（推薦）
+
+| 方法 | 端點 | 說明 |
+|------|------|------|
+| `POST` | `/api/ai-agent/candidates/import-complete` | **一次完成建檔+PDF+AI分析，失敗rollback** |
+
+### AI Agent 專用
+
+| 方法 | 端點 | 說明 |
+|------|------|------|
+| `GET` | `/api/ai-agent/candidates/:id/full-profile` | 取得完整 profile（含 `aiAnalysis`、`aiMatchResult`） |
+| `PUT` | `/api/ai-agent/candidates/:id/ai-analysis` | 寫入 AI 深度分析（key 用 `ai_analysis` snake_case） |
+| `PUT` | `/api/system-config/crawl_lock_{job_id}` | 設定爬蟲鎖定旗標 |
+
 ### 人選 CRUD
 
 | 方法 | 端點 | 說明 |
 |------|------|------|
 | `GET` | `/api/candidates` | 列出所有人選（支援 ?status=&recruiter= 篩選） |
 | `GET` | `/api/candidates/:id` | 取得單一人選完整資料 |
-| `POST` | `/api/candidates` | 新增人選（如 email 已存在則更新） |
+| `POST` | `/api/candidates` | 新增人選（舊版，如 email 已存在則更新） |
 | `POST` | `/api/candidates/bulk` | 批次匯入（最多 100 筆） |
 | `PATCH` | `/api/candidates/:id` | 部分更新（任意欄位） |
 | `PUT` | `/api/candidates/:id` | 完整更新 |
