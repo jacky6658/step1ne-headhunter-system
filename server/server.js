@@ -70,6 +70,7 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: '請求過於頻繁，請稍後再試（每分鐘上限 200 次）' },
+  skip: (req) => req.originalUrl.startsWith('/api/crawler'), // 爬蟲 API 有自己的 120/min limiter
 });
 app.use('/api', limiter);
 

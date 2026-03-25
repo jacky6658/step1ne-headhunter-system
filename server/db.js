@@ -30,13 +30,14 @@ if (!DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  max: 20,                        // 單一 Pool 最大連線數（防止並發打爆 postmaster）
+  max: 30,                        // 單一 Pool 最大連線數（從 20 提升，應對 TG Bot 併發）
   min: 2,                         // 最小閒置連線
   idleTimeoutMillis: 30000,       // 閒置 30 秒後釋放
-  connectionTimeoutMillis: 10000, // 等超過 10 秒就報錯
+  connectionTimeoutMillis: 5000,  // 等超過 5 秒就報錯（從 10s 縮短，fail fast）
   allowExitOnIdle: true,
-  statement_timeout: 30000,       // 單一 query 最多跑 30 秒（VACUUM 後大 query 約需 2-5 秒，留足餘量）
-  query_timeout: 30000,           // pg driver 層面的 query timeout
+  statement_timeout: 15000,       // 單一 query 最多跑 15 秒（從 30s 縮短，避免慢查詢卡住 pool）
+  query_timeout: 15000,           // pg driver 層面的 query timeout
+  application_name: 'hr-backend', // 方便 pg_stat_activity 追蹤來源
 });
 
 // 連線事件日誌

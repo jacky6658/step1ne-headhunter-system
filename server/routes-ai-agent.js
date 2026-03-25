@@ -21,11 +21,12 @@ const { safeError } = require('./safeError');
 const { parseResumePDF } = require('./resumePDFService');
 const { computeDataQuality } = require('./taxonomy/matchSkills');
 const { isForeignName } = require('./foreignNameFilter');
+const { validateAiAnalysisSchema } = require('./aiAnalysisValidator');
 
-// ══════════════════════════════════════════════
-// 共用工具：AI Analysis Schema 驗證
-// ══════════════════════════════════════════════
-function validateAiAnalysisSchema(ai_analysis) {
+// validateAiAnalysisSchema 已提取至 aiAnalysisValidator.js（共用於 crawler API）
+
+// 以下為原始函數保留（import 的版本會 shadow 此函數名稱）
+function _unused_validateAiAnalysisSchema(ai_analysis) {
   const errors = [];
   if (ai_analysis.version !== '1.0') errors.push('version 必須是 "1.0"');
   if (!ai_analysis.analyzed_at) errors.push('缺少 analyzed_at');

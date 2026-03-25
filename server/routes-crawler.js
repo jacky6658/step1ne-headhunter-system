@@ -7,8 +7,60 @@
 
 const express = require('express');
 const router = express.Router();
-const { pool } = require('./db'); // 共享連線池
+const { pool, withClient } = require('./db'); // 共享連線池 + 安全 helper
 const { safeError } = require('./safeError');
+const rateLimit = require('express-rate-limit');
+const { parseResumePDF } = require('./resumePDFService');
+const { validateAiAnalysisSchema } = require('./aiAnalysisValidator');
+
+// ── 爬蟲專用 Rate Limiter（獨立於前端的 60/min）──
+const crawlerLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Crawler rate limit exceeded (120/min)' },
+  skip: (req) => req.path === '/health',
+});
+router.use(crawlerLimiter);
+
+// ── 爬蟲專用 Cache（5 分鐘 TTL，獨立於前端的 30 秒快取）──
+const _crawlerCache = new Map();
+const CRAWLER_CACHE_TTL = 5 * 60 * 1000;
+
+function crawlerCacheGet(key) {
+  const entry = _crawlerCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CRAWLER_CACHE_TTL) { _crawlerCache.delete(key); return null; }
+  return entry.data;
+}
+
+function crawlerCacheSet(key, data) {
+  _crawlerCache.set(key, { data, ts: Date.now() });
+  if (_crawlerCache.size > 100) {
+    const oldest = _crawlerCache.keys().next().value;
+    _crawlerCache.delete(oldest);
+  }
+}
+
+function crawlerCacheClear(prefix) {
+  for (const key of _crawlerCache.keys()) {
+    if (!prefix || key.startsWith(prefix)) _crawlerCache.delete(key);
+  }
+}
+
+// ── 寫入重試 helper ──
+async function withRetry(fn, retries = 1) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === retries) throw err;
+      console.warn(`[crawler-retry] Attempt ${attempt + 1} failed: ${err.message}, retrying...`);
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+}
 
 // 爬蟲 API 位址（環境變數或預設本地）
 const CRAWLER_URL = process.env.CRAWLER_API_URL || 'http://localhost:5000';
@@ -797,6 +849,351 @@ router.post('/fix-source', async (req, res) => {
     });
   } catch (error) {
     safeError(res, error, 'POST /crawler/fix-source');
+  }
+});
+
+// ══════════════════════════════════════════════
+// 爬蟲 Bot 專用 READ/WRITE API（獨立快取 + 限速）
+// ══════════════════════════════════════════════
+
+/**
+ * GET /api/crawler/jobs
+ * 回傳所有招募中職缺（精簡欄位，5 分鐘快取）
+ */
+router.get('/pipeline/jobs', async (req, res) => {
+  try {
+    const cacheKey = 'crawler:jobs:active';
+    const cached = crawlerCacheGet(cacheKey);
+    if (cached) return res.json(cached);
+
+    const result = await pool.query(`
+      SELECT id, position_name, client_company, job_status, key_skills, location, priority
+      FROM jobs_pipeline
+      WHERE job_status = '招募中'
+      ORDER BY priority DESC NULLS LAST, id DESC
+    `);
+
+    const response = { success: true, data: result.rows, count: result.rows.length };
+    crawlerCacheSet(cacheKey, response);
+    res.json(response);
+  } catch (error) {
+    safeError(res, error, 'GET /crawler/jobs');
+  }
+});
+
+/**
+ * GET /api/crawler/jobs/:id
+ * 單一職缺詳情（5 分鐘快取）
+ */
+router.get('/pipeline/jobs/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ success: false, error: 'Invalid job ID' });
+
+    const cacheKey = `crawler:job:${id}`;
+    const cached = crawlerCacheGet(cacheKey);
+    if (cached) return res.json(cached);
+
+    const result = await pool.query('SELECT * FROM jobs_pipeline WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Job not found' });
+
+    const response = { success: true, data: result.rows[0] };
+    crawlerCacheSet(cacheKey, response);
+    res.json(response);
+  } catch (error) {
+    safeError(res, error, 'GET /crawler/jobs/:id');
+  }
+});
+
+/**
+ * GET /api/crawler/pipeline/candidates?target_job_id=N&updated_after=ISO
+ * 主 DB 候選人列表（精簡欄位，5 分鐘快取）
+ * 注意：/api/crawler/candidates 是 Flask proxy，此端點查主 DB
+ */
+router.get('/pipeline/candidates', async (req, res) => {
+  try {
+    const { target_job_id, updated_after } = req.query;
+    if (!target_job_id) return res.status(400).json({ success: false, error: 'target_job_id is required' });
+
+    const jobId = parseInt(target_job_id);
+    if (isNaN(jobId)) return res.status(400).json({ success: false, error: 'Invalid target_job_id' });
+
+    // 有 updated_after 時不快取（增量同步）
+    const cacheKey = updated_after ? null : `crawler:candidates:job:${jobId}`;
+    if (cacheKey) {
+      const cached = crawlerCacheGet(cacheKey);
+      if (cached) return res.json(cached);
+    }
+
+    const conditions = ['c.target_job_id = $1'];
+    const params = [jobId];
+
+    if (updated_after) {
+      params.push(updated_after);
+      conditions.push(`c.updated_at >= $${params.length}::timestamptz`);
+    }
+
+    const result = await pool.query(`
+      SELECT
+        c.id, c.name, c.current_position, c.status,
+        c.ai_grade, c.ai_score,
+        (jsonb_array_length(COALESCE(c.resume_files, '[]'::jsonb)) > 0) AS has_pdf,
+        (c.ai_analysis IS NOT NULL) AS has_ai,
+        c.updated_at
+      FROM candidates_pipeline c
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY c.updated_at DESC
+    `, params);
+
+    const response = { success: true, data: result.rows, count: result.rows.length };
+    if (cacheKey) crawlerCacheSet(cacheKey, response);
+    res.json(response);
+  } catch (error) {
+    safeError(res, error, 'GET /crawler/candidates');
+  }
+});
+
+/**
+ * GET /api/crawler/search?q=名字
+ * 候選人搜尋（精簡欄位，不快取）
+ */
+router.get('/pipeline/search', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.status(400).json({ success: false, error: 'q is required' });
+
+    const result = await pool.query(`
+      SELECT
+        c.id, c.name, c.current_position, c.status,
+        c.ai_grade, c.ai_score, c.linkedin_url,
+        (jsonb_array_length(COALESCE(c.resume_files, '[]'::jsonb)) > 0) AS has_pdf,
+        (c.ai_analysis IS NOT NULL) AS has_ai,
+        c.updated_at
+      FROM candidates_pipeline c
+      WHERE c.name ILIKE $1
+      ORDER BY c.updated_at DESC
+      LIMIT 20
+    `, [`%${q}%`]);
+
+    res.json({ success: true, data: result.rows, count: result.rows.length });
+  } catch (error) {
+    safeError(res, error, 'GET /crawler/search');
+  }
+});
+
+/**
+ * POST /api/crawler/candidates/:id/resume-upload
+ * 上傳 PDF 履歷 + 解析 + 更新候選人欄位
+ */
+router.post('/pipeline/candidates/:id/resume-upload', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ success: false, error: 'Invalid candidate ID' });
+
+    // 使用 server.js 掛載的 multer
+    const upload = req.app.locals.upload;
+    if (!upload) return res.status(500).json({ success: false, error: 'File upload not configured' });
+
+    // 手動呼叫 multer（single file）
+    await new Promise((resolve, reject) => {
+      upload.single('file')(req, res, (err) => err ? reject(err) : resolve());
+    });
+
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+
+    // 檢查候選人存在
+    const check = await pool.query('SELECT id, resume_files FROM candidates_pipeline WHERE id = $1', [id]);
+    if (check.rows.length === 0) return res.status(404).json({ success: false, error: 'Candidate not found' });
+
+    const existing = check.rows[0].resume_files || [];
+    if (existing.length >= 3) {
+      return res.status(400).json({ success: false, error: 'Maximum 3 resume files per candidate' });
+    }
+
+    // 解析 PDF
+    const format = req.body.format || 'auto';
+    const parsed = await parseResumePDF(req.file.buffer, false, format);
+
+    // 建立檔案記錄
+    const crypto = require('crypto');
+    const fileId = crypto.randomUUID();
+    const fileRecord = {
+      id: fileId,
+      filename: req.file.originalname || 'resume.pdf',
+      mimetype: req.file.mimetype || 'application/pdf',
+      size: req.file.size,
+      data: req.file.buffer.toString('base64'),
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: req.body.uploaded_by || 'Crawler-AutoLoop',
+    };
+
+    // 寫入 DB（with retry）
+    const result = await withRetry(async () => {
+      return await withClient(async (client) => {
+        // 更新解析欄位 + append 檔案
+        const setClauses = [`resume_files = COALESCE(resume_files, '[]'::jsonb) || $1::jsonb`];
+        const params = [JSON.stringify([fileRecord])];
+        let idx = params.length;
+
+        if (parsed.name) { idx++; setClauses.push(`name = COALESCE(NULLIF(name, ''), $${idx})`); params.push(parsed.name); }
+        if (parsed.position) { idx++; setClauses.push(`current_position = COALESCE(NULLIF(current_position, ''), $${idx})`); params.push(parsed.position); }
+        if (parsed.company) { idx++; setClauses.push(`current_company = COALESCE(NULLIF(current_company, ''), $${idx})`); params.push(parsed.company); }
+        if (parsed.location) { idx++; setClauses.push(`location = COALESCE(NULLIF(location, ''), $${idx})`); params.push(parsed.location); }
+        if (parsed.skills) { idx++; setClauses.push(`skills = COALESCE(NULLIF(skills, ''), $${idx})`); params.push(parsed.skills); }
+        if (parsed.education) { idx++; setClauses.push(`education = COALESCE(NULLIF(education, ''), $${idx})`); params.push(parsed.education); }
+        if (parsed.years_experience) { idx++; setClauses.push(`years_experience = COALESCE(NULLIF(years_experience, ''), $${idx})`); params.push(String(parsed.years_experience)); }
+        if (parsed.work_history && parsed.work_history.length > 0) { idx++; setClauses.push(`work_history = $${idx}::jsonb`); params.push(JSON.stringify(parsed.work_history)); }
+        if (parsed.education_details && parsed.education_details.length > 0) { idx++; setClauses.push(`education_details = $${idx}::jsonb`); params.push(JSON.stringify(parsed.education_details)); }
+        if (parsed.languages) { idx++; setClauses.push(`languages = COALESCE(NULLIF(languages, ''), $${idx})`); params.push(parsed.languages); }
+
+        setClauses.push('updated_at = NOW()');
+        idx++; params.push(id);
+
+        return await client.query(
+          `UPDATE candidates_pipeline SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id`,
+          params
+        );
+      });
+    });
+
+    crawlerCacheClear('crawler:candidates');
+    res.json({
+      success: true,
+      message: 'Resume uploaded and parsed',
+      file_id: fileId,
+      parsed_fields: Object.keys(parsed).filter(k => parsed[k]),
+    });
+  } catch (error) {
+    safeError(res, error, 'POST /crawler/candidates/:id/resume-upload');
+  }
+});
+
+/**
+ * PATCH /api/crawler/candidates/:id
+ * 部分更新候選人（爬蟲常用欄位子集）
+ */
+router.patch('/pipeline/candidates/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ success: false, error: 'Invalid candidate ID' });
+
+    // 只接受爬蟲常用欄位
+    const allowedFields = {
+      name: 'name', current_position: 'current_position', current_company: 'current_company',
+      current_title: 'current_title', location: 'location', skills: 'skills',
+      education: 'education', years_experience: 'years_experience',
+      email: 'email', phone: 'phone', linkedin_url: 'linkedin_url', github_url: 'github_url',
+      languages: 'languages', industry: 'industry',
+      work_history: 'work_history', education_details: 'education_details',
+      status: 'status', notes: 'notes', recruiter: 'recruiter',
+      ai_summary: 'ai_summary',
+    };
+
+    const jsonbFields = new Set(['work_history', 'education_details']);
+    const setClauses = [];
+    const params = [];
+
+    for (const [key, col] of Object.entries(allowedFields)) {
+      if (req.body[key] !== undefined) {
+        params.push(jsonbFields.has(col) ? JSON.stringify(req.body[key]) : req.body[key]);
+        setClauses.push(`${col} = $${params.length}${jsonbFields.has(col) ? '::jsonb' : ''}`);
+      }
+    }
+
+    if (setClauses.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+
+    setClauses.push('updated_at = NOW()');
+    params.push(id);
+
+    const result = await withRetry(async () => {
+      return await pool.query(
+        `UPDATE candidates_pipeline SET ${setClauses.join(', ')} WHERE id = $${params.length} RETURNING id`,
+        params
+      );
+    });
+
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Candidate not found' });
+
+    crawlerCacheClear('crawler:candidates');
+    res.json({ success: true, message: 'Candidate updated', id });
+  } catch (error) {
+    safeError(res, error, 'PATCH /crawler/candidates/:id');
+  }
+});
+
+/**
+ * PUT /api/crawler/candidates/:id/ai-analysis
+ * 寫入 AI 顧問分析結果
+ */
+router.put('/pipeline/candidates/:id/ai-analysis', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ success: false, error: 'Invalid candidate ID' });
+
+    const { ai_analysis } = req.body;
+    if (!ai_analysis) return res.status(400).json({ success: false, error: 'ai_analysis is required' });
+
+    // Schema 驗證
+    const errors = validateAiAnalysisSchema(ai_analysis);
+    if (errors.length > 0) return res.status(400).json({ success: false, errors });
+
+    // 從 ai_analysis 提取 grade/score
+    const topMatch = ai_analysis.job_matchings?.[0];
+    const aiScore = topMatch?.match_score ?? null;
+    const rec = ai_analysis.recommendation || {};
+    const aiGrade = rec.grade || rec.final_grade || '';
+    const aiReport = rec.summary || rec.one_liner || '';
+    const aiRecommendation = rec.action || rec.verdict || '';
+
+    const result = await withRetry(async () => {
+      return await withClient(async (client) => {
+        // 更新 ai_analysis + derived fields
+        const updateResult = await client.query(`
+          UPDATE candidates_pipeline SET
+            ai_analysis = $1::jsonb,
+            ai_score = COALESCE($2, ai_score),
+            ai_grade = COALESCE(NULLIF($3, ''), ai_grade),
+            ai_report = COALESCE(NULLIF($4, ''), ai_report),
+            ai_recommendation = COALESCE(NULLIF($5, ''), ai_recommendation),
+            updated_at = NOW()
+          WHERE id = $6
+          RETURNING id, ai_grade, ai_score
+        `, [JSON.stringify(ai_analysis), aiScore, aiGrade, aiReport, aiRecommendation, id]);
+
+        if (updateResult.rows.length === 0) return null;
+
+        // Append progress tracking
+        await client.query(`
+          UPDATE candidates_pipeline SET
+            progress_tracking = COALESCE(progress_tracking, '[]'::jsonb) || $1::jsonb
+          WHERE id = $2
+        `, [JSON.stringify([{
+          action: 'ai_analysis_written',
+          by: ai_analysis.analyzed_by || 'Crawler-AI',
+          at: new Date().toISOString(),
+          note: `AI 分析完成 (grade: ${aiGrade}, score: ${aiScore})`
+        }]), id]);
+
+        return updateResult;
+      });
+    });
+
+    if (!result || result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Candidate not found' });
+    }
+
+    crawlerCacheClear('crawler:candidates');
+    res.json({
+      success: true,
+      message: 'AI analysis saved',
+      id,
+      ai_grade: result.rows[0].ai_grade,
+      ai_score: result.rows[0].ai_score,
+    });
+  } catch (error) {
+    safeError(res, error, 'PUT /crawler/candidates/:id/ai-analysis');
   }
 });
 

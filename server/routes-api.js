@@ -14,6 +14,26 @@ const crypto = require('crypto');
 const { pool, withClient } = require('./db'); // 共享連線池 + 安全 helper
 const { safeError } = require('./safeError');
 const { isForeignName } = require('./foreignNameFilter');
+const rateLimit = require('express-rate-limit');
+
+// ── Rate Limiting（防止 TG Bot / 外部高併發打爆 DB）──
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,   // 1 分鐘
+  max: 60,               // 每 IP 每分鐘最多 60 次
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many requests, please try again later.' },
+  skip: (req) => req.path === '/health', // health check 不限制
+});
+
+// 重查詢端點更嚴格的限制
+const heavyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,               // 每 IP 每分鐘最多 20 次重查詢
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many requests for this endpoint.' },
+});
 
 // ── Response Cache（避免重複查詢打爆 DB）──
 const _cache = new Map();
@@ -39,6 +59,9 @@ function cacheClear(prefix) {
     if (key.startsWith(prefix)) _cache.delete(key);
   }
 }
+
+// ── 套用 Rate Limiting ──
+router.use(apiLimiter);
 
 /**
  * 根據請求的 Host header 動態替換 guide 文件中的 API base URL
@@ -987,15 +1010,14 @@ router.get('/candidates/summary', async (req, res) => {
   }
 });
 
-router.get('/candidates', async (req, res) => {
+router.get('/candidates', heavyLimiter, async (req, res) => {
   try {
     // Response cache：同一組查詢參數 30 秒內回快取
     const cacheKey = `candidates:${JSON.stringify(req.query)}`;
     const cached = cacheGet(cacheKey);
     if (cached) return res.json(cached);
 
-    const client = await pool.connect();
-    try {
+    const result = await withClient(async (client) => {
 
     // 支援查詢參數篩選
     const { status, source, limit: rawLimit, offset: rawOffset, page, created_today,
@@ -1055,7 +1077,7 @@ router.get('/candidates', async (req, res) => {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // 分頁參數
-    const parsedLimit = rawLimit ? Math.min(Math.max(1, parseInt(rawLimit)), 5000) : 3000;
+    const parsedLimit = rawLimit ? Math.min(Math.max(1, parseInt(rawLimit)), 5000) : 200; // 預設從 3000 降到 200，避免無 limit 的請求打爆
     let parsedOffset = 0;
     if (rawOffset) {
       parsedOffset = Math.max(0, parseInt(rawOffset) || 0);
@@ -1064,12 +1086,25 @@ router.get('/candidates', async (req, res) => {
       parsedOffset = (pageNum - 1) * parsedLimit;
     }
 
-    // 先取 total count（套用篩選條件）
-    const countResult = await client.query(
-      `SELECT COUNT(*) AS total FROM candidates_pipeline c ${whereClause}`,
-      params
-    );
-    const total = parseInt(countResult.rows[0].total);
+    // 先取 total count — 無篩選時用 pg 估計值（避免 full table scan）
+    let total;
+    if (conditions.length === 0) {
+      const estResult = await client.query(
+        `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'candidates_pipeline'`
+      );
+      total = parseInt(estResult.rows[0]?.estimate) || 0;
+      if (total <= 0) {
+        // fallback: 估計值不可用時才做真實 count
+        const countResult = await client.query('SELECT COUNT(*) AS total FROM candidates_pipeline');
+        total = parseInt(countResult.rows[0].total);
+      }
+    } else {
+      const countResult = await client.query(
+        `SELECT COUNT(*) AS total FROM candidates_pipeline c ${whereClause}`,
+        params
+      );
+      total = parseInt(countResult.rows[0].total);
+    }
 
     // 狀態計數（可選，用 include_counts=true 開啟）
     let statusCounts = null;
@@ -1363,10 +1398,10 @@ router.get('/candidates', async (req, res) => {
       ...(sourceCounts && { sourceCounts })
     };
     cacheSet(cacheKey, response);
-    res.json(response);
-    } finally {
-      client.release();
-    }
+    return response;
+    }); // end withClient
+
+    res.json(result);
   } catch (error) {
     safeError(res, error, 'GET /candidates');
   }
@@ -3010,7 +3045,7 @@ router.get('/imports/:id', async (req, res) => {
  * GET /api/jobs
  * 列出所有職缺（從 SQL）
  */
-router.get('/jobs', async (req, res) => {
+router.get('/jobs', heavyLimiter, async (req, res) => {
   try {
     const cacheKey = `jobs:${JSON.stringify(req.query)}`;
     const cached = cacheGet(cacheKey);
