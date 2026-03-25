@@ -1023,7 +1023,9 @@ router.get('/candidates', heavyLimiter, async (req, res) => {
     const { status, source, limit: rawLimit, offset: rawOffset, page, created_today,
             search, consultant, job_id, include_counts,
             updated_after, cursor_id, fields } = req.query;
-    const lightMode = fields === 'light';
+    // offset > 0 時強制 light mode（全量分頁拉取不需要完整欄位，防止 timeout）
+    const parsedOffsetEarly = rawOffset ? Math.max(0, parseInt(rawOffset) || 0) : 0;
+    const lightMode = fields === 'light' || parsedOffsetEarly > 0;
     const conditions = [];
     const params = [];
 
