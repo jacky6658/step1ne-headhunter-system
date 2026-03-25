@@ -33,7 +33,7 @@ const pool = new Pool({
   max: 30,                        // 單一 Pool 最大連線數（從 20 提升，應對 TG Bot 併發）
   min: 2,                         // 最小閒置連線
   idleTimeoutMillis: 30000,       // 閒置 30 秒後釋放
-  connectionTimeoutMillis: 5000,  // 等超過 5 秒就報錯（從 10s 縮短，fail fast）
+  connectionTimeoutMillis: 10000, // 等超過 10 秒就報錯（5s 太激進，PG 重啟後 warm-up 需要時間）
   allowExitOnIdle: true,
   statement_timeout: 15000,       // 單一 query 最多跑 15 秒（從 30s 縮短，避免慢查詢卡住 pool）
   query_timeout: 15000,           // pg driver 層面的 query timeout

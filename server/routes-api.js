@@ -1023,9 +1023,9 @@ router.get('/candidates', heavyLimiter, async (req, res) => {
     const { status, source, limit: rawLimit, offset: rawOffset, page, created_today,
             search, consultant, job_id, include_counts,
             updated_after, cursor_id, fields } = req.query;
-    // offset > 0 時強制 light mode（全量分頁拉取不需要完整欄位，防止 timeout）
-    const parsedOffsetEarly = rawOffset ? Math.max(0, parseInt(rawOffset) || 0) : 0;
-    const lightMode = fields === 'light' || parsedOffsetEarly > 0;
+    // 預設 light mode — 只有明確帶 fields=full 才回傳完整欄位
+    // full mode 含 resume_files base64 data，response 可達數十 MB，外網必 timeout
+    const lightMode = fields !== 'full';
     const conditions = [];
     const params = [];
 
