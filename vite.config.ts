@@ -14,7 +14,7 @@ export default defineConfig({
     allowedHosts: ['hrsystem.step1ne.com', 'localhost'],
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3003',
         changeOrigin: true,
         secure: false,
         // 移除 Origin header，避免生產 CORS 白名單拒絕 localhost
@@ -24,16 +24,31 @@ export default defineConfig({
       },
     },
   },
-  plugins: [react()],
+  preview: {
+    port: 3002,
+    host: '0.0.0.0',
+    allowedHosts: ['hrsystem.step1ne.com', 'localhost'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3003',
+        changeOrigin: true,
+        secure: false,
+        headers: {
+          Origin: '',
+        },
+      },
+    },
+  },
+  plugins: [react({ jsxRuntime: 'automatic' })],
   define: {
-    // 移除會抹除 process.env 的定義，讓系統能正確抓到注入的 API_KEY
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
     // 僅暴露 VITE_ 開頭的環境變數給客戶端（防止洩漏 DB 密碼、API Key 等敏感資訊）
-    'process.env': JSON.stringify(
-      Object.fromEntries(
+    // 注意：NODE_ENV 放在 process.env 物件裡，不要另外定義以免被覆蓋
+    'process.env': JSON.stringify({
+      NODE_ENV: 'production',
+      ...Object.fromEntries(
         Object.entries(process.env).filter(([k]) => k.startsWith('VITE_'))
       )
-    )
+    })
   },
   resolve: {
     alias: {

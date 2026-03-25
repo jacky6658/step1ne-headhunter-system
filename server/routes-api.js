@@ -1050,13 +1050,66 @@ async function syncSQLToSheets(candidateRows) {
  * Response 新增 pagination 欄位：
  *   { success, data, count, total, pagination: { limit, offset, hasMore } }
  */
+// ══════════════════════════════════════════════
+// GET /candidates/summary - 輕量版（給 Dashboard/看板/追蹤表用）
+// 只回 10 個核心欄位，不做 70+ 欄位的完整 mapping
+// ══════════════════════════════════════════════
+router.get('/candidates/summary', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        c.id, c.name, c.status, c.source, c.recruiter,
+        c.current_position, c.skills, c.ai_grade,
+        c.target_job_id, j.position_name AS target_job_name,
+        j.client_company AS target_company,
+        c.created_at, c.updated_at,
+        c.years_experience, c.location,
+        c.progress_tracking,
+        c.linkedin_url, c.github_url,
+        c.talent_level, c.heat_level,
+        c.precision_eligible
+      FROM candidates_pipeline c
+      LEFT JOIN jobs_pipeline j ON c.target_job_id = j.id
+      ORDER BY c.id ASC
+    `);
+
+    const data = result.rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      status: r.status || '未開始',
+      source: r.source || '',
+      consultant: r.recruiter || '待指派',
+      position: r.current_position || '',
+      skills: r.skills || '',
+      aiGrade: r.ai_grade || '',
+      targetJobId: r.target_job_id,
+      targetJobLabel: r.target_job_name ? `${r.target_job_name}${r.target_company ? ` (${r.target_company})` : ''}` : '',
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      years: r.years_experience != null ? parseFloat(r.years_experience) : null,
+      location: r.location || '',
+      progressTracking: r.progress_tracking || [],
+      linkedinUrl: r.linkedin_url || '',
+      githubUrl: r.github_url || '',
+      talentLevel: r.talent_level || '',
+      heatLevel: r.heat_level || '',
+      precisionEligible: r.precision_eligible || false,
+    }));
+
+    res.json({ success: true, data, total: data.length });
+  } catch (error) {
+    safeError(res, error, 'GET /candidates/summary');
+  }
+});
+
 router.get('/candidates', async (req, res) => {
   try {
     const client = await pool.connect();
     try {
 
     // 支援查詢參數篩選
-    const { status, source, limit: rawLimit, offset: rawOffset, page, created_today } = req.query;
+    const { status, source, limit: rawLimit, offset: rawOffset, page, created_today,
+            search, consultant, job_id, include_counts } = req.query;
     const conditions = [];
     const params = [];
 
@@ -1068,14 +1121,35 @@ router.get('/candidates', async (req, res) => {
       params.push(source);
       conditions.push(`c.source = $${params.length}`);
     }
+    if (consultant) {
+      params.push(consultant);
+      conditions.push(`c.recruiter = $${params.length}`);
+    }
+    if (job_id) {
+      params.push(parseInt(job_id));
+      conditions.push(`c.target_job_id = $${params.length}`);
+    }
     if (created_today === 'true') {
       conditions.push(`DATE(c.created_at AT TIME ZONE 'Asia/Taipei') = DATE(NOW() AT TIME ZONE 'Asia/Taipei')`);
+    }
+    if (search && search.trim()) {
+      const searchParam = `%${search.trim().toLowerCase()}%`;
+      params.push(searchParam);
+      const si = params.length;
+      conditions.push(`(
+        LOWER(c.name) LIKE $${si} OR
+        LOWER(c.email) LIKE $${si} OR
+        c.phone LIKE $${si} OR
+        LOWER(c.current_position) LIKE $${si} OR
+        LOWER(COALESCE(c.skills, '')) LIKE $${si} OR
+        c.id::text = $${si}
+      )`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // 分頁參數
-    const parsedLimit = rawLimit ? Math.min(Math.max(1, parseInt(rawLimit)), 500) : 500;
+    const parsedLimit = rawLimit ? Math.min(Math.max(1, parseInt(rawLimit)), 5000) : 3000;
     let parsedOffset = 0;
     if (rawOffset) {
       parsedOffset = Math.max(0, parseInt(rawOffset) || 0);
@@ -1084,12 +1158,46 @@ router.get('/candidates', async (req, res) => {
       parsedOffset = (pageNum - 1) * parsedLimit;
     }
 
-    // 先取 total count
+    // 先取 total count（套用篩選條件）
     const countResult = await client.query(
       `SELECT COUNT(*) AS total FROM candidates_pipeline c ${whereClause}`,
       params
     );
     const total = parseInt(countResult.rows[0].total);
+
+    // 狀態計數（可選，用 include_counts=true 開啟）
+    let statusCounts = null;
+    let sourceCounts = null;
+    if (include_counts === 'true') {
+      // 不套用 status/source 篩選，只套用 search/consultant/job_id/today 條件
+      const countConditions = [];
+      const countParams = [];
+      if (consultant) { countParams.push(consultant); countConditions.push(`c.recruiter = $${countParams.length}`); }
+      if (job_id) { countParams.push(parseInt(job_id)); countConditions.push(`c.target_job_id = $${countParams.length}`); }
+      if (created_today === 'true') { countConditions.push(`DATE(c.created_at AT TIME ZONE 'Asia/Taipei') = DATE(NOW() AT TIME ZONE 'Asia/Taipei')`); }
+      if (search && search.trim()) {
+        const sp = `%${search.trim().toLowerCase()}%`;
+        countParams.push(sp);
+        const si = countParams.length;
+        countConditions.push(`(LOWER(c.name) LIKE $${si} OR LOWER(c.email) LIKE $${si} OR c.phone LIKE $${si} OR LOWER(c.current_position) LIKE $${si} OR LOWER(COALESCE(c.skills, '')) LIKE $${si} OR c.id::text = $${si})`);
+      }
+      const countWhere = countConditions.length > 0 ? `WHERE ${countConditions.join(' AND ')}` : '';
+      const scResult = await client.query(
+        `SELECT status, COUNT(*) AS cnt FROM candidates_pipeline c ${countWhere} GROUP BY status`,
+        countParams
+      );
+      statusCounts = {};
+      let statusTotal = 0;
+      scResult.rows.forEach(r => { statusCounts[r.status] = parseInt(r.cnt); statusTotal += parseInt(r.cnt); });
+      statusCounts._total = statusTotal;
+
+      const srcResult = await client.query(
+        `SELECT source, COUNT(*) AS cnt FROM candidates_pipeline c ${countWhere} GROUP BY source`,
+        countParams
+      );
+      sourceCounts = {};
+      srcResult.rows.forEach(r => { sourceCounts[r.source || '其他'] = parseInt(r.cnt); });
+    }
 
     // 加入分頁 params
     const dataParams = [...params];
@@ -1293,7 +1401,9 @@ router.get('/candidates', async (req, res) => {
         limit: parsedLimit,
         offset: parsedOffset,
         hasMore: (parsedOffset + candidates.length) < total
-      }
+      },
+      ...(statusCounts && { statusCounts }),
+      ...(sourceCounts && { sourceCounts })
     });
     } finally {
       client.release();
@@ -6633,7 +6743,7 @@ const ALLOWED_CONFIG_KEYS = new Set([
 router.put('/system-config/:key', async (req, res) => {
   try {
     const { key } = req.params;
-    if (!ALLOWED_CONFIG_KEYS.has(key)) {
+    if (!ALLOWED_CONFIG_KEYS.has(key) && !key.startsWith('crawl_lock_')) {
       return res.status(400).json({ success: false, error: `不允許修改設定：${key}` });
     }
     const { value } = req.body;

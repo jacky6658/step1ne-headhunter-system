@@ -18,6 +18,84 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('./db');
 const { safeError } = require('./safeError');
+const { parseResumePDF } = require('./resumePDFService');
+const { computeDataQuality } = require('./taxonomy/matchSkills');
+const { isForeignName } = require('./foreignNameFilter');
+
+// ══════════════════════════════════════════════
+// 共用工具：AI Analysis Schema 驗證
+// ══════════════════════════════════════════════
+function validateAiAnalysisSchema(ai_analysis) {
+  const errors = [];
+  if (ai_analysis.version !== '1.0') errors.push('version 必須是 "1.0"');
+  if (!ai_analysis.analyzed_at) errors.push('缺少 analyzed_at');
+  if (!ai_analysis.analyzed_by) errors.push('缺少 analyzed_by');
+  if (!ai_analysis.candidate_evaluation) {
+    errors.push('缺少 candidate_evaluation');
+  } else {
+    if (!ai_analysis.candidate_evaluation.career_curve) errors.push('缺少 candidate_evaluation.career_curve');
+    if (!ai_analysis.candidate_evaluation.personality) errors.push('缺少 candidate_evaluation.personality');
+    if (!ai_analysis.candidate_evaluation.role_positioning) errors.push('缺少 candidate_evaluation.role_positioning');
+    if (!ai_analysis.candidate_evaluation.salary_estimate) errors.push('缺少 candidate_evaluation.salary_estimate');
+  }
+  if (!Array.isArray(ai_analysis.job_matchings)) {
+    errors.push('job_matchings 必須是陣列');
+  } else if (ai_analysis.job_matchings.length > 3) {
+    errors.push('job_matchings 最多 3 個職缺');
+  } else {
+    ai_analysis.job_matchings.forEach((m, i) => {
+      if (typeof m.match_score !== 'number' || m.match_score < 0 || m.match_score > 100) {
+        errors.push(`job_matchings[${i}].match_score 必須是 0-100 的數字`);
+      }
+      if (Array.isArray(m.must_have)) {
+        m.must_have.forEach((h, j) => {
+          if (!['pass', 'warning', 'fail'].includes(h.result)) {
+            errors.push(`job_matchings[${i}].must_have[${j}].result 只能是 pass/warning/fail`);
+          }
+        });
+      }
+      if (Array.isArray(m.nice_to_have)) {
+        m.nice_to_have.forEach((h, j) => {
+          if (!['pass', 'warning', 'fail'].includes(h.result)) {
+            errors.push(`job_matchings[${i}].nice_to_have[${j}].result 只能是 pass/warning/fail`);
+          }
+        });
+      }
+    });
+  }
+  if (!ai_analysis.recommendation) errors.push('缺少 recommendation');
+
+  // consultant_questions 為選填，但若有提供則驗證結構
+  if (ai_analysis.consultant_questions) {
+    const cq = ai_analysis.consultant_questions;
+    if (!Array.isArray(cq.questions)) {
+      errors.push('consultant_questions.questions 必須是陣列');
+    } else {
+      if (cq.questions.length < 5 || cq.questions.length > 15) {
+        errors.push('consultant_questions.questions 建議 5-15 題');
+      }
+      const validCategories = [
+        'career_motivation', 'current_satisfaction', 'technical_depth',
+        'management_style', 'salary_expectation', 'culture_preference',
+        'work_life_balance', 'long_term_goal', 'market_awareness',
+        'collaboration_style', 'job_exploration'
+      ];
+      cq.questions.forEach((q, i) => {
+        if (!q.question) errors.push(`consultant_questions.questions[${i}] 缺少 question`);
+        if (!q.why_ask) errors.push(`consultant_questions.questions[${i}] 缺少 why_ask`);
+        if (q.category && !validCategories.includes(q.category)) {
+          errors.push(`consultant_questions.questions[${i}].category "${q.category}" 不在允許清單`);
+        }
+        // related_jobs 為選填，有的話檢查結構
+        if (q.related_jobs && !Array.isArray(q.related_jobs)) {
+          errors.push(`consultant_questions.questions[${i}].related_jobs 必須是陣列`);
+        }
+      });
+    }
+  }
+
+  return errors;
+}
 
 // ══════════════════════════════════════════════
 // GET /prompts/matching - 取 AI 顧問分析提示詞
@@ -188,7 +266,11 @@ router.get('/candidates/:id/full-profile', async (req, res) => {
       })),
 
       // 已有的 AI 分析（供參考）
-      existing_ai_analysis: row.ai_analysis || null,
+      aiAnalysis: row.ai_analysis || null,
+      existing_ai_analysis: row.ai_analysis || null,  // 向下相容，待移除
+
+      // AI 匹配結果
+      aiMatchResult: row.ai_match_result || null,
 
       // 品質 & 分類
       grade_level: row.grade_level || '',
@@ -391,55 +473,8 @@ router.put('/candidates/:id/ai-analysis', async (req, res) => {
       });
     }
 
-    // ── JSON Schema 驗證 ──
-    const errors = [];
-
-    if (ai_analysis.version !== '1.0') {
-      errors.push('version 必須是 "1.0"');
-    }
-    if (!ai_analysis.analyzed_at) {
-      errors.push('缺少 analyzed_at');
-    }
-    if (!ai_analysis.analyzed_by) {
-      errors.push('缺少 analyzed_by');
-    }
-    if (!ai_analysis.candidate_evaluation) {
-      errors.push('缺少 candidate_evaluation');
-    } else {
-      if (!ai_analysis.candidate_evaluation.career_curve) errors.push('缺少 candidate_evaluation.career_curve');
-      if (!ai_analysis.candidate_evaluation.personality) errors.push('缺少 candidate_evaluation.personality');
-      if (!ai_analysis.candidate_evaluation.role_positioning) errors.push('缺少 candidate_evaluation.role_positioning');
-      if (!ai_analysis.candidate_evaluation.salary_estimate) errors.push('缺少 candidate_evaluation.salary_estimate');
-    }
-    if (!Array.isArray(ai_analysis.job_matchings)) {
-      errors.push('job_matchings 必須是陣列');
-    } else if (ai_analysis.job_matchings.length > 3) {
-      errors.push('job_matchings 最多 3 個職缺');
-    } else {
-      ai_analysis.job_matchings.forEach((m, i) => {
-        if (typeof m.match_score !== 'number' || m.match_score < 0 || m.match_score > 100) {
-          errors.push(`job_matchings[${i}].match_score 必須是 0-100 的數字`);
-        }
-        if (Array.isArray(m.must_have)) {
-          m.must_have.forEach((h, j) => {
-            if (!['pass', 'warning', 'fail'].includes(h.result)) {
-              errors.push(`job_matchings[${i}].must_have[${j}].result 只能是 pass/warning/fail`);
-            }
-          });
-        }
-        if (Array.isArray(m.nice_to_have)) {
-          m.nice_to_have.forEach((h, j) => {
-            if (!['pass', 'warning', 'fail'].includes(h.result)) {
-              errors.push(`job_matchings[${i}].nice_to_have[${j}].result 只能是 pass/warning/fail`);
-            }
-          });
-        }
-      });
-    }
-    if (!ai_analysis.recommendation) {
-      errors.push('缺少 recommendation');
-    }
-
+    // ── JSON Schema 驗證（使用共用函數） ──
+    const errors = validateAiAnalysisSchema(ai_analysis);
     if (errors.length > 0) {
       return res.status(400).json({ success: false, error: 'JSON 驗證失敗', details: errors });
     }
@@ -449,12 +484,18 @@ router.put('/candidates/:id/ai-analysis', async (req, res) => {
       `UPDATE candidates_pipeline
        SET ai_analysis = $1::jsonb, updated_at = NOW()
        WHERE id = $2
-       RETURNING id, name`,
+       RETURNING id, name, ai_analysis IS NOT NULL AS write_confirmed`,
       [JSON.stringify(ai_analysis), id]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: '找不到此候選人' });
+    }
+
+    // ── Write-back 驗證：確認資料確實寫入 ──
+    if (!result.rows[0].write_confirmed) {
+      console.error(`[ai-analysis] Write-back 驗證失敗：candidate ${id} ai_analysis 寫入後仍為 null`);
+      return res.status(500).json({ success: false, error: 'AI 分析寫入驗證失敗，資料可能未儲存' });
     }
 
     // 附加進度追蹤記錄
@@ -477,6 +518,7 @@ router.put('/candidates/:id/ai-analysis', async (req, res) => {
       message: 'AI 分析結果已儲存',
       candidate_id: id,
       candidate_name: result.rows[0].name,
+      write_verified: true,
     });
   } catch (error) {
     safeError(res, error, 'PUT /ai-agent/candidates/:id/ai-analysis');
@@ -547,6 +589,329 @@ router.put('/candidates/:id/outreach-letter', async (req, res) => {
     });
   } catch (error) {
     safeError(res, error, 'PUT /ai-agent/candidates/:id/outreach-letter');
+  }
+});
+
+// ══════════════════════════════════════════════
+// POST /candidates/import-complete - 原子匯入（建檔 + PDF + AI 分析一次完成）
+// ══════════════════════════════════════════════
+
+router.post('/candidates/import-complete', async (req, res) => {
+  const client = await pool.connect();
+  let stage = 'validation';
+
+  try {
+    const { candidate: c, resume_pdf, ai_analysis, actor, require_complete } = req.body;
+
+    // ── ① 驗證 payload ──
+    if (!c || !c.name || !c.name.trim()) {
+      return res.status(400).json({ success: false, error: 'candidate.name 為必填', stage, candidate_written: false });
+    }
+
+    // 驗證 ai_analysis（如有提供）
+    if (ai_analysis) {
+      const schemaErrors = validateAiAnalysisSchema(ai_analysis);
+      if (schemaErrors.length > 0) {
+        return res.status(400).json({
+          success: false, error: 'ai_analysis 驗證失敗', stage: 'ai_validation',
+          details: schemaErrors, candidate_written: false,
+        });
+      }
+    }
+
+    // 驗證 resume_pdf base64（如有提供）
+    let pdfBuffer = null;
+    if (resume_pdf && resume_pdf.base64) {
+      try {
+        pdfBuffer = Buffer.from(resume_pdf.base64, 'base64');
+        if (pdfBuffer.length < 100) throw new Error('PDF 資料太小，可能不是有效的 PDF');
+      } catch (e) {
+        return res.status(400).json({
+          success: false, error: `PDF base64 解碼失敗：${e.message}`, stage: 'validation',
+          candidate_written: false,
+        });
+      }
+    }
+
+    // require_complete 檢查
+    if (require_complete) {
+      const missing = [];
+      if (!pdfBuffer) missing.push('resume_pdf');
+      if (!c.target_job_id) missing.push('target_job_id');
+      if (!c.talent_level) missing.push('talent_level');
+      if (missing.length > 0) {
+        return res.status(400).json({
+          success: false, error: `require_complete=true 但缺少：${missing.join(', ')}`,
+          stage: 'validation', missing_fields: missing, candidate_written: false,
+        });
+      }
+    }
+
+    // ── ③ 解析 PDF（在 transaction 之前，避免長時間鎖 DB） ──
+    let parsed = null;
+    if (pdfBuffer) {
+      stage = 'resume_parse';
+      try {
+        parsed = await parseResumePDF(pdfBuffer, false, resume_pdf.format || 'auto');
+      } catch (e) {
+        return res.status(400).json({
+          success: false, error: `PDF 解析失敗：${e.message}`, stage,
+          candidate_written: false,
+        });
+      }
+    }
+
+    // ── BEGIN TRANSACTION ──
+    await client.query('BEGIN');
+    stage = 'dedup';
+
+    // ── ② 去重：LinkedIn URL > Email > Name ──
+    const nameKey = c.name.trim().toLowerCase();
+    let existingId = null;
+    let matchMethod = null;
+
+    if (c.linkedin_url && c.linkedin_url.trim()) {
+      const normalizedLi = c.linkedin_url.trim().toLowerCase()
+        .replace('://www.', '://').replace(/\/+$/, '');
+      if (normalizedLi.includes('linkedin.com')) {
+        const r = await client.query(
+          `SELECT id FROM candidates_pipeline
+           WHERE LOWER(TRIM(REPLACE(REGEXP_REPLACE(linkedin_url, '/+$', ''), '://www.', '://'))) = $1
+             AND linkedin_url IS NOT NULL AND linkedin_url <> '' LIMIT 1`,
+          [normalizedLi]
+        );
+        if (r.rows.length > 0) { existingId = r.rows[0].id; matchMethod = 'linkedin_url'; }
+      }
+    }
+    if (!existingId && c.email && c.email.trim() && c.email.includes('@')) {
+      const r = await client.query(
+        `SELECT id FROM candidates_pipeline WHERE LOWER(TRIM(email)) = $1 AND email IS NOT NULL AND email != '' LIMIT 1`,
+        [c.email.trim().toLowerCase()]
+      );
+      if (r.rows.length > 0) { existingId = r.rows[0].id; matchMethod = 'email'; }
+    }
+    if (!existingId) {
+      const r = await client.query(
+        'SELECT id FROM candidates_pipeline WHERE LOWER(TRIM(name)) = $1 LIMIT 1', [nameKey]
+      );
+      if (r.rows.length > 0) { existingId = r.rows[0].id; matchMethod = 'name'; }
+    }
+
+    // ── ④ 合併欄位（明確傳入 > PDF 解析 > 既有 DB） ──
+    stage = 'db_write';
+
+    // 組合 resume_files entry
+    let resumeFileEntry = null;
+    if (pdfBuffer) {
+      resumeFileEntry = {
+        id: `rf_${Date.now()}`,
+        filename: (resume_pdf.filename || `Resume_${c.name.trim()}.pdf`),
+        data: resume_pdf.base64,
+        mimetype: 'application/pdf',
+        size: pdfBuffer.length,
+        uploaded_at: new Date().toISOString(),
+        uploaded_by: actor || 'Lobster',
+      };
+    }
+
+    // 用 PDF 解析結果補充空欄位
+    const skills = c.skills || (parsed && Array.isArray(parsed.skills) ? parsed.skills.join('、') : '') || '';
+    const location = c.location || (parsed && parsed.location) || '';
+    const yearsExp = c.years_experience || (parsed && parsed.years != null ? String(Math.round(parsed.years)) : '') || '';
+    const workHistory = c.work_history || (parsed && parsed.workHistory?.length > 0 ? parsed.workHistory : null);
+    const eduDetails = c.education_details || (parsed && parsed.educationJson?.length > 0 ? parsed.educationJson : null);
+    const education = c.education || (parsed && parsed.education) || '';
+    const currentPosition = c.current_position || (parsed && parsed.position) || '';
+    const currentCompany = c.current_company || (parsed && parsed.currentCompany) || '';
+
+    let result;
+    let action;
+
+    if (existingId) {
+      // ── UPDATE existing ──
+      action = 'updated';
+
+      // 取得既有 resume_files 以 append
+      const existingRow = await client.query(
+        'SELECT resume_files FROM candidates_pipeline WHERE id = $1', [existingId]
+      );
+      const existingFiles = existingRow.rows[0]?.resume_files || [];
+      const newFiles = resumeFileEntry && existingFiles.length < 3
+        ? [...existingFiles, resumeFileEntry] : existingFiles;
+
+      result = await client.query(
+        `UPDATE candidates_pipeline SET
+          phone = COALESCE(NULLIF(phone, ''), $1),
+          location = COALESCE(NULLIF(location, ''), $2),
+          current_position = COALESCE(NULLIF(current_position, ''), $3),
+          current_company = COALESCE(NULLIF(current_company, ''), $4),
+          years_experience = COALESCE(NULLIF(years_experience, ''), NULLIF(years_experience, '0'), $5),
+          skills = COALESCE(NULLIF(skills, ''), $6),
+          education = COALESCE(NULLIF(education, ''), $7),
+          source = COALESCE(NULLIF(source, ''), $8),
+          notes = CASE WHEN $9 = '' THEN notes ELSE CONCAT(notes, CASE WHEN notes != '' THEN E'\\n' ELSE '' END, $9) END,
+          talent_level = CASE WHEN $10 != '' THEN $10 ELSE COALESCE(NULLIF(talent_level, ''), $10) END,
+          email = COALESCE(NULLIF(email, ''), $11),
+          linkedin_url = COALESCE(NULLIF(linkedin_url, ''), $12),
+          github_url = COALESCE(NULLIF(github_url, ''), $13),
+          ai_match_result = CASE WHEN $14::jsonb IS NOT NULL THEN $14::jsonb ELSE ai_match_result END,
+          target_job_id = COALESCE($15::int, target_job_id),
+          work_history = COALESCE($16::jsonb, work_history),
+          education_details = COALESCE($17::jsonb, education_details),
+          resume_files = $18::jsonb,
+          ai_analysis = CASE WHEN $19::jsonb IS NOT NULL THEN $19::jsonb ELSE ai_analysis END,
+          recruiter = COALESCE(NULLIF(recruiter, ''), NULLIF(recruiter, '待指派'), $20),
+          updated_at = NOW()
+        WHERE id = $21
+        RETURNING id, name, resume_files IS NOT NULL AND resume_files != '[]'::jsonb AS has_resume,
+                  ai_analysis IS NOT NULL AS has_ai_analysis, target_job_id, talent_level`,
+        [
+          c.phone || '', location, currentPosition, currentCompany,
+          yearsExp, skills, education, c.source || '爬蟲匯入',
+          c.notes || '', c.talent_level || '',
+          c.email || '', c.linkedin_url || '', c.github_url || '',
+          c.ai_match_result ? JSON.stringify(c.ai_match_result) : null,
+          c.target_job_id || null,
+          workHistory ? JSON.stringify(workHistory) : null,
+          eduDetails ? JSON.stringify(eduDetails) : null,
+          JSON.stringify(newFiles),
+          ai_analysis ? JSON.stringify(ai_analysis) : null,
+          c.recruiter || '待指派',
+          existingId,
+        ]
+      );
+    } else {
+      // ── INSERT new ──
+      action = 'created';
+      const foreignFiltered = isForeignName(c.name.trim());
+      const assignedStatus = foreignFiltered ? '外籍已過濾' : (c.status || '未開始');
+
+      // Recruiter 白名單驗證
+      const validUsersResult = await client.query("SELECT display_name FROM users WHERE is_active = true");
+      const validNames = new Set(validUsersResult.rows.map(r => r.display_name));
+      const validatedRecruiter = (c.recruiter && validNames.has(c.recruiter)) ? c.recruiter : '待指派';
+
+      const resumeFilesJson = resumeFileEntry ? JSON.stringify([resumeFileEntry]) : null;
+
+      result = await client.query(
+        `INSERT INTO candidates_pipeline
+         (name, phone, email, linkedin_url, github_url, location,
+          current_position, current_company, years_experience,
+          skills, education, source, status, recruiter, notes,
+          talent_level, ai_match_result, target_job_id,
+          work_history, education_details, resume_files, ai_analysis,
+          created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW(),NOW())
+         RETURNING id, name, resume_files IS NOT NULL AND resume_files != '[]'::jsonb AS has_resume,
+                   ai_analysis IS NOT NULL AS has_ai_analysis, target_job_id, talent_level`,
+        [
+          c.name.trim(), c.phone || '', c.email || '',
+          c.linkedin_url || '', c.github_url || '', location,
+          currentPosition, currentCompany, yearsExp,
+          skills, education, c.source || '爬蟲匯入',
+          assignedStatus, validatedRecruiter, c.notes || '',
+          c.talent_level || '',
+          c.ai_match_result ? JSON.stringify(c.ai_match_result) : null,
+          c.target_job_id || null,
+          workHistory ? JSON.stringify(workHistory) : null,
+          eduDetails ? JSON.stringify(eduDetails) : null,
+          resumeFilesJson,
+          ai_analysis ? JSON.stringify(ai_analysis) : null,
+        ]
+      );
+    }
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(500).json({ success: false, error: 'DB 寫入無回傳', stage, candidate_written: false });
+    }
+
+    const row = result.rows[0];
+
+    // ── ⑦ Write-back 驗證 ──
+    if (pdfBuffer && !row.has_resume) {
+      await client.query('ROLLBACK');
+      return res.status(500).json({
+        success: false, error: 'Write-back 驗證失敗：PDF 已提供但 resume_files 為空',
+        stage: 'write_verify', candidate_written: false,
+      });
+    }
+    if (ai_analysis && !row.has_ai_analysis) {
+      await client.query('ROLLBACK');
+      return res.status(500).json({
+        success: false, error: 'Write-back 驗證失敗：ai_analysis 已提供但寫入後為空',
+        stage: 'write_verify', candidate_written: false,
+      });
+    }
+
+    // ── ⑧ 寫 progress_tracking ──
+    const progressNote = [
+      `原子匯入${action === 'created' ? '建檔' : '更新'}`,
+      pdfBuffer ? '✅ PDF' : '',
+      ai_analysis ? '✅ AI分析' : '',
+      c.target_job_id ? `✅ 職缺#${c.target_job_id}` : '',
+      c.talent_level ? `✅ ${c.talent_level}級` : '',
+    ].filter(Boolean).join('，');
+
+    await client.query(
+      `UPDATE candidates_pipeline
+       SET progress_tracking = COALESCE(progress_tracking, '[]'::jsonb) || $1::jsonb
+       WHERE id = $2`,
+      [JSON.stringify([{
+        date: new Date().toISOString().slice(0, 10),
+        event: action === 'created' ? '新增' : '其他',
+        by: actor || 'Lobster',
+        note: progressNote,
+      }]), row.id]
+    );
+
+    // ── COMMIT ──
+    await client.query('COMMIT');
+
+    // 計算完整度（transaction 外，不影響原子性）
+    let completeness = {};
+    try {
+      const fullRow = await pool.query('SELECT * FROM candidates_pipeline WHERE id = $1', [row.id]);
+      if (fullRow.rows.length > 0) {
+        const dq = computeDataQuality(fullRow.rows[0]);
+        completeness = {
+          resume_uploaded: !!pdfBuffer,
+          ai_analysis_written: !!ai_analysis,
+          talent_level: row.talent_level || null,
+          target_job_id: row.target_job_id || null,
+          precision_score: dq.completenessScore,
+          missing_core_fields: dq.missingCoreFields,
+        };
+      }
+    } catch (_) { /* non-critical */ }
+
+    // 寫操作日誌（transaction 外）
+    try {
+      await pool.query(
+        `INSERT INTO system_logs (action, actor, actor_type, detail) VALUES ($1, $2, $3, $4)`,
+        ['ATOMIC_IMPORT', actor || 'Lobster', 'AIBOT', JSON.stringify({
+          candidate_id: row.id, action, matchMethod,
+          has_resume: !!pdfBuffer, has_ai_analysis: !!ai_analysis,
+        })]
+      );
+    } catch (_) { /* non-critical */ }
+
+    res.status(action === 'created' ? 201 : 200).json({
+      success: true,
+      action,
+      candidate_id: row.id,
+      candidate_name: row.name,
+      completeness,
+      dedup: { matched_by: matchMethod, existing_id: existingId },
+      write_verified: true,
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error(`[import-complete] ROLLBACK at stage=${stage}:`, error.message);
+    safeError(res, error, 'POST /ai-agent/candidates/import-complete');
+  } finally {
+    client.release();
   }
 });
 

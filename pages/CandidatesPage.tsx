@@ -1,7 +1,7 @@
 // Step1ne Headhunter System - 候選人總表頁面
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useTransition } from 'react';
 import { Candidate, CandidateStatus, CandidateSource, UserProfile } from '../types';
-import { getCandidates, searchCandidates, updateCandidateStatus, filterCandidatesByPermission, clearCache } from '../services/candidateService';
+import { getCandidatesPage, getCandidates, updateCandidateStatus, filterCandidatesByPermission, clearCache, CandidatePageResult } from '../services/candidateService';
 import { onCandidateChange, onReconnect } from '../services/socketService';
 import { Users, Search, Filter, Plus, Download, Upload, Shield, RefreshCw, Sparkles, X } from 'lucide-react';
 import { CANDIDATE_STATUS_CONFIG, SOURCE_CONFIG } from '../constants';
@@ -33,13 +33,16 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
   const [addLoading, setAddLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // 載入候選人資料
-  useEffect(() => {
-    if (userProfile) {
-      loadCandidates();
-    }
-  }, [userProfile]);
+
+  // ── Server-side pagination state ──
+  const PAGE_SIZE = 50;
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [sourceCounts, setSourceCounts] = useState<Record<string, number>>({});
+  const [isPending, startTransition] = useTransition();
+  const needCountsRef = useRef(true); // 只在篩選變動時拉 counts，翻頁不拉
   
   // 載入職缺列表（供篩選用）
   useEffect(() => {
@@ -57,10 +60,62 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
       .catch(() => {});
   }, []);
 
-  // 套用篩選
+  // 搜尋 debounce：打字 300ms 後才觸發 server-side 查詢
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
   useEffect(() => {
-    applyFilters();
-  }, [candidates, searchQuery, statusFilter, sourceFilter, consultantFilter, jobFilter, todayOnly]);
+    const timer = setTimeout(() => { setDebouncedSearch(searchQuery); setCurrentPage(0); }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // 篩選條件變動時標記需要重拉 counts
+  useEffect(() => {
+    needCountsRef.current = true;
+  }, [debouncedSearch, statusFilter, sourceFilter, consultantFilter, jobFilter, todayOnly]);
+
+  // ── Server-side 查詢：篩選條件或頁碼變動時重新拉資料 ──
+  useEffect(() => {
+    if (userProfile) {
+      setLoading(true);
+      fetchPage(currentPage);
+    }
+  }, [userProfile, debouncedSearch, statusFilter, sourceFilter, consultantFilter, jobFilter, todayOnly, currentPage]);
+
+  const fetchPage = async (page: number) => {
+    try {
+      const consultantParam = userProfile.role !== 'ADMIN'
+        ? (userProfile.username === 'phoebe' ? 'Phoebe' : userProfile.username === 'jacky' ? 'Jacky' : '')
+        : (consultantFilter !== 'all' ? consultantFilter : undefined);
+
+      const shouldFetchCounts = needCountsRef.current;
+      needCountsRef.current = false; // reset
+
+      const result = await getCandidatesPage({
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        source: sourceFilter !== 'all' ? sourceFilter : undefined,
+        consultant: consultantParam || undefined,
+        job_id: jobFilter !== 'all' ? jobFilter : undefined,
+        search: debouncedSearch || undefined,
+        created_today: todayOnly || undefined,
+        include_counts: shouldFetchCounts,
+      });
+
+      // 用 startTransition 讓 table re-render 不阻塞互動
+      startTransition(() => {
+        setCandidates(result.data);
+        setFilteredCandidates(result.data);
+        setTotalCount(result.total);
+        setHasMore(result.pagination.hasMore);
+        if (result.statusCounts) setStatusCounts(result.statusCounts);
+        if (result.sourceCounts) setSourceCounts(result.sourceCounts);
+      });
+    } catch (error) {
+      console.error('載入候選人失敗:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // Socket.IO 即時更新：其他用戶修改候選人時自動更新畫面
   useEffect(() => {
@@ -91,102 +146,26 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
     return () => unsubscribe();
   }, []);
 
-  // 斷線重連後自動重新載入全部資料
+  // 斷線重連後自動重新載入當前頁
   useEffect(() => {
     const unsubReconnect = onReconnect(async () => {
       console.log('🔄 Socket 重連，重新載入候選人資料...');
       clearCache();
-      const allCandidates = await getCandidates(userProfile);
-      setCandidates(allCandidates);
+      fetchPage(currentPage);
     });
     return () => unsubReconnect();
-  }, [userProfile]);
-
-  const loadCandidates = async () => {
-    setLoading(true);
-    try {
-      // 傳入 userProfile，後端會自動過濾
-      const allCandidates = await getCandidates(userProfile);
-      setCandidates(allCandidates);
-    } catch (error) {
-      console.error('載入候選人失敗:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [userProfile, currentPage]);
   
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      // 清除快取，直接從 SQL 重新載入（SQL 是唯一資料來源）
       clearCache();
-      const allCandidates = await getCandidates(userProfile);
-      setCandidates(allCandidates);
+      await fetchPage(currentPage);
     } catch (error) {
       console.error('手動更新失敗:', error);
     } finally {
       setRefreshing(false);
     }
-  };
-  
-  const applyFilters = () => {
-    let filtered = [...candidates];
-    
-    // 搜尋
-    if (searchQuery.trim()) {
-      const lowerQuery = searchQuery.toLowerCase();
-      filtered = filtered.filter(c => {
-        // 處理 skills 可能是陣列或字串
-        const skillsStr = Array.isArray(c.skills) 
-          ? c.skills.join(' ') 
-          : (c.skills || '');
-        
-        return c.id.toString() === searchQuery.trim() ||
-               c.name.toLowerCase().includes(lowerQuery) ||
-               c.email.toLowerCase().includes(lowerQuery) ||
-               c.phone.includes(searchQuery) ||
-               c.position.toLowerCase().includes(lowerQuery) ||
-               skillsStr.toLowerCase().includes(lowerQuery);
-      });
-    }
-    
-    // 狀態篩選
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(c => c.status === statusFilter);
-    }
-    
-    // 來源篩選
-    if (sourceFilter !== 'all') {
-      filtered = filtered.filter(c => c.source === sourceFilter);
-    }
-    
-    // 顧問篩選
-    if (consultantFilter !== 'all') {
-      filtered = filtered.filter(c => c.consultant === consultantFilter);
-    }
-
-    // 職缺篩選（用 targetJobId 比對）
-    if (jobFilter !== 'all') {
-      filtered = filtered.filter(c =>
-        (c as any).targetJobId?.toString() === jobFilter
-      );
-    }
-
-    // 今日新增篩選（台北時間 YYYY-MM-DD）
-    if (todayOnly) {
-      const todayTW = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' }); // YYYY-MM-DD
-      filtered = filtered.filter(c => {
-        const dateStr = (c as any).auto_sourced_at || c.createdAt || '';
-        if (!dateStr) return false;
-        // 若是 UTC 格式（含 Z 或 +00:00），轉成台灣時區再比較
-        const localDate = (dateStr.endsWith('Z') || dateStr.includes('+00:00'))
-          ? new Date(dateStr).toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' })
-          : dateStr.slice(0, 10);
-        return localDate === todayTW;
-      });
-    }
-    
-    setFilteredCandidates(filtered);
   };
   
   const getStabilityColor = (score: number) => {
@@ -443,9 +422,8 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
               候選人總表
             </h1>
             <p className="text-gray-600 mt-1">
-              共 {filteredCandidates.length} 位候選人
-              {candidates.length !== filteredCandidates.length && ` (篩選自 ${candidates.length} 位)`}
-              <span className="text-gray-400 text-sm ml-2">· 資料快取 30 分鐘</span>
+              共 {totalCount} 位候選人
+              {totalCount > PAGE_SIZE && ` · 顯示第 ${currentPage * PAGE_SIZE + 1}-${Math.min((currentPage + 1) * PAGE_SIZE, totalCount)} 筆`}
             </p>
             {userProfile.role !== 'ADMIN' && (
               <p className="text-sm text-blue-600 mt-1 flex items-center gap-1">
@@ -553,7 +531,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
             {/* 狀態標籤組 */}
             <span className="text-[10px] text-gray-400 font-medium uppercase mr-1">狀態</span>
             <button
-              onClick={() => { setStatusFilter('all'); setTodayOnly(false); }}
+              onClick={() => { setStatusFilter('all'); setTodayOnly(false); setCurrentPage(0); }}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                 statusFilter === 'all' && !todayOnly
                   ? 'bg-gray-700 text-white shadow-sm'
@@ -562,12 +540,12 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
             >
               全部
               <span className={`rounded-full px-1.5 text-[10px] ${statusFilter === 'all' && !todayOnly ? 'bg-white bg-opacity-30' : 'bg-gray-300 text-gray-700'}`}>
-                {candidates.length}
+                {statusCounts._total || totalCount}
               </span>
             </button>
 
             {Object.entries(CANDIDATE_STATUS_CONFIG).map(([key, config]) => {
-              const count = candidates.filter(c => c.status === key).length;
+              const count = statusCounts[key] || 0;
               if (count === 0) return null;
               const isActive = statusFilter === key && !todayOnly;
               const activeColors: Record<string, string> = {
@@ -583,7 +561,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
               return (
                 <button
                   key={key}
-                  onClick={() => { setStatusFilter(key); setTodayOnly(false); }}
+                  onClick={() => { setStatusFilter(key); setTodayOnly(false); setCurrentPage(0); }}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                     isActive
                       ? (activeColors[key] || 'bg-gray-700 text-white') + ' shadow-sm'
@@ -604,13 +582,13 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
             {/* 來源標籤組 */}
             <span className="text-[10px] text-gray-400 font-medium uppercase mr-1">來源</span>
             {Object.entries(SOURCE_CONFIG).map(([key, config]) => {
-              const count = candidates.filter(c => c.source === key).length;
+              const count = sourceCounts[key] || 0;
               if (count === 0) return null;
               const isActive = sourceFilter === key;
               return (
                 <button
                   key={key}
-                  onClick={() => setSourceFilter(isActive ? 'all' : key)}
+                  onClick={() => { setSourceFilter(isActive ? 'all' : key); setCurrentPage(0); }}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                     isActive
                       ? 'bg-teal-600 text-white shadow-sm'
@@ -630,7 +608,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
 
             {/* 今日新增 */}
             <button
-              onClick={() => { setTodayOnly(!todayOnly); setStatusFilter('all'); }}
+              onClick={() => { setTodayOnly(!todayOnly); setStatusFilter('all'); setCurrentPage(0); }}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                 todayOnly
                   ? 'bg-green-600 text-white shadow-sm'
@@ -656,6 +634,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                   setConsultantFilter('all');
                   setJobFilter('all');
                   setTodayOnly(false);
+                  setCurrentPage(0);
                 }}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
               >
@@ -1128,6 +1107,58 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
             setSelectedCandidate(prev => prev && prev.id === candidateId ? { ...prev, ...updates } : prev);
           }}
         />
+      )}
+
+      {/* 分頁控制 */}
+      {totalCount > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <p className="text-sm text-gray-500">
+            第 {currentPage + 1} / {Math.ceil(totalCount / PAGE_SIZE)} 頁，共 {totalCount} 筆
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← 上一頁
+            </button>
+            {/* 頁碼快捷 */}
+            {Array.from({ length: Math.min(5, Math.ceil(totalCount / PAGE_SIZE)) }, (_, i) => {
+              const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+              let page: number;
+              if (totalPages <= 5) {
+                page = i;
+              } else if (currentPage < 3) {
+                page = i;
+              } else if (currentPage > totalPages - 4) {
+                page = totalPages - 5 + i;
+              } else {
+                page = currentPage - 2 + i;
+              }
+              return (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-8 h-8 text-sm rounded-lg ${
+                    page === currentPage
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {page + 1}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={!hasMore}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              下一頁 →
+            </button>
+          </div>
+        </div>
       )}
 
       {/* 新增候選人 Modal */}

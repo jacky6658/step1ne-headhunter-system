@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Candidate, CandidateStatus, ProgressEvent, UserProfile } from '../types';
 import { getCandidates, clearCache } from '../services/candidateService';
+import { apiGet } from '../config/api';
 import { CandidateModal } from '../components/CandidateModal';
 import { apiPut, getApiUrl, getAuthHeaders } from '../config/api';
 import { RefreshCw, Shield, Clock3, BarChart3, AlertTriangle, Download, Search, X, Trash2, Linkedin, Github, Star } from 'lucide-react';
@@ -246,11 +247,20 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
   } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
+  // 每欄顯示上限（Load More）
+  const CARDS_PER_STAGE = 20;
+  const [stageLimits, setStageLimits] = useState<Record<string, number>>({});
+  const getStageLimit = (key: string) => stageLimits[key] || CARDS_PER_STAGE;
+  const showMoreInStage = useCallback((key: string) => {
+    setStageLimits(prev => ({ ...prev, [key]: (prev[key] || CARDS_PER_STAGE) + CARDS_PER_STAGE }));
+  }, []);
+
   const loadCandidates = async () => {
     setLoading(true);
     try {
-      const data = await getCandidates(userProfile);
-      setCandidates(data);
+      // 使用輕量版 summary API（1 次 request，只回核心欄位）
+      const result = await apiGet<{ data: any[] }>('/candidates/summary');
+      setCandidates(result.data || []);
     } catch (error) {
       console.error('載入顧問人選追蹤表失敗:', error);
     } finally {
@@ -333,8 +343,8 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
     setRefreshing(true);
     try {
       clearCache();
-      const data = await getCandidates(userProfile);
-      setCandidates(data);
+      const result = await apiGet<{ data: any[] }>('/candidates/summary');
+      setCandidates(result.data || []);
       setToastMessage('✅ 顧問人選追蹤表已更新到最新資料');
     } catch (error) {
       console.error('重新整理顧問人選追蹤表失敗:', error);
@@ -947,8 +957,8 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                     <div className="text-center text-sm text-slate-400 py-8">
                       {searchQuery.trim() ? `找不到「${searchQuery}」` : '暫無候選人'}
                     </div>
-                  ) : (
-                    items.map((item) => (
+                  ) : (<>
+                    {items.slice(0, getStageLimit(stage.key)).map((item) => (
                       <div
                         key={item.candidate.id}
                         draggable
@@ -1121,8 +1131,16 @@ export function PipelinePage({ userProfile }: PipelinePageProps) {
                           )}
                         </div>
                       </div>
-                    ))
-                  )}
+                    ))}
+                    {items.length > getStageLimit(stage.key) && (
+                      <button
+                        onClick={() => showMoreInStage(stage.key)}
+                        className="w-full py-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        顯示更多（剩餘 {items.length - getStageLimit(stage.key)} 筆）
+                      </button>
+                    )}
+                  </>)}
                 </div>
               </div>
             );

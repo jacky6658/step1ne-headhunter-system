@@ -1,7 +1,30 @@
-// Step1ne Headhunter System - 候選人服務層
+// Step1ne Headhunter System - 候選人服務層（Server-Side Pagination）
 import { Candidate, CandidateStatus, CandidateSource } from '../types';
 import { STORAGE_KEYS_EXT, CACHE_EXPIRY } from '../constants';
 import { apiGet, apiPatch, apiPost } from '../config/api';
+
+// ── 分頁查詢介面 ──
+
+export interface CandidateQuery {
+  limit?: number;
+  offset?: number;
+  page?: number;
+  status?: string;
+  source?: string;
+  consultant?: string;
+  job_id?: string;
+  search?: string;
+  created_today?: boolean;
+  include_counts?: boolean;
+}
+
+export interface CandidatePageResult {
+  data: Candidate[];
+  total: number;
+  pagination: { limit: number; offset: number; hasMore: boolean };
+  statusCounts?: Record<string, number>;
+  sourceCounts?: Record<string, number>;
+}
 
 /**
  * 權限過濾：根據用戶角色過濾候選人
@@ -13,27 +36,63 @@ export function filterCandidatesByPermission(
   if (!userProfile) {
     return candidates;
   }
-  
+
   // 管理員看全部
   if (userProfile.role === 'ADMIN') {
     return candidates;
   }
-  
+
   // 獵頭顧問只看自己負責的候選人
-  const consultantName = userProfile.username === 'phoebe' ? 'Phoebe' : 
+  const consultantName = userProfile.username === 'phoebe' ? 'Phoebe' :
                          userProfile.username === 'jacky' ? 'Jacky' : '';
-  
+
   return candidates.filter(c => c.consultant === consultantName);
 }
 
 /**
- * 從 API 取得候選人（並行分頁，快速載入全部）
- * 第一頁取得 total 後，剩餘頁 Promise.all 並行撈取
+ * Server-side 分頁查詢（新版：只拉一頁，篩選在後端做）
+ */
+export async function getCandidatesPage(query: CandidateQuery = {}): Promise<CandidatePageResult> {
+  const params = new URLSearchParams();
+  params.set('limit', String(query.limit || 50));
+  params.set('offset', String(query.offset || 0));
+  if (query.status && query.status !== 'all') params.set('status', query.status);
+  if (query.source && query.source !== 'all') params.set('source', query.source);
+  if (query.consultant && query.consultant !== 'all') params.set('consultant', query.consultant);
+  if (query.job_id && query.job_id !== 'all') params.set('job_id', query.job_id);
+  if (query.search) params.set('search', query.search);
+  if (query.created_today) params.set('created_today', 'true');
+  if (query.include_counts) params.set('include_counts', 'true');
+
+  const result = await apiGet<{
+    success: boolean;
+    data: any[];
+    total: number;
+    pagination: { limit: number; offset: number; hasMore: boolean };
+    statusCounts?: Record<string, number>;
+    sourceCounts?: Record<string, number>;
+  }>(`/candidates?${params.toString()}`);
+
+  const data = (result.data || []).map((c: any) => ({
+    ...c,
+    aiMatchResult: c.ai_match_result || c.aiMatchResult || null
+  }));
+
+  return {
+    data,
+    total: result.total || 0,
+    pagination: result.pagination || { limit: 50, offset: 0, hasMore: false },
+    statusCounts: result.statusCounts || undefined,
+    sourceCounts: result.sourceCounts || undefined,
+  };
+}
+
+/**
+ * 從 API 取得全部候選人（舊版 — 保留給龍蝦 AI Agent 批量操作用）
  */
 export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
   const PAGE_SIZE = 500;
 
-  // 第一頁：取得資料 + total 數量
   const firstResult = await apiGet<{
     success: boolean;
     data: any[];
@@ -49,12 +108,10 @@ export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
   const allCandidates = mapPage(firstResult.data);
   const total = firstResult.total || allCandidates.length;
 
-  // 如果第一頁就撈完了，直接回傳
   if (allCandidates.length >= total) {
     return allCandidates;
   }
 
-  // 剩餘頁並行撈取
   const remainingPages: Promise<any>[] = [];
   for (let offset = PAGE_SIZE; offset < total; offset += PAGE_SIZE) {
     remainingPages.push(
@@ -71,18 +128,18 @@ export async function getCandidates(userProfile?: any): Promise<Candidate[]> {
 }
 
 /**
- * 搜尋候選人
+ * 搜尋候選人（舊版保留）
  */
 export async function searchCandidates(query: string): Promise<Candidate[]> {
   const allCandidates = await getCandidates();
-  
+
   if (!query.trim()) {
     return allCandidates;
   }
-  
+
   const lowerQuery = query.toLowerCase();
-  
-  return allCandidates.filter(c => 
+
+  return allCandidates.filter(c =>
     c.name.toLowerCase().includes(lowerQuery) ||
     c.email.toLowerCase().includes(lowerQuery) ||
     c.phone.includes(query) ||
@@ -139,110 +196,4 @@ export async function syncFromSheets(): Promise<{ success: boolean; message: str
 export function clearCache(): void {
   localStorage.removeItem(STORAGE_KEYS_EXT.CANDIDATES_CACHE);
   localStorage.removeItem(STORAGE_KEYS_EXT.LAST_SYNC);
-}
-
-/**
- * Mock 資料（示範用）
- * 真實資料會從 Google Sheets 履歷池v2 讀取
- */
-function getMockCandidates(): Candidate[] {
-  return [
-    {
-      id: 'candidate-228',
-      name: '陳宥樺',
-      email: 'thisbigsister@gmail.com',
-      phone: '(+1)778-926-4272',
-      location: '加拿大',
-      position: '雙語文件管理師 | 專案行政專家',
-      years: 9.7,
-      jobChanges: 5,
-      avgTenure: 1.9,
-      lastGap: 1,
-      skills: '雙語文件處理 | 英文讀寫 | MS Office | Google Workspace | Trello | Slack | CRM系統 | 文件管理 | 專案行政 | 跨部門溝通',
-      education: '國立臺中科技大學 休閒事業經營系 學士 (2009-2013)',
-      source: CandidateSource.GMAIL,
-      workHistory: [
-        {
-          company: 'Quality Inn & Suites Thunder Bay Downtown',
-          title: '客務主管 (Guest Service Supervisor)',
-          start: '2023-11',
-          end: '2026-02',
-          duration_months: 28,
-          location: '加拿大，安大略省，雷灣'
-        },
-        {
-          company: 'SRS Windows And Doors Inc.',
-          title: '資料輸入專員 (Data Entry Clerk)',
-          start: '2023-03',
-          end: '2023-10',
-          duration_months: 8,
-          location: '加拿大，安大略省，雷灣'
-        }
-      ],
-      stabilityScore: 44,
-      educationJson: [
-        {
-          school: '國立臺中科技大學',
-          degree: '學士',
-          major: '休閒事業經營系',
-          start: '2009',
-          end: '2013'
-        }
-      ],
-      status: CandidateStatus.NOT_STARTED,
-      consultant: 'Jacky',
-      notes: 'CELPIP 7分 | 具備加拿大工作經驗',
-      createdAt: '2026-02-23T13:00:00Z',
-      updatedAt: '2026-02-23T13:00:00Z',
-      createdBy: 'system',
-      _sheetRow: 228
-    },
-    // 更多 mock 資料...
-    {
-      id: 'candidate-227',
-      name: '張大明',
-      email: 'zhang@example.com',
-      phone: '0912-345-678',
-      location: '台北市',
-      position: '資深前端工程師',
-      years: 5.5,
-      jobChanges: 3,
-      avgTenure: 1.8,
-      lastGap: 2,
-      skills: 'React, TypeScript, Next.js, Tailwind CSS, Node.js, Git',
-      education: '國立台灣大學 資訊工程系 學士',
-      source: CandidateSource.LINKEDIN,
-      stabilityScore: 68,
-      status: CandidateStatus.INTERVIEWED,
-      consultant: 'Phoebe',
-      notes: '熟悉現代前端技術棧，有帶團隊經驗',
-      createdAt: '2026-02-20T10:00:00Z',
-      updatedAt: '2026-02-22T15:30:00Z',
-      createdBy: 'system',
-      _sheetRow: 227
-    },
-    {
-      id: 'candidate-226',
-      name: '李小華',
-      email: 'lee@example.com',
-      phone: '0987-654-321',
-      location: '新竹市',
-      position: 'DevOps 工程師',
-      years: 7.2,
-      jobChanges: 2,
-      avgTenure: 3.6,
-      lastGap: 0,
-      skills: 'Kubernetes, Docker, AWS, GCP, CI/CD, Terraform, Python',
-      education: '交通大學 資訊工程系 碩士',
-      source: CandidateSource.GITHUB,
-      stabilityScore: 85,
-      status: CandidateStatus.OFFER,
-      consultant: 'Jacky',
-      notes: '目前在科技公司任職，尋求更好發展機會',
-      createdAt: '2026-02-18T09:00:00Z',
-      updatedAt: '2026-02-23T11:00:00Z',
-      createdBy: 'system',
-      _sheetRow: 226
-    }
-  ];
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfile, Candidate } from '../types';
 import { getApiUrl, getAuthHeaders } from '../config/api';
 import { onCandidateChange, onReconnect } from '../services/socketService';
@@ -95,24 +95,10 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const PAGE_SIZE = 500;
-      const firstRes = await fetch(getApiUrl(`/candidates?limit=${PAGE_SIZE}&offset=0`), { headers: getAuthHeaders() });
-      const firstJson = await firstRes.json();
-      let allCandidates: any[] = firstJson.data || firstJson.candidates || [];
-      const total = firstJson.total || allCandidates.length;
-
-      if (allCandidates.length < total) {
-        const fetches: Promise<Response>[] = [];
-        for (let off = PAGE_SIZE; off < total; off += PAGE_SIZE) {
-          fetches.push(fetch(getApiUrl(`/candidates?limit=${PAGE_SIZE}&offset=${off}`), { headers: getAuthHeaders() }));
-        }
-        const responses = await Promise.all(fetches);
-        const jsons = await Promise.all(responses.map(r => r.json()));
-        for (const d of jsons) {
-          allCandidates.push(...(d.data || d.candidates || []));
-        }
-      }
-      setCandidates(allCandidates);
+      // 使用輕量版 summary API（1 次 request，只回核心欄位）
+      const res = await fetch(getApiUrl('/candidates/summary'), { headers: getAuthHeaders() });
+      const json = await res.json();
+      setCandidates(json.data || []);
     } catch (e) {
       console.error('TalentBoard fetch error:', e);
     }
@@ -218,6 +204,14 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
   }, [filtered, boardMode, columns]);
 
   const activeFilters = [filterGrade, filterHeat, filterConsultant].filter(Boolean).length + (filterPrecisionOnly ? 1 : 0) + (filterAlmostReady ? 1 : 0);
+
+  // 每欄顯示上限（Load More 機制）
+  const CARDS_PER_PAGE = 20;
+  const [columnLimits, setColumnLimits] = useState<Record<string, number>>({});
+  const getColumnLimit = (key: string) => columnLimits[key] || CARDS_PER_PAGE;
+  const showMoreInColumn = useCallback((key: string) => {
+    setColumnLimits(prev => ({ ...prev, [key]: (prev[key] || CARDS_PER_PAGE) + CARDS_PER_PAGE }));
+  }, []);
 
   // Count "almost ready" candidates for badge display
   const almostReadyCount = useMemo(() => {
@@ -525,15 +519,23 @@ export function TalentBoardPage({ userProfile }: TalentBoardPageProps) {
                   <div className="flex-1 overflow-y-auto p-2 space-y-2 max-h-[calc(100vh-220px)]">
                     {items.length === 0 ? (
                       <p className="text-xs text-gray-400 text-center py-8">暫無人選</p>
-                    ) : (
-                      items.map(c => (
+                    ) : (<>
+                      {items.slice(0, getColumnLimit(col.key)).map(c => (
                         <TalentCard
                           key={c.id}
                           candidate={c}
                           onClick={setSelectedCandidate}
                         />
-                      ))
-                    )}
+                      ))}
+                      {items.length > getColumnLimit(col.key) && (
+                        <button
+                          onClick={() => showMoreInColumn(col.key)}
+                          className="w-full py-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          顯示更多（剩餘 {items.length - getColumnLimit(col.key)} 筆）
+                        </button>
+                      )}
+                    </>)}
                   </div>
                 </div>
               );

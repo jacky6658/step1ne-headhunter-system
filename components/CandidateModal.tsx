@@ -15,7 +15,7 @@ import {
   CheckCircle2, AlertCircle, Bot, Star, ThumbsUp, ThumbsDown,
   HelpCircle, Sparkles, Target, Globe, Trash2, Brain, Copy, ChevronDown,
   Download, Eye, Upload, ChevronRight, AlertTriangle, Building2, Hash, BookOpen,
-  BarChart3, Lightbulb
+  BarChart3, Lightbulb, MessageCircle
 } from 'lucide-react';
 
 // ── 系統外職缺建議：rule-based 技能→產業/職缺對照 ──────────────────────────
@@ -4262,6 +4262,85 @@ ${cDealBreakers ? `• ⛔ 不接受條件：${cDealBreakers}\n  → 注意！�
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* ②-B 顧問必問清單 */}
+                {analysis.consultant_questions?.questions?.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => {
+                        const el = document.getElementById('cq-collapse');
+                        if (el) el.classList.toggle('hidden');
+                      }}
+                      className="w-full px-4 py-3 bg-gradient-to-r from-teal-50 to-cyan-50 flex items-center justify-between hover:from-teal-100 hover:to-cyan-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4 text-teal-600" />
+                        <span className="font-medium text-sm">顧問必問清單</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                          {analysis.consultant_questions.questions.length} 題
+                        </span>
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    </button>
+                    <div id="cq-collapse" className="p-4 space-y-2">
+                      {analysis.consultant_questions.purpose && (
+                        <p className="text-xs text-gray-500 italic mb-3">{analysis.consultant_questions.purpose}</p>
+                      )}
+                      {analysis.consultant_questions.questions.map((q: any) => (
+                        <details key={q.number} className="bg-gray-50 rounded-lg group">
+                          <summary className="px-3 py-2.5 cursor-pointer flex items-start gap-2 hover:bg-gray-100 rounded-lg transition-colors">
+                            <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5 ${
+                              q.related_jobs?.length > 0
+                                ? 'bg-violet-100 text-violet-700'
+                                : 'bg-teal-100 text-teal-700'
+                            }`}>{q.number}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-gray-800 font-medium leading-snug">{q.question}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                  q.related_jobs?.length > 0
+                                    ? 'bg-violet-50 text-violet-600'
+                                    : 'bg-teal-50 text-teal-600'
+                                }`}>
+                                  {q.related_jobs?.length > 0 ? '職缺探測' : '通用背景'}
+                                </span>
+                                {q.related_jobs?.map((rj: any) => (
+                                  <span key={rj.job_id} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">
+                                    #{rj.job_id} {rj.job_title}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </summary>
+                          <div className="px-3 pb-3 pt-1 ml-7 space-y-2 text-xs">
+                            <div className="bg-white rounded p-2 space-y-1.5">
+                              <p><span className="font-medium text-teal-700">為什麼問：</span><span className="text-gray-700">{q.why_ask}</span></p>
+                              {q.trust_signal && (
+                                <p><span className="font-medium text-blue-700">信任訊號：</span><span className="text-gray-700">{q.trust_signal}</span></p>
+                              )}
+                              {q.good_answer_hint && (
+                                <p><span className="font-medium text-emerald-700">好回答：</span><span className="text-gray-600">{q.good_answer_hint}</span></p>
+                              )}
+                              {q.red_flag && (
+                                <p><span className="font-medium text-red-600">⚠️ 警訊：</span><span className="text-gray-600">{q.red_flag}</span></p>
+                              )}
+                            </div>
+                            {q.related_jobs?.length > 0 && (
+                              <div className="space-y-1">
+                                {q.related_jobs.map((rj: any) => (
+                                  <div key={rj.job_id} className="bg-violet-50 rounded p-2 text-xs">
+                                    <span className="font-medium text-violet-700">{rj.job_title}：</span>
+                                    <span className="text-gray-700">{rj.if_answer}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </details>
+                      ))}
+                    </div>
                   </div>
                 )}
 
