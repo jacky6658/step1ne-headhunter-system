@@ -35,6 +35,8 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,       // 閒置 30 秒後釋放
   connectionTimeoutMillis: 10000, // 等超過 10 秒就報錯
   allowExitOnIdle: true,
+  statement_timeout: 30000,       // 單一 query 最多跑 30 秒（VACUUM 後大 query 約需 2-5 秒，留足餘量）
+  query_timeout: 30000,           // pg driver 層面的 query timeout
 });
 
 // 連線事件日誌

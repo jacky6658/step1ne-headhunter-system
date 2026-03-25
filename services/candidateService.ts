@@ -63,6 +63,7 @@ export async function getCandidatesPage(query: CandidateQuery = {}): Promise<Can
   if (query.search) params.set('search', query.search);
   if (query.created_today) params.set('created_today', 'true');
   if (query.include_counts) params.set('include_counts', 'true');
+  params.set('fields', 'light'); // 列表頁只需輕量欄位
 
   const result = await apiGet<{
     success: boolean;

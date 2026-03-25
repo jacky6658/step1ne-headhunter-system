@@ -15,6 +15,31 @@ const { pool, withClient } = require('./db'); // 共享連線池 + 安全 helper
 const { safeError } = require('./safeError');
 const { isForeignName } = require('./foreignNameFilter');
 
+// ── Response Cache（避免重複查詢打爆 DB）──
+const _cache = new Map();
+const CACHE_TTL = 30000; // 30 秒
+
+function cacheGet(key) {
+  const entry = _cache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) { _cache.delete(key); return null; }
+  return entry.data;
+}
+
+function cacheSet(key, data) {
+  _cache.set(key, { data, ts: Date.now() });
+  if (_cache.size > 200) {
+    const oldest = _cache.keys().next().value;
+    _cache.delete(oldest);
+  }
+}
+
+function cacheClear(prefix) {
+  for (const key of _cache.keys()) {
+    if (key.startsWith(prefix)) _cache.delete(key);
+  }
+}
+
 /**
  * 根據請求的 Host header 動態替換 guide 文件中的 API base URL
  * 讓同一份 guide 在外網 (Cloudflare Tunnel) 和本機 (localhost) 都能正確運作
@@ -64,164 +89,23 @@ router.param('id', (req, _res, next, value) => {
   next();
 });
 
-// 確保 progress_tracking 欄位存在
-pool.query(`
-  ALTER TABLE candidates_pipeline
-  ADD COLUMN IF NOT EXISTS progress_tracking JSONB DEFAULT '[]'
-`).catch(err => console.warn('progress_tracking migration:', err.message));
+// ── 啟動 Migration（已穩定的 schema，只在首次部署時需要）──
+// 這些 column 已經存在於生產 DB，不需要每次啟動都跑 ALTER TABLE
+// 如果需要新增 column，手動跑一次 psql 即可
+// pool.query('ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...')
+console.log('⏭️  Skipping startup migrations (schema already stable)');
 
-// 確保 linkedin_url / github_url / email 欄位存在
-pool.query(`
-  ALTER TABLE candidates_pipeline
-  ADD COLUMN IF NOT EXISTS linkedin_url VARCHAR(500),
-  ADD COLUMN IF NOT EXISTS github_url VARCHAR(500),
-  ADD COLUMN IF NOT EXISTS email VARCHAR(255)
-`).catch(err => console.warn('linkedin_url/github_url/email migration:', err.message));
+// ── 以下 CREATE TABLE / ALTER TABLE migrations 已穩定，不需每次啟動執行 ──
+// 如需新增 table/column，手動跑 psql 一次即可
+// system_logs, user_contacts — 已存在
 
-// 確保 ai_match_result 欄位存在
-pool.query(`
-  ALTER TABLE candidates_pipeline
-  ADD COLUMN IF NOT EXISTS ai_match_result JSONB
-`).catch(err => console.warn('ai_match_result migration:', err.message));
+// users, user_contacts, system_config, candidate_job_rankings_cache — 已存在
 
-// 確保職缺卡片搜尋欄位存在（爬蟲多維度搜尋用）
-pool.query(`
-  ALTER TABLE jobs_pipeline
-  ADD COLUMN IF NOT EXISTS target_companies TEXT,
-  ADD COLUMN IF NOT EXISTS title_variants TEXT,
-  ADD COLUMN IF NOT EXISTS exclusion_keywords TEXT
-`).catch(err => console.warn('jobs search fields migration:', err.message));
+// prompt_library, prompt_votes — 已存在
 
-// 確保 OpenClaw 分析欄位存在
-pool.query(`
-  ALTER TABLE candidates_pipeline
-  ADD COLUMN IF NOT EXISTS ai_score INTEGER,
-  ADD COLUMN IF NOT EXISTS ai_grade VARCHAR(10),
-  ADD COLUMN IF NOT EXISTS ai_report TEXT,
-  ADD COLUMN IF NOT EXISTS ai_recommendation VARCHAR(50)
-`).catch(err => console.warn('openclaw columns migration:', err.message));
-
-// 確保 system_logs 資料表存在
-pool.query(`
-  CREATE TABLE IF NOT EXISTS system_logs (
-    id SERIAL PRIMARY KEY,
-    action VARCHAR(50) NOT NULL,
-    actor VARCHAR(100) NOT NULL,
-    actor_type VARCHAR(10) NOT NULL DEFAULT 'HUMAN',
-    candidate_id INTEGER,
-    candidate_name VARCHAR(255),
-    detail JSONB,
-    created_at TIMESTAMP DEFAULT NOW()
-  )
-`).catch(err => console.warn('system_logs migration:', err.message));
-
-// 確保 user_contacts 資料表存在
-pool.query(`
-  CREATE TABLE IF NOT EXISTS user_contacts (
-    display_name VARCHAR(100) PRIMARY KEY,
-    contact_phone VARCHAR(50),
-    contact_email VARCHAR(255),
-    line_id VARCHAR(100),
-    telegram_handle VARCHAR(100),
-    updated_at TIMESTAMP DEFAULT NOW()
-  )
-`).catch(err => console.warn('user_contacts migration:', err.message));
-
-// 確保 users 資料表存在（多裝置用戶同步）
-pool.query(`
-  CREATE TABLE IF NOT EXISTS users (
-    uid VARCHAR(100) PRIMARY KEY,
-    display_name VARCHAR(100) UNIQUE NOT NULL,
-    email VARCHAR(255) DEFAULT '',
-    password VARCHAR(255) NOT NULL,
-    role VARCHAR(20) DEFAULT 'REVIEWER',
-    is_active BOOLEAN DEFAULT true,
-    avatar TEXT DEFAULT '',
-    status VARCHAR(50) DEFAULT '',
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-  )
-`).then(() => {
-  // Seed 預設用戶（ON CONFLICT DO NOTHING 防重複）
-  const defaultUsers = [
-    ['admin', 'Admin', 'admin@caseflow.internal', 'admin123', 'ADMIN'],
-    ['phoebe', 'Phoebe', 'phoebe@caseflow.internal', 'phoebe123', 'REVIEWER'],
-    ['jacky', 'Jacky', 'jacky@caseflow.internal', 'jacky123', 'REVIEWER'],
-    ['jim', 'Jim', 'jim@caseflow.internal', 'jim123', 'REVIEWER'],
-  ];
-  for (const [uid, displayName, email, password, role] of defaultUsers) {
-    pool.query(
-      `INSERT INTO users (uid, display_name, email, password, role, is_active)
-       VALUES ($1, $2, $3, $4, $5, true)
-       ON CONFLICT (uid) DO NOTHING`,
-      [uid, displayName, email, password, role]
-    ).catch(() => {});
-  }
-  console.log('✅ users 表已就緒（含預設用戶）');
-}).catch(err => console.warn('users migration:', err.message));
-
-// 確保 TG 通知欄位存在（telegram_bot_token + telegram_chat_id）
-pool.query(`
-  ALTER TABLE user_contacts
-  ADD COLUMN IF NOT EXISTS telegram_bot_token VARCHAR(500),
-  ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(100)
-`).catch(err => console.warn('telegram columns migration:', err.message));
-
-// 確保系統級 TG 群組設定存在
-pool.query(`
-  CREATE TABLE IF NOT EXISTS system_config (
-    key VARCHAR(100) PRIMARY KEY,
-    value TEXT,
-    updated_at TIMESTAMP DEFAULT NOW()
-  )
-`).then(() => {
-  // 預設空值，管理員可在 ProfileSettings 裡設定
-  pool.query(`
-    INSERT INTO system_config (key, value) VALUES ('telegram_group_chat_id', '')
-    ON CONFLICT (key) DO NOTHING
-  `).catch(() => {});
-  pool.query(`
-    INSERT INTO system_config (key, value) VALUES ('telegram_group_bot_token', '')
-    ON CONFLICT (key) DO NOTHING
-  `).catch(() => {});
-}).catch(err => console.warn('system_config migration:', err.message));
-
-// 確保 candidate_job_rankings_cache 資料表存在（職缺匹配推薦 v2 快取）
-pool.query(`
-  CREATE TABLE IF NOT EXISTS candidate_job_rankings_cache (
-    candidate_id INTEGER NOT NULL PRIMARY KEY,
-    rankings JSONB NOT NULL,
-    computed_at TIMESTAMP DEFAULT NOW()
-  )
-`).catch(err => console.warn('candidate_job_rankings_cache migration:', err.message));
-
-// ── 提示詞資料庫（需依序建立，votes 有 FK 依賴 library）──
-pool.query(`
-  CREATE TABLE IF NOT EXISTS prompt_library (
-    id SERIAL PRIMARY KEY,
-    category VARCHAR(50) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL,
-    author VARCHAR(100) NOT NULL,
-    is_pinned BOOLEAN DEFAULT FALSE,
-    upvote_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-  )
-`).then(() => {
-  pool.query(`
-    CREATE TABLE IF NOT EXISTS prompt_votes (
-      id SERIAL PRIMARY KEY,
-      prompt_id INTEGER NOT NULL REFERENCES prompt_library(id) ON DELETE CASCADE,
-      voter VARCHAR(100) NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(prompt_id, voter)
-    )
-  `).catch(err => console.warn('prompt_votes migration:', err.message));
-  pool.query(`CREATE INDEX IF NOT EXISTS idx_prompt_lib_category ON prompt_library(category)`).catch(() => {});
-  pool.query(`CREATE INDEX IF NOT EXISTS idx_prompt_lib_pinned ON prompt_library(is_pinned)`).catch(() => {});
-}).catch(err => console.warn('prompt_library migration:', err.message));
-
+// ── 所有啟動 migration/seed 已停用（schema 已穩定）──
+// 如需執行一次性 migration，把下面的 if(false) 改成 if(true)
+if (false) {
 // Seed: AI 顧問分析提示詞（idempotent）
 pool.query(`
   INSERT INTO prompt_library (category, title, content, author, is_pinned)
@@ -843,6 +727,7 @@ pool.query(`
   pool.query(`CREATE INDEX IF NOT EXISTS idx_interactions_candidate ON interactions(candidate_id)`).catch(() => {});
   pool.query(`CREATE INDEX IF NOT EXISTS idx_interactions_next_action ON interactions(next_action_date) WHERE next_action_date IS NOT NULL`).catch(() => {});
 }).catch(err => console.warn('interactions table migration:', err.message));
+} // end if(false) - startup migrations disabled
 
 // Telegram 發送輔助函數
 async function sendTelegram(botToken, chatId, text) {
@@ -1104,12 +989,19 @@ router.get('/candidates/summary', async (req, res) => {
 
 router.get('/candidates', async (req, res) => {
   try {
+    // Response cache：同一組查詢參數 30 秒內回快取
+    const cacheKey = `candidates:${JSON.stringify(req.query)}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) return res.json(cached);
+
     const client = await pool.connect();
     try {
 
     // 支援查詢參數篩選
     const { status, source, limit: rawLimit, offset: rawOffset, page, created_today,
-            search, consultant, job_id, include_counts } = req.query;
+            search, consultant, job_id, include_counts,
+            updated_after, cursor_id, fields } = req.query;
+    const lightMode = fields === 'light';
     const conditions = [];
     const params = [];
 
@@ -1132,17 +1024,31 @@ router.get('/candidates', async (req, res) => {
     if (created_today === 'true') {
       conditions.push(`DATE(c.created_at AT TIME ZONE 'Asia/Taipei') = DATE(NOW() AT TIME ZONE 'Asia/Taipei')`);
     }
+    // cursor-based pagination：用 id 做 cursor，比 OFFSET 快
+    if (cursor_id) {
+      params.push(parseInt(cursor_id));
+      conditions.push(`c.id > $${params.length}`);
+    }
+    // 時間範圍過濾：updated_after=2026-03-25 或 ISO timestamp
+    if (updated_after) {
+      params.push(updated_after);
+      conditions.push(`c.updated_at >= $${params.length}::timestamptz`);
+    }
     if (search && search.trim()) {
-      const searchParam = `%${search.trim().toLowerCase()}%`;
-      params.push(searchParam);
+      const searchTrimmed = search.trim().toLowerCase();
+      const searchLike = `%${searchTrimmed}%`;
+      params.push(searchLike);
       const si = params.length;
+      // ID 精確比對用另一個參數（不帶 %）
+      params.push(searchTrimmed);
+      const si2 = params.length;
       conditions.push(`(
         LOWER(c.name) LIKE $${si} OR
         LOWER(c.email) LIKE $${si} OR
         c.phone LIKE $${si} OR
         LOWER(c.current_position) LIKE $${si} OR
         LOWER(COALESCE(c.skills, '')) LIKE $${si} OR
-        c.id::text = $${si}
+        c.id::text = $${si2}
       )`);
     }
 
@@ -1179,7 +1085,9 @@ router.get('/candidates', async (req, res) => {
         const sp = `%${search.trim().toLowerCase()}%`;
         countParams.push(sp);
         const si = countParams.length;
-        countConditions.push(`(LOWER(c.name) LIKE $${si} OR LOWER(c.email) LIKE $${si} OR c.phone LIKE $${si} OR LOWER(c.current_position) LIKE $${si} OR LOWER(COALESCE(c.skills, '')) LIKE $${si} OR c.id::text = $${si})`);
+        countParams.push(search.trim().toLowerCase());
+        const si2 = countParams.length;
+        countConditions.push(`(LOWER(c.name) LIKE $${si} OR LOWER(c.email) LIKE $${si} OR c.phone LIKE $${si} OR LOWER(c.current_position) LIKE $${si} OR LOWER(COALESCE(c.skills, '')) LIKE $${si} OR c.id::text = $${si2})`);
       }
       const countWhere = countConditions.length > 0 ? `WHERE ${countConditions.join(' AND ')}` : '';
       const scResult = await client.query(
@@ -1206,8 +1114,19 @@ router.get('/candidates', async (req, res) => {
     dataParams.push(parsedOffset);
     const offsetIdx = dataParams.length;
 
-    const result = await client.query(`
-      SELECT
+    // light mode: 列表頁只需要基本欄位（減少 80% response size）
+    const selectFields = lightMode ? `
+        c.id, c.name, c.phone, c.email, c.location, c.current_position,
+        c.years_experience, c.skills, c.education, c.source, c.status,
+        c.recruiter, c.talent_level, c.target_job_id, c.ai_grade, c.ai_score,
+        c.current_title, c.current_company, c.canonical_role, c.industry_tag,
+        c.grade_level, c.heat_level, c.precision_eligible,
+        c.job_search_status_enum, c.notice_period_enum,
+        c.age, c.gender, c.interview_round,
+        c.created_at, c.updated_at,
+        jsonb_array_length(COALESCE(c.resume_files, '[]'::jsonb)) AS resume_count,
+        j.position_name AS target_job_label, j.client_company AS target_job_company
+    ` : `
         c.id, c.name, c.contact_link, c.phone, c.email,
         c.linkedin_url, c.github_url, c.location, c.current_position,
         c.years_experience, c.job_changes, c.avg_tenure_months, c.recent_gap_months,
@@ -1240,6 +1159,10 @@ router.get('/candidates', async (req, res) => {
         FROM jsonb_array_elements(COALESCE(c.resume_files, '[]'::jsonb)) elem
         ) AS resume_files,
         j.position_name AS target_job_label, j.client_company AS target_job_company
+    `;
+
+    const result = await client.query(`
+      SELECT ${selectFields}
       FROM candidates_pipeline c
       LEFT JOIN jobs_pipeline j ON j.id = c.target_job_id
       ${whereClause}
@@ -1247,8 +1170,42 @@ router.get('/candidates', async (req, res) => {
       LIMIT $${limitIdx} OFFSET $${offsetIdx}
     `, dataParams);
 
-    const candidates = result.rows.map(row => ({
-      // 基本必需欄位（Candidate interface）
+    const candidates = result.rows.map(row => lightMode ? ({
+      // Light mode: 列表頁最小欄位集
+      id: row.id.toString(),
+      name: row.name || '',
+      email: row.email || '',
+      phone: row.phone || '',
+      location: row.location || '',
+      position: row.current_position || '',
+      currentTitle: row.current_title || row.current_position || '',
+      currentCompany: row.current_company || '',
+      years: (() => { const v = parseInt(row.years_experience); return (!isNaN(v) && v > 0 && v <= 60) ? v : 0; })(),
+      skills: row.skills || '',
+      education: row.education || '',
+      source: row.source || '其他',
+      status: row.status || '未開始',
+      consultant: row.recruiter || '待指派',
+      talent_level: row.talent_level || '',
+      targetJobId: row.target_job_id || null,
+      targetJobLabel: row.target_job_label ? `${row.target_job_label}${row.target_job_company ? ` (${row.target_job_company})` : ''}` : null,
+      aiGrade: row.ai_grade || '',
+      aiScore: row.ai_score != null ? row.ai_score : null,
+      canonicalRole: row.canonical_role || '',
+      industryTag: row.industry_tag || '',
+      gradeLevel: row.grade_level || '',
+      heatLevel: row.heat_level || '',
+      precisionEligible: row.precision_eligible || false,
+      jobSearchStatusEnum: row.job_search_status_enum || '',
+      noticePeriodEnum: row.notice_period_enum || '',
+      age: row.age != null ? parseInt(row.age) : null,
+      gender: row.gender || '',
+      interviewRound: row.interview_round || null,
+      hasResume: (row.resume_count || 0) > 0,
+      createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+      updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+    }) : ({
+      // Full mode: 完整欄位（向後相容）
       id: row.id.toString(),
       name: row.name || '',
       email: row.email || '',
@@ -1392,7 +1349,7 @@ router.get('/candidates', async (req, res) => {
       precisionEligible: row.precision_eligible || false,
     }));
 
-    res.json({
+    const response = {
       success: true,
       data: candidates,
       count: candidates.length,
@@ -1404,7 +1361,9 @@ router.get('/candidates', async (req, res) => {
       },
       ...(statusCounts && { statusCounts }),
       ...(sourceCounts && { sourceCounts })
-    });
+    };
+    cacheSet(cacheKey, response);
+    res.json(response);
     } finally {
       client.release();
     }
@@ -3053,59 +3012,49 @@ router.get('/imports/:id', async (req, res) => {
  */
 router.get('/jobs', async (req, res) => {
   try {
+    const cacheKey = `jobs:${JSON.stringify(req.query)}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) return res.json(cached);
+
     const client = await pool.connect();
     try {
+    // 支援 server-side 過濾
+    const { status, limit, search } = req.query;
+    const conditions = [];
+    const params = [];
+    let idx = 1;
+
+    if (status) {
+      conditions.push(`job_status = $${idx++}`);
+      params.push(status);
+    }
+    if (search) {
+      conditions.push(`(position_name ILIKE $${idx} OR client_company ILIKE $${idx})`);
+      params.push(`%${search}%`);
+      idx++;
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limitN = Math.min(parseInt(limit) || 200, 1000);
+
+    // 列表不回傳大文字欄位（job_description, company_profile 等），用 /jobs/:id 取詳情
     const result = await client.query(`
       SELECT
-        id,
-        position_name,
-        client_company,
-        department,
-        open_positions,
-        salary_range,
-        key_skills,
-        experience_required,
-        education_required,
-        location,
-        job_status,
-        language_required,
-        special_conditions,
-        industry_background,
-        team_size,
-        key_challenges,
-        attractive_points,
-        recruitment_difficulty,
-        interview_process,
-        consultant_notes,
-        job_description,
-        marketing_description,
-        company_profile,
-        talent_profile,
-        search_primary,
-        search_secondary,
-        welfare_tags,
-        welfare_detail,
-        work_hours,
-        vacation_policy,
-        remote_work,
-        business_trip,
-        job_url,
-        submission_criteria,
-        interview_stages,
-        interview_stage_detail,
-        priority,
-        salary_min,
-        salary_max,
-        rejection_criteria,
-        target_companies,
-        title_variants,
-        exclusion_keywords,
-        created_at,
-        updated_at
+        id, position_name, client_company, department, open_positions,
+        salary_range, key_skills, experience_required, education_required,
+        location, job_status, language_required, special_conditions,
+        industry_background, team_size, recruitment_difficulty,
+        interview_stages, priority, salary_min, salary_max,
+        remote_work, job_url, target_companies, title_variants,
+        created_at, updated_at
       FROM jobs_pipeline
-      ORDER BY created_at DESC
-      LIMIT 1000
-    `);
+      ${where}
+      ORDER BY
+        CASE WHEN job_status = '招募中' THEN 0 ELSE 1 END,
+        priority DESC NULLS LAST,
+        created_at DESC
+      LIMIT ${limitN}
+    `, params);
 
     const jobs = result.rows.map(row => ({
       id: row.id,
@@ -3156,11 +3105,9 @@ router.get('/jobs', async (req, res) => {
       updatedAt: row.updated_at
     }));
 
-    res.json({
-      success: true,
-      data: jobs,
-      count: jobs.length
-    });
+    const response = { success: true, data: jobs, count: jobs.length };
+    cacheSet(cacheKey, response);
+    res.json(response);
     } finally {
       client.release();
     }
@@ -3669,27 +3616,20 @@ router.get('/system-logs', async (req, res) => {
  * 健康檢查
  */
 router.get('/health', async (req, res) => {
-  let dbStatus = 'connected';
-  try {
-    const client = await Promise.race([
-      pool.connect(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-    ]);
+  // 快速回應，不查 DB（避免 pool 滿時 health check 也卡住）
+  // 加 ?db=true 才做 DB 檢查
+  if (req.query.db === 'true') {
+    let dbStatus = 'connected';
     try {
-      await client.query('SELECT 1');
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    dbStatus = 'unavailable';
+      const client = await Promise.race([
+        pool.connect(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+      ]);
+      try { await client.query('SELECT 1'); } finally { client.release(); }
+    } catch { dbStatus = 'unavailable'; }
+    return res.json({ success: true, status: 'ok', database: dbStatus, timestamp: new Date().toISOString() });
   }
-  // 始終回 200；DB 狀態在 body 中說明
-  res.json({
-    success: true,
-    status: 'ok',
-    database: dbStatus,
-    timestamp: new Date().toISOString()
-  });
+  res.json({ success: true, status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
 });
 
 // ==================== 顧問聯絡資訊 API ====================
