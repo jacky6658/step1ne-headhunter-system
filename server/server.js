@@ -289,7 +289,7 @@ async function startServer() {
   }
 
   // 2. 啟動 HTTP + Socket.IO 服務器（不論 DB 是否正常）
-  const server = httpServer.listen(PORT, () => {
+  const server = httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔═══════════════════════════════════════╗
 ║  🚀 Step1ne Backend Started            ║
