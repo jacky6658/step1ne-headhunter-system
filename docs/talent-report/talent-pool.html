@@ -25,18 +25,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei
 .stat .l{font-size:.68em;color:#94a3b8;font-weight:500;margin-top:2px}
 
 /* Filters Panel */
-.filters{background:#fff;border-radius:12px;padding:14px 18px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.04);border:1px solid #e2e8f0}
-.f-row{display:flex;align-items:center;gap:6px;margin:5px 0;flex-wrap:wrap;padding:2px 0}
-.f-row+.f-row{border-top:1px solid #f1f5f9;padding-top:7px}
-.f-label{font-size:.74em;font-weight:700;color:#64748b;min-width:60px;flex-shrink:0}
+/* Filters Panel - Collapsible Sections */
+.filters{background:#fff;border-radius:12px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.04);border:1px solid #e2e8f0;overflow:hidden}
+.f-section{border-bottom:1px solid #f1f5f9}
+.f-section:last-child{border-bottom:none}
+.f-section-header{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;cursor:pointer;user-select:none;transition:background .15s}
+.f-section-header:hover{background:#f8fafc}
+.f-section-header .f-label{font-size:.78em;font-weight:700;color:#334155;min-width:auto;flex-shrink:0;display:flex;align-items:center;gap:6px}
+.f-section-header .f-toggle{font-size:.7em;color:#94a3b8;transition:transform .2s}
+.f-section-header.open .f-toggle{transform:rotate(180deg)}
+.f-section-body{padding:4px 16px 10px;display:none}
+.f-section-body.open{display:block}
+.f-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:0}
+.f-label{font-size:.74em;font-weight:700;color:#64748b;min-width:50px;flex-shrink:0}
 .f-btn{padding:4px 10px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;cursor:pointer;font-size:.72em;white-space:nowrap;transition:all .15s;color:#475569;font-weight:500}
 .f-btn:hover{background:#f1f5f9;border-color:#cbd5e1;transform:translateY(-1px)}
 .f-btn.active{background:#0f4c75;color:#fff;border-color:#0f4c75;box-shadow:0 2px 6px rgba(15,76,117,.3);font-weight:600}
-.f-input{font-size:.82em;padding:6px 12px;border:1px solid #e2e8f0;border-radius:8px;width:280px;transition:border-color .2s,box-shadow .2s;outline:none}
-.f-input:focus{border-color:#0f4c75;box-shadow:0 0 0 3px rgba(15,76,117,.1)}
-.f-clear{color:#ef4444;border-color:#fecaca;background:#fef2f2;font-weight:600}
+/* Color-coded filter buttons */
+.f-btn[data-v="new"].active{background:#059669;border-color:#059669}
+.f-btn[data-v="old"].active{background:#dc2626;border-color:#dc2626}
+.f-input{font-size:.82em;padding:7px 14px;border:1px solid #e2e8f0;border-radius:8px;width:300px;transition:border-color .2s,box-shadow .2s;outline:none}
+.f-input:focus{border-color:#0f4c75;box-shadow:0 0 0 3px rgba(15,76,117,.12)}
+.f-input::placeholder{color:#cbd5e1}
+.f-clear{color:#ef4444;border-color:#fecaca;background:#fef2f2;font-weight:600;padding:4px 12px}
 .f-clear:hover{background:#fee2e2;border-color:#ef4444}
-.f-count{font-size:.82em;color:#0f4c75;font-weight:700;margin-left:12px;background:#e0f2fe;padding:3px 10px;border-radius:10px}
+.f-count{font-size:.82em;color:#0f4c75;font-weight:700;margin-left:12px;background:#e0f2fe;padding:4px 12px;border-radius:10px}
+.f-active-tags{display:flex;gap:4px;flex-wrap:wrap;padding:6px 16px;background:#f8fafc;border-bottom:1px solid #f1f5f9;display:none}
+.f-active-tags.show{display:flex}
+.f-active-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:#0f4c75;color:#fff;border-radius:12px;font-size:.7em;font-weight:500}
+.f-active-tag .x{cursor:pointer;opacity:.7;font-weight:700}
+.f-active-tag .x:hover{opacity:1}
 
 /* Export Button */
 .export-bar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
@@ -47,13 +65,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei
 .tbl-wrap{overflow-x:auto;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.04);border:1px solid #e2e8f0}
 table{width:100%;border-collapse:collapse;font-size:.78em;table-layout:fixed}
 th{background:linear-gradient(180deg,#1e293b,#0f172a);color:#e2e8f0;padding:8px 6px;text-align:left;position:sticky;top:0;z-index:10;white-space:nowrap;font-size:.72em;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
-td{padding:6px 5px;border-bottom:1px solid #f1f5f9;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
+td{padding:8px 6px;border-bottom:1px solid #f1f5f9;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
 tr{transition:background .1s}
 tr:hover{background:#f0f9ff}
 tr:nth-child(even){background:#fafbfc}
 tr:nth-child(even):hover{background:#f0f9ff}
-tr.contacted{opacity:.5}
-tr.contacted:hover{opacity:.85}
+tr.contacted{background:#fafafa;color:#94a3b8}
+tr.contacted:hover{background:#f0f9ff;color:#334155}
+tr.contacted .tag-contacted{opacity:1}
 
 /* Links */
 a{color:#0f4c75;text-decoration:none;transition:color .15s} a:hover{color:#0369a1;text-decoration:underline}
@@ -69,8 +88,9 @@ a{color:#0f4c75;text-decoration:none;transition:color .15s} a:hover{color:#0369a
 .tag-new{background:#ecfdf5;color:#059669;padding:3px 8px;font-weight:700;border:1px solid #a7f3d0;border-radius:6px;font-size:.7em}
 
 /* Column widths */
-.col-c{width:65px;text-align:center} .col-n{width:28px;text-align:center;color:#94a3b8;font-size:.72em} .col-id{width:38px;color:#94a3b8}
-.col-name{width:110px} .col-pos{width:170px} .col-fn{width:130px} .col-ind{width:120px} .col-tech{width:200px} .col-li{width:70px;text-align:center}
+.col-c{width:62px;text-align:center} .col-n{width:26px;text-align:center;color:#94a3b8;font-size:.7em} .col-id{width:36px;color:#94a3b8;font-size:.72em}
+.col-name{width:120px;font-size:.82em} .col-pos{width:200px;font-size:.76em;color:#475569;line-height:1.4} .col-fn{width:130px} .col-ind{width:120px} .col-tech{width:220px} .col-li{width:68px;text-align:center}
+td.col-name strong{color:#0f172a;font-weight:700}
 
 /* Scrollbar */
 .tbl-wrap::-webkit-scrollbar{height:6px}
@@ -106,15 +126,49 @@ a{color:#0f4c75;text-decoration:none;transition:color .15s} a:hover{color:#0369a
 <div class="stat"><div class="n">46</div><div class="l">Frontend</div></div>
 </div>
 <div class="filters">
-<div class="f-row"><span class="f-label">🔍 搜尋</span><input class="f-input" id="fSearch" placeholder="姓名/公司/技能..." oninput="af()"><button class="f-btn f-clear" onclick="clearAll()">✕ 清除</button><span class="f-count" id="fc"></span></div>
-<div class="f-row"><span class="f-label">📌 聯繫</span>
+<!-- Search always visible -->
+<div style="padding:10px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid #f1f5f9">
+<span class="f-label" style="min-width:auto">🔍</span>
+<input class="f-input" id="fSearch" placeholder="搜尋姓名、公司、技能..." oninput="af()">
+<button class="f-btn f-clear" onclick="clearAll()">✕ 清除所有篩選</button>
+<span class="f-count" id="fc"></span>
+</div>
+<!-- Active filter tags -->
+<div class="f-active-tags" id="activeTags"></div>
+<!-- Contact -->
+<div class="f-section">
+<div class="f-section-header open" onclick="toggleSection(this)">
+<span class="f-label">📌 聯繫狀態</span><span class="f-toggle">▼</span>
+</div>
+<div class="f-section-body open"><div class="f-row">
 <button class="f-btn" onclick="tf(this,'contact')" data-v="">全部</button>
 <button class="f-btn" onclick="tf(this,'contact')" data-v="new">🟢 只看未聯繫</button>
 <button class="f-btn" onclick="tf(this,'contact')" data-v="old">🔴 只看已聯繫</button>
+</div></div></div>
+<!-- Function -->
+<div class="f-section">
+<div class="f-section-header" onclick="toggleSection(this)">
+<span class="f-label">💼 職能</span><span class="f-toggle">▼</span>
 </div>
-<div class="f-row"><span class="f-label">💼 職能</span><button class="f-btn" onclick="tf(this,'fn')" data-v="Backend">Backend (117)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="DevOps/SRE">DevOps/SRE (86)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="主管/Director">主管/Director (58)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="AI/ML Engineer">AI/ML Engineer (52)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="PM/Product">PM/Product (50)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="HR/Admin">HR/Admin (50)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Architect (建築)">Architect (建築) (47)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Frontend">Frontend (46)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Finance/Accounting">Finance/Accounting (46)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Sales/BD">Sales/BD (39)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Mobile (iOS/Android)">Mobile (iOS/Android) (32)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Marketing">Marketing (29)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Data Engineer">Data Engineer (26)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Full-stack">Full-stack (21)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Firmware/Embedded">Firmware/Embedded (17)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Hardware">Hardware (16)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="SA/SD">SA/SD (11)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="QA/SQA">QA/SQA (10)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="IC Design">IC Design (7)</button></div>
-<div class="f-row"><span class="f-label">🏭 產業</span><button class="f-btn" onclick="tf(this,'ind')" data-v="軟體/網路/SaaS">軟體/網路/SaaS (235)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="外商/跨國">外商/跨國 (81)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="遊戲/娛樂">遊戲/娛樂 (74)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="半導體/IC">半導體/IC (57)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="日商/日本">日商/日本 (54)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="建築/營造">建築/營造 (47)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="顧問/管理">顧問/管理 (43)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="硬體/電子/IoT">硬體/電子/IoT (38)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="金融/FinTech">金融/FinTech (33)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="電商/零售">電商/零售 (24)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="製造/傳產">製造/傳產 (14)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="醫療/生技">醫療/生技 (14)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="電信/通訊">電信/通訊 (10)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="能源/永續">能源/永續 (7)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="飯店/餐飲/旅遊">飯店/餐飲/旅遊 (6)</button></div>
-<div class="f-row"><span class="f-label">⚙️ 技術</span><button class="f-btn" onclick="tf(this,'tech')" data-v="Java">Java (151)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Python">Python (141)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Docker/K8s">Docker/K8s (126)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Database">Database (122)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="DevOps/CI-CD">DevOps/CI-CD (115)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="AWS">AWS (99)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="JavaScript/TypeScript">JavaScript/TypeScript (96)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="AI/ML">AI/ML (85)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Data/BigData">Data/BigData (67)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="C/C++">C/C++ (65)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Go">Go (56)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="C#/.NET">C#/.NET (47)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="GCP">GCP (42)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="PHP">PHP (32)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="React">React (31)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Azure">Azure (27)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Vue">Vue (24)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Kotlin/Android">Kotlin/Android (20)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Swift/iOS">Swift/iOS (17)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Ruby">Ruby (12)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Rust">Rust (10)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Angular">Angular (5)</button></div>
+<div class="f-section-body"><div class="f-row">
+<button class="f-btn" onclick="tf(this,'fn')" data-v="Backend">Backend (117)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="DevOps/SRE">DevOps/SRE (86)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="主管/Director">主管/Director (58)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="AI/ML Engineer">AI/ML (52)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="PM/Product">PM (50)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="HR/Admin">HR/Admin (50)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Architect (建築)">建築 (47)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Frontend">Frontend (46)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Finance/Accounting">財務 (46)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Sales/BD">BD (39)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Mobile (iOS/Android)">Mobile (32)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Marketing">行銷 (29)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Data Engineer">Data (26)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Full-stack">全端 (21)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Firmware/Embedded">韌體 (17)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="Hardware">硬體 (16)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="SA/SD">SA/SD (11)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="QA/SQA">QA (10)</button><button class="f-btn" onclick="tf(this,'fn')" data-v="IC Design">IC (7)</button>
+</div></div></div>
+<!-- Industry -->
+<div class="f-section">
+<div class="f-section-header" onclick="toggleSection(this)">
+<span class="f-label">🏭 產業</span><span class="f-toggle">▼</span>
+</div>
+<div class="f-section-body"><div class="f-row">
+<button class="f-btn" onclick="tf(this,'ind')" data-v="軟體/網路/SaaS">軟體/SaaS (235)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="外商/跨國">外商 (81)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="遊戲/娛樂">遊戲 (74)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="半導體/IC">半導體 (57)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="日商/日本">日商 (54)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="建築/營造">建築 (47)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="顧問/管理">顧問 (43)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="硬體/電子/IoT">硬體/IoT (38)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="金融/FinTech">金融 (33)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="電商/零售">電商 (24)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="製造/傳產">製造 (14)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="醫療/生技">醫療 (14)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="電信/通訊">電信 (10)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="能源/永續">能源 (7)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="飯店/餐飲/旅遊">飯店 (6)</button>
+</div></div></div>
+<!-- Tech -->
+<div class="f-section">
+<div class="f-section-header" onclick="toggleSection(this)">
+<span class="f-label">⚙️ 技術棧</span><span class="f-toggle">▼</span>
+</div>
+<div class="f-section-body"><div class="f-row">
+<button class="f-btn" onclick="tf(this,'tech')" data-v="Java">Java (151)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Python">Python (141)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Docker/K8s">K8s (126)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Database">DB (122)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="DevOps/CI-CD">CI/CD (115)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="AWS">AWS (99)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="JavaScript/TypeScript">JS/TS (96)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="AI/ML">AI/ML (85)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Data/BigData">BigData (67)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="C/C++">C++ (65)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Go">Go (56)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="C#/.NET">.NET (47)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="GCP">GCP (42)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="PHP">PHP (32)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="React">React (31)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Azure">Azure (27)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Vue">Vue (24)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Kotlin/Android">Android (20)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Swift/iOS">iOS (17)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Ruby">Ruby (12)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Rust">Rust (10)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Angular">Angular (5)</button>
+</div></div></div>
 </div>
 <div class="export-bar">
 <button class="export-btn" onclick="exportCSV()">📋 匯出篩選結果 CSV</button>
@@ -8358,6 +8412,13 @@ Full-stack developer</td>
 <td class="col-li"><a class="li-btn" href="https://www.linkedin.com/in/alex-ct-hung" target="_blank">🔗</a></td></tr>
 </tbody></table></div>
 <script>
+// Toggle collapsible sections
+function toggleSection(header){
+  header.classList.toggle('open');
+  const body=header.nextElementSibling;
+  body.classList.toggle('open');
+}
+
 let filters={contact:'',fn:'',ind:'',tech:''};
 function tf(btn,type){
   const v=btn.dataset.v;
