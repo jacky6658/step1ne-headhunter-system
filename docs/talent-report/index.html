@@ -172,18 +172,18 @@ a{color:#4361ee;text-decoration:none} a:hover{text-decoration:underline}
   <span>📞 已聯繫: <span class="tb-count" id="cntContacted">0</span></span>
   <span>👤 已指派: <span class="tb-count" id="cntAssigned">0</span></span>
   <span style="color:#aaa">|</span>
-  <button onclick="filterChecked('valid')">只看有效履歷</button>
-  <button onclick="filterChecked('contacted')">只看已聯繫</button>
-  <button onclick="filterChecked('assigned')">只看已指派</button>
-  <select onchange="filterByConsultant(this.value)" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:.8em">
-    <option value="">👤 篩選顧問</option>
+  <button class="fb" onclick="tf(this,'v','valid')">只看有效履歷</button>
+  <button class="fb" onclick="tf(this,'c','contacted')">只看已聯繫</button>
+  <button class="fb" onclick="tf(this,'a','assigned')">只看已指派</button>
+  <select id="consultantFilter" onchange="af()" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:.8em">
+    <option value="">👤 全部顧問</option>
     <option value="Jacky">Jacky</option>
     <option value="Phoebe">Phoebe</option>
     <option value="Jim">Jim</option>
     <option value="admin">admin</option>
     <option value="待指派">待指派</option>
   </select>
-  <button onclick="filterChecked('all')">顯示全部</button>
+  <button onclick="clearToolbarFilters()">顯示全部</button>
   <span style="color:#aaa">|</span>
   <button class="export" onclick="exportChecked()">📋 匯出 CSV</button>
   <button class="sync-btn" onclick="syncAllToDB()">🔄 同步到 DB</button>
@@ -1894,24 +1894,77 @@ Full-stack develop</td><td class="grade-">-</td><td><span class="status-badge" s
 (需 on-call)</span></td><td><a class="li-btn" href="https://www.linkedin.com/in/alex-ct-hung" target="_blank">🔗 LinkedIn</a></td></tr>
 </tbody></table></div>
 <script>
-let F={s:'all',g:'all',l:'all'};
-function tf(b,t,v){b.parentElement.querySelectorAll('.fb').forEach(x=>x.classList.remove('on'));b.classList.add('on');F[t]=v;af()}
-function ca(){document.getElementById('si').value='';document.getElementById('jf').value='all';document.getElementById('cf').value='all';F={s:'all',g:'all',l:'all'};document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));af()}
+let F={s:'all',g:'all',l:'all',v:'all',c:'all',a:'all'};
+function tf(b,t,v){
+  // For toolbar buttons, toggle on/off
+  if(t==='v'||t==='c'||t==='a'){
+    if(F[t]===v){F[t]='all';b.classList.remove('on')}
+    else{F[t]=v;b.classList.add('on')}
+  }else{
+    b.parentElement.querySelectorAll('.fb').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');F[t]=v;
+  }
+  af();
+}
+function ca(){
+  document.getElementById('si').value='';
+  document.getElementById('jf').value='all';
+  document.getElementById('cf').value='all';
+  var cfl=document.getElementById('consultantFilter');if(cfl)cfl.value='';
+  F={s:'all',g:'all',l:'all',v:'all',c:'all',a:'all'};
+  document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));
+  af();
+}
+function clearToolbarFilters(){
+  F.v='all';F.c='all';F.a='all';
+  var cfl=document.getElementById('consultantFilter');if(cfl)cfl.value='';
+  document.querySelectorAll('.toolbar .fb').forEach(b=>b.classList.remove('on'));
+  af();
+}
 function af(){
-  const q=document.getElementById('si').value.toLowerCase(),jv=document.getElementById('jf').value,cv=document.getElementById('cf').value;
+  const q=document.getElementById('si').value.toLowerCase();
+  const jv=document.getElementById('jf').value;
+  const cv=document.getElementById('cf').value;
+  const cfl=document.getElementById('consultantFilter');
+  const consultantVal=cfl?cfl.value:'';
   const rows=document.querySelectorAll('#tb tr');let n=0,i=0;
   rows.forEach(r=>{
     let s=true;
+    // Search
     if(q){const d=(r.getAttribute('data-search')||'')+' '+r.textContent.toLowerCase();if(!d.includes(q))s=false}
+    // Status
     if(F.s!=='all'&&r.getAttribute('data-status')!==F.s)s=false;
+    // Grade
     if(F.g!=='all'){const g=r.getAttribute('data-grade')||'';if(F.g==='A'){if(!g.startsWith('A'))s=false}else if(F.g==='B'){if(!g.startsWith('B'))s=false}else{if(g!==F.g)s=false}}
+    // Job
     if(jv==='has'){if(!r.getAttribute('data-jobs'))s=false}else if(jv==='no'){if(r.getAttribute('data-jobs'))s=false}else if(jv!=='all'){if(!(r.getAttribute('data-jobs')||'').split('|').includes(jv))s=false}
+    // Category
     if(cv!=='all'&&!(r.getAttribute('data-cats')||'').includes(cv))s=false;
+    // LinkedIn
     if(F.l!=='all'&&r.getAttribute('data-li')!==F.l)s=false;
+    // Valid checkbox
+    if(F.v==='valid'){const cb=r.querySelector('.ck[data-type="valid"]');if(!cb||!cb.checked)s=false}
+    // Contacted checkbox
+    if(F.c==='contacted'){const cb=r.querySelector('.ck[data-type="contacted"]');if(!cb||!cb.checked)s=false}
+    // Assigned
+    if(F.a==='assigned'){const sel=r.querySelector('.consult-sel');if(!sel||!sel.value)s=false}
+    // Consultant filter
+    if(consultantVal){const sel=r.querySelector('.consult-sel');const val=sel?sel.value:'';if(consultantVal==='待指派'){if(val&&val!=='')s=false}else{if(val!==consultantVal)s=false}}
+
     r.style.display=s?'':'none';if(s){n++;i++;r.cells[3].textContent=i}
   });
   document.getElementById('rc').textContent=n;
-  let info=[];if(q)info.push('搜尋:'+q);if(F.s!=='all')info.push('狀態:'+F.s);if(F.g!=='all')info.push('評級:'+F.g);if(jv!=='all')info.push('職缺篩選');if(cv!=='all')info.push('職能:'+cv);if(F.l!=='all')info.push(F.l==='1'?'有LinkedIn':'無LinkedIn');
+  let info=[];
+  if(q)info.push('搜尋:'+q);
+  if(F.s!=='all')info.push('狀態:'+F.s);
+  if(F.g!=='all')info.push('評級:'+F.g);
+  if(jv!=='all')info.push('職缺篩選');
+  if(cv!=='all')info.push('職能:'+cv);
+  if(F.l!=='all')info.push(F.l==='1'?'有LinkedIn':'無LinkedIn');
+  if(F.v==='valid')info.push('有效履歷');
+  if(F.c==='contacted')info.push('已聯繫');
+  if(F.a==='assigned')info.push('已指派');
+  if(consultantVal)info.push('顧問:'+consultantVal);
   document.getElementById('fi').textContent=info.length?info.join(' | '):'未套用篩選';
 }
 af();
@@ -2091,24 +2144,7 @@ function updateCounts(){
   document.getElementById('cntAssigned').textContent=a;
 }
 
-function filterChecked(type){
-  const rows=document.querySelectorAll('#tb tr');
-  rows.forEach(r=>{
-    if(type==='all'){r.style.display='';return}
-    if(type==='assigned'){
-      const sel=r.querySelector('.consult-sel');
-      r.style.display=(sel&&sel.value)?'':'none';
-      return;
-    }
-    const cb=r.querySelector('.ck[data-type="'+type+'"]');
-    r.style.display=(cb&&cb.checked)?'':'none';
-  });
-  // Recount visible
-  let n=0,i=0;
-  rows.forEach(r=>{if(r.style.display!=='none'){n++;i++;r.cells[3].textContent=i}});
-  document.getElementById('rc').textContent=n;
-  document.getElementById('fi').textContent=type==='all'?'未套用篩選':type==='contacted'?'只看已聯繫':'只看有效履歷';
-}
+// filterChecked removed - merged into af()
 
 function clearChecks(){
   if(!confirm('確定清除所有勾選？'))return;
@@ -2206,20 +2242,7 @@ function selectCountry(country) {
   quickNote('📍 人選所在國家：' + country);
 }
 
-function filterByConsultant(name) {
-  const rows = document.querySelectorAll('#tb tr');
-  let n=0, i=0;
-  rows.forEach(r => {
-    if (!name) { r.style.display=''; n++; i++; r.cells[3].textContent=i; return; }
-    const sel = r.querySelector('.consult-sel');
-    const val = sel ? sel.value : '';
-    const match = (name === '待指派') ? (!val || val === '') : (val === name);
-    r.style.display = match ? '' : 'none';
-    if (match) { n++; i++; r.cells[3].textContent=i; }
-  });
-  document.getElementById('rc').textContent = n;
-  document.getElementById('fi').textContent = name ? '顧問: ' + name : '未套用篩選';
-}
+// filterByConsultant removed - merged into af()
 
 function deleteNote(idx) {
   const allNotes = JSON.parse(localStorage.getItem('step1ne_notes') || '{}');
