@@ -2134,6 +2134,34 @@ function openNote(cid, name, pos) {
   document.getElementById('noteInput').focus();
 }
 
+const COUNTRIES = [
+  ['🇹🇼','台灣','Taiwan'],['🇯🇵','日本','Japan'],['🇰🇷','韓國','South Korea'],['🇨🇳','中國','China'],['🇭🇰','香港','Hong Kong'],['🇲🇴','澳門','Macau'],
+  ['🇸🇬','新加坡','Singapore'],['🇲🇾','馬來西亞','Malaysia'],['🇹🇭','泰國','Thailand'],['🇻🇳','越南','Vietnam'],['🇮🇩','印尼','Indonesia'],['🇵🇭','菲律賓','Philippines'],['🇮🇳','印度','India'],['🇲🇲','緬甸','Myanmar'],['🇰🇭','柬埔寨','Cambodia'],
+  ['🇺🇸','美國','United States'],['🇨🇦','加拿大','Canada'],['🇬🇧','英國','United Kingdom'],['🇩🇪','德國','Germany'],['🇫🇷','法國','France'],['🇳🇱','荷蘭','Netherlands'],['🇮🇹','義大利','Italy'],['🇪🇸','西班牙','Spain'],['🇨🇭','瑞士','Switzerland'],['🇸🇪','瑞典','Sweden'],['🇦🇹','奧地利','Austria'],['🇩🇰','丹麥','Denmark'],['🇫🇮','芬蘭','Finland'],['🇳🇴','挪威','Norway'],['🇮🇪','愛爾蘭','Ireland'],['🇵🇱','波蘭','Poland'],['🇧🇪','比利時','Belgium'],['🇵🇹','葡萄牙','Portugal'],['🇨🇿','捷克','Czech Republic'],
+  ['🇦🇺','澳洲','Australia'],['🇳🇿','紐西蘭','New Zealand'],
+  ['🇧🇷','巴西','Brazil'],['🇲🇽','墨西哥','Mexico'],['🇦🇷','阿根廷','Argentina'],
+  ['🇦🇪','阿聯酋','UAE'],['🇸🇦','沙烏地','Saudi Arabia'],['🇮🇱','以色列','Israel'],['🇹🇷','土耳其','Turkey'],
+  ['🇿🇦','南非','South Africa'],['🇳🇬','奈及利亞','Nigeria'],['🇪🇬','埃及','Egypt'],
+];
+
+function searchCountry(q) {
+  const dd = document.getElementById('countryDropdown');
+  if (!q || q.length < 1) { dd.style.display='none'; return; }
+  q = q.toLowerCase();
+  const matches = COUNTRIES.filter(c => c[1].toLowerCase().includes(q) || c[2].toLowerCase().includes(q));
+  if (matches.length === 0) { dd.style.display='none'; return; }
+  dd.innerHTML = matches.slice(0,8).map(c =>
+    '<div style="padding:8px 12px;cursor:pointer;font-size:.85em;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:6px" onmouseover="this.style.background=\'#f5f8ff\'" onmouseout="this.style.background=\'#fff\'" onclick="selectCountry(\''+c[0]+' '+c[1]+' ('+c[2]+')\')">'+c[0]+' <strong>'+c[1]+'</strong> <span style="color:#888;font-size:.85em">'+c[2]+'</span></div>'
+  ).join('');
+  dd.style.display='block';
+}
+
+function selectCountry(country) {
+  document.getElementById('countryDropdown').style.display='none';
+  document.getElementById('countrySearch').value='';
+  quickNote('📍 人選所在國家：' + country);
+}
+
 function quickNote(text) {
   if (!currentNoteCid) return;
   document.getElementById('noteInput').value = text;
@@ -2231,6 +2259,26 @@ updateNoteBadges();
         <button class="qnote-btn" onclick="quickNote('對方有興趣，安排面試中')">🎤 安排面試中</button>
         <button class="qnote-btn" onclick="quickNote('對方婉拒')">❌ 對方婉拒</button>
         <button class="qnote-btn" onclick="quickNote('履歷不符合需求')">🚫 履歷不符</button>
+      </div>
+      <h4 style="font-size:.85em;color:#555;margin-bottom:6px">🌍 標記國家</h4>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="qnote-btn" onclick="quickNote('📍 台灣 Taiwan')">🇹🇼 台灣</button>
+        <button class="qnote-btn" onclick="quickNote('📍 日本 Japan')">🇯🇵 日本</button>
+        <button class="qnote-btn" onclick="quickNote('📍 新加坡 Singapore')">🇸🇬 新加坡</button>
+        <button class="qnote-btn" onclick="quickNote('📍 香港 Hong Kong')">🇭🇰 香港</button>
+        <button class="qnote-btn" onclick="quickNote('📍 中國 China')">🇨🇳 中國</button>
+        <button class="qnote-btn" onclick="quickNote('📍 韓國 South Korea')">🇰🇷 韓國</button>
+        <button class="qnote-btn" onclick="quickNote('📍 美國 United States')">🇺🇸 美國</button>
+        <button class="qnote-btn" onclick="quickNote('📍 馬來西亞 Malaysia')">🇲🇾 馬來西亞</button>
+        <button class="qnote-btn" onclick="quickNote('📍 越南 Vietnam')">🇻🇳 越南</button>
+        <button class="qnote-btn" onclick="quickNote('📍 泰國 Thailand')">🇹🇭 泰國</button>
+        <button class="qnote-btn" onclick="quickNote('📍 印尼 Indonesia')">🇮🇩 印尼</button>
+        <button class="qnote-btn" onclick="quickNote('📍 澳洲 Australia')">🇦🇺 澳洲</button>
+        <button class="qnote-btn" onclick="quickNote('📍 英國 UK')">🇬🇧 英國</button>
+        <button class="qnote-btn" onclick="quickNote('📍 德國 Germany')">🇩🇪 德國</button>
+        <button class="qnote-btn" onclick="quickNote('📍 加拿大 Canada')">🇨🇦 加拿大</button>
+        <button class="qnote-btn" onclick="quickNote('📍 菲律賓 Philippines')">🇵🇭 菲律賓</button>
+        <button class="qnote-btn" onclick="quickNote('📍 印度 India')">🇮🇳 印度</button>
       </div>
       <h4 style="font-size:.85em;color:#555;margin-bottom:6px">✏️ 自訂備註</h4>
       <textarea class="note-input" id="noteInput" placeholder="輸入自訂備註..."></textarea>
