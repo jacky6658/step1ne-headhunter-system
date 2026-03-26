@@ -28,6 +28,21 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
   const [jobs, setJobs] = useState<{id: number, label: string}[]>([]);
   const [todayOnly, setTodayOnly] = useState<boolean>(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [loadingCandidateId, setLoadingCandidateId] = useState<number | null>(null);
+
+  // 點擊候選人時 fetch 完整資料（列表是 light mode，不含工作經歷和教育背景）
+  const openCandidateModal = async (candidate: Candidate) => {
+    setLoadingCandidateId(candidate.id);
+    try {
+      const full = await apiGet<{ success: boolean; data: Candidate }>(`/candidates/${candidate.id}`);
+      setSelectedCandidate(full.data || candidate);
+    } catch (err) {
+      console.error('載入候選人完整資料失敗:', err);
+      setSelectedCandidate(candidate); // fallback 用 light 資料
+    } finally {
+      setLoadingCandidateId(null);
+    }
+  };
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({ name: '', position: '', email: '', phone: '', location: '', years: '', skills: '', notes: '' });
   const [addLoading, setAddLoading] = useState(false);
@@ -669,7 +684,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
               <div
                 key={candidate.id}
                 className="bg-white rounded-lg shadow p-4 cursor-pointer active:bg-gray-50"
-                onClick={() => setSelectedCandidate(candidate)}
+                onClick={() => openCandidateModal(candidate)}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
@@ -848,7 +863,7 @@ export function CandidatesPage({ userProfile }: CandidatesPageProps) {
                 <tr
                   key={candidate.id}
                   className="hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => setSelectedCandidate(candidate)}
+                  onClick={() => openCandidateModal(candidate)}
                 >
                   <td className="px-4 py-4 whitespace-nowrap">
                     <span className="text-xs font-mono text-gray-400">#{candidate.id}</span>
