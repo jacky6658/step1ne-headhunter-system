@@ -2186,7 +2186,8 @@ function updateNoteBadges() {
 }
 
 // Close modal on overlay click
-document.getElementById('noteModal').addEventListener('click', function(e) {
+var noteModalEl = document.getElementById('noteModal');
+if(noteModalEl) noteModalEl.addEventListener('click', function(e) {
   if (e.target === this) closeNote();
 });
 
