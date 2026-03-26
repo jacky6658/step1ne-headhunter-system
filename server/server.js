@@ -243,6 +243,15 @@ function apiAuth(req, res, next) {
 
 app.use('/api', apiAuth);
 
+// ==================== Request Timeout ====================
+
+const requestTimeout = require('./middleware/timeout');
+// 一般 API: 30 秒 timeout
+app.use('/api', requestTimeout(30000));
+// 長跑端點: 10 分鐘 timeout
+app.use('/api/talent-sourcing', (req, _res, next) => { req.timeoutMs = 600000; next(); });
+app.use('/api/crawler', (req, _res, next) => { req.timeoutMs = 600000; next(); });
+
 // ==================== 路由 ====================
 
 // 完整的 API 路由（候選人 + 職缺）
