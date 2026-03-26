@@ -107,6 +107,7 @@ const allowedOrigins = [
   'https://step1ne.com',
   'https://hrsystem.step1ne.com',
   'https://api-hr.step1ne.com',
+  'https://jacky6658.github.io',
   // 允許本地開發代理（Vite proxy changeOrigin 仍會帶 localhost Origin）
   'http://localhost:3000',
   'http://localhost:3001',
