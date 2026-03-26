@@ -87,6 +87,9 @@ a{color:#4361ee;text-decoration:none} a:hover{text-decoration:underline}
 .btn-cancel:hover{background:#f5f5f5}
 .name-link{cursor:pointer;color:#4361ee;text-decoration:underline}
 .name-link:hover{color:#2d4fd6}
+.qnote-btn{padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:.8em;transition:all .15s}
+.qnote-btn:hover{background:#4361ee;color:#fff;border-color:#4361ee;transform:scale(1.02)}
+.qnote-btn:active{transform:scale(.98)}
 </style></head><body>
 <div class="header">
   <h1>📊 Step1ne 人選名冊 — 篩選 + 職能 + 目標職缺 + LinkedIn</h1>
@@ -2131,6 +2134,12 @@ function openNote(cid, name, pos) {
   document.getElementById('noteInput').focus();
 }
 
+function quickNote(text) {
+  if (!currentNoteCid) return;
+  document.getElementById('noteInput').value = text;
+  saveNote();
+}
+
 function closeNote() {
   document.getElementById('noteModal').classList.remove('show');
   currentNoteCid = null;
@@ -2212,12 +2221,23 @@ updateNoteBadges();
         <h4>📋 歷史備註</h4>
         <div id="noteList"></div>
       </div>
-      <h4 style="font-size:.85em;color:#555;margin-bottom:6px">✏️ 新增備註</h4>
-      <textarea class="note-input" id="noteInput" placeholder="輸入備註...（例：已電話聯繫，對職缺有興趣，下週安排面試）"></textarea>
+      <h4 style="font-size:.85em;color:#555;margin-bottom:6px">⚡ 快速備註（點擊直接儲存）</h4>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="qnote-btn" onclick="quickNote('3天前已加 LinkedIn 為聯繫')">🔗 3天前已加LinkedIn</button>
+        <button class="qnote-btn" onclick="quickNote('今日已加 LinkedIn')">📩 今日已加LinkedIn</button>
+        <button class="qnote-btn" onclick="quickNote('暫時無符合職缺')">⚪ 暫時無符合職缺</button>
+        <button class="qnote-btn" onclick="quickNote('已電話聯繫，待回覆')">📞 已電話聯繫</button>
+        <button class="qnote-btn" onclick="quickNote('已寄開發信')">📧 已寄開發信</button>
+        <button class="qnote-btn" onclick="quickNote('對方有興趣，安排面試中')">🎤 安排面試中</button>
+        <button class="qnote-btn" onclick="quickNote('對方婉拒')">❌ 對方婉拒</button>
+        <button class="qnote-btn" onclick="quickNote('履歷不符合需求')">🚫 履歷不符</button>
+      </div>
+      <h4 style="font-size:.85em;color:#555;margin-bottom:6px">✏️ 自訂備註</h4>
+      <textarea class="note-input" id="noteInput" placeholder="輸入自訂備註..."></textarea>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeNote()">取消</button>
-      <button class="btn-save" onclick="saveNote()">💾 儲存備註</button>
+      <button class="btn-save" onclick="saveNote()">💾 儲存自訂備註</button>
     </div>
   </div>
 </div>
