@@ -21,7 +21,7 @@ import json
 
 TELEGRAM_TOKEN = 'YOUR_BOT_TOKEN_HERE'  # 從 @BotFather 取得
 API_BASE = 'http://localhost:3001/api'
-# API_BASE = 'https://backendstep1ne.zeabur.app/api'
+# API_BASE = 'https://api-hr.step1ne.com/api'  # 正式環境
 
 # ========================================
 # API 呼叫函數

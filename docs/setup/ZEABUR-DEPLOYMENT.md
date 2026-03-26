@@ -1,3 +1,5 @@
+> ⚠️ 已棄用：系統已從 Zeabur 遷移至本機龍蝦主機 + Cloudflare Tunnel。請參考 [系統復原指南](../SYSTEM-RECOVERY.md)
+
 # Zeabur 部署指南
 
 **更新日期**：2026-02-24  

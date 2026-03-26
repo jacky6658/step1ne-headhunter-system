@@ -1,3 +1,5 @@
+> ⚠️ 已棄用：系統已從 Zeabur 遷移至本機龍蝦主機 + Cloudflare Tunnel。請參考 [系統復原指南](../SYSTEM-RECOVERY.md)
+
 # Step1ne Headhunter System - Zeabur 部署指南
 
 > 🚀 完整的 Zeabur 部署步驟

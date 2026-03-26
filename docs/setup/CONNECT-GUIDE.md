@@ -37,7 +37,7 @@ https://hrsystem.step1ne.com
 ### 優點
 - 不需安裝任何軟體
 - 自動同步 Google Sheets 資料
-- Zeabur 自動部署更新
+- PM2 管理本機服務、Cloudflare Tunnel 對外
 - 響應式設計（手機友善）
 
 ### 缺點
@@ -345,7 +345,7 @@ AI 可以用 `exec` tool 呼叫，解析 JSON 後回答用戶問題。
 ### Q4: 資料會同步嗎？
 
 **A**: 
-- ✅ Zeabur 系統：自動同步 Google Sheets（每 30 分鐘快取）
+- ✅ 龍蝦主機系統：自動同步 Google Sheets（每 30 分鐘快取）
 - ✅ API 呼叫：即時資料
 - ❌ 本地環境：不同步（獨立資料）
 

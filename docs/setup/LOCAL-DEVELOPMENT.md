@@ -226,31 +226,30 @@ location.reload();
 
 ---
 
-## 🚀 部署到 Zeabur
+## 🚀 部署至龍蝦主機
 
-確認本地測試無誤後：
+系統已遷移至本機龍蝦主機 + Cloudflare Tunnel：
+
+- 前端（port 3002）：https://hrsystem.step1ne.com
+- 後端（port 3003）：https://api-hr.step1ne.com
+- DB：PostgreSQL 16 本機，`postgresql://step1ne@localhost:5432/step1ne`
+- Process Manager：PM2
+- 對外通道：Cloudflare Tunnel（cloudflared）
 
 ```bash
-# 1. 提交變更
-git add .
-git commit -m "本地測試完成，準備部署"
-git push
+# PM2 重啟
+pm2 restart all
 
-# 2. Zeabur 會自動部署
-# 前端：https://hrsystem.step1ne.com
-# 後端：https://api-hr.step1ne.com
+# 查看狀態
+pm2 status
 ```
-
-**環境變數設定**（Zeabur）：
-- 前端：`VITE_API_URL=https://api-hr.step1ne.com`
-- 後端：同本地設定
 
 ---
 
 ## 📚 相關文件
 
 - [README.md](./README.md) - 專案總覽
-- [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md) - Zeabur 部署指南
+- [SYSTEM-RECOVERY.md](../SYSTEM-RECOVERY.md) - 系統復原指南
 - [QUICK-START.md](./QUICK-START.md) - 快速開始
 
 ---

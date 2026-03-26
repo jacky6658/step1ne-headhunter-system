@@ -221,7 +221,7 @@ server/
 - [x] PostgreSQL 初始化
 - [x] API 層實現
 - [x] 前端改進
-- [x] 部署到 Zeabur
+- [x] 部署到龍蝦主機（原 Zeabur，已遷移）
 
 ### Phase 2（下週）
 - [ ] 新增用戶權限管理（多顧問隔離）
@@ -245,8 +245,8 @@ server/
 # 本地開發
 node server/server.js
 
-# PostgreSQL 連線
-psql postgresql://root:<YOUR_PASSWORD_FROM_ZEABUR>@tpe1.clusters.zeabur.com:27883/zeabur
+# PostgreSQL 連線（本機）
+psql postgresql://step1ne@localhost:5432/step1ne
 
 # 查詢候選人
 SELECT * FROM candidates_pipeline WHERE consultant='Jacky' LIMIT 10;
@@ -266,7 +266,7 @@ curl http://localhost:3001/api/health
 ### 環境變數（記住這些）
 
 ```bash
-DATABASE_URL=postgresql://root:<YOUR_PASSWORD_FROM_ZEABUR>@tpe1.clusters.zeabur.com:27883/zeabur
+DATABASE_URL=postgresql://step1ne@localhost:5432/step1ne
 SHEET_ID=1PunpaDAFBPBL_I76AiRYGXKaXDZvMl1c262SEtxRk6Q
 PORT=3001
 ```

@@ -89,7 +89,7 @@
 }
 ```
 
-3. 推送到 GitHub（Zeabur 自動部署）
+3. 推送到 GitHub，在龍蝦主機 `git pull` 後 PM2 重啟
 4. 測試登入：https://hrsystem.step1ne.com
 
 ---

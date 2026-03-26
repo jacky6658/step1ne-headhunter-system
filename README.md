@@ -2,8 +2,9 @@
 
 > AI 驅動的候選人管理、職缺配對、客戶開發、顧問學習一站式平台
 
+**前端**：`https://hrsystem.step1ne.com`
 **後端 API**：`https://api-hr.step1ne.com`
-**前端部署**：Zeabur 自動部署
+**部署方式**：本機龍蝦主機 + Cloudflare Tunnel 對外
 
 ---
 
@@ -106,10 +107,9 @@
 
 | 文件 | 說明 |
 |------|------|
+| [系統復原指南](./docs/SYSTEM-RECOVERY.md) | 完整復原步驟（電腦掛掉時） |
 | [快速開始](./docs/setup/QUICK-START.md) | 新手第一步 |
 | [本地開發](./docs/setup/LOCAL-DEVELOPMENT.md) | 本地環境設定 |
-| [Zeabur 部署](./docs/setup/ZEABUR-DEPLOYMENT.md) | 雲端部署步驟 |
-| [Zeabur + GoG 設定](./docs/setup/ZEABUR-GOG-SETUP.md) | GoG CLI 整合 |
 | [連線設定](./docs/setup/CONNECT-GUIDE.md) | 資料庫/服務連線設定 |
 
 ### 範例程式
@@ -137,11 +137,13 @@ https://api-hr.step1ne.com/api/guide
 
 | 層級 | 技術 |
 |------|------|
-| 前端 | React 19 + TypeScript + Vite + Tailwind CSS |
-| 後端 | Node.js + Express + PostgreSQL |
-| 部署 | Zeabur（前後端分離、自動部署） |
-| AI | Claude API（評分 / 生成畫像 / 履歷分析 / 學習中心 Prompt） |
-| 爬蟲 | GitHub API + LinkedIn Scraper |
+| 前端 | React 19 + TypeScript + Vite 6 + Tailwind CSS |
+| 後端 | Node.js + Express 5 + PostgreSQL 16 |
+| 即時通訊 | Socket.IO 4.8 |
+| 外網代理 | Cloudflare Tunnel (cloudflared) |
+| 進程管理 | PM2 |
+| AI | Claude API / Perplexity API / OpenClaw |
+| 爬蟲 | GitHub API + LinkedIn Scraper (Python) |
 
 ---
 
@@ -213,41 +215,45 @@ https://api-hr.step1ne.com/api/guide
 
 ## 資料庫
 
-- **PostgreSQL**（Zeabur 託管）
+- **PostgreSQL 16**（本機，`postgresql://step1ne@localhost:5432/step1ne`）
 - 啟動時自動執行 60+ 條 Migration（安全冪等）
 - 所有資料一律存 DB SQL，不使用 Google Sheets
+- 自動每日備份至 [DB 備份倉庫](https://github.com/jacky6658/step1ne-db-backups)
 - 一鍵完整 Migration 腳本：`server/scripts/migration-all-in-one.sql`
 
 ---
 
-## 📋 待做事項 (Roadmap)
+## 系統部署架構
 
-> 完整 Issue 追蹤：[GitHub Issues](https://github.com/jacky6658/step1ne-headhunter-system/issues)
+```
+[遠端用戶瀏覽器]
+    │
+    ▼
+[Cloudflare CDN / DNS]
+    │
+    ▼
+[Cloudflare Tunnel (cloudflared)] ← 龍蝦主機上的 daemon
+    │
+    ├──► Frontend (Vite/React, port 3002)   → https://hrsystem.step1ne.com
+    ├──► Backend  (Express/Node, port 3003)  → https://api-hr.step1ne.com
+    ├──► Crawler  (Python, port 5001)        → https://crawler.step1ne.com
+    └──► PostgreSQL (port 5432)              → 本機直連
+```
 
-### 🚀 系統本地化遷移 [#1](https://github.com/jacky6658/step1ne-headhunter-system/issues/1)
-- [ ] 本地 PostgreSQL 建置 + 資料匯入（`pg_dump` → `psql`）
-- [ ] 後端本地化（`.env` 設定、CORS 調整、API 驗證）
-- [ ] 前端本地化（`VITE_API_URL` 切換、`npm run build`）
-- [ ] Docker 容器化（`Dockerfile` + `docker-compose.yml`）
+### PM2 管理的進程
 
-### 🌐 顧問對外公開頁面 [#2](https://github.com/jacky6658/step1ne-headhunter-system/issues/2)
-- [x] 設定 UI（5 模板 / 配色 / 內容 / SEO）
-- [x] 即時預覽系統（桌機 / 平板 / 手機切換）
-- [ ] 獨立 consultant-site 應用（SSR/SSG）
-- [ ] 職缺展示 + 投遞表單
-- [ ] 公開 API（`/api/public/consultants/:slug`）
-- [ ] 瀏覽統計 + 投遞通知
-
-### 🔗 網域遷移 [#3](https://github.com/jacky6658/step1ne-headhunter-system/issues/3)
-- [ ] DNS 設定（`app.step1ne.com` / `api.step1ne.com` / `site.step1ne.com`）
-- [ ] Zeabur 自訂域名綁定 + SSL
-- [ ] 程式碼 URL 全面更新（constants / CORS / guides）
-- [ ] 舊域名 301 重導向
-
-### 🧠 AI 進階功能
-- [ ] Job Matching 匹配機制 — 輸入 JD 自動計算匹配度（技能 35% / 薪資 15% / 年資 15% / 產業 10%）
-- [ ] JD 自動解析（必備技能 / 年資要求 / 產業需求）
+| 進程名 | Port | 說明 |
+|--------|------|------|
+| hr-frontend | 3002 | 獵頭系統前端 (vite preview) |
+| hr-backend | 3003 | 獵頭系統後端 |
+| agile-frontend | 3000 | 敏捷系統前端 |
+| agile-backend | 3001 | 敏捷系統後端 |
+| crawler | 5001 | Python 爬蟲服務 |
+| cloudflared | - | Cloudflare Tunnel |
+| health-monitor | - | 每 10 分鐘健康檢查 |
+| patrol-daily | - | 每天 10:00 龍蝦巡邏早報 |
+| patrol-hourly | - | 12/14/16/18 龍蝦巡邏快報 |
 
 ---
 
-*Last updated: 2026-03-16*
+*Last updated: 2026-03-26*

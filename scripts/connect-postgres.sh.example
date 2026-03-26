@@ -5,11 +5,11 @@
 # 注意：請複製此文件為 connect-postgres.sh 並填入實際的資料庫資訊
 
 # 資料庫連接資訊（從環境變數或直接設置）
-DB_HOST="${DB_HOST:-tpe1.clusters.zeabur.com}"
-DB_PORT="${DB_PORT:-22704}"
-DB_NAME="${DB_NAME:-zeabur}"
-DB_USER="${DB_USER:-root}"
-DB_PASSWORD="${DB_PASSWORD:-your-password-here}"
+DB_HOST="${DB_HOST:-localhost}"
+DB_PORT="${DB_PORT:-5432}"
+DB_NAME="${DB_NAME:-step1ne}"
+DB_USER="${DB_USER:-step1ne}"
+DB_PASSWORD="${DB_PASSWORD:-}"
 
 # 連接字串
 CONNECTION_STRING="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"

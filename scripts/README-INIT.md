@@ -54,13 +54,13 @@ createdb aijob_db
 psql -U postgres -d aijob_db -f scripts/init-database.sql
 ```
 
-## 雲端部署（Zeabur）
+## 龍蝦主機部署
 
-在 Zeabur 環境中，環境變數會自動設置，只需：
+在龍蝦主機中，直接連線本機 PostgreSQL：
 
 ```bash
-# 在 Zeabur 的終端機中執行
-psql $DATABASE_URL -f scripts/init-database.sql
+# 在龍蝦主機中執行
+psql postgresql://step1ne@localhost:5432/step1ne -f scripts/init-database.sql
 ```
 
 ## 驗證安裝

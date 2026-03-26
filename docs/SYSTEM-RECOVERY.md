@@ -1,6 +1,6 @@
 # Step1ne System Recovery Guide
 
-> Last updated: 2026-03-25
+> Last updated: 2026-03-26
 > 用途：電腦掛掉時，在新電腦上完整復原所有服務
 
 ---
@@ -103,7 +103,7 @@ psql -d agile_hub < agile_hub_backup.sql
 
 | DB | 大小 | 主要表 | 筆數 |
 |----|------|--------|------|
-| step1ne | 788 MB | candidates_pipeline | 2,802 |
+| step1ne | 712 MB | candidates_pipeline | 2,802 |
 | step1ne | — | jobs_pipeline | 50 |
 | agile_hub | 8 MB | — | — |
 
@@ -381,6 +381,6 @@ curl https://hrsystem.step1ne.com/
 
 1. **lobster-dashboard 不要啟動** — 會無限重啟打爆 DB（已重啟 188,000+ 次）
 2. **前端用 `vite preview`** — 不要用 `vite dev`，dev mode 會讓 LCP 30+ 秒
-3. **DB 備份** — 建議每週 `pg_dump step1ne > backup_$(date +%Y%m%d).sql`
+3. **DB 備份** — 每日 22:00 自動備份至 [step1ne-db-backups](https://github.com/jacky6658/step1ne-db-backups) 倉庫
 4. **電腦不能睡眠** — 睡眠會斷所有外網服務（Cloudflare Tunnel）
 5. **Response Cache** — candidates/jobs API 有 30 秒快取，寫入後自動清除

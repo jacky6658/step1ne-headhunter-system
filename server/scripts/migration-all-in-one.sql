@@ -2,7 +2,7 @@
 -- Step1ne: 全量合併 Migration（安全重複執行版）
 -- 用途：一次性確保所有欄位、表格、索引都存在
 -- 策略：全部使用 IF NOT EXISTS / ADD COLUMN IF NOT EXISTS
--- 執行方式：在 Zeabur PostgreSQL Console 貼上執行即可
+-- 執行方式：在本機 PostgreSQL 中執行即可
 -- 最後更新：2026-03-15
 -- =====================================================================
 

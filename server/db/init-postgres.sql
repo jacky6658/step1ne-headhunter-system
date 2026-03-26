@@ -1,5 +1,5 @@
 -- PostgreSQL 初始化腳本
--- 在 Zeabur PostgreSQL 中執行此腳本
+-- 在本機 PostgreSQL 中執行此腳本
 
 -- 1. 創建 candidates_pipeline 表
 CREATE TABLE IF NOT EXISTS candidates_pipeline (

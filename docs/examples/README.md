@@ -140,7 +140,7 @@ bot.command('search', async (ctx) => {
 API_BASE = 'http://localhost:3001/api'
 ```
 
-**正式環境**（Zeabur）：
+**正式環境**（龍蝦主機）：
 ```python
 API_BASE = 'https://api-hr.step1ne.com/api'
 ```

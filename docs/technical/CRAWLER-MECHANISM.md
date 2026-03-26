@@ -13,7 +13,7 @@
   │
   ▼
 POST /api/bot/run-now  ─── 手動觸發
-  │   or Zeabur Scheduler ─── 定時觸發
+  │   or PM2 Cron ─── 定時觸發
   │
   ▼
 one-bot-pipeline.py  (Python 主管線)
@@ -189,23 +189,15 @@ python3 one-bot-pipeline.py \
 
 ---
 
-## 七、部署說明（Zeabur）
-
-### 安裝設定（zbpack.json）
-```json
-{
-  "install_command": "npm install && pip3 install playwright && python3 -m playwright install chromium",
-  "start_command": "node server.js"
-}
-```
+## 七、部署說明（龍蝦主機）
 
 ### Python 依賴
 ```
 playwright>=1.40.0
 ```
 
-### 定時排程（Zeabur Scheduler）
-在系統 Bot 排程設定頁取得 Cron 表達式，填入 Zeabur → Bot 服務 → Scheduler。
+### 定時排程（PM2 Cron）
+在系統 Bot 排程設定頁取得 Cron 表達式，使用 PM2 cron_restart 設定定時執行。
 
 範例（每天 09:00）：
 ```
@@ -213,7 +205,7 @@ playwright>=1.40.0
 ```
 
 ### 本機執行評分（Score Only）
-爬取由 Zeabur 執行，評分（含讀頁面）可在本機有 GUI 的環境執行（Playwright 需要 X11 或 headless）：
+爬取與評分均在龍蝦主機執行（Playwright 需要 headless 模式）：
 ```bash
 API_BASE_URL=https://api-hr.step1ne.com \
   python3 one-bot-pipeline.py --mode score
@@ -233,7 +225,7 @@ API_BASE_URL=https://api-hr.step1ne.com \
 
 1. **LinkedIn 未登入限制**：未登入 LinkedIn 時，Profile 讀取僅能取得公開資訊（姓名、headline、地點），詳細 About/Experience 需登入。評分器在此情況下退回已知資訊。
 
-2. **Playwright 環境**：確保 Zeabur 部署時已執行 `playwright install chromium`，否則自動降級到 urllib 備援。
+2. **Playwright 環境**：確保龍蝦主機已執行 `playwright install chromium`，否則自動降級到 urllib 備援。
 
 3. **GitHub Token**：無 Token 時每小時上限 60 次 API 請求（約 6 頁 × 10 筆）。有 Token 可達 5000 次/小時，建議在系統設定頁填入。
 

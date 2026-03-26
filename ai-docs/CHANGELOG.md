@@ -56,5 +56,5 @@
 - **分類法**：/api/taxonomy/skills + roles + industries
 
 ### 資料庫
-- PostgreSQL（Zeabur 託管）
+- PostgreSQL 16（龍蝦主機本機）
 - 所有資料一律存 DB SQL，不使用 Google Sheets

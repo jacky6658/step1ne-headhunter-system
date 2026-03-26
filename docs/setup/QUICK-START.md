@@ -173,7 +173,7 @@ gog auth login
 ## 🎯 下一步
 
 - 閱讀 [README.md](./README.md) 了解完整功能
-- 查看 [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md) 學習部署到 Zeabur
+- 查看 [SYSTEM-RECOVERY.md](../SYSTEM-RECOVERY.md) 了解本機龍蝦主機部署與復原
 - 探索 [系統設計文檔](../resume-pool-system/SYSTEM-DESIGN.md)
 
 ---

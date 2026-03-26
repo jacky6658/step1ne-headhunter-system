@@ -1,3 +1,5 @@
+> 注意：此文件為歷史存檔，系統已遷移至本機龍蝦主機 + Cloudflare Tunnel 架構
+
 # 🎉 Step1ne 獵頭 AI 協作系統 - 交付總結
 
 > ✅ **系統已完成並推送至 GitHub，準備部署到 Zeabur**

@@ -1,3 +1,5 @@
+> ⚠️ 已棄用：系統已從 Zeabur 遷移至本機龍蝦主機 + Cloudflare Tunnel。請參考 [系統復原指南](../SYSTEM-RECOVERY.md)
+
 # Zeabur 環境安裝 gog CLI 方案
 
 ## 🎯 目標

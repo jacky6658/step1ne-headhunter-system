@@ -39,11 +39,11 @@ cp scripts/execute-sql.sh.example scripts/execute-sql.sh
 您也可以通過環境變數設置資料庫連接資訊：
 
 ```bash
-export DB_HOST="tpe1.clusters.zeabur.com"
-export DB_PORT="22704"
-export DB_NAME="zeabur"
-export DB_USER="root"
-export DB_PASSWORD="your-password-here"
+export DB_HOST="localhost"
+export DB_PORT="5432"
+export DB_NAME="step1ne"
+export DB_USER="step1ne"
+export DB_PASSWORD=""
 ```
 
 然後執行腳本，腳本會自動使用環境變數。
@@ -62,16 +62,16 @@ bash scripts/execute-sql.sh scripts/create-tables.sql
 
 1. **永遠不要將包含密碼的文件提交到 GitHub**
 2. 使用 `.example` 文件作為模板
-3. 在 Zeabur 中，可以使用環境變數設置資料庫連接資訊
+3. 在龍蝦主機中，可以使用環境變數設置資料庫連接資訊
 4. 定期更換資料庫密碼
 
-## 📝 Zeabur 部署說明
+## 📝 龍蝦主機部署說明
 
-在 Zeabur 中部署時：
+在龍蝦主機中部署時：
 
-1. **不需要上傳包含密碼的腳本** - Zeabur 會自動提供資料庫連接資訊
+1. **不需要上傳包含密碼的腳本** - 本機 PostgreSQL 使用 peer 認證
 2. **只需要上傳 SQL 文件** - `create-tables.sql` 可以在部署時執行
-3. **使用環境變數** - 在 Zeabur 控制台設置資料庫連接環境變數
+3. **使用環境變數** - 在 `.env` 或系統環境中設置資料庫連接環境變數
 
 ## 🔄 資料遷移
 

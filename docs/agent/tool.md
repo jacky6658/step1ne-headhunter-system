@@ -12,7 +12,7 @@
 - `GET http://localhost:3003/api/candidates?limit=1` → 預期 HTTP 200
 
 ### 注意
-- 不再使用 Zeabur 雲端（已棄用）
+- 系統運行於本機龍蝦主機 + Cloudflare Tunnel
 - 所有 API 呼叫一律走本地 localhost:3003
 - 如果本地 API 無回應 → 提醒 Jacky 重啟 server
 

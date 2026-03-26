@@ -226,7 +226,7 @@ export async function triggerSync() {
 REACT_APP_API_URL=http://localhost:3001/api
 ```
 
-### `.env.production`（生產環境 - Zeabur）
+### `.env.production`（生產環境 - 龍蝦主機）
 ```
 REACT_APP_API_URL=https://api-hr.step1ne.com/api
 ```
@@ -291,7 +291,7 @@ A:
 - [ ] 新增 `api-utils.ts`
 - [ ] 設定 `.env.local` 和 `.env.production`
 - [ ] 測試流程 1-3
-- [ ] 部署到 Zeabur
+- [ ] 部署到龍蝦主機
 
 ---
 

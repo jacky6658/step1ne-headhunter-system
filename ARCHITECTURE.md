@@ -1,6 +1,6 @@
 # Step1ne 獵頭 AI 協作系統 — 系統架構 & 敏捷看板
 
-> 最後更新：2026-03-11（已清理：移除 Bot 排程、Leads 案件管理、Python 腳本）
+> 最後更新：2026-03-26（已遷移至本機龍蝦主機 + Cloudflare Tunnel 架構）
 
 ---
 
@@ -34,25 +34,27 @@
                               └──────┬──────┘
                                      │ HTTPS
                               ┌──────▼──────┐
-                              │   Zeabur CDN │
+                              │ Cloudflare   │
+                              │ CDN / Tunnel │
                               └──────┬──────┘
-                                     │
+                                     │ 龍蝦主機
           ┌──────────────────────────┼──────────────────────────┐
           │                          │                          │
    ┌──────▼──────┐           ┌──────▼──────┐           ┌──────▼──────┐
    │  前端 SPA    │           │  後端 API    │           │  PostgreSQL  │
-   │  React 19    │◄─────────►│  Express 5   │◄─────────►│  Zeabur DB   │
-   │  Vite 6      │   /api    │  Node.js     │    pg     │  12+ 資料表   │
-   │  TypeScript   │           │  4300+ 行    │           │  1347 人選   │
-   │  Tailwind 3   │           │  55+ 端點    │           │  53+ 職缺    │
+   │  React 19    │◄─────────►│  Express 5   │◄─────────►│  本機 DB     │
+   │  Vite 6      │   /api    │  Node.js     │    pg     │  18 資料表    │
+   │  TypeScript   │           │  Socket.IO   │           │  2,802 人選  │
+   │  Tailwind 3   │           │  55+ 端點    │           │  50 職缺     │
+   │  :3002        │           │  :3003       │           │  :5432       │
    └──────────────┘           └──────┬──────┘           └──────────────┘
                                      │
                     ┌────────────────┼────────────────┐
                     │                │                │
              ┌──────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐
-             │  Google AI   │ │  GitHub API  │ │  爬蟲引擎    │
-             │  Gemini      │ │  Profile分析  │ │  104/1111   │
-             │  Perplexity  │ │  Repo 統計   │ │  LinkedIn   │
+             │  Claude API  │ │  GitHub API  │ │  爬蟲引擎    │
+             │  Perplexity  │ │  Profile分析  │ │  104/1111   │
+             │  OpenClaw    │ │  Repo 統計   │ │  LinkedIn   │
              └─────────────┘ └─────────────┘ └─────────────┘
 ```
 
@@ -160,31 +162,36 @@
 ## 四、環境配置狀態
 
 ```
-                    本地開發                    Zeabur 生產
-                 ─────────────              ─────────────
-前端啟動          npm run dev                 自動部署 ✅
-                  ├─ Port 3000               ├─ step1ne.zeabur.app
-                  ├─ .env ✅ 已建立          ├─ 環境變數已設定 ✅
-                  └─ Proxy → :3001           └─ 直連後端 API
+                    本機開發 / 生產（龍蝦主機）
+                 ────────────────────────────
+前端              vite preview --port 3002
+                  ├─ PM2 進程: hr-frontend
+                  ├─ 外網: https://hrsystem.step1ne.com
+                  └─ .env ✅ 已建立
 
-後端啟動          npm run backend             自動部署 ✅
-                  ├─ Port 3001               ├─ backendstep1ne.zeabur.app
-                  ├─ server/.env ✅ 已建立   ├─ POSTGRES_URI 自動注入 ✅
-                  └─ DB 連線 (env)           └─ DB 連線 ✅
+後端              node server.js (port 3003)
+                  ├─ PM2 進程: hr-backend
+                  ├─ 外網: https://api-hr.step1ne.com
+                  └─ server/.env ✅ 已建立
 
-資料庫            連線遠端 DB ✅              Zeabur 託管 PostgreSQL ✅
-                  └─ 密碼在 .env + 原始碼 ⚠️ └─ 1347 候選人 / 53 職缺
+資料庫            PostgreSQL 16 本機
+                  ├─ postgresql://step1ne@localhost:5432/step1ne
+                  ├─ 2,802 候選人 / 50 職缺 / 712 MB
+                  └─ 每日自動備份至 GitHub
+
+外網代理          Cloudflare Tunnel (cloudflared)
+                  └─ PM2 進程: cloudflared
 ```
 
 ### 本地啟動 Checklist
 
 ```
-[x] 1. .env 已建立（前端，連線 Zeabur 後端）
+[x] 1. .env 已建立（前端）
 [x] 2. server/.env 已建立（後端，含 DATABASE_URL）
-[ ] 3. npm install（前端）
-[ ] 4. cd server && npm install（後端）
-[ ] 5. npm run dev（前端，Port 3000）
-[ ] 6. npm run backend（後端，Port 3001）
+[x] 3. PostgreSQL 16 已安裝並啟動
+[x] 4. npm install（前端 + 後端）
+[x] 5. PM2 管理所有進程（pm2 save / pm2 startup）
+[x] 6. Cloudflare Tunnel 對外
 ⚠️ 注意：.env 不在 Git 裡，共享時需手動複製
 ```
 
@@ -213,10 +220,10 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                        BACKEND                               │
 │                                                              │
-│  Runtime:    Node.js (≥14, 建議 ≥18)                        │
+│  Runtime:    Node.js v25.8.1                                 │
 │  Framework:  Express 5.2.1                                   │
-│  Database:   PostgreSQL via pg 8.18.0                        │
-│  AI:         @google/genai 1.36.0 (Gemini)                  │
+│  Database:   PostgreSQL 16 via pg 8.18.0                     │
+│  AI:         Claude API / Perplexity API / OpenClaw          │
 │  PDF Parse:  pdf-parse 2.4.5 (v2 API)                       │
 │  Upload:     Multer 2.1.0                                    │
 │  HTTP:       Axios 1.7.0                                     │
@@ -441,26 +448,31 @@ App.tsx (主路由)
 ──────────────
 前端元件      10+ 個     最大：CandidateModal (161KB)
 頁面          15 個      最大：HelpPage (70KB)
-API 端點      ~45 個     主檔：routes-api.js (~3100 行)
+API 端點      ~55 個     主檔：routes-api.js
 後端服務      10+ 個     最大：talentSourceService (29KB)
 SQL 遷移      23 個
-Python 腳本   0 個       (已移除，改由獨立爬蟲專案處理)
+Python 腳本   爬蟲專案獨立管理
 文件          30+ 個
 
 資料規模：
 ──────────────
-候選人        1,347 筆
-職缺          53 筆
-顧問          3 人 (Jacky, Phoebe, Crawler-WebUI)
-資料表        12+ 個
+候選人        2,802 筆
+職缺          50 筆
+客戶          49 筆
+顧問          5 人
+資料表        18 個
+DB 大小       712 MB
 ```
 
 ---
 
-## 十二、CORS & 環境對照表
+## 十二、域名 & 環境對照表
 
-| 環境 | 前端 URL | 後端 URL | CORS | 狀態 |
-|------|---------|---------|------|------|
-| 本地開發 | `localhost:3000` | `localhost:3001` | Vite Proxy | ⚠️ 需 .env |
-| Zeabur 生產 | `step1ne.zeabur.app` | `backendstep1ne.zeabur.app` | 白名單 ✅ | ✅ 運作中 |
-| 其他域名 | `step1ne.com` | 同上 | 白名單 ✅ | ✅ 已設定 |
+| 域名 | 本地 Port | 服務 | 狀態 |
+|------|-----------|------|------|
+| hrsystem.step1ne.com | :3002 | HR 前端 | ✅ 運作中 |
+| api-hr.step1ne.com | :3003 | HR 後端 API | ✅ 運作中 |
+| crawler.step1ne.com | :5001 | Python 爬蟲 | ✅ 運作中 |
+| agile.step1ne.com | :3000 | Agile Hub 前端 | ✅ 運作中 |
+
+所有外網流量經由 Cloudflare Tunnel 轉發至本機龍蝦主機。
