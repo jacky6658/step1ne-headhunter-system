@@ -2121,10 +2121,11 @@ function openNote(cid, name, pos) {
   if (notes.length === 0) {
     listEl.innerHTML = '<div style="color:#bbb;font-size:.8em;padding:8px">尚無備註</div>';
   } else {
-    listEl.innerHTML = notes.map(n => 
-      '<div class="note-item">' +
-        '<div class="note-time">' + n.time + '</div>' +
-        '<div class="note-text">' + n.text + '</div>' +
+    listEl.innerHTML = notes.map((n,idx) =>
+      '<div class="note-item" style="display:flex;justify-content:space-between;align-items:flex-start">' +
+        '<div style="flex:1"><div class="note-time">' + n.time + '</div>' +
+        '<div class="note-text">' + n.text + '</div></div>' +
+        '<button onclick="deleteNote('+idx+')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:1em;padding:0 4px;flex-shrink:0" title="刪除此備註" onmouseover="this.style.color=\'#e74c3c\'" onmouseout="this.style.color=\'#ccc\'">✕</button>' +
       '</div>'
     ).join('');
   }
@@ -2160,6 +2161,18 @@ function selectCountry(country) {
   document.getElementById('countryDropdown').style.display='none';
   document.getElementById('countrySearch').value='';
   quickNote('📍 人選所在國家：' + country);
+}
+
+function deleteNote(idx) {
+  const allNotes = JSON.parse(localStorage.getItem('step1ne_notes') || '{}');
+  if (!allNotes[currentNoteCid]) return;
+  allNotes[currentNoteCid].splice(idx, 1);
+  if (allNotes[currentNoteCid].length === 0) delete allNotes[currentNoteCid];
+  localStorage.setItem('step1ne_notes', JSON.stringify(allNotes));
+  openNote(currentNoteCid,
+    document.getElementById('modalTitle').textContent.replace('📝 ','').replace(/ \(#.*/, ''),
+    '');
+  updateNoteBadges();
 }
 
 function quickNote(text) {
