@@ -2025,8 +2025,8 @@ async function syncAllToDB(){
   for(let i=0;i<ids.length;i++){
     const cid=ids[i];
     statusEl.textContent='⏳ 同步中... '+Math.round((i/ids.length)*100)+'% ('+i+'/'+ids.length+')';
-    // Rate limit: wait 500ms between requests to avoid 429
-    if(i>0) await new Promise(r=>setTimeout(r,500));
+    // Rate limit: wait 1.5s between each candidate to avoid 429
+    if(i>0) await new Promise(r=>setTimeout(r,1500));
     try{
       // If has notes, fetch existing DB notes first and merge (no duplicates)
       if(byId[cid].consultant_note){
@@ -2058,8 +2058,8 @@ async function syncAllToDB(){
       if(res.ok){ success++ }
       else if(res.status===429){
         // Rate limited - wait 2s and retry
-        statusEl.textContent='⏳ 限流中，等待重試... ('+i+'/'+ids.length+')';
-        await new Promise(r=>setTimeout(r,2000));
+        statusEl.textContent='⏳ 限流中，等待 5 秒重試... ('+i+'/'+ids.length+')';
+        await new Promise(r=>setTimeout(r,5000));
         const retry=await fetch(API+'/api/candidates/'+cid,{
           method:'PATCH',
           headers:{'Content-Type':'application/json','Authorization':'Bearer '+KEY},
