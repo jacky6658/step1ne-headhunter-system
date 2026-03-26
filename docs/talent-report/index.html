@@ -2018,6 +2018,28 @@ async function syncAllToDB(){
     const cid=ids[i];
     statusEl.textContent='⏳ 同步中... ('+Math.round((i/ids.length)*100)+'%)';
     try{
+      // If has notes, fetch existing DB notes first and merge (no duplicates)
+      if(byId[cid].consultant_note){
+        try{
+          const getRes=await fetch(API+'/api/candidates/'+cid,{
+            headers:{'Authorization':'Bearer '+KEY}
+          });
+          if(getRes.ok){
+            const existing=await getRes.json();
+            const dbNote=(existing.consultant_note||existing.data?.consultant_note||'').toString();
+            const dbLines=dbNote.split('\n').map(l=>l.trim()).filter(l=>l);
+            const newLines=byId[cid].consultant_note.split('\n').map(l=>l.trim()).filter(l=>l);
+            // Only add lines not already in DB
+            const toAdd=newLines.filter(nl=>!dbLines.some(dl=>dl.includes(nl.replace(/^\[.*?\]\s*/,''))));
+            if(toAdd.length>0){
+              byId[cid].consultant_note=dbLines.concat(toAdd).join('\n');
+            }else{
+              delete byId[cid].consultant_note; // All notes already exist, skip
+            }
+          }
+        }catch(e){}
+        if(Object.keys(byId[cid]).length===0){success++;continue}
+      }
       const res=await fetch(API+'/api/candidates/'+cid, {
         method:'PATCH',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+KEY},
