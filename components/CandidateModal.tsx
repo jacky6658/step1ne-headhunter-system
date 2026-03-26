@@ -433,7 +433,7 @@ POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
     };
   }, []);
   
-  // 重新 fetch 候選人資料以獲得最新欄位
+  // Fetch 完整候選人資料 — 列表頁可能用 light mode 或 summary，缺少工作經歷、教育、AI 分析等
   React.useEffect(() => {
     let cancelled = false;
     const fetchLatest = async () => {
@@ -442,19 +442,19 @@ POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
         if (response.ok && !cancelled) {
           const result = await response.json();
           const data = result.data || {};
-          // 只合併關鍵欄位，避免 snake_case 汙染和空字串覆蓋
-          setEnrichedCandidate({
-            ...candidate,
-            aiMatchResult: data.aiMatchResult || data.ai_match_result || candidate.aiMatchResult || null,
-            aiSummary: data.aiSummary || data.ai_summary || (candidate as any).aiSummary || null,
-            aiAnalysis: data.aiAnalysis || data.ai_analysis || (candidate as any).aiAnalysis || null,
-            outreachLetters: data.outreachLetters || data.outreach_letters || (candidate as any).outreachLetters || [],
-            progressTracking: data.progressTracking || data.progress_tracking || candidate.progressTracking || [],
-            notes: (data.notes != null && data.notes !== '') ? data.notes : (candidate.notes || ''),
-          });
+          // 全量合併：API 完整資料覆蓋 light mode 的殘缺資料
+          // 只保留 API 回傳非空的值，避免 null 覆蓋原有資料
+          const merged = { ...candidate } as any;
+          for (const [key, val] of Object.entries(data)) {
+            if (val != null && val !== '' && !(Array.isArray(val) && val.length === 0)) {
+              merged[key] = val;
+            } else if (merged[key] == null) {
+              merged[key] = val;
+            }
+          }
+          setEnrichedCandidate(merged);
           // 同步更新備註的 local state
-          const latestNotes = (data.notes != null && data.notes !== '') ? data.notes : '';
-          if (latestNotes) setLocalNotes(latestNotes);
+          if (data.notes != null && data.notes !== '') setLocalNotes(data.notes);
         }
       } catch (error) {
         if (!cancelled) {
@@ -465,7 +465,7 @@ POST /api/candidates/${candidate.id}/ai-grade-suggest 可送出分析請求
     };
     fetchLatest();
     return () => { cancelled = true; };
-  }, [candidate.id, candidate]);
+  }, [candidate.id]);
 
   // Sprint 2: Load taxonomy data for dropdowns
   React.useEffect(() => {

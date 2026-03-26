@@ -3073,16 +3073,9 @@ router.get('/jobs', heavyLimiter, async (req, res) => {
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const limitN = Math.min(parseInt(limit) || 200, 1000);
 
-    // 列表不回傳大文字欄位（job_description, company_profile 等），用 /jobs/:id 取詳情
+    // 回傳所有欄位 — 職缺數量少（<200），不需要 light mode
     const result = await client.query(`
-      SELECT
-        id, position_name, client_company, department, open_positions,
-        salary_range, key_skills, experience_required, education_required,
-        location, job_status, language_required, special_conditions,
-        industry_background, team_size, recruitment_difficulty,
-        interview_stages, priority, salary_min, salary_max,
-        remote_work, job_url, target_companies, title_variants,
-        created_at, updated_at
+      SELECT *
       FROM jobs_pipeline
       ${where}
       ORDER BY
