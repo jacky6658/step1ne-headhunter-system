@@ -2105,7 +2105,7 @@ function filterChecked(type){
   });
   // Recount visible
   let n=0,i=0;
-  rows.forEach(r=>{if(r.style.display!=='none'){n++;i++;r.cells[2].textContent=i}});
+  rows.forEach(r=>{if(r.style.display!=='none'){n++;i++;r.cells[3].textContent=i}});
   document.getElementById('rc').textContent=n;
   document.getElementById('fi').textContent=type==='all'?'未套用篩選':type==='contacted'?'只看已聯繫':'只看有效履歷';
 }
