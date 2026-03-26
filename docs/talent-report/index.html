@@ -22,9 +22,9 @@ select.fs{padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:.8em
 .rb .if{font-size:.78em;color:#888}
 .cb{padding:3px 10px;border:1px solid #e74c3c;border-radius:14px;background:#fff;color:#e74c3c;cursor:pointer;font-size:.73em}
 .cb:hover{background:#e74c3c;color:#fff}
-table{width:100%;border-collapse:collapse;font-size:.78em;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+table{width:100%;border-collapse:collapse;font-size:.78em;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);table-layout:fixed}
 th{background:#2d3436;color:#fff;padding:7px 6px;text-align:left;position:sticky;top:0;white-space:nowrap}
-td{padding:5px 6px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+td{padding:5px 6px;border-bottom:1px solid #f0f0f0;vertical-align:top;overflow:hidden;text-overflow:ellipsis;word-break:break-word}
 tr:hover{background:#f5f8ff}
 a{color:#4361ee;text-decoration:none} a:hover{text-decoration:underline}
 .job-tag{display:inline-block;background:#e8f0fe;color:#2d5be3;padding:2px 7px;border-radius:10px;font-size:.72em;margin:1px;white-space:nowrap;border:1px solid #c5d4f7}
@@ -183,7 +183,7 @@ a{color:#4361ee;text-decoration:none} a:hover{text-decoration:underline}
   <button onclick="clearChecks()">清除勾選</button>
 </div>
 <table><thead><tr>
-  <th style="width:28px">✅</th><th style="width:28px">📞</th><th style="width:80px">👤 顧問</th><th>#</th><th>ID</th><th>姓名</th><th>現職</th><th>AI</th>
+  <th style="width:28px">✅</th><th style="width:28px">📞</th><th style="width:75px">👤 顧問</th><th style="width:30px">#</th><th style="width:40px">ID</th><th style="width:100px">姓名</th><th style="width:160px">現職</th><th style="width:36px">AI</th>
   <th>📌 聯繫狀態</th><th>🏷 職能</th><th style="min-width:250px">🎯 目標職缺</th><th>LinkedIn</th>
 </tr></thead><tbody id="tb">
 <tr data-li="0" data-status="⚪ 未處理" data-cats="📢 行銷/品牌|💼 業務/BD|🌐 餐旅/零售" data-grade="D" data-jobs="" data-search="黃柔蓁 餐飲服務 📢 行銷/品牌 💼 業務/bd 🌐 餐旅/零售 ⚪ 未處理 gmail"><td class="ck-cell"><input type="checkbox" class="ck ck-valid" data-type="valid" data-cid="2" onchange="updateCounts()" title="有效履歷"></td><td class="ck-cell"><input type="checkbox" class="ck" data-type="contacted" data-cid="2" onchange="updateCounts()" title="已聯繫"></td><td class="ck-cell"><select class="consult-sel" data-cid="2" onchange="assignConsultant(this)" title="指派顧問"><option value="">待指派</option><option value="Jacky">Jacky</option><option value="Phoebe">Phoebe</option><option value="Jim">Jim</option><option value="admin">admin</option></select></td><td></td><td>2</td><td><strong class="name-link" onclick="openNote('2','黃柔蓁','餐飲服務')">黃柔蓁</strong></td><td>餐飲服務</td><td class="grade-D">D0</td><td><span class="status-badge" style="background:#f5f5f5;color:#9e9e9e">⚪ 未處理</span></td><td><span class="cat-tag">📢 行銷/品牌</span> <span class="cat-tag">💼 業務/BD</span> <span class="cat-tag">🌐 餐旅/零售</span></td><td><span class="no-match">儲備</span></td><td><span style="color:#ccc">-</span></td></tr>
