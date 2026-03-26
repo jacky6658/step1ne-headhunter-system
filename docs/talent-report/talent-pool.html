@@ -3,45 +3,91 @@
 <title>Step1ne 開發名單 — 人才包</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,"Microsoft JhengHei",sans-serif;background:#f0f2f5;color:#333;font-size:13px}
-.header{background:linear-gradient(135deg,#0f4c75,#1b262c);color:#fff;padding:16px 24px;position:sticky;top:0;z-index:100}
-.header h1{font-size:1.3em} .header p{font-size:.75em;color:#aaa;margin-top:2px}
-.container{max-width:1600px;margin:0 auto;padding:12px}
-.filters{background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.f-row{display:flex;align-items:center;gap:6px;margin:3px 0;flex-wrap:wrap}
-.f-label{font-size:.72em;font-weight:700;color:#555;min-width:60px}
-.f-btn{padding:3px 8px;border:1px solid #ddd;border-radius:14px;background:#fff;cursor:pointer;font-size:.7em;white-space:nowrap}
-.f-btn:hover{background:#f0f0f0} .f-btn.active{background:#0f4c75;color:#fff;border-color:#0f4c75}
-.f-sel{font-size:.72em;padding:3px 6px;border:1px solid #ddd;border-radius:6px}
-.f-input{font-size:.78em;padding:4px 8px;border:1px solid #ddd;border-radius:6px;width:250px}
-.f-clear{color:#e74c3c;border-color:#e74c3c}
-.f-count{font-size:.8em;color:#555;font-weight:600;margin-left:8px}
-.stats{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
-.stat{background:#fff;border-radius:8px;padding:6px 12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.stat .n{font-size:1.3em;font-weight:700;color:#0f4c75} .stat .l{font-size:.68em;color:#888}
-.tbl-wrap{overflow-x:auto;background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-table{width:100%;border-collapse:collapse;font-size:.74em;table-layout:fixed}
-th{background:#1b262c;color:#fff;padding:5px 4px;text-align:left;position:sticky;top:0;z-index:10;white-space:nowrap;font-size:.72em}
-td{padding:4px;border-bottom:1px solid #f0f0f0;vertical-align:top;overflow:hidden;text-overflow:ellipsis}
-tr:hover{background:#f0f7ff}
-tr.contacted{opacity:.6}
-a{color:#0f4c75;text-decoration:none} a:hover{text-decoration:underline}
-.li-btn{display:inline-block;background:#0077b5;color:#fff;padding:2px 7px;border-radius:4px;font-size:.7em;text-decoration:none}
-.li-btn:hover{background:#005f8d;color:#fff}
-.tag{display:inline-block;padding:1px 5px;border-radius:8px;font-size:.65em;margin:1px;white-space:nowrap}
-.tag-fn{background:#e8f0fe;color:#1a56db;border:1px solid #c5d4f7}
-.tag-ind{background:#fef3e2;color:#b45309;border:1px solid #fcd9a0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei",sans-serif;background:#f8fafc;color:#334155;font-size:13px;line-height:1.5}
+
+/* Header */
+.header{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f4c75 100%);color:#fff;padding:20px 28px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.15)}
+.header h1{font-size:1.4em;font-weight:800;letter-spacing:-.5px;display:flex;align-items:center;gap:8px}
+.header p{font-size:.78em;color:rgba(255,255,255,.65);margin-top:4px;font-weight:400}
+.header .legend{display:inline-flex;gap:12px;margin-left:16px;font-size:.72em}
+.header .legend span{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-weight:600}
+.header .legend .lg-new{background:rgba(5,150,105,.2);color:#6ee7b7}
+.header .legend .lg-old{background:rgba(220,38,38,.2);color:#fca5a5}
+
+/* Container */
+.container{max-width:1600px;margin:0 auto;padding:16px}
+
+/* Stats Cards */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:12px}
+.stat{background:#fff;border-radius:12px;padding:12px 8px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.04);border:1px solid #e2e8f0;transition:transform .15s,box-shadow .15s}
+.stat:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.stat .n{font-size:1.5em;font-weight:800;color:#0f4c75;line-height:1.2}
+.stat .l{font-size:.68em;color:#94a3b8;font-weight:500;margin-top:2px}
+
+/* Filters Panel */
+.filters{background:#fff;border-radius:12px;padding:14px 18px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.04);border:1px solid #e2e8f0}
+.f-row{display:flex;align-items:center;gap:6px;margin:5px 0;flex-wrap:wrap;padding:2px 0}
+.f-row+.f-row{border-top:1px solid #f1f5f9;padding-top:7px}
+.f-label{font-size:.74em;font-weight:700;color:#64748b;min-width:60px;flex-shrink:0}
+.f-btn{padding:4px 10px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;cursor:pointer;font-size:.72em;white-space:nowrap;transition:all .15s;color:#475569;font-weight:500}
+.f-btn:hover{background:#f1f5f9;border-color:#cbd5e1;transform:translateY(-1px)}
+.f-btn.active{background:#0f4c75;color:#fff;border-color:#0f4c75;box-shadow:0 2px 6px rgba(15,76,117,.3);font-weight:600}
+.f-input{font-size:.82em;padding:6px 12px;border:1px solid #e2e8f0;border-radius:8px;width:280px;transition:border-color .2s,box-shadow .2s;outline:none}
+.f-input:focus{border-color:#0f4c75;box-shadow:0 0 0 3px rgba(15,76,117,.1)}
+.f-clear{color:#ef4444;border-color:#fecaca;background:#fef2f2;font-weight:600}
+.f-clear:hover{background:#fee2e2;border-color:#ef4444}
+.f-count{font-size:.82em;color:#0f4c75;font-weight:700;margin-left:12px;background:#e0f2fe;padding:3px 10px;border-radius:10px}
+
+/* Export Button */
+.export-bar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.export-btn{background:linear-gradient(135deg,#0f4c75,#1e3a5f);color:#fff;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:.82em;font-weight:600;transition:all .15s;box-shadow:0 2px 6px rgba(15,76,117,.2)}
+.export-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(15,76,117,.3)}
+
+/* Table */
+.tbl-wrap{overflow-x:auto;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.04);border:1px solid #e2e8f0}
+table{width:100%;border-collapse:collapse;font-size:.78em;table-layout:fixed}
+th{background:linear-gradient(180deg,#1e293b,#0f172a);color:#e2e8f0;padding:8px 6px;text-align:left;position:sticky;top:0;z-index:10;white-space:nowrap;font-size:.72em;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+td{padding:6px 5px;border-bottom:1px solid #f1f5f9;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
+tr{transition:background .1s}
+tr:hover{background:#f0f9ff}
+tr:nth-child(even){background:#fafbfc}
+tr:nth-child(even):hover{background:#f0f9ff}
+tr.contacted{opacity:.5}
+tr.contacted:hover{opacity:.85}
+
+/* Links */
+a{color:#0f4c75;text-decoration:none;transition:color .15s} a:hover{color:#0369a1;text-decoration:underline}
+.li-btn{display:inline-flex;align-items:center;gap:3px;background:linear-gradient(135deg,#0077b5,#005f8d);color:#fff;padding:4px 10px;border-radius:6px;font-size:.72em;text-decoration:none;font-weight:600;transition:all .15s;box-shadow:0 1px 3px rgba(0,119,181,.2)}
+.li-btn:hover{background:linear-gradient(135deg,#005f8d,#004d73);color:#fff;text-decoration:none;transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,119,181,.3)}
+
+/* Tags */
+.tag{display:inline-flex;align-items:center;padding:2px 7px;border-radius:6px;font-size:.67em;margin:1px;white-space:nowrap;font-weight:500;letter-spacing:.2px}
+.tag-fn{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.tag-ind{background:#fffbeb;color:#b45309;border:1px solid #fde68a}
 .tag-tech{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
-.tag-contacted{background:#fee2e2;color:#dc2626;padding:1px 6px;font-weight:600}
-.tag-new{background:#ecfdf5;color:#059669;padding:1px 6px;font-weight:600}
-.col-c{width:55px} .col-n{width:25px} .col-id{width:35px} .col-name{width:100px} .col-pos{width:160px}
-.col-fn{width:120px} .col-ind{width:110px} .col-tech{width:180px} .col-li{width:60px}
-.export-btn{background:#0f4c75;color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:.8em;margin-bottom:8px}
-.export-btn:hover{background:#0a3a5e}
+.tag-contacted{background:#fef2f2;color:#dc2626;padding:3px 8px;font-weight:700;border:1px solid #fecaca;border-radius:6px;font-size:.7em}
+.tag-new{background:#ecfdf5;color:#059669;padding:3px 8px;font-weight:700;border:1px solid #a7f3d0;border-radius:6px;font-size:.7em}
+
+/* Column widths */
+.col-c{width:65px;text-align:center} .col-n{width:28px;text-align:center;color:#94a3b8;font-size:.72em} .col-id{width:38px;color:#94a3b8}
+.col-name{width:110px} .col-pos{width:170px} .col-fn{width:130px} .col-ind{width:120px} .col-tech{width:200px} .col-li{width:70px;text-align:center}
+
+/* Scrollbar */
+.tbl-wrap::-webkit-scrollbar{height:6px}
+.tbl-wrap::-webkit-scrollbar-track{background:#f1f5f9;border-radius:3px}
+.tbl-wrap::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+.tbl-wrap::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+
+/* Back to top */
+.back-top{position:fixed;bottom:20px;right:20px;background:#0f4c75;color:#fff;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:1.2em;opacity:0;transition:opacity .3s,transform .3s;transform:translateY(10px);z-index:200;border:none}
+.back-top.show{opacity:1;transform:translateY(0)}
+.back-top:hover{background:#0a3a5e;transform:translateY(-2px)}
 </style></head><body>
 <div class="header">
-  <h1>🎯 Step1ne 開發名單 — 人才包（按產業/職能/技術棧分類）</h1>
-  <p>1174 位有現職人選 ｜ 用來開發企業客戶 ｜ 🟢 未聯繫 = 新人選 🔴 已聯繫 = 可推薦</p>
+  <h1>🎯 Step1ne 開發名單 — 人才包
+    <span class="legend"><span class="lg-new">🟢 未聯繫</span><span class="lg-old">🔴 已聯繫</span></span>
+  </h1>
+  <p>1,174 位有現職人選 ｜ 按產業 / 職能 / 技術棧分類 ｜ 用來開發企業客戶</p>
 </div>
 <div class="container">
 
@@ -70,7 +116,9 @@ a{color:#0f4c75;text-decoration:none} a:hover{text-decoration:underline}
 <div class="f-row"><span class="f-label">🏭 產業</span><button class="f-btn" onclick="tf(this,'ind')" data-v="軟體/網路/SaaS">軟體/網路/SaaS (235)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="外商/跨國">外商/跨國 (81)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="遊戲/娛樂">遊戲/娛樂 (74)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="半導體/IC">半導體/IC (57)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="日商/日本">日商/日本 (54)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="建築/營造">建築/營造 (47)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="顧問/管理">顧問/管理 (43)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="硬體/電子/IoT">硬體/電子/IoT (38)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="金融/FinTech">金融/FinTech (33)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="電商/零售">電商/零售 (24)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="製造/傳產">製造/傳產 (14)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="醫療/生技">醫療/生技 (14)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="電信/通訊">電信/通訊 (10)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="能源/永續">能源/永續 (7)</button><button class="f-btn" onclick="tf(this,'ind')" data-v="飯店/餐飲/旅遊">飯店/餐飲/旅遊 (6)</button></div>
 <div class="f-row"><span class="f-label">⚙️ 技術</span><button class="f-btn" onclick="tf(this,'tech')" data-v="Java">Java (151)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Python">Python (141)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Docker/K8s">Docker/K8s (126)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Database">Database (122)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="DevOps/CI-CD">DevOps/CI-CD (115)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="AWS">AWS (99)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="JavaScript/TypeScript">JavaScript/TypeScript (96)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="AI/ML">AI/ML (85)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Data/BigData">Data/BigData (67)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="C/C++">C/C++ (65)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Go">Go (56)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="C#/.NET">C#/.NET (47)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="GCP">GCP (42)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="PHP">PHP (32)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="React">React (31)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Azure">Azure (27)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Vue">Vue (24)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Kotlin/Android">Kotlin/Android (20)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Swift/iOS">Swift/iOS (17)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Ruby">Ruby (12)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Rust">Rust (10)</button><button class="f-btn" onclick="tf(this,'tech')" data-v="Angular">Angular (5)</button></div>
 </div>
-<button class="export-btn" onclick="exportCSV()">📋 匯出目前篩選結果為 CSV</button>
+<div class="export-bar">
+<button class="export-btn" onclick="exportCSV()">📋 匯出篩選結果 CSV</button>
+</div>
 
 <div class="tbl-wrap"><table>
 <thead><tr>
@@ -8363,4 +8411,10 @@ function exportCSV(){
   a.click();
 }
 af();
+
+// Back to top button
+const btt=document.createElement('button');
+btt.className='back-top';btt.innerHTML='↑';btt.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
+document.body.appendChild(btt);
+window.addEventListener('scroll',()=>{btt.classList.toggle('show',window.scrollY>300)});
 </script></body></html>
