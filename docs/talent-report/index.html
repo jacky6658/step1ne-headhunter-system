@@ -175,6 +175,14 @@ a{color:#4361ee;text-decoration:none} a:hover{text-decoration:underline}
   <button onclick="filterChecked('valid')">只看有效履歷</button>
   <button onclick="filterChecked('contacted')">只看已聯繫</button>
   <button onclick="filterChecked('assigned')">只看已指派</button>
+  <select onchange="filterByConsultant(this.value)" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:.8em">
+    <option value="">👤 篩選顧問</option>
+    <option value="Jacky">Jacky</option>
+    <option value="Phoebe">Phoebe</option>
+    <option value="Jim">Jim</option>
+    <option value="admin">admin</option>
+    <option value="待指派">待指派</option>
+  </select>
   <button onclick="filterChecked('all')">顯示全部</button>
   <span style="color:#aaa">|</span>
   <button class="export" onclick="exportChecked()">📋 匯出 CSV</button>
@@ -2196,6 +2204,21 @@ function selectCountry(country) {
   document.getElementById('countryDropdown').style.display='none';
   document.getElementById('countrySearch').value='';
   quickNote('📍 人選所在國家：' + country);
+}
+
+function filterByConsultant(name) {
+  const rows = document.querySelectorAll('#tb tr');
+  let n=0, i=0;
+  rows.forEach(r => {
+    if (!name) { r.style.display=''; n++; i++; r.cells[3].textContent=i; return; }
+    const sel = r.querySelector('.consult-sel');
+    const val = sel ? sel.value : '';
+    const match = (name === '待指派') ? (!val || val === '') : (val === name);
+    r.style.display = match ? '' : 'none';
+    if (match) { n++; i++; r.cells[3].textContent=i; }
+  });
+  document.getElementById('rc').textContent = n;
+  document.getElementById('fi').textContent = name ? '顧問: ' + name : '未套用篩選';
 }
 
 function deleteNote(idx) {
