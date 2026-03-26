@@ -8,6 +8,7 @@ import ProfileSettingsModal from './components/ProfileSettingsModal';
 import NotificationBell from './components/NotificationBell';
 import LoginPage from './pages/LoginPage';
 import { ToastContainer } from './components/Toast';
+import ErrorBoundary from './components/ErrorBoundary';
 import { Menu, X as XIcon } from 'lucide-react';
 import { API_BASE_URL } from './constants';
 
@@ -203,6 +204,7 @@ const App: React.FC = () => {
   };
 
   return (
+    <ErrorBoundary>
     <div className="flex h-screen bg-slate-50 overflow-hidden">
       <Sidebar
         activeTab={activeTab}
@@ -311,6 +313,7 @@ const App: React.FC = () => {
       {/* 全域 Toast 通知 */}
       <ToastContainer />
     </div>
+    </ErrorBoundary>
   );
 };
 

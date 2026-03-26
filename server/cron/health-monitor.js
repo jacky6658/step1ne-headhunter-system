@@ -7,10 +7,11 @@ const https = require('https');
 const { execSync } = require('child_process');
 
 // ── Config ──
-const TG_TOKEN = '8375770979:AAFuC3emSd05sjRxSyxpP6kTmd7LyKpA2cg';
-const TG_CHAT = '-1003231629634';
-const TG_TOPIC = 1360;
-const API_KEY = 'PotfZ42-qPyY4uqSwqstpxllQB1alxVfjJsm3Mgp3HQ';
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const TG_TOKEN = process.env.TG_BOT_TOKEN || '8375770979:AAFuC3emSd05sjRxSyxpP6kTmd7LyKpA2cg';
+const TG_CHAT = process.env.TG_CHAT_ID || '-1003231629634';
+const TG_TOPIC = parseInt(process.env.TG_TOPIC_ID) || 1360;
+const API_KEY = process.env.API_SECRET_KEY || '';
 
 // 自動修復閾值
 const DB_CONN_DANGER = 15;
@@ -205,8 +206,28 @@ async function main() {
   }
   okItems.push(`Tunnel: ${extOk >= 2 ? '✅' : '⚠️'} ${extOk}/3`);
 
-  // ── 5. 磁碟 & 記憶體 ──
+  // ── 5. CPU / RAM / 磁碟 ──
   try {
+    // CPU load
+    const loadAvg = run("sysctl -n vm.loadavg").match(/[\d.]+/g);
+    const cpuCores = parseInt(run("sysctl -n hw.ncpu")) || 4;
+    const load1m = parseFloat(loadAvg?.[0]) || 0;
+    const cpuPct = Math.round((load1m / cpuCores) * 100);
+    if (cpuPct > 90) issues.push(`CPU: 🔴 ${cpuPct}% (load ${load1m})`);
+    else if (cpuPct > 70) warnings.push(`CPU: ⚠️ ${cpuPct}% (load ${load1m})`);
+    else okItems.push(`CPU: ✅ ${cpuPct}%`);
+
+    // RAM
+    const totalMem = parseInt(run("sysctl -n hw.memsize")) || 0;
+    const pageSize = parseInt(run("sysctl -n hw.pagesize")) || 4096;
+    const freePages = parseInt(run("vm_stat | head -2 | tail -1").match(/\d+/)?.[0]) || 0;
+    const freeMem = freePages * pageSize;
+    const memPct = totalMem > 0 ? Math.round(((totalMem - freeMem) / totalMem) * 100) : 0;
+    if (memPct > 90) issues.push(`RAM: 🔴 ${memPct}%`);
+    else if (memPct > 80) warnings.push(`RAM: ⚠️ ${memPct}%`);
+    else okItems.push(`RAM: ✅ ${memPct}%`);
+
+    // Disk
     const diskPct = parseInt(run("df -h / | tail -1 | awk '{print $5}'").replace('%', '')) || 0;
     if (diskPct > 90) issues.push(`磁碟: 🔴 ${diskPct}%`);
     else if (diskPct > 80) warnings.push(`磁碟: ⚠️ ${diskPct}%`);

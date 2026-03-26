@@ -21,6 +21,7 @@
  */
 
 const { Pool } = require('pg');
+const CircuitBreaker = require('./utils/circuitBreaker');
 
 const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URI;
 if (!DATABASE_URL) {
@@ -74,4 +75,7 @@ async function withClient(fn) {
   }
 }
 
-module.exports = { pool, withClient };
+// 斷路器 — 保護外部服務呼叫（可在其他模組中使用）
+const dbBreaker = new CircuitBreaker('PostgreSQL', { failureThreshold: 5, resetTimeout: 30000 });
+
+module.exports = { pool, withClient, CircuitBreaker, dbBreaker };
