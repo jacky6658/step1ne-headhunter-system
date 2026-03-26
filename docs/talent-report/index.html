@@ -2268,6 +2268,21 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeNote();
 });
 
+// Auto-fix: 把舊備註的「為聯繫」轉成「未回覆」
+(function(){
+  const allNotes = JSON.parse(localStorage.getItem('step1ne_notes') || '{}');
+  let changed = false;
+  for (const cid in allNotes) {
+    allNotes[cid].forEach(n => {
+      if (n.text && n.text.includes('為聯繫')) {
+        n.text = n.text.replace(/為聯繫/g, '未回覆');
+        changed = true;
+      }
+    });
+  }
+  if (changed) localStorage.setItem('step1ne_notes', JSON.stringify(allNotes));
+})();
+
 updateNoteBadges();
 
 
@@ -2286,7 +2301,7 @@ updateNoteBadges();
       </div>
       <h4 style="font-size:.85em;color:#555;margin-bottom:6px">⚡ 快速備註（點擊直接儲存）</h4>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-        <button class="qnote-btn" onclick="quickNote('3天前已加 LinkedIn 為聯繫')">🔗 3天前已加LinkedIn</button>
+        <button class="qnote-btn" onclick="quickNote('3天前已加 LinkedIn 未回覆')">🔗 3天前已加LinkedIn</button>
         <button class="qnote-btn" onclick="quickNote('今日已加 LinkedIn')">📩 今日已加LinkedIn</button>
         <button class="qnote-btn" onclick="quickNote('暫時無符合職缺')">⚪ 暫時無符合職缺</button>
         <button class="qnote-btn" onclick="quickNote('已電話聯繫，待回覆')">📞 已電話聯繫</button>
