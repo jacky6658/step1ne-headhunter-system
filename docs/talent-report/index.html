@@ -173,6 +173,7 @@ a{color:#4361ee;text-decoration:none} a:hover{text-decoration:underline}
   <span>👤 已指派: <span class="tb-count" id="cntAssigned">0</span></span>
   <span style="color:#aaa">|</span>
   <button class="fb" onclick="tf(this,'v','valid')">只看有效履歷</button>
+  <button class="fb" onclick="tf(this,'v','hide_valid')" style="border-color:#e74c3c;color:#e74c3c">隱藏已勾選</button>
   <button class="fb" onclick="tf(this,'c','contacted')">只看已聯繫</button>
   <button class="fb" onclick="tf(this,'a','assigned')">只看已指派</button>
   <select id="consultantFilter" onchange="af()" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:.8em">
@@ -1944,6 +1945,7 @@ function af(){
     if(F.l!=='all'&&r.getAttribute('data-li')!==F.l)s=false;
     // Valid checkbox
     if(F.v==='valid'){const cb=r.querySelector('.ck[data-type="valid"]');if(!cb||!cb.checked)s=false}
+    if(F.v==='hide_valid'){const cb=r.querySelector('.ck[data-type="valid"]');if(cb&&cb.checked)s=false}
     // Contacted checkbox
     if(F.c==='contacted'){const cb=r.querySelector('.ck[data-type="contacted"]');if(!cb||!cb.checked)s=false}
     // Assigned
@@ -1962,6 +1964,7 @@ function af(){
   if(cv!=='all')info.push('職能:'+cv);
   if(F.l!=='all')info.push(F.l==='1'?'有LinkedIn':'無LinkedIn');
   if(F.v==='valid')info.push('有效履歷');
+  if(F.v==='hide_valid')info.push('隱藏已勾選');
   if(F.c==='contacted')info.push('已聯繫');
   if(F.a==='assigned')info.push('已指派');
   if(consultantVal)info.push('顧問:'+consultantVal);
