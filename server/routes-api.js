@@ -73,11 +73,10 @@ function replaceGuideBaseUrl(content, req) {
   if (host.includes('api-hr.step1ne.com')) {
     baseUrl = 'https://api-hr.step1ne.com';
   } else {
-    // localhost 或其他本地環境
     const port = process.env.PORT || 3003;
     baseUrl = `http://localhost:${port}`;
   }
-  return content.replace(/https:\/\/backendstep1ne\.zeabur\.app/g, baseUrl);
+  return content.replace(/https:\/\/api-hr\.step1ne\.com/g, baseUrl);
 }
 
 /**
