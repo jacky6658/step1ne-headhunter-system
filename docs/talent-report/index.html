@@ -1813,24 +1813,24 @@ Full-stack develop</td><td class="grade-">-</td><td><span class="status-badge" s
 (需 on-call)</span></td><td><a class="li-btn" href="https://www.linkedin.com/in/alex-ct-hung" target="_blank">🔗 LinkedIn</a></td></tr>
 </tbody></table></div>
 <script>
-let F={{s:'all',g:'all'}};
-function tf(b,t,v){{b.parentElement.querySelectorAll('.fb').forEach(x=>x.classList.remove('on'));b.classList.add('on');F[t]=v;af()}}
-function ca(){{document.getElementById('si').value='';document.getElementById('jf').value='all';document.getElementById('cf').value='all';F={{s:'all',g:'all'}};document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));af()}}
-function af(){{
+let F={s:'all',g:'all'};
+function tf(b,t,v){b.parentElement.querySelectorAll('.fb').forEach(x=>x.classList.remove('on'));b.classList.add('on');F[t]=v;af()}
+function ca(){document.getElementById('si').value='';document.getElementById('jf').value='all';document.getElementById('cf').value='all';F={s:'all',g:'all'};document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));af()}
+function af(){
   const q=document.getElementById('si').value.toLowerCase(),jv=document.getElementById('jf').value,cv=document.getElementById('cf').value;
   const rows=document.querySelectorAll('#tb tr');let n=0,i=0;
-  rows.forEach(r=>{{
+  rows.forEach(r=>{
     let s=true;
-    if(q){{const d=(r.getAttribute('data-search')||'')+' '+r.textContent.toLowerCase();if(!d.includes(q))s=false}}
+    if(q){const d=(r.getAttribute('data-search')||'')+' '+r.textContent.toLowerCase();if(!d.includes(q))s=false}
     if(F.s!=='all'&&r.getAttribute('data-status')!==F.s)s=false;
-    if(F.g!=='all'){{const g=r.getAttribute('data-grade')||'';if(F.g==='A'){{if(!g.startsWith('A'))s=false}}else if(F.g==='B'){{if(!g.startsWith('B'))s=false}}else{{if(g!==F.g)s=false}}}}
-    if(jv==='has'){{if(!r.getAttribute('data-jobs'))s=false}}else if(jv==='no'){{if(r.getAttribute('data-jobs'))s=false}}else if(jv!=='all'){{if(!(r.getAttribute('data-jobs')||'').split('|').includes(jv))s=false}}
+    if(F.g!=='all'){const g=r.getAttribute('data-grade')||'';if(F.g==='A'){if(!g.startsWith('A'))s=false}else if(F.g==='B'){if(!g.startsWith('B'))s=false}else{if(g!==F.g)s=false}}
+    if(jv==='has'){if(!r.getAttribute('data-jobs'))s=false}else if(jv==='no'){if(r.getAttribute('data-jobs'))s=false}else if(jv!=='all'){if(!(r.getAttribute('data-jobs')||'').split('|').includes(jv))s=false}
     if(cv!=='all'&&!(r.getAttribute('data-cats')||'').includes(cv))s=false;
-    r.style.display=s?'':'none';if(s){{n++;i++;r.cells[0].textContent=i}}
-  }});
+    r.style.display=s?'':'none';if(s){n++;i++;r.cells[0].textContent=i}
+  });
   document.getElementById('rc').textContent=n;
   let info=[];if(q)info.push('搜尋:'+q);if(F.s!=='all')info.push('狀態:'+F.s);if(F.g!=='all')info.push('評級:'+F.g);if(jv!=='all')info.push('職缺篩選');if(cv!=='all')info.push('職能:'+cv);
   document.getElementById('fi').textContent=info.length?info.join(' | '):'未套用篩選';
-}}
+}
 af();
 </script></body></html>
