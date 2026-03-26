@@ -2150,9 +2150,14 @@ function updateCounts(){
 // filterChecked removed - merged into af()
 
 function clearChecks(){
-  if(!confirm('確定清除所有勾選？'))return;
+  var input=prompt('⚠️ 這會清除所有勾選！\n\n請輸入「確認清除」四個字才會執行：');
+  if(input!=='確認清除'){alert('已取消');return}
   document.querySelectorAll('.ck').forEach(cb=>cb.checked=false);
+  document.querySelectorAll('.consult-sel').forEach(s=>{s.value='';s.className='consult-sel'});
+  localStorage.removeItem('step1ne_checks');
+  localStorage.removeItem('step1ne_consultants');
   updateCounts();
+  alert('✅ 已清除所有勾選');
 }
 
 function exportChecked(){
