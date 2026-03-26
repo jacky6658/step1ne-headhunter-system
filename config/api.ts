@@ -60,72 +60,88 @@ export const defaultFetchConfig: RequestInit = {
   },
 };
 
-// API 呼叫輔助函數
-export async function apiGet<T>(endpoint: string): Promise<T> {
-  const response = await fetch(getApiUrl(endpoint), {
-    ...defaultFetchConfig,
-    method: 'GET',
-  });
-  
-  if (!response.ok) {
-    throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
+// Timeout 等級（配合後端 + Cloudflare Tunnel 的 timeout 鏈）
+// DB: 5-15s < 後端 HTTP: 30-120s < Cloudflare: 100s < 前端: 以下設定
+const TIMEOUT_LEVELS = {
+  fast: 15_000,      // 一般 CRUD 操作 (15 秒)
+  medium: 30_000,    // 列表查詢、搜尋 (30 秒)
+  slow: 120_000,     // AI 分析、報表產生 (2 分鐘)
+  upload: 300_000,   // 檔案上傳 (5 分鐘)
+} as const;
+
+type TimeoutLevel = keyof typeof TIMEOUT_LEVELS;
+
+// 帶 timeout 的 fetch
+async function fetchWithTimeout<T>(
+  url: string,
+  options: RequestInit & { timeoutLevel?: TimeoutLevel } = {}
+): Promise<T> {
+  const { timeoutLevel = 'fast', ...fetchOptions } = options;
+  const timeout = TIMEOUT_LEVELS[timeoutLevel];
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error(`API 請求超時 (${timeout / 1000}s): ${url}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  
-  return response.json();
 }
 
-export async function apiPost<T>(endpoint: string, data?: any): Promise<T> {
-  const response = await fetch(getApiUrl(endpoint), {
+// API 呼叫輔助函數
+export async function apiGet<T>(endpoint: string, timeoutLevel: TimeoutLevel = 'medium'): Promise<T> {
+  return fetchWithTimeout<T>(getApiUrl(endpoint), {
+    ...defaultFetchConfig,
+    method: 'GET',
+    timeoutLevel,
+  });
+}
+
+export async function apiPost<T>(endpoint: string, data?: any, timeoutLevel: TimeoutLevel = 'fast'): Promise<T> {
+  return fetchWithTimeout<T>(getApiUrl(endpoint), {
     ...defaultFetchConfig,
     method: 'POST',
     body: data ? JSON.stringify(data) : undefined,
+    timeoutLevel,
   });
-  
-  if (!response.ok) {
-    throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
-  }
-  
-  return response.json();
 }
 
-export async function apiPut<T>(endpoint: string, data?: any): Promise<T> {
-  const response = await fetch(getApiUrl(endpoint), {
+export async function apiPut<T>(endpoint: string, data?: any, timeoutLevel: TimeoutLevel = 'fast'): Promise<T> {
+  return fetchWithTimeout<T>(getApiUrl(endpoint), {
     ...defaultFetchConfig,
     method: 'PUT',
     body: data ? JSON.stringify(data) : undefined,
+    timeoutLevel,
   });
-
-  if (!response.ok) {
-    throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
-export async function apiPatch<T>(endpoint: string, data?: any): Promise<T> {
-  const response = await fetch(getApiUrl(endpoint), {
+export async function apiPatch<T>(endpoint: string, data?: any, timeoutLevel: TimeoutLevel = 'fast'): Promise<T> {
+  return fetchWithTimeout<T>(getApiUrl(endpoint), {
     ...defaultFetchConfig,
     method: 'PATCH',
     body: data ? JSON.stringify(data) : undefined,
+    timeoutLevel,
   });
-
-  if (!response.ok) {
-    throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
-export async function apiDelete<T>(endpoint: string): Promise<T> {
-  const response = await fetch(getApiUrl(endpoint), {
+export async function apiDelete<T>(endpoint: string, timeoutLevel: TimeoutLevel = 'fast'): Promise<T> {
+  return fetchWithTimeout<T>(getApiUrl(endpoint), {
     ...defaultFetchConfig,
     method: 'DELETE',
+    timeoutLevel,
   });
-
-  if (!response.ok) {
-    throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
 }
 

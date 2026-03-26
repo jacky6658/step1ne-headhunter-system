@@ -26,8 +26,11 @@ export function getSocket(): Socket {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionAttempts: Infinity,  // 無限重連
+      reconnectionAttempts: 10,           // 從 Infinity 改為 10 次
+      reconnectionDelay: 2000,            // 初始 2 秒
+      reconnectionDelayMax: 30000,        // 最大 30 秒（指數退避上限）
+      randomizationFactor: 0.3,           // 30% jitter 避免 thundering herd
+      timeout: 20000,                     // 連線 timeout 20 秒
     });
 
     socket.on('connect', () => {
@@ -42,6 +45,16 @@ export function getSocket(): Socket {
 
     socket.on('connect_error', (err) => {
       console.warn('🔌 Socket.IO 連線失敗:', err.message);
+    });
+
+    // 10 次重連都失敗後，等 60 秒再嘗試
+    socket.on('reconnect_failed', () => {
+      console.warn('🔌 Socket.IO 重連失敗（已嘗試 10 次），60 秒後重試');
+      setTimeout(() => {
+        if (socket && socket.disconnected) {
+          socket.connect();
+        }
+      }, 60_000);
     });
 
     // 監聽頁面可見性變化（閒置回來自動重載）

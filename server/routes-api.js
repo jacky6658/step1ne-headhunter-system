@@ -3649,23 +3649,47 @@ router.get('/system-logs', async (req, res) => {
 
 /**
  * GET /api/health
- * 健康檢查
+ * 健康檢查 — 預設檢查 DB，加 ?db=false 才跳過
  */
 router.get('/health', async (req, res) => {
-  // 快速回應，不查 DB（避免 pool 滿時 health check 也卡住）
-  // 加 ?db=true 才做 DB 檢查
-  if (req.query.db === 'true') {
-    let dbStatus = 'connected';
+  const health = {
+    success: true,
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: Math.round(process.uptime()),
+    memory: {
+      rss: Math.round(process.memoryUsage().rss / 1e6) + 'MB',
+      heapUsed: Math.round(process.memoryUsage().heapUsed / 1e6) + 'MB',
+    },
+    pool: {
+      total: pool.totalCount,
+      idle: pool.idleCount,
+      waiting: pool.waitingCount,
+    },
+    database: 'unknown',
+  };
+
+  // 預設檢查 DB，加 ?db=false 才跳過
+  if (req.query.db !== 'false') {
     try {
+      const start = Date.now();
       const client = await Promise.race([
         pool.connect(),
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
       ]);
       try { await client.query('SELECT 1'); } finally { client.release(); }
-    } catch { dbStatus = 'unavailable'; }
-    return res.json({ success: true, status: 'ok', database: dbStatus, timestamp: new Date().toISOString() });
+      health.database = 'connected';
+      health.dbLatency = (Date.now() - start) + 'ms';
+    } catch (err) {
+      health.database = 'unavailable';
+      health.dbError = err.message;
+      health.status = 'degraded';
+      health.success = false;
+    }
   }
-  res.json({ success: true, status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
+
+  const statusCode = health.status === 'ok' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // ==================== 顧問聯絡資訊 API ====================

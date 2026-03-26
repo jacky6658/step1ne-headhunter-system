@@ -30,23 +30,21 @@ if (!DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  max: 30,                        // 單一 Pool 最大連線數（從 20 提升，應對 TG Bot 併發）
+  max: 15,                        // 本機 PG 夠用，避免佔過多連線（兩套系統共用 max_connections=100）
   min: 2,                         // 最小閒置連線
-  idleTimeoutMillis: 30000,       // 閒置 30 秒後釋放
-  connectionTimeoutMillis: 10000, // 等超過 10 秒就報錯（5s 太激進，PG 重啟後 warm-up 需要時間）
+  idleTimeoutMillis: 10000,       // 閒置 10 秒後釋放（本機連線成本低，無需長時間保持）
+  connectionTimeoutMillis: 5000,  // 等超過 5 秒就報錯（本機連線應該很快）
   allowExitOnIdle: true,
-  statement_timeout: 15000,       // 單一 query 最多跑 15 秒（從 30s 縮短，避免慢查詢卡住 pool）
+  statement_timeout: 15000,       // 單一 query 最多跑 15 秒
   query_timeout: 15000,           // pg driver 層面的 query timeout
   application_name: 'hr-backend', // 方便 pg_stat_activity 追蹤來源
 });
 
-// 連線事件日誌
-pool.on('connect', () => {
-  // 僅首次啟動時印出，避免高頻 log
-});
-
+// 背景錯誤處理 — PG 重啟後 pool 中的舊連線會收到錯誤，
+// 這裡捕捉後 pool 會自動建立新連線，不需要手動處理
 pool.on('error', (err) => {
   console.error('❌ PostgreSQL Pool 背景錯誤:', err.message);
+  // pool 會自動丟棄壞連線並在下次 query 時建立新連線
 });
 
 // 啟動時印一次

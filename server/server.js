@@ -18,6 +18,7 @@ const http = require('http');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { Server: SocketIOServer } = require('socket.io');
 
@@ -34,11 +35,37 @@ const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 const isProduction = process.env.NODE_ENV === 'production';
 
+// ==================== HTTP Keep-Alive（配合 Cloudflare Tunnel）====================
+httpServer.keepAliveTimeout = 65000;  // 比 Cloudflare 的 60s idle timeout 多 5 秒
+httpServer.headersTimeout = 66000;    // 比 keepAliveTimeout 多 1 秒
+httpServer.timeout = 120000;          // 全域 2 分鐘 timeout
+
+// ==================== Response 壓縮 ====================
+app.use(compression({
+  level: 6,                  // 壓縮等級 (1-9, 6 為平衡點)
+  threshold: 1024,           // >1KB 才壓縮
+  filter: (req, res) => {
+    if (req.headers['upgrade'] === 'websocket') return false;
+    return compression.filter(req, res);
+  },
+}));
+
 // ==================== Socket.IO 即時推播 ====================
 const io = new SocketIOServer(httpServer, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: {
+    origin: [
+      'https://hrsystem.step1ne.com',
+      'https://step1ne.com',
+      /^http:\/\/localhost:\d+$/,
+    ],
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
   path: '/socket.io',
   transports: ['websocket', 'polling'],
+  pingInterval: 25000,       // 心跳間隔 25 秒
+  pingTimeout: 60000,        // 心跳 timeout 60 秒（配合 Cloudflare）
+  maxHttpBufferSize: 1e6,    // 1MB 最大封包
 });
 
 io.on('connection', (socket) => {
