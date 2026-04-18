@@ -146,16 +146,17 @@ function extractCandidateCode(markdown) {
 }
 
 /**
- * 生成匿名履歷 PDF（使用 jsPDF）
- * 注意：這個函數應該在前端呼叫，後端只負責生成 Markdown
+ * 生成匿名履歷 PDF 所需的資料
+ * 後端只負責產出 Markdown，PDF 由前端 utils/pdfGenerator.ts 的
+ * generateAnonymousResumePDF(markdown, candidateCode) 完成輸出。
  */
 export async function generateAnonymousResumePDF(candidate, job = null, consultant = 'Jacky') {
-  // 先生成 Markdown
   const result = await generateAnonymousResume(candidate, job, consultant);
-  
-  // TODO: 呼叫前端的 PDF 生成器（透過 WebSocket 或返回 Markdown 讓前端處理）
+
   return {
     ...result,
-    pdfNote: '請使用前端 pdfGenerator.ts 生成 PDF'
+    renderTarget: 'client',
+    clientRenderer: 'utils/pdfGenerator.ts#generateAnonymousResumePDF',
+    suggestedFileName: `Step1ne_匿名履歷_${result.candidateCode}_${new Date().toISOString().split('T')[0]}.pdf`
   };
 }

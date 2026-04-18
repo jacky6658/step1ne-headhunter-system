@@ -345,3 +345,91 @@ export function generateMatchingReportPDF(data: PDFData) {
   const fileName = `Step1ne_配對報告_${data.jobTitle}_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(fileName);
 }
+
+/**
+ * 將匿名履歷 Markdown 轉成 PDF
+ * 後端 anonymousResumeService.generateAnonymousResumePDF 會回傳 markdown + candidateCode，
+ * 前端呼叫此函式即可完成 PDF 輸出。
+ */
+export function generateAnonymousResumePDF(markdown: string, candidateCode: string = 'Candidate') {
+  const doc = new jsPDF();
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 20;
+  const maxWidth = pageWidth - marginX * 2;
+  const bottomMargin = 20;
+
+  let yPos = 20;
+
+  const ensureSpace = (needed: number) => {
+    if (yPos + needed > pageHeight - bottomMargin) {
+      doc.addPage();
+      yPos = 20;
+    }
+  };
+
+  const writeBlock = (text: string, fontSize: number, color: [number, number, number], lineHeight: number) => {
+    doc.setFontSize(fontSize);
+    doc.setTextColor(color[0], color[1], color[2]);
+    const lines = doc.splitTextToSize(text, maxWidth);
+    lines.forEach((line: string) => {
+      ensureSpace(lineHeight);
+      doc.text(line, marginX, yPos);
+      yPos += lineHeight;
+    });
+  };
+
+  const rawLines = markdown.replace(/\r\n/g, '\n').split('\n');
+
+  rawLines.forEach((rawLine) => {
+    const line = rawLine.trimEnd();
+
+    if (!line.trim()) {
+      yPos += 4;
+      return;
+    }
+
+    if (/^---+$/.test(line.trim())) {
+      ensureSpace(8);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(marginX, yPos, pageWidth - marginX, yPos);
+      yPos += 6;
+      return;
+    }
+
+    const h1 = line.match(/^#\s+(.*)$/);
+    if (h1) {
+      yPos += 2;
+      writeBlock(h1[1], 18, [79, 70, 229], 9);
+      yPos += 2;
+      return;
+    }
+
+    const h2 = line.match(/^##\s+(.*)$/);
+    if (h2) {
+      yPos += 2;
+      writeBlock(h2[1], 14, [0, 0, 0], 8);
+      return;
+    }
+
+    const h3 = line.match(/^###\s+(.*)$/);
+    if (h3) {
+      writeBlock(h3[1], 12, [60, 60, 60], 7);
+      return;
+    }
+
+    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bullet) {
+      writeBlock(`• ${bullet[1]}`, 10, [40, 40, 40], 6);
+      return;
+    }
+
+    const clean = line.replace(/\*\*(.+?)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1');
+    writeBlock(clean, 10, [40, 40, 40], 6);
+  });
+
+  const fileName = `Step1ne_匿名履歷_${candidateCode}_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
+  return fileName;
+}
